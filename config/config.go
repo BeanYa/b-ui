@@ -2,7 +2,9 @@ package config
 
 import (
 	_ "embed"
+	"errors"
 	"fmt"
+	"io"
 	"os"
 	"path/filepath"
 	"runtime"
@@ -24,6 +26,11 @@ const (
 	Info  LogLevel = "info"
 	Warn  LogLevel = "warn"
 	Error LogLevel = "error"
+)
+
+const (
+	defaultDBFileName = "b-ui"
+	legacyDBFileName  = "s-ui"
 )
 
 func GetVersion() string {
@@ -68,6 +75,179 @@ func GetDBFolderPath() string {
 	return dbFolderPath
 }
 
+func GetDBFileName() string {
+	dbFileName := normalizeDBFileName(os.Getenv("SUI_DB_NAME"))
+	if dbFileName != "" {
+		return dbFileName
+	}
+	return defaultDBFileName
+}
+
 func GetDBPath() string {
-	return fmt.Sprintf("%s/%s.db", GetDBFolderPath(), GetName())
+	return filepath.Join(GetDBFolderPath(), fmt.Sprintf("%s.db", GetDBFileName()))
+}
+
+func GetLegacyDBPath() string {
+	return filepath.Join(GetDBFolderPath(), fmt.Sprintf("%s.db", legacyDBFileName))
+}
+
+func PrepareDBPath() (string, error) {
+	targetPath := GetDBPath()
+	legacyPath := GetLegacyDBPath()
+	if filepath.Clean(targetPath) == filepath.Clean(legacyPath) {
+		return targetPath, nil
+	}
+
+	targetExists, err := pathExists(targetPath)
+	if err != nil {
+		return "", err
+	}
+	if targetExists {
+		return targetPath, nil
+	}
+
+	for _, conflictPath := range []string{targetPath + "-wal", targetPath + "-shm"} {
+		conflictExists, err := pathExists(conflictPath)
+		if err != nil {
+			return "", err
+		}
+		if conflictExists {
+			return "", fmt.Errorf("target database sidecar already exists: %s", conflictPath)
+		}
+	}
+
+	legacyExists, err := pathExists(legacyPath)
+	if err != nil {
+		return "", err
+	}
+	if !legacyExists {
+		return targetPath, nil
+	}
+
+	err = migrateLegacyDBFiles(legacyPath, targetPath)
+	if err != nil {
+		return "", err
+	}
+
+	return targetPath, nil
+}
+
+func normalizeDBFileName(dbFileName string) string {
+	dbFileName = strings.TrimSpace(dbFileName)
+	dbFileName = strings.TrimSuffix(dbFileName, ".db")
+	return dbFileName
+}
+
+func pathExists(path string) (bool, error) {
+	_, err := os.Stat(path)
+	if err == nil {
+		return true, nil
+	}
+	if errors.Is(err, os.ErrNotExist) {
+		return false, nil
+	}
+	return false, err
+}
+
+func migrateLegacyDBFiles(legacyPath string, targetPath string) error {
+	type fileMove struct {
+		sourcePath string
+		targetPath string
+		tempPath   string
+	}
+
+	var files []fileMove
+	for _, suffix := range []string{"", "-wal", "-shm"} {
+		sourcePath := legacyPath + suffix
+		exists, err := pathExists(sourcePath)
+		if err != nil {
+			return err
+		}
+		if !exists {
+			continue
+		}
+
+		targetPathWithSuffix := targetPath + suffix
+		targetExists, err := pathExists(targetPathWithSuffix)
+		if err != nil {
+			return err
+		}
+		if targetExists {
+			return fmt.Errorf("target database file already exists: %s", targetPathWithSuffix)
+		}
+
+		files = append(files, fileMove{
+			sourcePath: sourcePath,
+			targetPath: targetPathWithSuffix,
+			tempPath:   targetPathWithSuffix + ".migrating",
+		})
+	}
+
+	if len(files) == 0 {
+		return nil
+	}
+
+	if err := os.MkdirAll(filepath.Dir(targetPath), 01740); err != nil {
+		return err
+	}
+
+	var copiedFiles []string
+	for _, file := range files {
+		if err := copyFile(file.sourcePath, file.tempPath); err != nil {
+			cleanupCopiedFiles(copiedFiles)
+			return fmt.Errorf("copy legacy database file %s: %w", file.sourcePath, err)
+		}
+		copiedFiles = append(copiedFiles, file.tempPath)
+	}
+
+	var finalizedFiles []string
+	for _, file := range files {
+		if err := os.Rename(file.tempPath, file.targetPath); err != nil {
+			cleanupCopiedFiles(copiedFiles)
+			cleanupCopiedFiles(finalizedFiles)
+			return fmt.Errorf("finalize migrated database file %s: %w", file.targetPath, err)
+		}
+		finalizedFiles = append(finalizedFiles, file.targetPath)
+	}
+
+	return nil
+}
+
+func copyFile(sourcePath string, targetPath string) error {
+	sourceFile, err := os.Open(sourcePath)
+	if err != nil {
+		return err
+	}
+	defer sourceFile.Close()
+
+	if err := os.Remove(targetPath); err != nil && !errors.Is(err, os.ErrNotExist) {
+		return err
+	}
+
+	targetFile, err := os.OpenFile(targetPath, os.O_CREATE|os.O_WRONLY|os.O_TRUNC, 0600)
+	if err != nil {
+		return err
+	}
+
+	_, err = io.Copy(targetFile, sourceFile)
+	closeErr := targetFile.Close()
+	if err != nil {
+		return err
+	}
+	if closeErr != nil {
+		return closeErr
+	}
+
+	info, err := os.Stat(sourcePath)
+	if err != nil {
+		return err
+	}
+
+	return os.Chmod(targetPath, info.Mode())
+}
+
+func cleanupCopiedFiles(paths []string) {
+	for _, path := range paths {
+		_ = os.Remove(path)
+	}
 }

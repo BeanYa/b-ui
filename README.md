@@ -39,8 +39,10 @@ git submodule update --init --remote --recursive
 迁移时会继续复用原有：
 
 - `/usr/local/s-ui` 安装目录
-- `/usr/local/s-ui/db/s-ui.db` 数据库
+- 原有 `s-ui.db` 数据内容
 - 现有配置与数据
+
+迁移后的目标数据库路径为 `/usr/local/s-ui/db/b-ui.db`。如果检测到旧的 `/usr/local/s-ui/db/s-ui.db` 且新库不存在，程序会在首次迁移/启动时自动把旧库内容迁移到 `b-ui.db`，避免端口、入站、出站和面板配置被初始化成空数据。
 
 推荐直接执行：
 
@@ -67,6 +69,7 @@ bash <(curl -Ls https://raw.githubusercontent.com/BeanYa/b-ui/main/install.sh) -
 3. 在 `/var/backups/s-ui/<timestamp>/` 创建回滚备份
 4. 下载本仓库 release 并原地覆盖安装
 5. 执行 `sui migrate`
+   如果只有旧的 `s-ui.db`，会先自动迁移为 `b-ui.db`
 6. 把 systemd 服务名从 `s-ui` 切换为 `b-ui`
 7. 把管理命令切换为 `b-ui`
 8. 未指定版本时，再执行一次最新 `b-ui` release 的更新检查
@@ -113,6 +116,15 @@ git push origin v0.0.2
 - 构建流程会把 Git tag 注入二进制版本号，因此 `sui -v` 会显示对应 release tag
 
 目前安装脚本默认下载上述 `b-ui-*` release 资产；Linux 迁移后服务名与管理命令都会统一为 `b-ui`，安装目录仍保持 `/usr/local/s-ui` 兼容。
+
+## 安装后的默认名称
+
+无论是全新安装还是迁移安装，Linux 安装完成后默认都是：
+
+- 管理命令：`b-ui`
+- systemd 服务名：`b-ui`
+
+兼容性保留在安装目录上；数据库最终使用 `b-ui.db`，不再保留 `s-ui` 作为安装后的默认命令、服务名或目标数据库文件名。
 
 ## 前端开发
 

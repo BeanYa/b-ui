@@ -1,7 +1,9 @@
 #!/bin/sh
 
-DB_PATH="${SUI_DB_FOLDER:-/app/db}/s-ui.db"
-if [ -f "$DB_PATH" ]; then
+DB_FOLDER="${SUI_DB_FOLDER:-/app/db}"
+DB_PATH="${DB_FOLDER}/b-ui.db"
+LEGACY_DB_PATH="${DB_FOLDER}/s-ui.db"
+if [ -f "$DB_PATH" ] || [ -f "$LEGACY_DB_PATH" ]; then
 	./sui migrate
 fi
 

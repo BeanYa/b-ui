@@ -17,7 +17,8 @@ CLI_PATH="${CLI_PATH:-/usr/bin/${CLI_NAME}}"
 LEGACY_CLI_PATH="${LEGACY_CLI_PATH:-/usr/bin/s-ui}"
 SERVICE_NAME="${SERVICE_NAME:-b-ui}"
 LEGACY_SERVICE_NAME="${LEGACY_SERVICE_NAME:-s-ui}"
-DB_FILE="${INSTALL_ROOT}/db/s-ui.db"
+DB_FILE="${INSTALL_ROOT}/db/b-ui.db"
+LEGACY_DB_FILE="${INSTALL_ROOT}/db/s-ui.db"
 BACKUP_ROOT="${BACKUP_ROOT:-/var/backups/s-ui}"
 MODE="install"
 TARGET_VERSION=""
@@ -37,7 +38,7 @@ Usage:
   bash install.sh --force-update [version]
 
 Modes:
-  default         Fresh install or manual reinstall. Existing installs keep data but still show setup prompts.
+  default         Fresh install or manual reinstall. Fresh installs use the b-ui command and b-ui service by default.
   --migrate       Migrate an existing upstream install in place, keep current settings, and switch both the service and command to b-ui.
                   When used through migrate-to-b-ui.sh without a version, migration is followed by an explicit update check to the latest b-ui release.
   --update        Update an existing b-ui install only when the target version is newer/different.
@@ -154,9 +155,11 @@ backup_existing_db() {
 
     prepare_backup_dir
     shopt -s nullglob
-    for file in "${INSTALL_ROOT}"/db/s-ui.db*; do
-        cp -f "${file}" "${CURRENT_BACKUP_DIR}/"
-        copied=1
+    for pattern in "${DB_FILE}"* "${LEGACY_DB_FILE}"*; do
+        for file in ${pattern}; do
+            cp -f "${file}" "${CURRENT_BACKUP_DIR}/"
+            copied=1
+        done
     done
     shopt -u nullglob
 
@@ -450,7 +453,7 @@ config_after_install() {
     fi
 
     if [[ "${MODE}" != "install" && ${EXISTING_INSTALL} -eq 1 ]]; then
-        echo -e "${green}Detected an existing compatible installation. Current settings and credentials have been kept.${plain}"
+        echo -e "${green}Detected an existing compatible installation. Current settings, credentials, and migrated database contents have been kept.${plain}"
         return 0
     fi
     
@@ -531,7 +534,7 @@ install_app() {
     download_release_asset
 
     if [[ ${EXISTING_INSTALL} -eq 1 ]]; then
-        echo -e "${yellow}Compatible legacy installation detected. ${PROJECT_NAME} will replace the binaries in place, keep the existing data directory, and switch the service and command to b-ui.${plain}"
+        echo -e "${yellow}Compatible legacy installation detected. ${PROJECT_NAME} will replace the binaries in place, migrate the legacy database to b-ui.db on first start, keep the existing data directory, and switch the service and command to b-ui.${plain}"
     fi
 
     if [[ ${EXISTING_INSTALL} -eq 1 ]]; then
@@ -580,6 +583,8 @@ install_app() {
     if [[ -n "${CURRENT_BACKUP_DIR}" ]]; then
         echo -e "${yellow}Rollback backup: ${CURRENT_BACKUP_DIR}${plain}"
     fi
+    echo -e "${yellow}Service name:${plain} ${SERVICE_NAME}"
+    echo -e "${yellow}Management command:${plain} ${CLI_NAME}"
     echo -e "You may access the Panel with following URL(s):${green}"
     "${INSTALL_ROOT}/sui" uri
     echo -e "${plain}"

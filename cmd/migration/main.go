@@ -13,8 +13,12 @@ import (
 
 func MigrateDb() {
 	// void running on first install
-	path := config.GetDBPath()
-	_, err := os.Stat(path)
+	path, err := config.PrepareDBPath()
+	if err != nil {
+		log.Fatal(err)
+		return
+	}
+	_, err = os.Stat(path)
 	if err != nil {
 		println("Database not found")
 		return

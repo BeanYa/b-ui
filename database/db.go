@@ -76,6 +76,14 @@ func OpenDB(dbPath string) error {
 }
 
 func InitDB(dbPath string) error {
+	if dbPath == config.GetDBPath() {
+		resolvedDBPath, err := config.PrepareDBPath()
+		if err != nil {
+			return err
+		}
+		dbPath = resolvedDBPath
+	}
+
 	err := OpenDB(dbPath)
 	if err != nil {
 		return err

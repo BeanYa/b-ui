@@ -4,12 +4,14 @@ This fork keeps the current Linux install layout compatible with the upstream re
 
 - service name after migration: `b-ui`
 - install directory: `/usr/local/s-ui`
-- database path: `/usr/local/s-ui/db/s-ui.db`
+- database path after migration: `/usr/local/s-ui/db/b-ui.db`
 - management command after migration: `b-ui`
 
-That means migration does not require exporting and re-importing data. The
-recommended path is an in-place replacement of the installed files followed by
-an explicit update check to the latest published `b-ui` release.
+When an existing upstream database is present at `/usr/local/s-ui/db/s-ui.db`
+and `b-ui.db` does not exist yet, the application migrates the legacy database
+content into `b-ui.db` automatically before continuing. The recommended path is
+an in-place replacement of the installed files followed by an explicit update
+check to the latest published `b-ui` release.
 
 ## One-line migration
 
@@ -38,6 +40,7 @@ bash <(curl -Ls https://raw.githubusercontent.com/BeanYa/b-ui/main/install.sh) -
    The current Linux asset name is `b-ui-linux-<arch>.tar.gz`.
 5. Replaces the installed binaries and shell script in place.
 6. Runs `sui migrate`.
+   If only the legacy `s-ui.db` exists, it is migrated to `b-ui.db` first.
 7. Switches the systemd service name from `s-ui` to `b-ui`.
 8. Switches the management command from `s-ui` to `b-ui`.
 9. When no version is specified, performs an explicit update check against the latest published `b-ui` release.
@@ -47,6 +50,9 @@ bash <(curl -Ls https://raw.githubusercontent.com/BeanYa/b-ui/main/install.sh) -
 
 - Existing panel settings and admin credentials are preserved during
   `--migrate`.
+- Existing inbounds, outbounds, ports, and other persisted panel data are
+  carried forward into `b-ui.db` automatically when the legacy database is the
+  only database present.
 - If the new build fails to start, the installer restores the previous
   installation from the rollback backup automatically.
 - Without an explicit version argument, migration targets the latest published
