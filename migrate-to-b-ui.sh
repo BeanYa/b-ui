@@ -14,6 +14,7 @@ show_usage() {
 Usage:
   bash migrate-to-b-ui.sh
   bash migrate-to-b-ui.sh <version>
+  bash migrate-to-b-ui.sh --help
 
 This script migrates an existing s-ui installation to the BeanYa/b-ui fork
 in place while keeping the current service name, install path, and database.
@@ -37,7 +38,7 @@ for arg in "$@"; do
     esac
 done
 
-args=(--auto-migrate)
+args=(--migrate)
 if [[ -n "${TARGET_VERSION}" ]]; then
     args+=("${TARGET_VERSION}")
 fi

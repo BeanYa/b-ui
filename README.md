@@ -52,6 +52,12 @@ bash <(curl -Ls https://raw.githubusercontent.com/BeanYa/b-ui/main/migrate-to-b-
 bash <(curl -Ls https://raw.githubusercontent.com/BeanYa/b-ui/main/migrate-to-b-ui.sh) v0.0.1
 ```
 
+如果你想直接调用安装脚本，也可以显式使用迁移模式：
+
+```sh
+bash <(curl -Ls https://raw.githubusercontent.com/BeanYa/b-ui/main/install.sh) --migrate
+```
+
 迁移脚本会自动完成以下操作：
 
 1. 检测现有 `s-ui` 安装
@@ -64,6 +70,26 @@ bash <(curl -Ls https://raw.githubusercontent.com/BeanYa/b-ui/main/migrate-to-b-
 如果新版本启动失败，安装脚本会自动回滚到迁移前的版本。
 
 更多说明见 [MIGRATION.md](./MIGRATION.md)。
+
+## 更新与强制更新
+
+安装后的管理命令仍然是 `s-ui`，更新区分为两种：
+
+```sh
+s-ui update
+s-ui update --force
+```
+
+- `s-ui update`：仅当 GitHub 最新 release 版本与当前安装版本不同的时候才执行更新
+- `s-ui update --force`：即使当前版本已经相同，也会重新下载并覆盖安装
+- `s-ui update v0.0.1`：更新到指定版本
+
+如果你需要直接调用安装脚本，对应参数如下：
+
+```sh
+bash <(curl -Ls https://raw.githubusercontent.com/BeanYa/b-ui/main/install.sh) --update
+bash <(curl -Ls https://raw.githubusercontent.com/BeanYa/b-ui/main/install.sh) --force-update
+```
 
 ## 前端开发
 

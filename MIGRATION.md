@@ -22,6 +22,12 @@ To migrate to a specific release:
 bash <(curl -Ls https://raw.githubusercontent.com/BeanYa/b-ui/main/migrate-to-b-ui.sh) v0.0.1
 ```
 
+The migration helper is a thin wrapper around:
+
+```sh
+bash <(curl -Ls https://raw.githubusercontent.com/BeanYa/b-ui/main/install.sh) --migrate
+```
+
 ## What the migration script does
 
 1. Detects an existing compatible `s-ui` installation.
@@ -35,8 +41,21 @@ bash <(curl -Ls https://raw.githubusercontent.com/BeanYa/b-ui/main/migrate-to-b-
 ## Notes
 
 - Existing panel settings and admin credentials are preserved during
-  `--auto-migrate`.
+  `--migrate`.
 - If the new build fails to start, the installer restores the previous
   installation from the rollback backup automatically.
 - After migration, `s-ui update` and related shell actions point to this fork
   instead of the upstream repository.
+
+## Update Modes
+
+After migration, the install script supports explicit update modes:
+
+```sh
+bash <(curl -Ls https://raw.githubusercontent.com/BeanYa/b-ui/main/install.sh) --update
+bash <(curl -Ls https://raw.githubusercontent.com/BeanYa/b-ui/main/install.sh) --force-update
+```
+
+- `--update`: update only when the installed version differs from the target release
+- `--force-update`: reinstall the target release even when the version already matches
+- Both modes accept an optional version, for example `--update v0.0.1`

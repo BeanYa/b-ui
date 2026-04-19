@@ -16,17 +16,51 @@ CLI_PATH="${CLI_PATH:-/usr/bin/s-ui}"
 SERVICE_NAME="${SERVICE_NAME:-s-ui}"
 DB_FILE="${INSTALL_ROOT}/db/s-ui.db"
 BACKUP_ROOT="${BACKUP_ROOT:-/var/backups/s-ui}"
-AUTO_MIGRATE=0
+MODE="install"
 TARGET_VERSION=""
 EXISTING_INSTALL=0
 CURRENT_BACKUP_DIR=""
 
 cur_dir=$(pwd)
 
+show_usage() {
+    cat <<'EOF'
+Usage:
+  bash install.sh
+  bash install.sh <version>
+  bash install.sh --migrate [version]
+  bash install.sh --update [version]
+  bash install.sh --force-update [version]
+
+Modes:
+  default         Fresh install or manual reinstall. Existing installs keep data but still show setup prompts.
+  --migrate       Migrate an existing s-ui install to b-ui in place and keep current settings.
+  --update        Update an existing b-ui/s-ui install only when the target version is newer/different.
+  --force-update  Reinstall the target version even when the current version already matches.
+
+Examples:
+  bash install.sh
+  bash install.sh v0.0.1
+  bash install.sh --migrate
+  bash install.sh --update
+  bash install.sh --force-update v0.0.1
+EOF
+}
+
 for arg in "$@"; do
     case "$arg" in
-    --auto-migrate | --keep-config)
-        AUTO_MIGRATE=1
+    -h | --help)
+        show_usage
+        exit 0
+        ;;
+    --migrate | --auto-migrate | --keep-config)
+        MODE="migrate"
+        ;;
+    --update)
+        MODE="update"
+        ;;
+    --force-update)
+        MODE="force-update"
         ;;
     *)
         if [[ -z "$TARGET_VERSION" ]]; then
@@ -69,6 +103,21 @@ arch() {
 }
 
 echo "arch: $(arch)"
+
+normalize_version() {
+    local version_value="$1"
+    version_value=$(printf '%s' "${version_value}" | tr -d '\r\n[:space:]')
+    version_value="${version_value#v}"
+    printf '%s' "${version_value}"
+}
+
+canonicalize_release_tag() {
+    local version_value=""
+    version_value=$(normalize_version "$1")
+    if [[ -n "${version_value}" ]]; then
+        printf 'v%s\n' "${version_value}"
+    fi
+}
 
 detect_existing_install() {
     if [[ -d "${INSTALL_ROOT}" || -f "${DB_FILE}" || -f "/etc/systemd/system/${SERVICE_NAME}.service" ]]; then
@@ -205,25 +254,77 @@ resolve_latest_release_tag() {
     return 1
 }
 
+get_current_installed_version() {
+    local version_output=""
+    local current_version=""
+
+    if [[ -x "${INSTALL_ROOT}/sui" ]]; then
+        version_output=$("${INSTALL_ROOT}/sui" -v 2>/dev/null | awk 'NR==1 {print $NF}')
+        current_version=$(normalize_version "${version_output}")
+        if [[ -n "${current_version}" ]]; then
+            printf '%s\n' "${current_version}"
+            return 0
+        fi
+    fi
+
+    return 1
+}
+
+resolve_target_version() {
+    local resolved_tag=""
+
+    if [[ -n "${TARGET_VERSION}" ]]; then
+        TARGET_VERSION=$(canonicalize_release_tag "${TARGET_VERSION}")
+        return 0
+    fi
+
+    resolved_tag=$(resolve_latest_release_tag || true)
+    if [[ -z "${resolved_tag}" ]]; then
+        echo -e "${red}No GitHub release was found for ${REPO_OWNER}/${REPO_NAME}.${plain}"
+        echo -e "${yellow}Installation cannot continue until a release is published.${plain}"
+        exit 1
+    fi
+
+    TARGET_VERSION="${resolved_tag}"
+}
+
+check_update_requirement() {
+    local current_version=""
+    local normalized_current=""
+    local normalized_target=""
+
+    if [[ "${MODE}" != "update" && "${MODE}" != "force-update" ]]; then
+        return 0
+    fi
+
+    if [[ ${EXISTING_INSTALL} -ne 1 ]]; then
+        echo -e "${yellow}No existing ${SERVICE_NAME} installation was detected. Continuing with a fresh install.${plain}"
+        return 0
+    fi
+
+    current_version=$(get_current_installed_version || true)
+    normalized_current=$(normalize_version "${current_version}")
+    normalized_target=$(normalize_version "${TARGET_VERSION}")
+
+    if [[ -n "${normalized_current}" ]]; then
+        echo -e "${yellow}Current installed version: ${normalized_current}${plain}"
+    else
+        echo -e "${yellow}Current installed version: unknown${plain}"
+    fi
+    echo -e "${yellow}Target version: ${TARGET_VERSION}${plain}"
+
+    if [[ "${MODE}" == "update" && -n "${normalized_current}" && "${normalized_current}" == "${normalized_target}" ]]; then
+        echo -e "${green}${PROJECT_NAME} is already on ${TARGET_VERSION}. Nothing to do.${plain}"
+        exit 0
+    fi
+}
+
 download_release_asset() {
     local asset_name="b-ui-linux-$(arch).tar.gz"
     local download_url=""
-    local resolved_tag=""
 
-    if [[ -z "${TARGET_VERSION}" ]]; then
-        resolved_tag=$(resolve_latest_release_tag || true)
-        if [[ -z "${resolved_tag}" ]]; then
-            echo -e "${red}No GitHub release was found for ${REPO_OWNER}/${REPO_NAME}.${plain}"
-            echo -e "${yellow}Migration cannot continue until a release containing ${asset_name} is published.${plain}"
-            echo -e "${yellow}If you are the maintainer, create a GitHub release first; otherwise rerun the script with an existing release tag.${plain}"
-            exit 1
-        fi
-        download_url="${RELEASE_BASE_URL}/download/${resolved_tag}/${asset_name}"
-        echo -e "Beginning the installation of the latest ${PROJECT_NAME} release (${resolved_tag})..."
-    else
-        download_url="${RELEASE_BASE_URL}/download/${TARGET_VERSION}/${asset_name}"
-        echo -e "Beginning the installation of ${PROJECT_NAME} ${TARGET_VERSION}..."
-    fi
+    download_url="${RELEASE_BASE_URL}/download/${TARGET_VERSION}/${asset_name}"
+    echo -e "Beginning the installation of ${PROJECT_NAME} ${TARGET_VERSION}..."
 
     wget --no-check-certificate -O "/tmp/${asset_name}" "${download_url}"
     if [[ $? -ne 0 ]]; then
@@ -263,7 +364,7 @@ config_after_install() {
         exit 1
     fi
 
-    if [[ ${AUTO_MIGRATE} -eq 1 && ${EXISTING_INSTALL} -eq 1 ]]; then
+    if [[ "${MODE}" != "install" && ${EXISTING_INSTALL} -eq 1 ]]; then
         echo -e "${green}Detected an existing s-ui installation. Current settings and credentials have been kept.${plain}"
         return 0
     fi
@@ -384,5 +485,7 @@ install_s-ui() {
 
 echo -e "${green}Executing...${plain}"
 detect_existing_install
+resolve_target_version
+check_update_requirement
 install_base
 install_s-ui

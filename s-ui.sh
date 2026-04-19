@@ -122,12 +122,13 @@ get_current_installed_version() {
 }
 
 run_remote_installer() {
-    local target_version="$1"
+    local install_mode="$1"
+    local target_version="$2"
 
     if [[ -n "${target_version}" ]]; then
-        bash <(curl -Ls "${INSTALL_SCRIPT_URL}") --auto-migrate "${target_version}"
+        bash <(curl -Ls "${INSTALL_SCRIPT_URL}") "${install_mode}" "${target_version}"
     else
-        bash <(curl -Ls "${INSTALL_SCRIPT_URL}") --auto-migrate
+        bash <(curl -Ls "${INSTALL_SCRIPT_URL}") "${install_mode}"
     fi
 }
 
@@ -223,7 +224,11 @@ update() {
         return 0
     fi
 
-    run_remote_installer "${target_version}"
+    if [[ ${force_update} -eq 1 ]]; then
+        run_remote_installer --force-update "${target_version}"
+    else
+        run_remote_installer --update "${target_version}"
+    fi
     if [[ $? == 0 ]]; then
         if [[ ${force_update} -eq 1 ]]; then
             LOGI "Forced update to ${PROJECT_NAME} ${target_version} completed"
