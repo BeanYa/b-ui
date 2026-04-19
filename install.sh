@@ -20,6 +20,8 @@ LEGACY_SERVICE_NAME="${LEGACY_SERVICE_NAME:-s-ui}"
 DB_FILE="${INSTALL_ROOT}/db/b-ui.db"
 LEGACY_DB_FILE="${INSTALL_ROOT}/db/s-ui.db"
 BACKUP_ROOT="${BACKUP_ROOT:-/var/backups/s-ui}"
+DOWNLOAD_RETRY_COUNT="${DOWNLOAD_RETRY_COUNT:-8}"
+DOWNLOAD_RETRY_DELAY="${DOWNLOAD_RETRY_DELAY:-15}"
 MODE="install"
 TARGET_VERSION=""
 EXISTING_INSTALL=0
@@ -363,17 +365,30 @@ check_update_requirement() {
 download_release_asset() {
     local asset_name="b-ui-linux-$(arch).tar.gz"
     local download_url=""
+    local attempt=1
 
     download_url="${RELEASE_BASE_URL}/download/${TARGET_VERSION}/${asset_name}"
     echo -e "Beginning the installation of ${PROJECT_NAME} ${TARGET_VERSION}..."
 
-    wget --no-check-certificate -O "/tmp/${asset_name}" "${download_url}"
-    if [[ $? -ne 0 ]]; then
-        echo -e "${red}Downloading ${PROJECT_NAME} failed.${plain}"
-        echo -e "${yellow}Tried: ${download_url}${plain}"
-        echo -e "${yellow}Please verify that the release asset ${asset_name} exists under ${REPO_OWNER}/${REPO_NAME}.${plain}"
-        exit 1
-    fi
+    while [[ ${attempt} -le ${DOWNLOAD_RETRY_COUNT} ]]; do
+        rm -f "/tmp/${asset_name}"
+        if wget --tries=1 --no-check-certificate -O "/tmp/${asset_name}" "${download_url}"; then
+            return 0
+        fi
+
+        rm -f "/tmp/${asset_name}"
+        if [[ ${attempt} -lt ${DOWNLOAD_RETRY_COUNT} ]]; then
+            echo -e "${yellow}Release asset ${asset_name} is not reachable yet (attempt ${attempt}/${DOWNLOAD_RETRY_COUNT}). Retrying in ${DOWNLOAD_RETRY_DELAY}s...${plain}"
+            sleep "${DOWNLOAD_RETRY_DELAY}"
+        fi
+
+        attempt=$((attempt + 1))
+    done
+
+    echo -e "${red}Downloading ${PROJECT_NAME} failed.${plain}"
+    echo -e "${yellow}Tried: ${download_url}${plain}"
+    echo -e "${yellow}Please verify that the release asset ${asset_name} exists under ${REPO_OWNER}/${REPO_NAME}, or retry after the release assets finish publishing.${plain}"
+    exit 1
 }
 
 install_base() {
