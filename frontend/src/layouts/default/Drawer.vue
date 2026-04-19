@@ -61,14 +61,22 @@
           <span class="app-drawer__footer-value">{{ router.currentRoute.value.path }}</span>
         </div>
         <v-btn
+          class="app-drawer__logout"
           :block="!collapsed || isMobile"
           color="error"
-          :prepend-icon="collapsed && !isMobile ? undefined : 'mdi-logout'"
           variant="tonal"
-          :icon="collapsed && !isMobile ? 'mdi-logout' : undefined"
+          :icon="collapsed && !isMobile"
           @click="logoutUser"
         >
+          <v-tooltip
+            v-if="collapsed && !isMobile"
+            activator="parent"
+            location="end"
+            :text="$t('menu.logout')"
+          />
+          <v-icon v-if="collapsed && !isMobile" icon="mdi-logout" />
           <template v-if="!collapsed || isMobile">
+            <v-icon icon="mdi-logout" start />
             {{ $t('menu.logout') }}
           </template>
         </v-btn>
@@ -278,10 +286,13 @@ const logoutUser = async () => {
 }
 
 :deep(.v-navigation-drawer--rail .app-drawer__item) {
+  align-items: center;
+  display: grid;
   justify-content: center;
   margin-inline: auto;
   min-height: 52px;
   padding-inline: 0;
+  place-items: center;
   width: 52px;
 }
 
@@ -303,11 +314,27 @@ const logoutUser = async () => {
   display: flex;
   justify-content: center;
   margin-inline-end: 0;
-  width: 100%;
+  width: auto;
 }
 
 :deep(.v-navigation-drawer--rail .app-drawer__item .v-list-item__prepend > .v-icon) {
   margin-inline: auto;
+}
+
+:deep(.v-navigation-drawer--rail .app-drawer__item .v-list-item__prepend > .v-list-item__spacer) {
+  display: none;
+}
+
+:deep(.v-navigation-drawer--rail .app-drawer__footer) {
+  justify-items: center;
+  padding-inline: 8px;
+}
+
+:deep(.v-navigation-drawer--rail .app-drawer__logout) {
+  min-height: 52px;
+  min-width: 52px;
+  padding-inline: 0;
+  width: 52px;
 }
 
 @media (max-width: 960px) {

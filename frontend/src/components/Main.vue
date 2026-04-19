@@ -481,6 +481,12 @@ onBeforeUnmount(() => {
   display: flex;
 }
 
+.dashboard-shell__overview-col--intro,
+.dashboard-shell__overview-col--stats,
+.dashboard-shell__overview-col--probe {
+  min-width: 0;
+}
+
 .overview-card {
   border-radius: 26px !important;
   display: flex;
@@ -991,6 +997,21 @@ onBeforeUnmount(() => {
 }
 
 @media (max-width: 1680px) {
+  .dashboard-shell__overview-col--intro {
+    flex: 0 0 40%;
+    max-width: 40%;
+  }
+
+  .dashboard-shell__overview-col--stats {
+    flex: 0 0 60%;
+    max-width: 60%;
+  }
+
+  .dashboard-shell__overview-col--probe {
+    flex: 0 0 100%;
+    max-width: 100%;
+  }
+
   .section-head,
   .probe-card__head,
   .telemetry-section__head {
@@ -1009,6 +1030,29 @@ onBeforeUnmount(() => {
 
   .telemetry-grid--detail {
     grid-template-columns: 1fr;
+  }
+}
+
+@media (max-width: 1380px) {
+  .dashboard-shell__overview-col--intro,
+  .dashboard-shell__overview-col--stats,
+  .dashboard-shell__overview-col--probe {
+    flex: 0 0 100%;
+    max-width: 100%;
+  }
+
+  .probe-card__rings {
+    grid-template-columns: repeat(auto-fit, minmax(156px, 1fr));
+  }
+
+  .probe-ring::before {
+    height: 118px;
+    width: 118px;
+  }
+
+  .probe-ring::after {
+    height: 88px;
+    width: 88px;
   }
 }
 
@@ -1089,6 +1133,16 @@ onBeforeUnmount(() => {
 
   .probe-card__rings {
     grid-template-columns: repeat(auto-fit, minmax(132px, 1fr));
+  }
+
+  .probe-ring::before {
+    height: 112px;
+    width: 112px;
+  }
+
+  .probe-ring::after {
+    height: 84px;
+    width: 84px;
   }
 
   .tile-card--chart .tile-card__body {
