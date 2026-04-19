@@ -297,6 +297,7 @@ import { computed, ref } from 'vue'
 import { HumanReadable } from '@/plugins/utils'
 import { i18n, locale } from '@/locales'
 import { useDisplay } from 'vuetify'
+import { createClientTableHeaders } from '@/features/clients/headers'
 
 const { smAndDown } = useDisplay()
 
@@ -345,17 +346,7 @@ const onlineCount = computed(() => Data().onlines?.user?.length ?? 0)
 const expiredCount = computed(() => clients.value.filter(c => c.expiry > 0 && c.expiry < (Date.now() / 1000)).length)
 const disabledCount = computed(() => clients.value.filter(c => c.enable === false).length)
 
-const headers = [
-  { title: i18n.global.t('client.name'), key: 'name' },
-  { title: i18n.global.t('client.desc'), key: 'desc' },
-  { title: i18n.global.t('client.group'), key: 'group' },
-  { title: i18n.global.t('pages.inbounds'), key: 'inbounds', width: 10 },
-  { title: i18n.global.t('actions.action'), key: 'actions', sortable: false },
-  { title: i18n.global.t('stats.volume'), key: 'volume' },
-  { title: i18n.global.t('date.expiry'), key: 'expiry' },
-  { title: i18n.global.t('online'), key: 'online' },
-  { key: 'data-table-group', width: 0 },
-]
+const headers = createClientTableHeaders(i18n.global.t)
 
 const itemPerPage = ref(localStorage.getItem('items-per-page') || '10')
 

@@ -127,7 +127,7 @@
 
       <section class="dashboard-shell__tiles">
         <div
-          v-for="section in tileSections"
+          v-for="section in visibleTileSections"
           :key="section.key"
           class="telemetry-section"
         >
@@ -188,6 +188,7 @@ import Backup from '@/layouts/modals/Backup.vue'
 import UsageStats from '@/layouts/modals/UsageStats.vue'
 import { splitTileItemsByLayout } from '@/features/dashboard/layout'
 import { mergeTilesData } from '@/features/dashboard/persistence'
+import { filterTileSectionsByData, formatAppVersion, formatCpuRingNote } from '@/features/dashboard/probe'
 
 const loading = ref(false)
 type TileSectionKey = 'metric' | 'detail'
@@ -221,6 +222,7 @@ const tileSections: Array<{ key: TileSectionKey, items: string[] }> = [
   { key: 'metric', items: tileLayoutGroups.metric },
   { key: 'detail', items: tileLayoutGroups.detail },
 ].filter(section => section.items.length > 0) as Array<{ key: TileSectionKey, items: string[] }>
+const visibleTileSections = computed(() => filterTileSectionsByData(tileSections, tilesData.value))
 
 const tileSectionMeta = {
   metric: {
@@ -288,7 +290,7 @@ const runtimeHost = computed(() => tilesData.value.sys?.hostName || document.loc
 const hostAddress = computed(() =>
   tilesData.value.sys?.ipv4?.[0] || tilesData.value.sys?.ipv6?.[0] || 'Awaiting runtime status'
 )
-const appVersion = computed(() => tilesData.value.sys?.appVersion ? `v${tilesData.value.sys.appVersion}` : 'Version pending')
+const appVersion = computed(() => formatAppVersion(tilesData.value.sys?.appVersion))
 const systemUptime = computed(() =>
   tilesData.value.sys?.bootTime ? HumanReadable.formatSecond((Date.now() / 1000) - tilesData.value.sys.bootTime) : '--'
 )
@@ -324,7 +326,7 @@ const probeRings = computed(() => [
   {
     label: 'CPU',
     value: `${Math.round(tilesData.value.cpu || 0)}%`,
-    note: cpuDescriptor.value,
+    note: formatCpuRingNote(tilesData.value.sys?.cpuCount, i18n.global.t('main.info.core')),
     style: {
       '--ring-percent': `${Math.max(0, Math.min(100, Math.round(tilesData.value.cpu || 0)))}%`,
       '--ring-color': 'var(--app-state-info)',
@@ -712,7 +714,7 @@ onBeforeUnmount(() => {
 
 .probe-card__rings {
   display: grid;
-  gap: 12px;
+  gap: 10px;
   grid-template-columns: repeat(3, minmax(0, 1fr));
   margin-top: 16px;
 }
@@ -728,8 +730,8 @@ onBeforeUnmount(() => {
   background: conic-gradient(var(--ring-color) var(--ring-percent), color-mix(in srgb, var(--app-surface-4) 100%, transparent) 0);
   border-radius: 50%;
   content: '';
-  height: 116px;
-  width: 116px;
+  height: 124px;
+  width: 124px;
 }
 
 .probe-ring::after {
@@ -737,13 +739,16 @@ onBeforeUnmount(() => {
   border: 1px solid var(--app-border-1);
   border-radius: 50%;
   content: '';
-  height: 82px;
+  height: 92px;
   position: absolute;
-  width: 82px;
+  width: 92px;
 }
 
 .probe-ring__inner {
+  display: grid;
+  gap: 4px;
   inset: 0;
+  justify-items: center;
   place-content: center;
   position: absolute;
   text-align: center;
@@ -763,15 +768,17 @@ onBeforeUnmount(() => {
   font-size: 24px;
   font-weight: 700;
   line-height: 1;
-  margin-top: 6px;
+  margin-top: 2px;
 }
 
 .probe-ring__note {
   color: var(--app-text-3);
-  font-size: 11px;
-  line-height: 1.35;
-  margin: 6px auto 0;
-  max-width: 18ch;
+  font-size: 10px;
+  line-height: 1.25;
+  margin: 0 auto;
+  max-width: 9ch;
+  min-height: 2.5em;
+  overflow-wrap: anywhere;
 }
 
 .probe-card__streams {
