@@ -9,6 +9,7 @@ REPO_OWNER="${REPO_OWNER:-BeanYa}"
 REPO_NAME="${REPO_NAME:-b-ui}"
 PROJECT_NAME="${PROJECT_NAME:-B-UI}"
 RELEASE_BASE_URL="https://github.com/${REPO_OWNER}/${REPO_NAME}/releases"
+GITHUB_API_BASE_URL="https://api.github.com/repos/${REPO_OWNER}/${REPO_NAME}"
 INSTALL_ROOT="${INSTALL_ROOT:-/usr/local/s-ui}"
 INSTALL_PARENT="$(dirname "${INSTALL_ROOT}")"
 CLI_PATH="${CLI_PATH:-/usr/bin/s-ui}"
@@ -183,21 +184,52 @@ restart_and_verify_service() {
     fi
 }
 
+resolve_latest_release_tag() {
+    local api_response=""
+    local resolved_tag=""
+
+    api_response=$(curl -fsSL "${GITHUB_API_BASE_URL}/releases/latest" 2>/dev/null || true)
+    resolved_tag=$(printf '%s\n' "${api_response}" | sed -n 's/.*"tag_name":[[:space:]]*"\([^"]*\)".*/\1/p' | head -n1)
+    if [[ -n "${resolved_tag}" ]]; then
+        printf '%s\n' "${resolved_tag}"
+        return 0
+    fi
+
+    api_response=$(curl -fsSL "${GITHUB_API_BASE_URL}/releases?per_page=20" 2>/dev/null || true)
+    resolved_tag=$(printf '%s\n' "${api_response}" | sed -n 's/.*"tag_name":[[:space:]]*"\([^"]*\)".*/\1/p' | head -n1)
+    if [[ -n "${resolved_tag}" ]]; then
+        printf '%s\n' "${resolved_tag}"
+        return 0
+    fi
+
+    return 1
+}
+
 download_release_asset() {
-    local asset_name="s-ui-linux-$(arch).tar.gz"
+    local asset_name="b-ui-linux-$(arch).tar.gz"
     local download_url=""
+    local resolved_tag=""
 
     if [[ -z "${TARGET_VERSION}" ]]; then
-        download_url="${RELEASE_BASE_URL}/latest/download/${asset_name}"
-        echo -e "Beginning the installation of the latest ${PROJECT_NAME} release..."
+        resolved_tag=$(resolve_latest_release_tag || true)
+        if [[ -z "${resolved_tag}" ]]; then
+            echo -e "${red}No GitHub release was found for ${REPO_OWNER}/${REPO_NAME}.${plain}"
+            echo -e "${yellow}Migration cannot continue until a release containing ${asset_name} is published.${plain}"
+            echo -e "${yellow}If you are the maintainer, create a GitHub release first; otherwise rerun the script with an existing release tag.${plain}"
+            exit 1
+        fi
+        download_url="${RELEASE_BASE_URL}/download/${resolved_tag}/${asset_name}"
+        echo -e "Beginning the installation of the latest ${PROJECT_NAME} release (${resolved_tag})..."
     else
         download_url="${RELEASE_BASE_URL}/download/${TARGET_VERSION}/${asset_name}"
         echo -e "Beginning the installation of ${PROJECT_NAME} ${TARGET_VERSION}..."
     fi
 
-    wget -N --no-check-certificate -O "/tmp/${asset_name}" "${download_url}"
+    wget --no-check-certificate -O "/tmp/${asset_name}" "${download_url}"
     if [[ $? -ne 0 ]]; then
-        echo -e "${red}Downloading ${PROJECT_NAME} failed, please be sure that your server can access Github ${plain}"
+        echo -e "${red}Downloading ${PROJECT_NAME} failed.${plain}"
+        echo -e "${yellow}Tried: ${download_url}${plain}"
+        echo -e "${yellow}Please verify that the release asset ${asset_name} exists under ${REPO_OWNER}/${REPO_NAME}.${plain}"
         exit 1
     fi
 }
@@ -319,13 +351,13 @@ install_s-ui() {
         backup_existing_installation
     fi
 
-    tar zxvf s-ui-linux-$(arch).tar.gz
+    tar zxvf b-ui-linux-$(arch).tar.gz
     if [[ $? -ne 0 ]]; then
         echo -e "${red}Failed to extract the downloaded package.${plain}"
         rollback_installation
         exit 1
     fi
-    rm s-ui-linux-$(arch).tar.gz -f
+    rm b-ui-linux-$(arch).tar.gz -f
 
     chmod +x s-ui/sui s-ui/s-ui.sh
     cp s-ui/s-ui.sh "${CLI_PATH}" || { rollback_installation; exit 1; }

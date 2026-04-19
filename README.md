@@ -43,7 +43,7 @@ bash <(curl -Ls https://raw.githubusercontent.com/BeanYa/b-ui/main/migrate-to-b-
 如果要迁移到指定版本：
 
 ```sh
-bash <(curl -Ls https://raw.githubusercontent.com/BeanYa/b-ui/main/migrate-to-b-ui.sh) v1.4.1
+bash <(curl -Ls https://raw.githubusercontent.com/BeanYa/b-ui/main/migrate-to-b-ui.sh) v0.0.1
 ```
 
 迁移脚本会自动完成以下操作：
