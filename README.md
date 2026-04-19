@@ -32,16 +32,16 @@ git submodule update --init --remote --recursive
 - 如果你想在本地显式刷新到前端最新 `main`，重复执行一次 `git submodule update --remote --recursive` 即可
 - 当前 release / docker workflow 也会在 CI 中主动刷新 `frontend` 子模块到最新 `main` 后再构建
 
-## 从已安装的 S-UI 迁移
+## 从已安装的上游版本迁移
 
-对于已经安装了上游 `s-ui` 的 Linux 服务器，本仓库现在支持原地迁移。
+对于已经安装了上游版本的 Linux 服务器，本仓库现在支持原地迁移，并在迁移完成后自动确认更新到最新的 `b-ui` release。
 
 迁移时会继续复用原有：
 
 - `s-ui` systemd 服务名
 - `/usr/local/s-ui` 安装目录
 - `/usr/local/s-ui/db/s-ui.db` 数据库
-- `s-ui` 管理命令
+- 现有配置与数据
 
 推荐直接执行：
 
@@ -63,29 +63,31 @@ bash <(curl -Ls https://raw.githubusercontent.com/BeanYa/b-ui/main/install.sh) -
 
 迁移脚本会自动完成以下操作：
 
-1. 检测现有 `s-ui` 安装
+1. 检测现有旧版安装
 2. 停止旧服务
 3. 在 `/var/backups/s-ui/<timestamp>/` 创建回滚备份
 4. 下载本仓库 release 并原地覆盖安装
 5. 执行 `sui migrate`
-6. 重新启动 `s-ui` 服务
+6. 把管理命令切换为 `b-ui`
+7. 未指定版本时，再执行一次最新 `b-ui` release 的更新检查
+8. 重新启动原有 `s-ui` 服务
 
-如果新版本启动失败，安装脚本会自动回滚到迁移前的版本。
+如果新版本启动失败，安装脚本会自动回滚到迁移前的版本。未显式指定版本时，迁移脚本的默认目标是最新发布的 `b-ui`。
 
 更多说明见 [MIGRATION.md](./MIGRATION.md)。
 
 ## 更新与强制更新
 
-安装后的管理命令仍然是 `s-ui`，更新区分为两种：
+迁移或安装完成后，管理命令为 `b-ui`，更新区分为两种：
 
 ```sh
-s-ui update
-s-ui update --force
+b-ui update
+b-ui update --force
 ```
 
-- `s-ui update`：仅当 GitHub 最新 release 版本与当前安装版本不同的时候才执行更新
-- `s-ui update --force`：即使当前版本已经相同，也会重新下载并覆盖安装
-- `s-ui update v0.0.1`：更新到指定版本
+- `b-ui update`：仅当 GitHub 最新 release 版本与当前安装版本不同的时候才执行更新
+- `b-ui update --force`：即使当前版本已经相同，也会重新下载并覆盖安装
+- `b-ui update v0.0.1`：更新到指定版本
 
 如果你需要直接调用安装脚本，对应参数如下：
 
@@ -110,7 +112,7 @@ git push origin v0.0.2
 - Docker workflow 会向 `ghcr.io/beanya/b-ui` 推送对应 tag 的镜像
 - 构建流程会把 Git tag 注入二进制版本号，因此 `sui -v` 会显示对应 release tag
 
-目前安装脚本默认下载上述 `b-ui-*` release 资产，但运行后的 Linux 服务名、安装目录和管理命令仍保持 `s-ui` 兼容形式。
+目前安装脚本默认下载上述 `b-ui-*` release 资产；Linux 仍复用原有 `s-ui` 服务名与安装目录，但对外管理命令已统一为 `b-ui`。
 
 ## 前端开发
 

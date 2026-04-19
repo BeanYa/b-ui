@@ -12,7 +12,9 @@ RELEASE_BASE_URL="https://github.com/${REPO_OWNER}/${REPO_NAME}/releases"
 GITHUB_API_BASE_URL="https://api.github.com/repos/${REPO_OWNER}/${REPO_NAME}"
 INSTALL_ROOT="${INSTALL_ROOT:-/usr/local/s-ui}"
 INSTALL_PARENT="$(dirname "${INSTALL_ROOT}")"
-CLI_PATH="${CLI_PATH:-/usr/bin/s-ui}"
+CLI_NAME="${CLI_NAME:-b-ui}"
+CLI_PATH="${CLI_PATH:-/usr/bin/${CLI_NAME}}"
+LEGACY_CLI_PATH="${LEGACY_CLI_PATH:-/usr/bin/s-ui}"
 SERVICE_NAME="${SERVICE_NAME:-s-ui}"
 DB_FILE="${INSTALL_ROOT}/db/s-ui.db"
 BACKUP_ROOT="${BACKUP_ROOT:-/var/backups/s-ui}"
@@ -34,8 +36,9 @@ Usage:
 
 Modes:
   default         Fresh install or manual reinstall. Existing installs keep data but still show setup prompts.
-  --migrate       Migrate an existing s-ui install to b-ui in place and keep current settings.
-  --update        Update an existing b-ui/s-ui install only when the target version is newer/different.
+  --migrate       Migrate an existing upstream install in place, keep current settings, and switch the command to b-ui.
+                  When used through migrate-to-b-ui.sh without a version, migration is followed by an explicit update check to the latest b-ui release.
+  --update        Update an existing b-ui install only when the target version is newer/different.
   --force-update  Reinstall the target version even when the current version already matches.
 
 Examples:
@@ -120,7 +123,7 @@ canonicalize_release_tag() {
 }
 
 detect_existing_install() {
-    if [[ -d "${INSTALL_ROOT}" || -f "${DB_FILE}" || -f "/etc/systemd/system/${SERVICE_NAME}.service" ]]; then
+    if [[ -d "${INSTALL_ROOT}" || -f "${DB_FILE}" || -f "/etc/systemd/system/${SERVICE_NAME}.service" || -f "${CLI_PATH}" || -f "${LEGACY_CLI_PATH}" ]]; then
         EXISTING_INSTALL=1
     fi
 }
@@ -166,7 +169,11 @@ backup_existing_installation() {
     fi
 
     if [[ -f "${CLI_PATH}" ]]; then
-        cp -a "${CLI_PATH}" "${CURRENT_BACKUP_DIR}/s-ui-cli"
+        cp -a "${CLI_PATH}" "${CURRENT_BACKUP_DIR}/${CLI_NAME}-cli"
+    fi
+
+    if [[ "${LEGACY_CLI_PATH}" != "${CLI_PATH}" && -f "${LEGACY_CLI_PATH}" ]]; then
+        cp -a "${LEGACY_CLI_PATH}" "${CURRENT_BACKUP_DIR}/legacy-s-ui-cli"
     fi
 
     if [[ -f "/etc/systemd/system/${SERVICE_NAME}.service" ]]; then
@@ -193,9 +200,14 @@ rollback_installation() {
         tar -xzf "${CURRENT_BACKUP_DIR}/install-root.tar.gz" -C "${INSTALL_ROOT}"
     fi
 
-    if [[ -f "${CURRENT_BACKUP_DIR}/s-ui-cli" ]]; then
-        cp -af "${CURRENT_BACKUP_DIR}/s-ui-cli" "${CLI_PATH}"
+    if [[ -f "${CURRENT_BACKUP_DIR}/${CLI_NAME}-cli" ]]; then
+        cp -af "${CURRENT_BACKUP_DIR}/${CLI_NAME}-cli" "${CLI_PATH}"
         chmod +x "${CLI_PATH}"
+    fi
+
+    if [[ -f "${CURRENT_BACKUP_DIR}/legacy-s-ui-cli" ]]; then
+        cp -af "${CURRENT_BACKUP_DIR}/legacy-s-ui-cli" "${LEGACY_CLI_PATH}"
+        chmod +x "${LEGACY_CLI_PATH}"
     fi
 
     if [[ -f "${CURRENT_BACKUP_DIR}/${SERVICE_NAME}.service" ]]; then
@@ -355,6 +367,42 @@ install_base() {
     esac
 }
 
+remove_legacy_cli() {
+    if [[ "${LEGACY_CLI_PATH}" != "${CLI_PATH}" && -e "${LEGACY_CLI_PATH}" ]]; then
+        rm -f "${LEGACY_CLI_PATH}"
+    fi
+}
+
+resolve_package_dir() {
+    if [[ -d "/tmp/b-ui" ]]; then
+        printf '%s\n' "/tmp/b-ui"
+        return 0
+    fi
+
+    if [[ -d "/tmp/s-ui" ]]; then
+        printf '%s\n' "/tmp/s-ui"
+        return 0
+    fi
+
+    return 1
+}
+
+resolve_cli_script() {
+    local package_dir="$1"
+
+    if [[ -f "${package_dir}/b-ui.sh" ]]; then
+        printf '%s\n' "${package_dir}/b-ui.sh"
+        return 0
+    fi
+
+    if [[ -f "${package_dir}/s-ui.sh" ]]; then
+        printf '%s\n' "${package_dir}/s-ui.sh"
+        return 0
+    fi
+
+    return 1
+}
+
 config_after_install() {
     echo -e "${yellow}Migration... ${plain}"
     "${INSTALL_ROOT}/sui" migrate
@@ -365,7 +413,7 @@ config_after_install() {
     fi
 
     if [[ "${MODE}" != "install" && ${EXISTING_INSTALL} -eq 1 ]]; then
-        echo -e "${green}Detected an existing s-ui installation. Current settings and credentials have been kept.${plain}"
+        echo -e "${green}Detected an existing compatible installation. Current settings and credentials have been kept.${plain}"
         return 0
     fi
     
@@ -415,10 +463,10 @@ config_after_install() {
             echo -e "${green}username:${usernameTemp}${plain}"
             echo -e "${green}password:${passwordTemp}${plain}"
             echo -e "###############################################"
-            echo -e "${red}if you forgot your login info,you can type ${green}s-ui${red} for configuration menu${plain}"
+            echo -e "${red}if you forgot your login info,you can type ${green}${CLI_NAME}${red} for configuration menu${plain}"
             "${INSTALL_ROOT}/sui" admin -username ${usernameTemp} -password ${passwordTemp}
         else
-            echo -e "${red} this is your upgrade,will keep old settings,if you forgot your login info,you can type ${green}s-ui${red} for configuration menu${plain}"
+            echo -e "${red} this is your upgrade,will keep old settings,if you forgot your login info,you can type ${green}${CLI_NAME}${red} for configuration menu${plain}"
         fi
     fi
 }
@@ -438,13 +486,15 @@ prepare_services() {
     systemctl daemon-reload
 }
 
-install_s-ui() {
+install_app() {
     cd /tmp/
+    local package_dir=""
+    local cli_script_source=""
 
     download_release_asset
 
     if [[ ${EXISTING_INSTALL} -eq 1 ]]; then
-        echo -e "${yellow}Compatible s-ui installation detected. ${PROJECT_NAME} will replace the binaries in place and keep the existing data directory.${plain}"
+        echo -e "${yellow}Compatible legacy installation detected. ${PROJECT_NAME} will replace the binaries in place, keep the existing data directory, and switch the management command to ${CLI_NAME}.${plain}"
     fi
 
     if [[ -e "${INSTALL_ROOT}/" ]]; then
@@ -460,12 +510,25 @@ install_s-ui() {
     fi
     rm b-ui-linux-$(arch).tar.gz -f
 
-    chmod +x s-ui/sui s-ui/s-ui.sh
-    cp s-ui/s-ui.sh "${CLI_PATH}" || { rollback_installation; exit 1; }
-    mkdir -p "${INSTALL_PARENT}" || { rollback_installation; exit 1; }
-    cp -rf s-ui "${INSTALL_PARENT}/" || { rollback_installation; exit 1; }
-    cp -f s-ui/*.service /etc/systemd/system/ || { rollback_installation; exit 1; }
-    rm -rf s-ui
+    package_dir=$(resolve_package_dir) || {
+        echo -e "${red}The extracted package did not contain a supported root directory.${plain}"
+        rollback_installation
+        exit 1
+    }
+    cli_script_source=$(resolve_cli_script "${package_dir}") || {
+        echo -e "${red}The extracted package did not contain a supported management script.${plain}"
+        rollback_installation
+        exit 1
+    }
+
+    chmod +x "${package_dir}/sui" "${cli_script_source}"
+    mkdir -p "${INSTALL_ROOT}" || { rollback_installation; exit 1; }
+    cp -rf "${package_dir}/." "${INSTALL_ROOT}/" || { rollback_installation; exit 1; }
+    cp "${cli_script_source}" "${CLI_PATH}" || { rollback_installation; exit 1; }
+    chmod +x "${CLI_PATH}" || { rollback_installation; exit 1; }
+    remove_legacy_cli
+    cp -f "${package_dir}"/*.service /etc/systemd/system/ || { rollback_installation; exit 1; }
+    rm -rf "${package_dir}"
 
     config_after_install
     prepare_services
@@ -480,7 +543,7 @@ install_s-ui() {
     "${INSTALL_ROOT}/sui" uri
     echo -e "${plain}"
     echo -e ""
-    s-ui help
+    "${CLI_NAME}" help
 }
 
 echo -e "${green}Executing...${plain}"
@@ -488,4 +551,4 @@ detect_existing_install
 resolve_target_version
 check_update_requirement
 install_base
-install_s-ui
+install_app

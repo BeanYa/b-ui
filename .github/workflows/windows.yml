@@ -115,19 +115,19 @@ jobs:
           go build -ldflags="-w -s -checklinkname=0 ${VERSION_LDFLAGS}" -tags "${{ env.TAGS }}" -o sui.exe main.go
           file sui.exe
           
-          mkdir s-ui-windows
-          cp sui.exe s-ui-windows/
-          cp -r windows/* s-ui-windows/
+          mkdir b-ui-windows
+          cp sui.exe b-ui-windows/
+          cp -r windows/* b-ui-windows/
 
       - name: Download libcronet-go
         shell: bash
         run: |
-          curl -qsL -o s-ui-windows/libcronet.dll ${{ env.LIBCRONET_BASE_URL }}/libcronet-windows-${{ matrix.arch }}.dll
+          curl -qsL -o b-ui-windows/libcronet.dll ${{ env.LIBCRONET_BASE_URL }}/libcronet-windows-${{ matrix.arch }}.dll
 
       - name: Package
         shell: bash
         run: |
-          zip -r "b-ui-windows-${{ matrix.arch }}.zip" s-ui-windows
+          zip -r "b-ui-windows-${{ matrix.arch }}.zip" b-ui-windows
 
       - name: Upload files to Artifacts
         uses: actions/upload-artifact@v7

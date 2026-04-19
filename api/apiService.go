@@ -252,7 +252,7 @@ func (a *ApiService) GetDb(c *gin.Context) {
 		return
 	}
 	c.Header("Content-Type", "application/octet-stream")
-	c.Header("Content-Disposition", "attachment; filename=s-ui_"+time.Now().Format("20060102-150405")+".db")
+	c.Header("Content-Disposition", "attachment; filename=b-ui_"+time.Now().Format("20060102-150405")+".db")
 	c.Writer.Write(db)
 }
 

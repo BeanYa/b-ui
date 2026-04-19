@@ -1,6 +1,6 @@
 # Contributing to B-UI
 
-Thank you for your interest in contributing to B-UI. This repository is a fork of `alireza0/s-ui`: the Go backend and install layout remain compatible with upstream, while the frontend, branding, release assets, and contributor workflow are maintained here in the `BeanYa/b-ui` fork.
+Thank you for your interest in contributing to B-UI. This repository keeps the upstream Go backend and install layout compatible, while the frontend, branding, release assets, and contributor workflow are maintained here in the `BeanYa/b-ui` fork.
 
 ## Table of Contents
 
@@ -99,7 +99,7 @@ Use the same tags when building locally if you need feature parity with releases
 - Tagged builds publish Linux assets as `b-ui-linux-<arch>.tar.gz`.
 - Tagged builds publish Windows assets as `b-ui-windows-<arch>.zip`.
 - Tagged builds inject the Git tag into the binary version, so `sui -v` reflects the release tag.
-- Linux compatibility remains intentionally unchanged after install: service name `s-ui`, install path `/usr/local/s-ui`, management command `s-ui`.
+- Linux compatibility remains intentionally unchanged after install: legacy service name `s-ui`, install path `/usr/local/s-ui`, management command `b-ui`.
 
 ### Environment Variables (development)
 
@@ -197,7 +197,7 @@ Community help is especially valuable in these areas. Check the [Issues](https:/
 
 ### High-Value Areas
 
-- **Multi-inbound per user**: Core differentiator inherited from S-UI; improvements to UX, docs, and robustness are welcome.
+- **Multi-inbound per user**: Core differentiator inherited from upstream; improvements to UX, docs, and robustness are welcome.
 - **API (v1 and v2)**: Completeness, consistency, and documentation. Upstream API docs remain a useful reference: [API Documentation](https://github.com/alireza0/s-ui/wiki/API-Documentation).
 - **Subscription service**: Link conversion, JSON subscription, and info endpoints (`sub/`, `util/`).
 - **Testing**: Adding unit and integration tests for critical paths.

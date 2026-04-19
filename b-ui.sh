@@ -9,8 +9,12 @@ REPO_OWNER="${REPO_OWNER:-BeanYa}"
 REPO_NAME="${REPO_NAME:-b-ui}"
 PROJECT_NAME="${PROJECT_NAME:-B-UI}"
 INSTALL_SCRIPT_URL="https://raw.githubusercontent.com/${REPO_OWNER}/${REPO_NAME}/main/install.sh"
-SCRIPT_RAW_URL="https://raw.githubusercontent.com/${REPO_OWNER}/${REPO_NAME}/main/s-ui.sh"
+SCRIPT_RAW_URL="https://raw.githubusercontent.com/${REPO_OWNER}/${REPO_NAME}/main/b-ui.sh"
 RELEASES_API_URL="https://api.github.com/repos/${REPO_OWNER}/${REPO_NAME}/releases"
+CLI_NAME="${CLI_NAME:-b-ui}"
+CLI_PATH="${CLI_PATH:-/usr/bin/${CLI_NAME}}"
+INSTALL_ROOT="${INSTALL_ROOT:-/usr/local/s-ui}"
+SERVICE_NAME="${SERVICE_NAME:-s-ui}"
 
 function LOGD() {
     echo -e "${yellow}[DEG] $* ${plain}"
@@ -109,8 +113,8 @@ get_current_installed_version() {
     local version_output=""
     local current_version=""
 
-    if [[ -x "/usr/local/s-ui/sui" ]]; then
-        version_output=$(/usr/local/s-ui/sui -v 2>/dev/null | awk 'NR==1 {print $NF}')
+    if [[ -x "${INSTALL_ROOT}/sui" ]]; then
+        version_output=$("${INSTALL_ROOT}/sui" -v 2>/dev/null | awk 'NR==1 {print $NF}')
         current_version=$(normalize_version "${version_output}")
         if [[ -n "${current_version}" ]]; then
             printf '%s\n' "${current_version}"
@@ -161,10 +165,10 @@ update() {
             force_update=1
             ;;
         --help | -h)
-            echo "Usage: s-ui update [version] [--force]"
-            echo "  s-ui update           Update to the latest published release if the version changed"
-            echo "  s-ui update v0.0.1    Update to a specific release"
-            echo "  s-ui update --force   Reinstall the latest release even when the version matches"
+            echo "Usage: ${CLI_NAME} update [version] [--force]"
+            echo "  ${CLI_NAME} update           Update to the latest published release if the version changed"
+            echo "  ${CLI_NAME} update v0.0.1    Update to a specific release"
+            echo "  ${CLI_NAME} update --force   Reinstall the latest release even when the version matches"
             return 0
             ;;
         *)
@@ -204,7 +208,7 @@ update() {
     LOGI "Target version: ${target_version}"
 
     if [[ ${force_update} -ne 1 && -n "${normalized_current}" && "${normalized_current}" == "${normalized_target}" ]]; then
-        LOGI "${PROJECT_NAME} is already on ${target_version}. Use 's-ui update --force' to reinstall the same version."
+        LOGI "${PROJECT_NAME} is already on ${target_version}. Use '${CLI_NAME} update --force' to reinstall the same version."
         if [[ ${menu_mode} -eq 1 ]]; then
             before_show_menu
         fi
@@ -260,16 +264,16 @@ uninstall() {
         fi
         return 0
     fi
-    systemctl stop s-ui
-    systemctl disable s-ui
-    rm /etc/systemd/system/s-ui.service -f
+    systemctl stop "${SERVICE_NAME}"
+    systemctl disable "${SERVICE_NAME}"
+    rm "/etc/systemd/system/${SERVICE_NAME}.service" -f
     systemctl daemon-reload
     systemctl reset-failed
-    rm /etc/s-ui/ -rf
-    rm /usr/local/s-ui/ -rf
+    rm -rf /etc/s-ui/
+    rm -rf "${INSTALL_ROOT}/"
 
     echo ""
-    echo -e "Uninstalled Successfully, If you want to remove this script, then after exiting the script run ${green}rm /usr/local/s-ui -f${plain} to delete it."
+    echo -e "Uninstalled Successfully, If you want to remove this script, then after exiting the script run ${green}rm ${CLI_PATH} -f${plain} to delete it."
     echo ""
 
     if [[ $# == 0 ]]; then
@@ -281,7 +285,7 @@ reset_admin() {
     echo "It is not recommended to set admin's credentials to default!"
     confirm "Are you sure you want to reset admin's credentials to default ?" "n"
     if [[ $? == 0 ]]; then
-        /usr/local/s-ui/sui admin -reset
+        "${INSTALL_ROOT}/sui" admin -reset
     fi
     before_show_menu
 }
@@ -290,19 +294,19 @@ set_admin() {
     echo "It is not recommended to set admin's credentials to a complex text."
     read -p "Please set up your username:" config_account
     read -p "Please set up your password:" config_password
-    /usr/local/s-ui/sui admin -username ${config_account} -password ${config_password}
+    "${INSTALL_ROOT}/sui" admin -username ${config_account} -password ${config_password}
     before_show_menu
 }
 
 view_admin() {
-    /usr/local/s-ui/sui admin -show
+    "${INSTALL_ROOT}/sui" admin -show
     before_show_menu
 }
 
 reset_setting() {
     confirm "Are you sure you want to reset settings to default ?" "n"
     if [[ $? == 0 ]]; then
-        /usr/local/s-ui/sui setting -reset
+        "${INSTALL_ROOT}/sui" setting -reset
     fi
     before_show_menu
 }
@@ -324,18 +328,18 @@ set_setting() {
     [ -z "$config_path" ] || params="$params -path $config_path"
     [ -z "$config_subPort" ] || params="$params -subPort $config_subPort"
     [ -z "$config_subPath" ] || params="$params -subPath $config_subPath"
-    /usr/local/s-ui/sui setting ${params}
+    "${INSTALL_ROOT}/sui" setting ${params}
     before_show_menu
 }
 
 view_setting() {
-    /usr/local/s-ui/sui setting -show
+    "${INSTALL_ROOT}/sui" setting -show
     view_uri
     before_show_menu
 }
 
 view_uri() {
-    info=$(/usr/local/s-ui/sui uri)
+    info=$("${INSTALL_ROOT}/sui" uri)
     if [[ $? != 0 ]]; then
         LOGE "Get current uri error"
         before_show_menu
@@ -401,7 +405,7 @@ restart() {
 }
 
 status() {
-    systemctl status s-ui -l
+    systemctl status "${SERVICE_NAME}" -l
     if [[ $# == 0 ]]; then
         before_show_menu
     fi
@@ -441,13 +445,13 @@ show_log() {
 }
 
 update_shell() {
-    wget -O /usr/bin/s-ui --no-check-certificate "${SCRIPT_RAW_URL}"
+    wget -O "${CLI_PATH}" --no-check-certificate "${SCRIPT_RAW_URL}"
     if [[ $? != 0 ]]; then
         echo ""
         LOGE "Failed to download script, Please check whether the machine can connect Github"
         before_show_menu
     else
-        chmod +x /usr/bin/s-ui
+        chmod +x "${CLI_PATH}"
         LOGI "Upgrade script succeeded, Please rerun the script" && exit 0
     fi
 }
@@ -474,7 +478,7 @@ check_enabled() {
 }
 
 check_uninstall() {
-    check_status s-ui
+    check_status "${SERVICE_NAME}"
     if [[ $? != 2 ]]; then
         echo ""
         LOGE "Panel is already installed, Please do not reinstall"
@@ -488,7 +492,7 @@ check_uninstall() {
 }
 
 check_install() {
-    check_status s-ui
+    check_status "${SERVICE_NAME}"
     if [[ $? == 2 ]]; then
         echo ""
         LOGE "Please install the panel first"
@@ -527,7 +531,7 @@ show_enable_status() {
     fi
 }
 
-check_s-ui_status() {
+check_panel_status() {
     count=$(ps -ef | grep "sui" | grep -v "grep" | wc -l)
     if [[ count -ne 0 ]]; then
         return 0
@@ -536,12 +540,12 @@ check_s-ui_status() {
     fi
 }
 
-show_s-ui_status() {
-    check_s-ui_status
+show_panel_status() {
+    check_panel_status
     if [[ $? == 0 ]]; then
-        echo -e "s-ui state: ${green}Running${plain}"
+        echo -e "${CLI_NAME} state: ${green}Running${plain}"
     else
-        echo -e "s-ui state: ${red}Not Running${plain}"
+        echo -e "${CLI_NAME} state: ${red}Not Running${plain}"
     fi
 }
 
@@ -918,28 +922,28 @@ generate_self_signed_cert() {
 }
 
 show_usage() {
-    echo -e "S-UI Control Menu Usage"
+    echo -e "B-UI Control Menu Usage"
     echo -e "------------------------------------------"
     echo -e "SUBCOMMANDS:" 
-    echo -e "s-ui              - Admin Management Script"
-    echo -e "s-ui start        - Start s-ui"
-    echo -e "s-ui stop         - Stop s-ui"
-    echo -e "s-ui restart      - Restart s-ui"
-    echo -e "s-ui status       - Current Status of s-ui"
-    echo -e "s-ui enable       - Enable Autostart on OS Startup"
-    echo -e "s-ui disable      - Disable Autostart on OS Startup"
-    echo -e "s-ui log          - Check s-ui Logs"
-    echo -e "s-ui update       - Update to the latest release when the version changed"
-    echo -e "s-ui update --force - Force reinstall the latest release"
-    echo -e "s-ui install      - Install"
-    echo -e "s-ui uninstall    - Uninstall"
-    echo -e "s-ui help         - Control Menu Usage"
+    echo -e "${CLI_NAME}              - Admin Management Script"
+    echo -e "${CLI_NAME} start        - Start ${PROJECT_NAME}"
+    echo -e "${CLI_NAME} stop         - Stop ${PROJECT_NAME}"
+    echo -e "${CLI_NAME} restart      - Restart ${PROJECT_NAME}"
+    echo -e "${CLI_NAME} status       - Current status of ${PROJECT_NAME}"
+    echo -e "${CLI_NAME} enable       - Enable autostart on OS startup"
+    echo -e "${CLI_NAME} disable      - Disable autostart on OS startup"
+    echo -e "${CLI_NAME} log          - Check ${PROJECT_NAME} logs"
+    echo -e "${CLI_NAME} update       - Update to the latest release when the version changed"
+    echo -e "${CLI_NAME} update --force - Force reinstall the latest release"
+    echo -e "${CLI_NAME} install      - Install"
+    echo -e "${CLI_NAME} uninstall    - Uninstall"
+    echo -e "${CLI_NAME} help         - Control menu usage"
     echo -e "------------------------------------------"
 }
 
 show_menu() {
   echo -e "
-  ${green}S-UI Admin Management Script ${plain}
+  ${green}B-UI Admin Management Script ${plain}
 ————————————————————————————————
   ${green}0.${plain} Exit
 ————————————————————————————————
@@ -956,20 +960,20 @@ show_menu() {
   ${green}9.${plain} Set Panel settings
   ${green}10.${plain} View Panel Settings
 ————————————————————————————————
-  ${green}11.${plain} S-UI Start
-  ${green}12.${plain} S-UI Stop
-  ${green}13.${plain} S-UI Restart
-  ${green}14.${plain} S-UI Check State
-  ${green}15.${plain} S-UI Check Logs
-  ${green}16.${plain} S-UI Enable Autostart
-  ${green}17.${plain} S-UI Disable Autostart
+  ${green}11.${plain} B-UI Start
+  ${green}12.${plain} B-UI Stop
+  ${green}13.${plain} B-UI Restart
+  ${green}14.${plain} B-UI Check State
+  ${green}15.${plain} B-UI Check Logs
+  ${green}16.${plain} B-UI Enable Autostart
+  ${green}17.${plain} B-UI Disable Autostart
 ————————————————————————————————
   ${green}18.${plain} Enable or Disable BBR
   ${green}19.${plain} SSL Certificate Management
   ${green}20.${plain} Cloudflare SSL Certificate
 ————————————————————————————————
  "
-    show_status s-ui
+    show_status "${SERVICE_NAME}"
     echo && read -p "Please enter your selection [0-20]: " num
 
     case "${num}" in
@@ -1007,25 +1011,25 @@ show_menu() {
         check_install && view_setting
         ;;
     11)
-        check_install && start s-ui
+        check_install && start "${SERVICE_NAME}"
         ;;
     12)
-        check_install && stop s-ui
+        check_install && stop "${SERVICE_NAME}"
         ;;
     13)
-        check_install && restart s-ui
+        check_install && restart "${SERVICE_NAME}"
         ;;
     14)
-        check_install && status s-ui
+        check_install && status "${SERVICE_NAME}"
         ;;
     15)
-        check_install && show_log s-ui
+        check_install && show_log "${SERVICE_NAME}"
         ;;
     16)
-        check_install && enable s-ui
+        check_install && enable "${SERVICE_NAME}"
         ;;
     17)
-        check_install && disable s-ui
+        check_install && disable "${SERVICE_NAME}"
         ;;
     18)
         bbr_menu
@@ -1045,25 +1049,25 @@ show_menu() {
 if [[ $# > 0 ]]; then
     case $1 in
     "start")
-        check_install 0 && start s-ui 0
+        check_install 0 && start "${SERVICE_NAME}" 0
         ;;
     "stop")
-        check_install 0 && stop s-ui 0
+        check_install 0 && stop "${SERVICE_NAME}" 0
         ;;
     "restart")
-        check_install 0 && restart s-ui 0
+        check_install 0 && restart "${SERVICE_NAME}" 0
         ;;
     "status")
         check_install 0 && status 0
         ;;
     "enable")
-        check_install 0 && enable s-ui 0
+        check_install 0 && enable "${SERVICE_NAME}" 0
         ;;
     "disable")
-        check_install 0 && disable s-ui 0
+        check_install 0 && disable "${SERVICE_NAME}" 0
         ;;
     "log")
-        check_install 0 && show_log s-ui 0
+        check_install 0 && show_log "${SERVICE_NAME}" 0
         ;;
     "update")
         shift

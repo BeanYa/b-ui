@@ -16,8 +16,10 @@ Usage:
   bash migrate-to-b-ui.sh <version>
   bash migrate-to-b-ui.sh --help
 
-This script migrates an existing s-ui installation to the BeanYa/b-ui fork
-in place while keeping the current service name, install path, and database.
+This script migrates an existing upstream installation to BeanYa/b-ui
+in place, switches the management command to b-ui, and then ensures the
+installation is updated to the latest published b-ui release by default.
+If a version is provided, migration targets that version instead.
 EOF
 }
 
@@ -43,8 +45,17 @@ if [[ -n "${TARGET_VERSION}" ]]; then
     args+=("${TARGET_VERSION}")
 fi
 
-if [[ -f "${SCRIPT_DIR}/install.sh" ]]; then
-    bash "${SCRIPT_DIR}/install.sh" "${args[@]}"
-else
-    bash <(curl -Ls "${INSTALL_SCRIPT_URL}") "${args[@]}"
+run_install_script() {
+    if [[ -f "${SCRIPT_DIR}/install.sh" ]]; then
+        bash "${SCRIPT_DIR}/install.sh" "$@"
+    else
+        bash <(curl -Ls "${INSTALL_SCRIPT_URL}") "$@"
+    fi
+}
+
+run_install_script "${args[@]}"
+
+if [[ -z "${TARGET_VERSION}" ]]; then
+    echo "Migration completed. Ensuring the installation is on the latest published b-ui release..."
+    run_install_script --update
 fi

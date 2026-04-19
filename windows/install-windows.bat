@@ -2,7 +2,7 @@
 setlocal enabledelayedexpansion
 
 echo ========================================
-echo S-UI Windows Installer
+echo B-UI Windows Installer
 echo ========================================
 
 REM Check if running as Administrator
@@ -16,10 +16,10 @@ if %errorLevel% neq 0 (
 
 cd /d "%~dp0"
 REM Set installation directory
-set "INSTALL_DIR=C:\Program Files\s-ui"
-set "SERVICE_NAME=s-ui"
+set "INSTALL_DIR=C:\Program Files\b-ui"
+set "SERVICE_NAME=b-ui"
 
-echo Installing S-UI to: %INSTALL_DIR%
+echo Installing B-UI to: %INSTALL_DIR%
 
 REM Create installation directory
 if not exist "%INSTALL_DIR%" mkdir "%INSTALL_DIR%"
@@ -30,8 +30,8 @@ if not exist "%INSTALL_DIR%\cert" mkdir "%INSTALL_DIR%\cert"
 REM Copy files
 echo Copying files...
 copy "sui.exe" "%INSTALL_DIR%\" >nul
-copy "s-ui-windows.xml" "%INSTALL_DIR%\" >nul
-copy "s-ui-windows.bat" "%INSTALL_DIR%\" >nul
+copy "b-ui-windows.xml" "%INSTALL_DIR%\" >nul
+copy "b-ui-windows.bat" "%INSTALL_DIR%\" >nul
 
 REM Check if WinSW is available
 set "WINSW_PATH=%INSTALL_DIR%\winsw.exe"
@@ -50,11 +50,11 @@ REM Install Windows Service
 if exist "%WINSW_PATH%" (
     echo Installing Windows Service...
     cd /d "%INSTALL_DIR%"
-    copy "winsw.exe" "s-ui-service.exe" >nul
-    copy "s-ui-windows.xml" "s-ui-service.xml" >nul
+    copy "winsw.exe" "b-ui-service.exe" >nul
+    copy "b-ui-windows.xml" "b-ui-service.xml" >nul
         
     REM Install service
-    s-ui-service.exe install
+    b-ui-service.exe install
     if %errorLevel% equ 0 (
         echo Service installed successfully
     ) else (
@@ -125,7 +125,7 @@ echo Setting admin credentials...
 sui.exe admin -username "%admin_username%" -password "%admin_password%"
 
 REM Start service
-echo Starting S-UI service...
+echo Starting B-UI service...
 net start %SERVICE_NAME%
 if %errorLevel% equ 0 (
     echo Service started successfully
@@ -137,7 +137,7 @@ REM Create desktop shortcut
 echo Creating desktop shortcut...
 set "DESKTOP=%USERPROFILE%\Desktop"
 if exist "%DESKTOP%" (
-    powershell -Command "& {$WshShell = New-Object -comObject WScript.Shell; $Shortcut = $WshShell.CreateShortcut('%DESKTOP%\S-UI.lnk'); $Shortcut.TargetPath = '%INSTALL_DIR%\s-ui-windows.bat'; $Shortcut.WorkingDirectory = '%INSTALL_DIR%'; $Shortcut.Description = 'S-UI Control Panel'; $Shortcut.Save()}"
+    powershell -Command "& {$WshShell = New-Object -comObject WScript.Shell; $Shortcut = $WshShell.CreateShortcut('%DESKTOP%\B-UI.lnk'); $Shortcut.TargetPath = '%INSTALL_DIR%\b-ui-windows.bat'; $Shortcut.WorkingDirectory = '%INSTALL_DIR%'; $Shortcut.Description = 'B-UI Control Panel'; $Shortcut.Save()}"
     echo Desktop shortcut created
 )
 
@@ -145,8 +145,8 @@ REM Create Start Menu shortcut
 echo Creating Start Menu shortcut...
 set "START_MENU=%APPDATA%\Microsoft\Windows\Start Menu\Programs"
 if exist "%START_MENU%" (
-    if not exist "%START_MENU%\S-UI" mkdir "%START_MENU%\S-UI"
-    powershell -Command "& {$WshShell = New-Object -comObject WScript.Shell; $Shortcut = $WshShell.CreateShortcut('%START_MENU%\S-UI\S-UI Control Panel.lnk'); $Shortcut.TargetPath = '%INSTALL_DIR%\s-ui-windows.bat'; $Shortcut.WorkingDirectory = '%INSTALL_DIR%'; $Shortcut.Description = 'S-UI Control Panel'; $Shortcut.Save()}"
+    if not exist "%START_MENU%\B-UI" mkdir "%START_MENU%\B-UI"
+    powershell -Command "& {$WshShell = New-Object -comObject WScript.Shell; $Shortcut = $WshShell.CreateShortcut('%START_MENU%\B-UI\B-UI Control Panel.lnk'); $Shortcut.TargetPath = '%INSTALL_DIR%\b-ui-windows.bat'; $Shortcut.WorkingDirectory = '%INSTALL_DIR%'; $Shortcut.Description = 'B-UI Control Panel'; $Shortcut.Save()}"
     echo Start Menu shortcut created
 )
 
@@ -158,7 +158,7 @@ icacls "%INSTALL_DIR%\logs" /grant "Users:(OI)(CI)F" /T >nul
 
 REM Create environment variable
 echo Setting environment variable...
-setx SUI_HOME "%INSTALL_DIR%" /M >nul
+setx BUI_HOME "%INSTALL_DIR%" /M >nul
 
 REM Show final configuration
 echo.
@@ -166,7 +166,7 @@ echo ========================================
 echo Installation completed successfully!
 echo ========================================
 echo.
-echo S-UI has been installed to: %INSTALL_DIR%
+echo B-UI has been installed to: %INSTALL_DIR%
 echo.
 echo Configuration:
 echo   Panel Port: %panel_port%
