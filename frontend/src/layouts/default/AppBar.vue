@@ -151,6 +151,7 @@ onBeforeUnmount(() => {
 
 .app-bar-shell__inner {
   align-items: center;
+  background: color-mix(in srgb, var(--app-surface-1) 92%, transparent);
   border: 1px solid var(--app-border-1);
   border-radius: 30px;
   box-shadow: var(--app-shadow-ring), var(--app-shadow-panel);
@@ -191,6 +192,17 @@ onBeforeUnmount(() => {
 .app-bar-shell__icon {
   backdrop-filter: blur(14px);
   border: 1px solid var(--app-border-1);
+  color: var(--app-text-2) !important;
+}
+
+.app-bar-shell__nav-btn:hover,
+.app-bar-shell__icon:hover {
+  color: var(--app-text-1) !important;
+}
+
+.app-bar-shell__nav-btn :deep(.v-icon),
+.app-bar-shell__icon :deep(.v-icon) {
+  color: currentColor !important;
 }
 
 .app-bar-shell__brand-mark {

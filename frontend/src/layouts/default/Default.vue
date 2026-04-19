@@ -72,6 +72,16 @@ watch([isMobile, isWideScreen], ([mobile, wide]) => {
 }
 
 .shell-app {
+  background:
+    linear-gradient(var(--app-bg-grid) 1px, transparent 1px),
+    linear-gradient(90deg, var(--app-bg-grid) 1px, transparent 1px),
+    radial-gradient(circle at 10% 10%, var(--app-bg-glow-primary), transparent 24%),
+    radial-gradient(circle at 90% 0%, var(--app-bg-glow-danger), transparent 22%),
+    radial-gradient(circle at 50% 0%, var(--app-bg-glow-warm), transparent 30%),
+    linear-gradient(180deg, color-mix(in srgb, var(--app-bg-ambient) 100%, transparent), transparent 24%),
+    linear-gradient(180deg, var(--app-bg-elevated), var(--app-bg-base));
+  background-position: center;
+  background-size: 52px 52px, 52px 52px, auto, auto, auto, auto, auto;
   min-height: 100vh;
   overflow: hidden;
   position: relative;
@@ -103,7 +113,7 @@ watch([isMobile, isWideScreen], ([mobile, wide]) => {
 }
 
 .shell-app__vignette {
-  background: radial-gradient(circle at center, transparent 50%, rgba(4, 5, 8, 0.18) 100%);
+  background: radial-gradient(circle at center, transparent 50%, var(--app-bg-vignette-edge) 100%);
   z-index: 0;
 }
 
