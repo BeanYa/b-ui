@@ -165,11 +165,9 @@ npm run dev
 ```sh
 cd frontend
 npm install
-npm run build
+npm run build:embed
 
 # 回到仓库根目录
-rm -fr web/html/*
-cp -R frontend/dist/ web/html/
 go build -o sui main.go
 ```
 

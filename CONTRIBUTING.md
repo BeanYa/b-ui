@@ -65,16 +65,13 @@ The **frontend** now lives directly in the `frontend/` directory of this reposit
    ```bash
    cd frontend
    npm install
-   npm run build
+   npm run build:embed
    cd ..
    ```
 
-2. **Replace web assets and build backend**:
+2. **Build backend**:
 
    ```bash
-   mkdir -p web/html
-   rm -rf web/html/*
-   cp -R frontend/dist/* web/html/
    go build -ldflags "-w -s" -tags "with_quic,with_grpc,with_utls,with_acme,with_gvisor,with_tailscale" -o sui main.go
    ```
 

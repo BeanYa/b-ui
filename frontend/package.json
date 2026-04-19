@@ -5,6 +5,7 @@
   "scripts": {
     "dev": "vite --host",
     "build": "vue-tsc --noEmit && vite build",
+    "build:embed": "npm run build && node ./scripts/sync-web-html.mjs",
     "test": "vitest run",
     "preview": "vite preview",
     "lint": "eslint . --fix --ignore-path .gitignore"

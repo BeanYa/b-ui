@@ -5,11 +5,10 @@
   <UsageStats v-model:visible="usageStatsModal.visible" />
   <v-container class="dashboard-shell" fluid>
     <v-row class="dashboard-shell__overview" density="comfortable">
-      <v-col cols="12" xl="4" lg="4">
+      <v-col cols="12" xl="3" lg="4">
         <v-card class="overview-card overview-card--intro">
           <div class="overview-card__glow"></div>
           <div class="overview-card__eyebrow">
-            <v-img src="@/assets/logo.svg" width="18" />
             <span>Operations Console</span>
           </div>
           <h1 class="overview-card__title">{{ $t('pages.home') }}</h1>
@@ -37,7 +36,7 @@
         </v-card>
       </v-col>
 
-      <v-col cols="12" xl="5" lg="5">
+      <v-col cols="12" xl="6" lg="5">
         <v-card class="overview-card overview-card--stats">
           <div class="section-head">
             <div>
@@ -90,10 +89,7 @@
               <span class="runtime-grid__note" :title="item.note">{{ item.note }}</span>
             </div>
           </div>
-          <div class="runtime-card__footer">
-            <span>{{ telemetryFooter }}</span>
-            <v-chip color="primary" size="small" variant="outlined">Always visible</v-chip>
-          </div>
+          <p class="runtime-card__footer">{{ telemetryFooter }}</p>
         </v-card>
       </v-col>
     </v-row>
@@ -538,7 +534,7 @@ onBeforeUnmount(() => {
   font-size: 13px;
   line-height: 1.55;
   margin: 12px 0 0;
-  max-width: 31ch;
+  max-width: 36ch;
   overflow: hidden;
   position: relative;
   z-index: 1;
@@ -748,23 +744,16 @@ onBeforeUnmount(() => {
 }
 
 .runtime-card__footer {
-  align-items: center;
-  display: flex;
-  gap: 12px;
-  justify-content: space-between;
+  color: var(--app-text-3);
+  font-size: 12px;
+  line-height: 1.5;
   margin-top: auto;
+  min-width: 0;
+  overflow-wrap: anywhere;
   padding-top: 14px;
   position: relative;
   z-index: 1;
-}
-
-.runtime-card__footer span {
-  color: var(--app-text-3);
-  flex: 1 1 auto;
-  font-size: 12px;
-  line-height: 1.5;
-  min-width: 0;
-  overflow-wrap: anywhere;
+  margin-bottom: 0;
 }
 
 .telemetry-section {
@@ -935,17 +924,8 @@ onBeforeUnmount(() => {
     grid-template-columns: 1fr 1fr;
   }
 
-  .runtime-card__footer .v-btn {
-    width: 100%;
-  }
-
   .overview-card__actions {
     grid-template-columns: 1fr;
-  }
-
-  .runtime-card__footer {
-    align-items: stretch;
-    flex-direction: column;
   }
 
   .tile-card__body {
