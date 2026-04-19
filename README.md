@@ -8,6 +8,8 @@
 - 前端代码位于 `frontend/` 子模块，当前仓库为 `b-ui-frontend`
 - 所有新的 UI 改动默认遵循 [DESIGN.md](./DESIGN.md)
 
+**想参与开发？** 见 [CONTRIBUTING.md](./CONTRIBUTING.md)。
+
 ## 仓库结构
 
 - `frontend/`: Vue 3 + Vuetify 4 前端子模块
@@ -28,6 +30,7 @@ git submodule update --init --remote --recursive
 - `frontend` 子模块默认跟踪 `b-ui-frontend` 的 `main` 分支
 - 但 Git 子模块机制本身仍然会在父仓库里记录一个具体 commit，这是 Git 的正常行为
 - 如果你想在本地显式刷新到前端最新 `main`，重复执行一次 `git submodule update --remote --recursive` 即可
+- 当前 release / docker workflow 也会在 CI 中主动刷新 `frontend` 子模块到最新 `main` 后再构建
 
 ## 从已安装的 S-UI 迁移
 
@@ -90,6 +93,24 @@ s-ui update --force
 bash <(curl -Ls https://raw.githubusercontent.com/BeanYa/b-ui/main/install.sh) --update
 bash <(curl -Ls https://raw.githubusercontent.com/BeanYa/b-ui/main/install.sh) --force-update
 ```
+
+## 版本与发布
+
+当前主线版本使用 `v0.0.x` 这一组 tag，例如：
+
+```sh
+git tag v0.0.2
+git push origin v0.0.2
+```
+
+触发 tag 构建后：
+
+- Linux release 资产命名为 `b-ui-linux-<arch>.tar.gz`
+- Windows release 资产命名为 `b-ui-windows-<arch>.zip`
+- Docker workflow 会向 `ghcr.io/beanya/b-ui` 推送对应 tag 的镜像
+- 构建流程会把 Git tag 注入二进制版本号，因此 `sui -v` 会显示对应 release tag
+
+目前安装脚本默认下载上述 `b-ui-*` release 资产，但运行后的 Linux 服务名、安装目录和管理命令仍保持 `s-ui` 兼容形式。
 
 ## 前端开发
 

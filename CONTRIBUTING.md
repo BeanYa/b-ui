@@ -1,6 +1,6 @@
-# Contributing to S-UI
+# Contributing to B-UI
 
-Thank you for your interest in contributing to S-UI. This document explains how to set up a development environment, follow project conventions, and submit changes. Your contributions help make the **multi-inbound-per-user** approach and the rest of the project better for everyone.
+Thank you for your interest in contributing to B-UI. This repository is a fork of `alireza0/s-ui`: the Go backend and install layout remain compatible with upstream, while the frontend, branding, release assets, and contributor workflow are maintained here in the `BeanYa/b-ui` fork.
 
 ## Table of Contents
 
@@ -33,12 +33,12 @@ Please be respectful and constructive when interacting with maintainers and othe
 ### Clone and Submodules
 
 ```bash
-git clone https://github.com/alireza0/s-ui
-cd s-ui
+git clone https://github.com/BeanYa/b-ui.git
+cd b-ui
 git submodule update --init --remote --recursive
 ```
 
-The **frontend** lives in a submodule. If you only work on the backend, you can use the existing `web/html` contents or build the frontend once (see below).
+The **frontend** lives in the `frontend/` submodule and tracks [`BeanYa/b-ui-frontend`](https://github.com/BeanYa/b-ui-frontend). If you only work on the backend, you can use the existing `web/html` contents or build the frontend once (see below).
 
 ### Backend-Only Development (quickest)
 
@@ -93,6 +93,14 @@ The backend is built with these tags for full functionality:
 
 Use the same tags when building locally if you need feature parity with releases.
 
+### Release and Versioning
+
+- Mainline release tags currently follow `v0.0.x` in this fork.
+- Tagged builds publish Linux assets as `b-ui-linux-<arch>.tar.gz`.
+- Tagged builds publish Windows assets as `b-ui-windows-<arch>.zip`.
+- Tagged builds inject the Git tag into the binary version, so `sui -v` reflects the release tag.
+- Linux compatibility remains intentionally unchanged after install: service name `s-ui`, install path `/usr/local/s-ui`, management command `s-ui`.
+
 ### Environment Variables (development)
 
 | Variable       | Description                    | Example   |
@@ -105,10 +113,10 @@ Use the same tags when building locally if you need feature parity with releases
 ### Docker (optional)
 
 ```bash
-git clone https://github.com/alireza0/s-ui
-cd s-ui
+git clone https://github.com/BeanYa/b-ui.git
+cd b-ui
 git submodule update --init --remote --recursive
-docker build -t s-ui .
+docker build -t b-ui .
 # or: docker compose up -d
 ```
 
@@ -185,16 +193,17 @@ go vet ./...
 
 ## Features That Need Help
 
-Community help is especially valuable in these areas. Check the [Issues](https://github.com/alireza0/s-ui/issues) for current tasks and ideas.
+Community help is especially valuable in these areas. Check the [Issues](https://github.com/BeanYa/b-ui/issues) for current tasks and ideas.
 
 ### High-Value Areas
 
-- **Multi-inbound per user**: Core differentiator of S-UI; improvements to UX, docs, and robustness are welcome.
-- **API (v1 and v2)**: Completeness, consistency, and documentation (see [API Documentation](https://github.com/alireza0/s-ui/wiki/API-Documentation)).
+- **Multi-inbound per user**: Core differentiator inherited from S-UI; improvements to UX, docs, and robustness are welcome.
+- **API (v1 and v2)**: Completeness, consistency, and documentation. Upstream API docs remain a useful reference: [API Documentation](https://github.com/alireza0/s-ui/wiki/API-Documentation).
 - **Subscription service**: Link conversion, JSON subscription, and info endpoints (`sub/`, `util/`).
 - **Testing**: Adding unit and integration tests for critical paths.
-- **Documentation**: User docs, API examples, and contribution docs (like this file).
+- **Documentation**: User docs, migration/update docs, release notes, and contribution docs.
 - **Platform support**: macOS is experimental; Windows and Linux improvements are welcome (see `windows/` and `.github/workflows/`).
+- **Frontend and design system**: UI work in `frontend/` should follow [`DESIGN.md`](./DESIGN.md) and keep the darker desktop-tool direction intact.
 
 ### How to Find Tasks
 
@@ -261,7 +270,7 @@ If you maintain a fork or your own repository and want the contribution guide to
    In the repository **Settings → General → Features**, ensure “Issues” (and optionally “Discussions”) are enabled. The link to `CONTRIBUTING.md` appears when users create a new issue or PR; no extra config is needed as long as the file is in the root.
 
 4. **When forking**  
-   If you fork S-UI, `CONTRIBUTING.md` is already in the repo. Update the clone URLs and repo names in this file if you want your fork’s contribution instructions to point to your own repository.
+   If you fork B-UI, `CONTRIBUTING.md` is already in the repo. Update the clone URLs, image names, and repo names in this file if you want your fork’s instructions to point to your own repository.
 
 ---
 
@@ -273,4 +282,4 @@ If you maintain a fork or your own repository and want the contribution guide to
 
 ---
 
-Thank you for helping S-UI grow. Your contributions make it possible for more users to adopt S-UI in production and benefit from its multi-inbound-per-user design.
+Thank you for helping B-UI evolve. Contributions here keep upstream compatibility intact while moving the fork’s UI, packaging, and release workflow forward.

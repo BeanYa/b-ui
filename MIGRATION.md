@@ -34,6 +34,7 @@ bash <(curl -Ls https://raw.githubusercontent.com/BeanYa/b-ui/main/install.sh) -
 2. Stops the `s-ui` service.
 3. Creates a rollback backup under `/var/backups/s-ui/<timestamp>/`.
 4. Downloads the release artifact from `BeanYa/b-ui`.
+   The current Linux asset name is `b-ui-linux-<arch>.tar.gz`.
 5. Replaces the installed binaries and shell script in place.
 6. Runs `sui migrate`.
 7. Restarts and enables the `s-ui` service.
