@@ -470,7 +470,6 @@ const percentColor = (c: Client) => { return (c.up+c.down) >= c.volume ? 'error'
 .clients-toolbar {
   display: grid;
   gap: 4px;
-  margin-inline-end: auto;
 }
 
 .clients-toolbar__label,
@@ -511,5 +510,12 @@ const percentColor = (c: Client) => { return (c.up+c.down) >= c.volume ? 'error'
   flex-wrap: wrap;
   gap: 8px;
   margin-top: 10px;
+}
+
+@media (min-width: 961px) {
+  .clients-toolbar {
+    margin-inline-start: auto;
+    order: 10;
+  }
 }
 </style>

@@ -411,7 +411,7 @@ kbd,
 .app-page__hero {
   display: grid;
   gap: 18px;
-  grid-template-columns: minmax(0, 1.2fr) minmax(280px, 0.8fr);
+  grid-template-columns: minmax(0, 1fr) minmax(420px, 560px);
   padding: 22px;
 }
 
@@ -420,6 +420,11 @@ kbd,
   min-width: 0;
   position: relative;
   z-index: 1;
+}
+
+.app-page__hero-side {
+  display: flex;
+  justify-content: flex-end;
 }
 
 .app-page__hero-kicker {
@@ -473,6 +478,8 @@ kbd,
 .app-page__hero-stats {
   display: grid;
   gap: 10px;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  width: 100%;
 }
 
 .app-page__hero-stat {
@@ -516,7 +523,7 @@ kbd,
 
 .app-page__toolbar > .v-col {
   display: flex;
-  justify-content: flex-end;
+  justify-content: flex-start;
   padding-bottom: 0;
   padding-top: 0;
 }
@@ -526,7 +533,7 @@ kbd,
   display: flex;
   flex-wrap: wrap;
   gap: 10px;
-  justify-content: flex-end;
+  justify-content: flex-start;
   width: 100%;
 }
 
@@ -679,6 +686,10 @@ kbd,
 
   .app-page__hero {
     grid-template-columns: 1fr;
+  }
+
+  .app-page__hero-side {
+    justify-content: stretch;
   }
 
   .app-entity-card,

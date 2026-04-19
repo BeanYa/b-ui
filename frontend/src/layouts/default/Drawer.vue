@@ -263,6 +263,11 @@ const logoutUser = async () => {
   padding-inline: 8px;
 }
 
+:deep(.v-navigation-drawer--rail .app-drawer__list) {
+  align-items: center;
+  padding-inline: 0;
+}
+
 :deep(.v-navigation-drawer--rail .app-drawer__brand) {
   justify-content: center;
   padding-inline: 0;
@@ -274,14 +279,35 @@ const logoutUser = async () => {
 
 :deep(.v-navigation-drawer--rail .app-drawer__item) {
   justify-content: center;
+  margin-inline: auto;
+  min-height: 52px;
+  padding-inline: 0;
+  width: 52px;
 }
 
 :deep(.v-navigation-drawer--rail .app-drawer__footer-note) {
   display: none;
 }
 
+:deep(.v-navigation-drawer--rail .app-drawer__item .v-list-item__overlay) {
+  left: 0;
+  right: 0;
+}
+
+:deep(.v-navigation-drawer--rail .app-drawer__item .v-list-item__content) {
+  display: none;
+}
+
 :deep(.v-navigation-drawer--rail .app-drawer__item .v-list-item__prepend) {
+  align-items: center;
+  display: flex;
+  justify-content: center;
   margin-inline-end: 0;
+  width: 100%;
+}
+
+:deep(.v-navigation-drawer--rail .app-drawer__item .v-list-item__prepend > .v-icon) {
+  margin-inline: auto;
 }
 
 @media (max-width: 960px) {
