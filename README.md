@@ -12,8 +12,14 @@
 
 - 顶部首页信息卡片优先保证在桌面端一屏完整显示
 - 监控统计卡、运行态卡与首页介绍卡按三栏对齐
-- 当未选择任何 live tiles 时，不再显示空白占位大卡
+- 首页固定展示全部遥测统计，不再提供可选 live tiles 开关
 - 移动端保持纵向堆叠，并避免横向溢出
+
+## 首页运行截图
+
+下图为本地构建产物在浏览器中的首页运行效果，当前布局固定展示 CPU、RAM、Disk、Swap、网络、包速率、磁盘 IO、系统信息与 Sing-box 运行态，避免出现高瘦卡片和内容裁切。
+
+![首页运行截图](./frontend/media/home-dashboard-telemetry.png)
 
 **想参与开发？** 见 [CONTRIBUTING.md](./CONTRIBUTING.md)。
 
