@@ -132,9 +132,21 @@ onBeforeUnmount(() => {
 
 <style scoped>
 .app-bar-shell {
+  backdrop-filter: none !important;
   background: transparent !important;
+  border-color: transparent !important;
   box-shadow: none !important;
   padding: 14px 18px 0;
+}
+
+.app-bar-shell :deep(.v-toolbar__content),
+.app-bar-shell :deep(.v-toolbar__extension) {
+  background: transparent !important;
+  padding: 0 !important;
+}
+
+.app-bar-shell :deep(.v-toolbar__overlay) {
+  display: none;
 }
 
 .app-bar-shell__inner {
