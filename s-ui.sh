@@ -10,6 +10,7 @@ REPO_NAME="${REPO_NAME:-b-ui}"
 PROJECT_NAME="${PROJECT_NAME:-B-UI}"
 INSTALL_SCRIPT_URL="https://raw.githubusercontent.com/${REPO_OWNER}/${REPO_NAME}/main/install.sh"
 SCRIPT_RAW_URL="https://raw.githubusercontent.com/${REPO_OWNER}/${REPO_NAME}/main/s-ui.sh"
+RELEASES_API_URL="https://api.github.com/repos/${REPO_OWNER}/${REPO_NAME}/releases"
 
 function LOGD() {
     echo -e "${yellow}[DEG] $* ${plain}"
@@ -68,6 +69,68 @@ before_show_menu() {
     show_menu
 }
 
+normalize_version() {
+    local version_value="$1"
+    version_value=$(printf '%s' "${version_value}" | tr -d '\r\n[:space:]')
+    version_value="${version_value#v}"
+    printf '%s' "${version_value}"
+}
+
+canonicalize_release_tag() {
+    local version_value=""
+    version_value=$(normalize_version "$1")
+    if [[ -n "${version_value}" ]]; then
+        printf 'v%s\n' "${version_value}"
+    fi
+}
+
+get_latest_release_tag() {
+    local api_response=""
+    local resolved_tag=""
+
+    api_response=$(curl -fsSL "${RELEASES_API_URL}/latest" 2>/dev/null || true)
+    resolved_tag=$(printf '%s\n' "${api_response}" | sed -n 's/.*"tag_name":[[:space:]]*"\([^"]*\)".*/\1/p' | head -n1)
+    if [[ -n "${resolved_tag}" ]]; then
+        printf '%s\n' "${resolved_tag}"
+        return 0
+    fi
+
+    api_response=$(curl -fsSL "${RELEASES_API_URL}?per_page=20" 2>/dev/null || true)
+    resolved_tag=$(printf '%s\n' "${api_response}" | sed -n 's/.*"tag_name":[[:space:]]*"\([^"]*\)".*/\1/p' | head -n1)
+    if [[ -n "${resolved_tag}" ]]; then
+        printf '%s\n' "${resolved_tag}"
+        return 0
+    fi
+
+    return 1
+}
+
+get_current_installed_version() {
+    local version_output=""
+    local current_version=""
+
+    if [[ -x "/usr/local/s-ui/sui" ]]; then
+        version_output=$(/usr/local/s-ui/sui -v 2>/dev/null | awk 'NR==1 {print $NF}')
+        current_version=$(normalize_version "${version_output}")
+        if [[ -n "${current_version}" ]]; then
+            printf '%s\n' "${current_version}"
+            return 0
+        fi
+    fi
+
+    return 1
+}
+
+run_remote_installer() {
+    local target_version="$1"
+
+    if [[ -n "${target_version}" ]]; then
+        bash <(curl -Ls "${INSTALL_SCRIPT_URL}") --auto-migrate "${target_version}"
+    else
+        bash <(curl -Ls "${INSTALL_SCRIPT_URL}") --auto-migrate
+    fi
+}
+
 install() {
     bash <(curl -Ls "${INSTALL_SCRIPT_URL}")
     if [[ $? == 0 ]]; then
@@ -80,36 +143,108 @@ install() {
 }
 
 update() {
-    confirm "This function will forcefully reinstall the latest version, and the data will not be lost. Do you want to continue?" "n"
-    if [[ $? != 0 ]]; then
-        LOGE "Cancelled"
-        if [[ $# == 0 ]]; then
+    local force_update=0
+    local menu_mode=0
+    local requested_version=""
+    local current_version=""
+    local target_version=""
+    local normalized_current=""
+    local normalized_target=""
+
+    for arg in "$@"; do
+        case "$arg" in
+        --menu)
+            menu_mode=1
+            ;;
+        --force | -f)
+            force_update=1
+            ;;
+        --help | -h)
+            echo "Usage: s-ui update [version] [--force]"
+            echo "  s-ui update           Update to the latest published release if the version changed"
+            echo "  s-ui update v0.0.1    Update to a specific release"
+            echo "  s-ui update --force   Reinstall the latest release even when the version matches"
+            return 0
+            ;;
+        *)
+            if [[ -z "${requested_version}" ]]; then
+                requested_version="$arg"
+            else
+                LOGE "Too many arguments"
+                return 1
+            fi
+            ;;
+        esac
+    done
+
+    current_version=$(get_current_installed_version || true)
+    if [[ -n "${requested_version}" ]]; then
+        target_version=$(canonicalize_release_tag "${requested_version}")
+    else
+        target_version=$(get_latest_release_tag || true)
+    fi
+
+    if [[ -z "${target_version}" ]]; then
+        LOGE "Failed to detect the target release version from GitHub"
+        if [[ ${menu_mode} -eq 1 ]]; then
+            before_show_menu
+        fi
+        return 1
+    fi
+
+    normalized_current=$(normalize_version "${current_version}")
+    normalized_target=$(normalize_version "${target_version}")
+
+    if [[ -n "${normalized_current}" ]]; then
+        LOGI "Current installed version: ${normalized_current}"
+    else
+        LOGI "Current installed version: unknown"
+    fi
+    LOGI "Target version: ${target_version}"
+
+    if [[ ${force_update} -ne 1 && -n "${normalized_current}" && "${normalized_current}" == "${normalized_target}" ]]; then
+        LOGI "${PROJECT_NAME} is already on ${target_version}. Use 's-ui update --force' to reinstall the same version."
+        if [[ ${menu_mode} -eq 1 ]]; then
             before_show_menu
         fi
         return 0
     fi
-    bash <(curl -Ls "${INSTALL_SCRIPT_URL}") --auto-migrate
+
+    if [[ ${force_update} -eq 1 ]]; then
+        confirm "This will forcefully reinstall ${PROJECT_NAME} ${target_version} and overwrite local program files. Continue?" "n"
+    else
+        confirm "Update ${PROJECT_NAME} to ${target_version}? Current data will be kept." "y"
+    fi
+    if [[ $? != 0 ]]; then
+        LOGE "Cancelled"
+        if [[ ${menu_mode} -eq 1 ]]; then
+            before_show_menu
+        fi
+        return 0
+    fi
+
+    run_remote_installer "${target_version}"
     if [[ $? == 0 ]]; then
-        LOGI "Update from ${PROJECT_NAME} is complete, Panel has automatically restarted "
+        if [[ ${force_update} -eq 1 ]]; then
+            LOGI "Forced update to ${PROJECT_NAME} ${target_version} completed"
+        else
+            LOGI "Update to ${PROJECT_NAME} ${target_version} completed"
+        fi
         exit 0
     fi
+
+    return 1
 }
 
 custom_version() {
-    echo "Enter the panel version (like 0.0.1):"
+    echo "Enter the panel version (like v0.0.1):"
     read panel_version
 
     if [ -z "$panel_version" ]; then
         echo "Panel version cannot be empty. Exiting."
     exit 1
     fi
-
-    download_link="${INSTALL_SCRIPT_URL}"
-
-    install_command="bash <(curl -Ls $download_link) --auto-migrate $panel_version"
-
-    echo "Downloading and installing panel version $panel_version..."
-    eval $install_command
+    update --menu "$panel_version"
 }
 
 uninstall() {
@@ -301,7 +436,7 @@ show_log() {
 }
 
 update_shell() {
-    wget -O /usr/bin/s-ui -N --no-check-certificate "${SCRIPT_RAW_URL}"
+    wget -O /usr/bin/s-ui --no-check-certificate "${SCRIPT_RAW_URL}"
     if [[ $? != 0 ]]; then
         echo ""
         LOGE "Failed to download script, Please check whether the machine can connect Github"
@@ -789,7 +924,8 @@ show_usage() {
     echo -e "s-ui enable       - Enable Autostart on OS Startup"
     echo -e "s-ui disable      - Disable Autostart on OS Startup"
     echo -e "s-ui log          - Check s-ui Logs"
-    echo -e "s-ui update       - Update"
+    echo -e "s-ui update       - Update to the latest release when the version changed"
+    echo -e "s-ui update --force - Force reinstall the latest release"
     echo -e "s-ui install      - Install"
     echo -e "s-ui uninstall    - Uninstall"
     echo -e "s-ui help         - Control Menu Usage"
@@ -839,7 +975,7 @@ show_menu() {
         check_uninstall && install
         ;;
     2)
-        check_install && update
+        check_install && update --menu
         ;;
     3)
         check_install && custom_version
@@ -925,7 +1061,8 @@ if [[ $# > 0 ]]; then
         check_install 0 && show_log s-ui 0
         ;;
     "update")
-        check_install 0 && update 0
+        shift
+        check_install 0 && update "$@"
         ;;
     "install")
         check_uninstall 0 && install 0

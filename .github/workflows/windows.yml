@@ -35,6 +35,11 @@ jobs:
           submodules: recursive
           fetch-depth: 1
 
+      - name: Update frontend submodule to latest main
+        run: |
+          git submodule sync --recursive
+          git submodule update --init --remote --recursive
+
       - name: Setup Node.js
         uses: actions/setup-node@v6
         with:
@@ -105,7 +110,9 @@ jobs:
           go version
           go env GOOS GOARCH
           
-          go build -ldflags="-w -s -checklinkname=0" -tags "${{ env.TAGS }}" -o sui.exe main.go
+          VERSION_LDFLAGS=""
+          if [ "${GITHUB_REF_TYPE}" = "tag" ]; then VERSION_LDFLAGS="-X github.com/alireza0/s-ui/config.buildVersion=${GITHUB_REF_NAME}"; fi
+          go build -ldflags="-w -s -checklinkname=0 ${VERSION_LDFLAGS}" -tags "${{ env.TAGS }}" -o sui.exe main.go
           file sui.exe
           
           mkdir s-ui-windows

@@ -37,6 +37,11 @@ jobs:
           submodules: recursive
           fetch-depth: 1
 
+      - name: Update frontend submodule to latest main
+        run: |
+          git submodule sync --recursive
+          git submodule update --init --remote --recursive
+
       - name: Setup Node.js
         uses: actions/setup-node@v6
         with:
@@ -172,7 +177,9 @@ jobs:
           set -e
           BUILD_TAGS="with_quic,with_grpc,with_utls,with_acme,with_gvisor,badlinkname,tfogo_checklinkname0,with_tailscale"
           [ "${{ matrix.naive }}" = "true" ] && BUILD_TAGS="${BUILD_TAGS},with_naive_outbound,with_musl"
-          go build -ldflags="-w -s -checklinkname=0 -linkmode external -extldflags '-static'" -tags "$BUILD_TAGS" -o sui main.go
+          VERSION_LDFLAGS=""
+          if [ "${GITHUB_REF_TYPE}" = "tag" ]; then VERSION_LDFLAGS="-X github.com/alireza0/s-ui/config.buildVersion=${GITHUB_REF_NAME}"; fi
+          go build -ldflags="-w -s -checklinkname=0 -linkmode external -extldflags '-static' ${VERSION_LDFLAGS}" -tags "$BUILD_TAGS" -o sui main.go
           file sui
           ldd sui 2>/dev/null || echo "Static binary confirmed"
 

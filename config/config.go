@@ -15,6 +15,8 @@ var version string
 //go:embed name
 var name string
 
+var buildVersion string
+
 type LogLevel string
 
 const (
@@ -25,6 +27,9 @@ const (
 )
 
 func GetVersion() string {
+	if strings.TrimSpace(buildVersion) != "" {
+		return strings.TrimSpace(buildVersion)
+	}
 	return strings.TrimSpace(version)
 }
 
