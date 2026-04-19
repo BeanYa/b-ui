@@ -1,0 +1,50 @@
+<svg width="128" height="128" viewBox="0 0 128 128" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <title>BeanUI icon</title>
+  <desc>Rounded app tile containing a stylized bean core and control indicators.</desc>
+  <rect x="8" y="8" width="112" height="112" rx="30" fill="url(#tile)" />
+  <rect x="8.75" y="8.75" width="110.5" height="110.5" rx="29.25" stroke="url(#frame)" stroke-width="1.5" />
+  <path d="M28 36C28 28.268 34.268 22 42 22H86C93.732 22 100 28.268 100 36V44H28V36Z" fill="url(#header)" />
+  <circle cx="39" cy="33" r="4" fill="#FFF1D5" fill-opacity="0.92" />
+  <circle cx="53" cy="33" r="4" fill="#FFD398" fill-opacity="0.9" />
+  <circle cx="67" cy="33" r="4" fill="#FF9B72" fill-opacity="0.9" />
+  <g filter="url(#shadow)">
+    <path d="M64.766 94C86.685 94 101 78.789 101 58.392C101 42.639 89.114 31.685 72.431 31.685C64.334 31.685 56.86 34.808 51.091 40.587C45.363 46.326 42 54.222 42 62.807C42 80.575 52.758 94 64.766 94Z" fill="url(#bean)" />
+    <path d="M73.567 38.544C67.17 40.525 62.168 45.114 58.78 51.669C55.633 57.757 54.112 65.326 54.722 72.756C55.198 78.551 57.318 84.298 61.36 88.648" stroke="#FFF4E2" stroke-width="6.5" stroke-linecap="round" stroke-linejoin="round" />
+  </g>
+  <path d="M100 44V92C100 99.732 93.732 106 86 106H42C34.268 106 28 99.732 28 92V44H100Z" fill="url(#glow)" fill-opacity="0.28" />
+  <defs>
+    <linearGradient id="tile" x1="20" y1="16" x2="104" y2="116" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#3B201A" />
+      <stop offset="0.48" stop-color="#2B1714" />
+      <stop offset="1" stop-color="#1A0F10" />
+    </linearGradient>
+    <linearGradient id="frame" x1="19" y1="18" x2="106" y2="114" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#FFD9A0" stop-opacity="0.5" />
+      <stop offset="0.5" stop-color="#FF9368" stop-opacity="0.26" />
+      <stop offset="1" stop-color="#FFF0D6" stop-opacity="0.18" />
+    </linearGradient>
+    <linearGradient id="header" x1="34" y1="23" x2="94" y2="58" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#5A2E22" />
+      <stop offset="1" stop-color="#7A3F2D" />
+    </linearGradient>
+    <linearGradient id="bean" x1="49" y1="42" x2="93" y2="92" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#FFC56B" />
+      <stop offset="0.52" stop-color="#F58B57" />
+      <stop offset="1" stop-color="#E05A49" />
+    </linearGradient>
+    <linearGradient id="glow" x1="31" y1="50" x2="95" y2="108" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#FFFFFF" stop-opacity="0.2" />
+      <stop offset="1" stop-color="#FFFFFF" stop-opacity="0" />
+    </linearGradient>
+    <filter id="shadow" x="34" y="27.685" width="75" height="74.315" filterUnits="userSpaceOnUse" color-interpolation-filters="sRGB">
+      <feFlood flood-opacity="0" result="BackgroundImageFix" />
+      <feColorMatrix in="SourceAlpha" type="matrix" values="0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 127 0" result="hardAlpha" />
+      <feOffset dy="4" />
+      <feGaussianBlur stdDeviation="4" />
+      <feComposite in2="hardAlpha" operator="out" />
+      <feColorMatrix type="matrix" values="0 0 0 0 0.0705882 0 0 0 0 0.0313725 0 0 0 0 0.0352941 0 0 0 0.4 0" />
+      <feBlend mode="normal" in2="BackgroundImageFix" result="effect1_dropShadow_beanui" />
+      <feBlend mode="normal" in="SourceGraphic" in2="effect1_dropShadow_beanui" result="shape" />
+    </filter>
+  </defs>
+</svg>

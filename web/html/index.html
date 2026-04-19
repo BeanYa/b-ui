@@ -1,0 +1,33 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+  <meta charset="UTF-8" />
+  <link rel="icon" type="image/svg+xml" href="./assets/icon.svg" />
+  <link rel="icon" type="image/png" href="./assets/apple-touch-icon.png" />
+  <link rel="alternate icon" href="./assets/favicon.ico" />
+  <link rel="apple-touch-icon" href="./assets/apple-touch-icon.png" />
+  <meta name="theme-color" content="#2b1714" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link
+    href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600&display=swap"
+    rel="stylesheet"
+  />
+  <script>
+    window.BASE_URL = "{{ .BASE_URL }}"
+
+    // Dev Mode
+    if (window.BASE_URL.charAt(0) === '{') window.BASE_URL = "/app/"
+  </script>
+  <title>B-UI</title>
+  <script type="module" crossorigin src="./assets/7da53d992eaedb99.js"></script>
+  <link rel="stylesheet" crossorigin href="./assets/35aa0c4bb34036e7.css">
+</head>
+
+<body>
+  <div id="app"></div>
+</body>
+
+</html>
