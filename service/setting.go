@@ -42,31 +42,32 @@ var defaultConfig = `{
 }`
 
 var defaultValueMap = map[string]string{
-	"webListen":     "",
-	"webDomain":     "",
-	"webPort":       "2095",
-	"secret":        common.Random(32),
-	"webCertFile":   "",
-	"webKeyFile":    "",
-	"webPath":       "/app/",
-	"webURI":        "",
-	"sessionMaxAge": "0",
-	"trafficAge":    "30",
-	"timeLocation":  "Asia/Tehran",
-	"subListen":     "",
-	"subPort":       "2096",
-	"subPath":       "/sub/",
-	"subDomain":     "",
-	"subCertFile":   "",
-	"subKeyFile":    "",
-	"subUpdates":    "12",
-	"subEncode":     "true",
-	"subShowInfo":   "false",
-	"subURI":        "",
-	"subJsonExt":    "",
-	"subClashExt":   "",
-	"config":        defaultConfig,
-	"version":       config.GetVersion(),
+	"webListen":      "",
+	"webDomain":      "",
+	"webPort":        "2095",
+	"secret":         common.Random(32),
+	"webCertFile":    "",
+	"webKeyFile":     "",
+	"webPath":        "/app/",
+	"webURI":         "",
+	"sessionMaxAge":  "0",
+	"trafficAge":     "30",
+	"timeLocation":   "Asia/Tehran",
+	"tlsDomainHints": "www.youtube.com\nwww.cloudflare.com\nwww.apple.com\nwww.microsoft.com\nwww.amazon.com\nwww.github.com\nwww.nvidia.com\nwww.adobe.com\nwww.bing.com\nwww.dropbox.com",
+	"subListen":      "",
+	"subPort":        "2096",
+	"subPath":        "/sub/",
+	"subDomain":      "",
+	"subCertFile":    "",
+	"subKeyFile":     "",
+	"subUpdates":     "12",
+	"subEncode":      "true",
+	"subShowInfo":    "false",
+	"subURI":         "",
+	"subJsonExt":     "",
+	"subClashExt":    "",
+	"config":         defaultConfig,
+	"version":        config.GetVersion(),
 }
 
 type SettingService struct {
@@ -257,6 +258,32 @@ func (s *SettingService) GetTimeLocation() (*time.Location, error) {
 		return time.LoadLocation(defaultLocation)
 	}
 	return location, nil
+}
+
+func (s *SettingService) GetTLSDomainHints() ([]string, error) {
+	raw, err := s.getString("tlsDomainHints")
+	if err != nil {
+		return nil, err
+	}
+
+	items := strings.FieldsFunc(raw, func(r rune) bool {
+		return r == '\n' || r == '\r' || r == ',' || r == ';'
+	})
+	uniq := make(map[string]struct{})
+	domains := make([]string, 0, len(items))
+	for _, item := range items {
+		domain := strings.TrimSpace(item)
+		if domain == "" {
+			continue
+		}
+		if _, exists := uniq[domain]; exists {
+			continue
+		}
+		uniq[domain] = struct{}{}
+		domains = append(domains, domain)
+	}
+
+	return domains, nil
 }
 
 func (s *SettingService) GetSubListen() (string, error) {

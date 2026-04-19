@@ -5,7 +5,38 @@ green='\033[0;32m'
 yellow='\033[0;33m'
 plain='\033[0m'
 
+REPO_OWNER="${REPO_OWNER:-BeanYa}"
+REPO_NAME="${REPO_NAME:-b-ui}"
+PROJECT_NAME="${PROJECT_NAME:-B-UI}"
+RELEASE_BASE_URL="https://github.com/${REPO_OWNER}/${REPO_NAME}/releases"
+INSTALL_ROOT="${INSTALL_ROOT:-/usr/local/s-ui}"
+INSTALL_PARENT="$(dirname "${INSTALL_ROOT}")"
+CLI_PATH="${CLI_PATH:-/usr/bin/s-ui}"
+SERVICE_NAME="${SERVICE_NAME:-s-ui}"
+DB_FILE="${INSTALL_ROOT}/db/s-ui.db"
+BACKUP_ROOT="${BACKUP_ROOT:-/var/backups/s-ui}"
+AUTO_MIGRATE=0
+TARGET_VERSION=""
+EXISTING_INSTALL=0
+CURRENT_BACKUP_DIR=""
+
 cur_dir=$(pwd)
+
+for arg in "$@"; do
+    case "$arg" in
+    --auto-migrate | --keep-config)
+        AUTO_MIGRATE=1
+        ;;
+    *)
+        if [[ -z "$TARGET_VERSION" ]]; then
+            TARGET_VERSION="$arg"
+        else
+            echo -e "${red}Fatal error: ${plain} too many arguments: $*"
+            exit 1
+        fi
+        ;;
+    esac
+done
 
 # check root
 [[ $EUID -ne 0 ]] && echo -e "${red}Fatal error: ${plain} Please run this script with root privilege \n " && exit 1
@@ -38,6 +69,139 @@ arch() {
 
 echo "arch: $(arch)"
 
+detect_existing_install() {
+    if [[ -d "${INSTALL_ROOT}" || -f "${DB_FILE}" || -f "/etc/systemd/system/${SERVICE_NAME}.service" ]]; then
+        EXISTING_INSTALL=1
+    fi
+}
+
+prepare_backup_dir() {
+    if [[ -n "${CURRENT_BACKUP_DIR}" ]]; then
+        return 0
+    fi
+
+    CURRENT_BACKUP_DIR="${BACKUP_ROOT}/$(date +%Y%m%d-%H%M%S)"
+    mkdir -p "${CURRENT_BACKUP_DIR}"
+}
+
+backup_existing_db() {
+    if [[ ! -d "${INSTALL_ROOT}/db" ]]; then
+        return 0
+    fi
+
+    local copied=0
+
+    prepare_backup_dir
+    shopt -s nullglob
+    for file in "${INSTALL_ROOT}"/db/s-ui.db*; do
+        cp -f "${file}" "${CURRENT_BACKUP_DIR}/"
+        copied=1
+    done
+    shopt -u nullglob
+
+    if [[ ${copied} -eq 1 ]]; then
+        echo -e "${yellow}Backed up existing database files to ${CURRENT_BACKUP_DIR}${plain}"
+    fi
+}
+
+backup_existing_installation() {
+    if [[ ${EXISTING_INSTALL} -ne 1 ]]; then
+        return 0
+    fi
+
+    prepare_backup_dir
+
+    if [[ -d "${INSTALL_ROOT}" ]]; then
+        tar -czf "${CURRENT_BACKUP_DIR}/install-root.tar.gz" -C "${INSTALL_ROOT}" .
+    fi
+
+    if [[ -f "${CLI_PATH}" ]]; then
+        cp -a "${CLI_PATH}" "${CURRENT_BACKUP_DIR}/s-ui-cli"
+    fi
+
+    if [[ -f "/etc/systemd/system/${SERVICE_NAME}.service" ]]; then
+        cp -a "/etc/systemd/system/${SERVICE_NAME}.service" "${CURRENT_BACKUP_DIR}/${SERVICE_NAME}.service"
+    fi
+
+    backup_existing_db
+    echo -e "${yellow}Created rollback backup in ${CURRENT_BACKUP_DIR}${plain}"
+}
+
+rollback_installation() {
+    if [[ -z "${CURRENT_BACKUP_DIR}" || ! -d "${CURRENT_BACKUP_DIR}" ]]; then
+        echo -e "${red}Rollback skipped: no backup directory is available.${plain}"
+        return 1
+    fi
+
+    echo -e "${yellow}Install failed. Restoring the previous ${SERVICE_NAME} installation...${plain}"
+
+    systemctl stop "${SERVICE_NAME}" 2>/dev/null || true
+
+    if [[ -f "${CURRENT_BACKUP_DIR}/install-root.tar.gz" ]]; then
+        rm -rf "${INSTALL_ROOT}"
+        mkdir -p "${INSTALL_ROOT}"
+        tar -xzf "${CURRENT_BACKUP_DIR}/install-root.tar.gz" -C "${INSTALL_ROOT}"
+    fi
+
+    if [[ -f "${CURRENT_BACKUP_DIR}/s-ui-cli" ]]; then
+        cp -af "${CURRENT_BACKUP_DIR}/s-ui-cli" "${CLI_PATH}"
+        chmod +x "${CLI_PATH}"
+    fi
+
+    if [[ -f "${CURRENT_BACKUP_DIR}/${SERVICE_NAME}.service" ]]; then
+        cp -af "${CURRENT_BACKUP_DIR}/${SERVICE_NAME}.service" "/etc/systemd/system/${SERVICE_NAME}.service"
+    fi
+
+    if [[ -f "${INSTALL_ROOT}/sui" ]]; then
+        chmod +x "${INSTALL_ROOT}/sui"
+    fi
+
+    systemctl daemon-reload
+    systemctl enable "${SERVICE_NAME}" --now 2>/dev/null || systemctl start "${SERVICE_NAME}" 2>/dev/null || true
+
+    if systemctl is-active --quiet "${SERVICE_NAME}"; then
+        echo -e "${green}Rollback succeeded. Previous ${SERVICE_NAME} service is running again.${plain}"
+        return 0
+    fi
+
+    echo -e "${red}Rollback completed, but ${SERVICE_NAME} did not start automatically. Please inspect ${CURRENT_BACKUP_DIR}.${plain}"
+    return 1
+}
+
+restart_and_verify_service() {
+    systemctl enable "${SERVICE_NAME}" --now
+    if [[ $? -ne 0 ]]; then
+        rollback_installation
+        exit 1
+    fi
+
+    sleep 2
+    if ! systemctl is-active --quiet "${SERVICE_NAME}"; then
+        echo -e "${red}${SERVICE_NAME} failed to stay active after restart.${plain}"
+        rollback_installation
+        exit 1
+    fi
+}
+
+download_release_asset() {
+    local asset_name="s-ui-linux-$(arch).tar.gz"
+    local download_url=""
+
+    if [[ -z "${TARGET_VERSION}" ]]; then
+        download_url="${RELEASE_BASE_URL}/latest/download/${asset_name}"
+        echo -e "Beginning the installation of the latest ${PROJECT_NAME} release..."
+    else
+        download_url="${RELEASE_BASE_URL}/download/${TARGET_VERSION}/${asset_name}"
+        echo -e "Beginning the installation of ${PROJECT_NAME} ${TARGET_VERSION}..."
+    fi
+
+    wget -N --no-check-certificate -O "/tmp/${asset_name}" "${download_url}"
+    if [[ $? -ne 0 ]]; then
+        echo -e "${red}Downloading ${PROJECT_NAME} failed, please be sure that your server can access Github ${plain}"
+        exit 1
+    fi
+}
+
 install_base() {
     case "${release}" in
     centos | almalinux | rocky | oracle)
@@ -60,7 +224,17 @@ install_base() {
 
 config_after_install() {
     echo -e "${yellow}Migration... ${plain}"
-    /usr/local/s-ui/sui migrate
+    "${INSTALL_ROOT}/sui" migrate
+    if [[ $? -ne 0 ]]; then
+        echo -e "${red}Database migration failed.${plain}"
+        rollback_installation
+        exit 1
+    fi
+
+    if [[ ${AUTO_MIGRATE} -eq 1 && ${EXISTING_INSTALL} -eq 1 ]]; then
+        echo -e "${green}Detected an existing s-ui installation. Current settings and credentials have been kept.${plain}"
+        return 0
+    fi
     
     echo -e "${yellow}Install/update finished! For security it's recommended to modify panel settings ${plain}"
     read -p "Do you want to continue with the modification [y/n]? ": config_confirm
@@ -83,7 +257,7 @@ config_after_install() {
         [ -z "$config_path" ] || params="$params -path $config_path"
         [ -z "$config_subPort" ] || params="$params -subPort $config_subPort"
         [ -z "$config_subPath" ] || params="$params -subPath $config_subPath"
-        /usr/local/s-ui/sui setting ${params}
+        "${INSTALL_ROOT}/sui" setting ${params}
 
         read -p "Do you want to change admin credentials [y/n]? ": admin_confirm
         if [[ "${admin_confirm}" == "y" || "${admin_confirm}" == "Y" ]]; then
@@ -93,14 +267,14 @@ config_after_install() {
 
             # Set credentials
             echo -e "${yellow}Initializing, please wait...${plain}"
-            /usr/local/s-ui/sui admin -username ${config_account} -password ${config_password}
+            "${INSTALL_ROOT}/sui" admin -username ${config_account} -password ${config_password}
         else
             echo -e "${yellow}Your current admin credentials: ${plain}"
-            /usr/local/s-ui/sui admin -show
+            "${INSTALL_ROOT}/sui" admin -show
         fi
     else
         echo -e "${red}cancel...${plain}"
-        if [[ ! -f "/usr/local/s-ui/db/s-ui.db" ]]; then
+        if [[ ! -f "${DB_FILE}" ]]; then
             local usernameTemp=$(head -c 6 /dev/urandom | base64)
             local passwordTemp=$(head -c 6 /dev/urandom | base64)
             echo -e "this is a fresh installation,will generate random login info for security concerns:"
@@ -109,7 +283,7 @@ config_after_install() {
             echo -e "${green}password:${passwordTemp}${plain}"
             echo -e "###############################################"
             echo -e "${red}if you forgot your login info,you can type ${green}s-ui${red} for configuration menu${plain}"
-            /usr/local/s-ui/sui admin -username ${usernameTemp} -password ${passwordTemp}
+            "${INSTALL_ROOT}/sui" admin -username ${usernameTemp} -password ${passwordTemp}
         else
             echo -e "${red} this is your upgrade,will keep old settings,if you forgot your login info,you can type ${green}s-ui${red} for configuration menu${plain}"
         fi
@@ -120,11 +294,11 @@ prepare_services() {
     if [[ -f "/etc/systemd/system/sing-box.service" ]]; then
         echo -e "${yellow}Stopping sing-box service... ${plain}"
         systemctl stop sing-box
-        rm -f /usr/local/s-ui/bin/sing-box /usr/local/s-ui/bin/runSingbox.sh /usr/local/s-ui/bin/signal
+        rm -f "${INSTALL_ROOT}/bin/sing-box" "${INSTALL_ROOT}/bin/runSingbox.sh" "${INSTALL_ROOT}/bin/signal"
     fi
-    if [[ -e "/usr/local/s-ui/bin" ]]; then
+    if [[ -e "${INSTALL_ROOT}/bin" ]]; then
         echo -e "###############################################################"
-        echo -e "${green}/usr/local/s-ui/bin${red} directory exists yet!"
+        echo -e "${green}${INSTALL_ROOT}/bin${red} directory exists yet!"
         echo -e "Please check the content and delete it manually after migration ${plain}"
         echo -e "###############################################################"
     fi
@@ -134,55 +308,49 @@ prepare_services() {
 install_s-ui() {
     cd /tmp/
 
-    if [ $# == 0 ]; then
-        last_version=$(curl -Ls "https://api.github.com/repos/alireza0/s-ui/releases/latest" | grep '"tag_name":' | sed -E 's/.*"([^"]+)".*/\1/')
-        if [[ ! -n "$last_version" ]]; then
-            echo -e "${red}Failed to fetch s-ui version, it maybe due to Github API restrictions, please try it later${plain}"
-            exit 1
-        fi
-        echo -e "Got s-ui latest version: ${last_version}, beginning the installation..."
-        wget -N --no-check-certificate -O /tmp/s-ui-linux-$(arch).tar.gz https://github.com/alireza0/s-ui/releases/download/${last_version}/s-ui-linux-$(arch).tar.gz
-        if [[ $? -ne 0 ]]; then
-            echo -e "${red}Downloading s-ui failed, please be sure that your server can access Github ${plain}"
-            exit 1
-        fi
-    else
-        last_version=$1
-        url="https://github.com/alireza0/s-ui/releases/download/${last_version}/s-ui-linux-$(arch).tar.gz"
-        echo -e "Beginning the install s-ui v$1"
-        wget -N --no-check-certificate -O /tmp/s-ui-linux-$(arch).tar.gz ${url}
-        if [[ $? -ne 0 ]]; then
-            echo -e "${red}download s-ui v$1 failed,please check the version exists${plain}"
-            exit 1
-        fi
+    download_release_asset
+
+    if [[ ${EXISTING_INSTALL} -eq 1 ]]; then
+        echo -e "${yellow}Compatible s-ui installation detected. ${PROJECT_NAME} will replace the binaries in place and keep the existing data directory.${plain}"
     fi
 
-    if [[ -e /usr/local/s-ui/ ]]; then
-        systemctl stop s-ui
+    if [[ -e "${INSTALL_ROOT}/" ]]; then
+        systemctl stop "${SERVICE_NAME}" 2>/dev/null || true
+        backup_existing_installation
     fi
 
     tar zxvf s-ui-linux-$(arch).tar.gz
+    if [[ $? -ne 0 ]]; then
+        echo -e "${red}Failed to extract the downloaded package.${plain}"
+        rollback_installation
+        exit 1
+    fi
     rm s-ui-linux-$(arch).tar.gz -f
 
     chmod +x s-ui/sui s-ui/s-ui.sh
-    cp s-ui/s-ui.sh /usr/bin/s-ui
-    cp -rf s-ui /usr/local/
-    cp -f s-ui/*.service /etc/systemd/system/
+    cp s-ui/s-ui.sh "${CLI_PATH}" || { rollback_installation; exit 1; }
+    mkdir -p "${INSTALL_PARENT}" || { rollback_installation; exit 1; }
+    cp -rf s-ui "${INSTALL_PARENT}/" || { rollback_installation; exit 1; }
+    cp -f s-ui/*.service /etc/systemd/system/ || { rollback_installation; exit 1; }
     rm -rf s-ui
 
     config_after_install
     prepare_services
 
-    systemctl enable s-ui --now
+    restart_and_verify_service
 
-    echo -e "${green}s-ui v${last_version}${plain} installation finished, it is up and running now..."
+    echo -e "${green}${PROJECT_NAME}${plain} installation finished, it is up and running now..."
+    if [[ -n "${CURRENT_BACKUP_DIR}" ]]; then
+        echo -e "${yellow}Rollback backup: ${CURRENT_BACKUP_DIR}${plain}"
+    fi
     echo -e "You may access the Panel with following URL(s):${green}"
-    /usr/local/s-ui/sui uri
+    "${INSTALL_ROOT}/sui" uri
     echo -e "${plain}"
     echo -e ""
     s-ui help
 }
 
 echo -e "${green}Executing...${plain}"
+detect_existing_install
 install_base
-install_s-ui $1
+install_s-ui

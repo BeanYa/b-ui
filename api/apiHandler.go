@@ -93,6 +93,8 @@ func (a *APIHandler) getHandler(c *gin.Context) {
 		a.ApiService.CheckChanges(c)
 	case "keypairs":
 		a.ApiService.GetKeypairs(c)
+	case "domainHints":
+		a.ApiService.GetDomainHints(c)
 	case "getdb":
 		a.ApiService.GetDb(c)
 	case "tokens":

@@ -26,6 +26,7 @@ type ApiService struct {
 	service.PanelService
 	service.StatsService
 	service.ServerService
+	service.DomainHintService
 }
 
 func (a *ApiService) LoadData(c *gin.Context) {
@@ -236,6 +237,11 @@ func (a *ApiService) GetKeypairs(c *gin.Context) {
 	options := c.Query("o")
 	keypair := a.ServerService.GenKeypair(kType, options)
 	jsonObj(c, keypair, nil)
+}
+
+func (a *ApiService) GetDomainHints(c *gin.Context) {
+	force := c.Query("force") == "1"
+	jsonObj(c, a.DomainHintService.GetCatalog(force), nil)
 }
 
 func (a *ApiService) GetDb(c *gin.Context) {

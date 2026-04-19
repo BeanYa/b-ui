@@ -29,9 +29,12 @@ func (c *CronJob) Start(loc *time.Location, trafficAge int) error {
 		}
 		// Start core if it is not running
 		c.cron.AddJob("@every 5s", NewCheckCoreJob())
+		// Refresh built-in TLS/Reality domain hints
+		c.cron.AddJob("@every 6h", NewDomainHintJob())
 		// database WAL checkpoint
 		c.cron.AddJob("@every 10m", NewWALCheckpointJob())
 	}()
+	go NewDomainHintJob().Run()
 
 	return nil
 }

@@ -5,6 +5,12 @@ green='\033[0;32m'
 yellow='\033[0;33m'
 plain='\033[0m'
 
+REPO_OWNER="${REPO_OWNER:-BeanYa}"
+REPO_NAME="${REPO_NAME:-b-ui}"
+PROJECT_NAME="${PROJECT_NAME:-B-UI}"
+INSTALL_SCRIPT_URL="https://raw.githubusercontent.com/${REPO_OWNER}/${REPO_NAME}/main/install.sh"
+SCRIPT_RAW_URL="https://raw.githubusercontent.com/${REPO_OWNER}/${REPO_NAME}/main/s-ui.sh"
+
 function LOGD() {
     echo -e "${yellow}[DEG] $* ${plain}"
 }
@@ -63,7 +69,7 @@ before_show_menu() {
 }
 
 install() {
-    bash <(curl -Ls https://raw.githubusercontent.com/alireza0/s-ui/main/install.sh)
+    bash <(curl -Ls "${INSTALL_SCRIPT_URL}")
     if [[ $? == 0 ]]; then
         if [[ $# == 0 ]]; then
             start
@@ -82,9 +88,9 @@ update() {
         fi
         return 0
     fi
-    bash <(curl -Ls https://raw.githubusercontent.com/alireza0/s-ui/main/install.sh)
+    bash <(curl -Ls "${INSTALL_SCRIPT_URL}") --auto-migrate
     if [[ $? == 0 ]]; then
-        LOGI "Update is complete, Panel has automatically restarted "
+        LOGI "Update from ${PROJECT_NAME} is complete, Panel has automatically restarted "
         exit 0
     fi
 }
@@ -98,9 +104,9 @@ custom_version() {
     exit 1
     fi
 
-    download_link="https://raw.githubusercontent.com/alireza0/s-ui/master/install.sh"
+    download_link="${INSTALL_SCRIPT_URL}"
 
-    install_command="bash <(curl -Ls $download_link) $panel_version"
+    install_command="bash <(curl -Ls $download_link) --auto-migrate $panel_version"
 
     echo "Downloading and installing panel version $panel_version..."
     eval $install_command
@@ -295,7 +301,7 @@ show_log() {
 }
 
 update_shell() {
-    wget -O /usr/bin/s-ui -N --no-check-certificate https://github.com/alireza0/s-ui/raw/main/s-ui.sh
+    wget -O /usr/bin/s-ui -N --no-check-certificate "${SCRIPT_RAW_URL}"
     if [[ $? != 0 ]]; then
         echo ""
         LOGE "Failed to download script, Please check whether the machine can connect Github"
