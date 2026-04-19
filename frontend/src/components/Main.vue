@@ -6,7 +6,7 @@
 
     <v-container class="dashboard-shell" fluid>
       <v-row class="dashboard-shell__overview" density="comfortable">
-        <v-col cols="12" xl="3" lg="4">
+        <v-col cols="12" xl="3" lg="5" class="dashboard-shell__overview-col dashboard-shell__overview-col--intro">
           <v-card class="overview-card overview-card--intro">
             <div class="overview-card__glow"></div>
             <div class="overview-card__eyebrow">Operations Console</div>
@@ -36,7 +36,7 @@
           </v-card>
         </v-col>
 
-        <v-col cols="12" xl="4" lg="4">
+        <v-col cols="12" xl="4" lg="7" class="dashboard-shell__overview-col dashboard-shell__overview-col--stats">
           <v-card class="overview-card overview-card--stats">
             <div class="section-head">
               <div>
@@ -62,7 +62,7 @@
           </v-card>
         </v-col>
 
-        <v-col cols="12" xl="5" lg="4">
+        <v-col cols="12" xl="5" lg="12" class="dashboard-shell__overview-col dashboard-shell__overview-col--probe">
           <v-card class="probe-card">
             <div class="probe-card__sheen"></div>
             <div class="probe-card__head">
@@ -465,6 +465,10 @@ onBeforeUnmount(() => {
   padding: 4px 0 24px;
 }
 
+.dashboard-shell__overview {
+  row-gap: 16px;
+}
+
 .dashboard-shell__tiles {
   display: flex;
   flex-direction: column;
@@ -472,7 +476,8 @@ onBeforeUnmount(() => {
   margin-top: 16px;
 }
 
-.dashboard-shell__overview > .v-col {
+.dashboard-shell__overview > .v-col,
+.dashboard-shell__overview-col {
   display: flex;
 }
 
@@ -552,7 +557,7 @@ onBeforeUnmount(() => {
 .overview-card__actions {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
-  margin-top: auto;
+  margin-top: 16px;
   padding-top: 16px;
 }
 
@@ -577,7 +582,10 @@ onBeforeUnmount(() => {
   font-size: 11px;
   font-weight: 700;
   letter-spacing: 0.18em;
+  overflow: hidden;
+  text-overflow: ellipsis;
   text-transform: uppercase;
+  white-space: nowrap;
 }
 
 .section-head__title,
@@ -612,7 +620,6 @@ onBeforeUnmount(() => {
   display: flex;
   flex-direction: column;
   gap: 6px;
-  justify-content: space-between;
   min-height: 112px;
   padding: 12px;
 }
@@ -622,9 +629,18 @@ onBeforeUnmount(() => {
   color: var(--app-text-3);
   display: inline-flex;
   font-size: 11px;
+  flex-wrap: nowrap;
   gap: 7px;
   letter-spacing: 0.08em;
+  min-width: 0;
   text-transform: uppercase;
+}
+
+.overview-grid__meta span {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .overview-grid__value {
@@ -696,6 +712,7 @@ onBeforeUnmount(() => {
   font-weight: 600;
   gap: 8px;
   min-height: 34px;
+  white-space: nowrap;
   padding: 0 12px;
 }
 
@@ -715,7 +732,7 @@ onBeforeUnmount(() => {
 .probe-card__rings {
   display: grid;
   gap: 10px;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
+  grid-template-columns: repeat(auto-fit, minmax(132px, 1fr));
   margin-top: 16px;
 }
 
@@ -776,9 +793,11 @@ onBeforeUnmount(() => {
   font-size: 10px;
   line-height: 1.25;
   margin: 0 auto;
-  max-width: 9ch;
+  max-width: 100%;
   min-height: 2.5em;
-  overflow-wrap: anywhere;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .probe-card__streams {
@@ -798,8 +817,17 @@ onBeforeUnmount(() => {
   align-items: center;
   display: flex;
   font-size: 12px;
+  gap: 12px;
   justify-content: space-between;
   margin-bottom: 8px;
+}
+
+.probe-stream__meta span,
+.probe-stream__meta strong {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .probe-stream__meta strong {
@@ -840,7 +868,10 @@ onBeforeUnmount(() => {
   font-size: 11px;
   font-weight: 700;
   letter-spacing: 0.12em;
+  overflow: hidden;
+  text-overflow: ellipsis;
   text-transform: uppercase;
+  white-space: nowrap;
 }
 
 .probe-cluster__value {
@@ -923,12 +954,15 @@ onBeforeUnmount(() => {
   font-size: 14px;
   font-weight: 600;
   line-height: 1.2;
-  overflow-wrap: anywhere;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .tile-card__controls {
   align-items: center;
   display: flex;
+  flex-shrink: 0;
   gap: 4px;
 }
 
@@ -946,14 +980,58 @@ onBeforeUnmount(() => {
   min-height: 154px;
 }
 
+.tile-card--chart .tile-card__body {
+  aspect-ratio: 16 / 9;
+  min-height: 220px;
+}
+
 .tile-card :deep(canvas) {
   height: 100% !important;
   max-width: 100%;
 }
 
+@media (max-width: 1680px) {
+  .section-head,
+  .probe-card__head,
+  .telemetry-section__head {
+    grid-template-columns: 1fr;
+  }
+
+  .section-head__caption,
+  .telemetry-section__caption {
+    max-width: none;
+    text-align: left;
+  }
+
+  .overview-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .telemetry-grid--detail {
+    grid-template-columns: 1fr;
+  }
+}
+
 @media (max-width: 1280px) {
+  .dashboard-shell__overview {
+    row-gap: 14px;
+  }
+
+  .overview-card__actions {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
   .probe-card__rings {
-    grid-template-columns: repeat(3, minmax(0, 1fr));
+    grid-template-columns: repeat(auto-fit, minmax(138px, 1fr));
+  }
+
+  .probe-card__clusters {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .tile-card--chart .tile-card__body {
+    aspect-ratio: 15 / 9;
+    min-height: 208px;
   }
 }
 
@@ -975,6 +1053,15 @@ onBeforeUnmount(() => {
   .overview-card__actions {
     grid-template-columns: 1fr;
   }
+
+  .probe-card__rings {
+    grid-template-columns: repeat(auto-fit, minmax(148px, 1fr));
+  }
+
+  .tile-card--chart .tile-card__body {
+    aspect-ratio: 4 / 3;
+    min-height: 196px;
+  }
 }
 
 @media (max-width: 720px) {
@@ -991,7 +1078,6 @@ onBeforeUnmount(() => {
   }
 
   .overview-grid,
-  .probe-card__rings,
   .probe-card__clusters,
   .telemetry-grid {
     grid-template-columns: 1fr;
@@ -999,6 +1085,15 @@ onBeforeUnmount(() => {
 
   .overview-card__copy {
     max-width: none;
+  }
+
+  .probe-card__rings {
+    grid-template-columns: repeat(auto-fit, minmax(132px, 1fr));
+  }
+
+  .tile-card--chart .tile-card__body {
+    aspect-ratio: auto;
+    min-height: 180px;
   }
 }
 </style>

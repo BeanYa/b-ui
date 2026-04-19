@@ -692,6 +692,17 @@ kbd,
     justify-content: stretch;
   }
 
+  .app-page__hero-stats {
+    display: flex;
+    flex-wrap: wrap;
+    width: 100%;
+  }
+
+  .app-page__hero-stat {
+    flex: 1 1 240px;
+    min-width: min(100%, 240px);
+  }
+
   .app-entity-card,
   .app-card-shell,
   .app-page__hero,
@@ -762,8 +773,9 @@ kbd,
     gap: 8px;
   }
 
-  .app-page__hero-stats {
-    grid-template-columns: 1fr;
+  .app-page__hero-stat {
+    flex-basis: 200px;
+    min-width: min(100%, 200px);
   }
 }
 

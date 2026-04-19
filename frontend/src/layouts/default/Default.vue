@@ -29,11 +29,13 @@ import DefaultBar from './AppBar.vue'
 import Drawer from './Drawer.vue'
 import DefaultView from './View.vue'
 
-const { mdAndDown } = useDisplay()
+const { mdAndDown, width } = useDisplay()
+const DRAWER_WIDE_BREAKPOINT = 1680
 
 const isMobile = computed((): boolean => mdAndDown.value)
+const isWideScreen = computed((): boolean => width.value >= DRAWER_WIDE_BREAKPOINT)
 const displayDrawer = ref(false)
-const collapsed = ref(localStorage.getItem('shell.drawer.collapsed') === '1')
+const collapsed = ref(isWideScreen.value ? localStorage.getItem('shell.drawer.collapsed') === '1' : true)
 
 const toggleDrawer = () => {
   if (isMobile.value) {
@@ -42,16 +44,25 @@ const toggleDrawer = () => {
   }
 
   collapsed.value = !collapsed.value
-}
 
-watch(collapsed, value => {
-  localStorage.setItem('shell.drawer.collapsed', value ? '1' : '0')
-})
+  if (isWideScreen.value) {
+    localStorage.setItem('shell.drawer.collapsed', collapsed.value ? '1' : '0')
+  }
+}
 
 watch(isMobile, value => {
   if (!value) {
     displayDrawer.value = false
   }
+})
+
+watch([isMobile, isWideScreen], ([mobile, wide]) => {
+  if (mobile) {
+    displayDrawer.value = false
+    return
+  }
+
+  collapsed.value = wide ? localStorage.getItem('shell.drawer.collapsed') === '1' : true
 })
 </script>
 
