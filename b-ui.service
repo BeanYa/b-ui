@@ -1,5 +1,5 @@
 [Unit]
-Description=s-ui Service
+Description=b-ui Service
 After=network.target
 Wants=network.target
 

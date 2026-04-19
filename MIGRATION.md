@@ -2,7 +2,7 @@
 
 This fork keeps the current Linux install layout compatible with the upstream release:
 
-- service name: `s-ui`
+- service name after migration: `b-ui`
 - install directory: `/usr/local/s-ui`
 - database path: `/usr/local/s-ui/db/s-ui.db`
 - management command after migration: `b-ui`
@@ -32,15 +32,16 @@ bash <(curl -Ls https://raw.githubusercontent.com/BeanYa/b-ui/main/install.sh) -
 ## What the migration script does
 
 1. Detects an existing compatible upstream installation.
-2. Stops the `s-ui` service.
+2. Stops the legacy `s-ui` service.
 3. Creates a rollback backup under `/var/backups/s-ui/<timestamp>/`.
 4. Downloads the release artifact from `BeanYa/b-ui`.
    The current Linux asset name is `b-ui-linux-<arch>.tar.gz`.
 5. Replaces the installed binaries and shell script in place.
 6. Runs `sui migrate`.
-7. Switches the management command from `s-ui` to `b-ui`.
-8. When no version is specified, performs an explicit update check against the latest published `b-ui` release.
-9. Restarts and enables the `s-ui` service.
+7. Switches the systemd service name from `s-ui` to `b-ui`.
+8. Switches the management command from `s-ui` to `b-ui`.
+9. When no version is specified, performs an explicit update check against the latest published `b-ui` release.
+10. Restarts and enables the `b-ui` service.
 
 ## Notes
 

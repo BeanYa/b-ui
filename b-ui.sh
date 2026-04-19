@@ -14,7 +14,8 @@ RELEASES_API_URL="https://api.github.com/repos/${REPO_OWNER}/${REPO_NAME}/releas
 CLI_NAME="${CLI_NAME:-b-ui}"
 CLI_PATH="${CLI_PATH:-/usr/bin/${CLI_NAME}}"
 INSTALL_ROOT="${INSTALL_ROOT:-/usr/local/s-ui}"
-SERVICE_NAME="${SERVICE_NAME:-s-ui}"
+SERVICE_NAME="${SERVICE_NAME:-b-ui}"
+LEGACY_SERVICE_NAME="${LEGACY_SERVICE_NAME:-s-ui}"
 DISPLAY_NAME="${DISPLAY_NAME:-B-UI}"
 
 function LOGD() {
@@ -466,6 +467,16 @@ check_status() {
         return 0
     else
         return 1
+    fi
+}
+
+resolve_service_name() {
+    if [[ -f "/etc/systemd/system/${SERVICE_NAME}.service" ]]; then
+        return 0
+    fi
+
+    if [[ "${LEGACY_SERVICE_NAME}" != "${SERVICE_NAME}" && -f "/etc/systemd/system/${LEGACY_SERVICE_NAME}.service" ]]; then
+        SERVICE_NAME="${LEGACY_SERVICE_NAME}"
     fi
 }
 
@@ -1046,6 +1057,8 @@ show_menu() {
         ;;
     esac
 }
+
+resolve_service_name
 
 if [[ $# > 0 ]]; then
     case $1 in

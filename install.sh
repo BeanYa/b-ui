@@ -15,13 +15,15 @@ INSTALL_PARENT="$(dirname "${INSTALL_ROOT}")"
 CLI_NAME="${CLI_NAME:-b-ui}"
 CLI_PATH="${CLI_PATH:-/usr/bin/${CLI_NAME}}"
 LEGACY_CLI_PATH="${LEGACY_CLI_PATH:-/usr/bin/s-ui}"
-SERVICE_NAME="${SERVICE_NAME:-s-ui}"
+SERVICE_NAME="${SERVICE_NAME:-b-ui}"
+LEGACY_SERVICE_NAME="${LEGACY_SERVICE_NAME:-s-ui}"
 DB_FILE="${INSTALL_ROOT}/db/s-ui.db"
 BACKUP_ROOT="${BACKUP_ROOT:-/var/backups/s-ui}"
 MODE="install"
 TARGET_VERSION=""
 EXISTING_INSTALL=0
 CURRENT_BACKUP_DIR=""
+PREVIOUS_SERVICE_NAME=""
 
 cur_dir=$(pwd)
 
@@ -36,7 +38,7 @@ Usage:
 
 Modes:
   default         Fresh install or manual reinstall. Existing installs keep data but still show setup prompts.
-  --migrate       Migrate an existing upstream install in place, keep current settings, and switch the command to b-ui.
+  --migrate       Migrate an existing upstream install in place, keep current settings, and switch both the service and command to b-ui.
                   When used through migrate-to-b-ui.sh without a version, migration is followed by an explicit update check to the latest b-ui release.
   --update        Update an existing b-ui install only when the target version is newer/different.
   --force-update  Reinstall the target version even when the current version already matches.
@@ -123,7 +125,13 @@ canonicalize_release_tag() {
 }
 
 detect_existing_install() {
-    if [[ -d "${INSTALL_ROOT}" || -f "${DB_FILE}" || -f "/etc/systemd/system/${SERVICE_NAME}.service" || -f "${CLI_PATH}" || -f "${LEGACY_CLI_PATH}" ]]; then
+    if [[ -f "/etc/systemd/system/${SERVICE_NAME}.service" ]]; then
+        PREVIOUS_SERVICE_NAME="${SERVICE_NAME}"
+    elif [[ -f "/etc/systemd/system/${LEGACY_SERVICE_NAME}.service" ]]; then
+        PREVIOUS_SERVICE_NAME="${LEGACY_SERVICE_NAME}"
+    fi
+
+    if [[ -d "${INSTALL_ROOT}" || -f "${DB_FILE}" || -f "/etc/systemd/system/${SERVICE_NAME}.service" || -f "/etc/systemd/system/${LEGACY_SERVICE_NAME}.service" || -f "${CLI_PATH}" || -f "${LEGACY_CLI_PATH}" ]]; then
         EXISTING_INSTALL=1
     fi
 }
@@ -180,6 +188,10 @@ backup_existing_installation() {
         cp -a "/etc/systemd/system/${SERVICE_NAME}.service" "${CURRENT_BACKUP_DIR}/${SERVICE_NAME}.service"
     fi
 
+    if [[ "${LEGACY_SERVICE_NAME}" != "${SERVICE_NAME}" && -f "/etc/systemd/system/${LEGACY_SERVICE_NAME}.service" ]]; then
+        cp -a "/etc/systemd/system/${LEGACY_SERVICE_NAME}.service" "${CURRENT_BACKUP_DIR}/${LEGACY_SERVICE_NAME}.service"
+    fi
+
     backup_existing_db
     echo -e "${yellow}Created rollback backup in ${CURRENT_BACKUP_DIR}${plain}"
 }
@@ -190,9 +202,12 @@ rollback_installation() {
         return 1
     fi
 
-    echo -e "${yellow}Install failed. Restoring the previous ${SERVICE_NAME} installation...${plain}"
+    echo -e "${yellow}Install failed. Restoring the previous service installation...${plain}"
 
     systemctl stop "${SERVICE_NAME}" 2>/dev/null || true
+    if [[ "${LEGACY_SERVICE_NAME}" != "${SERVICE_NAME}" ]]; then
+        systemctl stop "${LEGACY_SERVICE_NAME}" 2>/dev/null || true
+    fi
 
     if [[ -f "${CURRENT_BACKUP_DIR}/install-root.tar.gz" ]]; then
         rm -rf "${INSTALL_ROOT}"
@@ -212,6 +227,16 @@ rollback_installation() {
 
     if [[ -f "${CURRENT_BACKUP_DIR}/${SERVICE_NAME}.service" ]]; then
         cp -af "${CURRENT_BACKUP_DIR}/${SERVICE_NAME}.service" "/etc/systemd/system/${SERVICE_NAME}.service"
+    else
+        rm -f "/etc/systemd/system/${SERVICE_NAME}.service"
+    fi
+
+    if [[ "${LEGACY_SERVICE_NAME}" != "${SERVICE_NAME}" ]]; then
+        if [[ -f "${CURRENT_BACKUP_DIR}/${LEGACY_SERVICE_NAME}.service" ]]; then
+            cp -af "${CURRENT_BACKUP_DIR}/${LEGACY_SERVICE_NAME}.service" "/etc/systemd/system/${LEGACY_SERVICE_NAME}.service"
+        else
+            rm -f "/etc/systemd/system/${LEGACY_SERVICE_NAME}.service"
+        fi
     fi
 
     if [[ -f "${INSTALL_ROOT}/sui" ]]; then
@@ -219,14 +244,15 @@ rollback_installation() {
     fi
 
     systemctl daemon-reload
-    systemctl enable "${SERVICE_NAME}" --now 2>/dev/null || systemctl start "${SERVICE_NAME}" 2>/dev/null || true
+    local restored_service_name="${PREVIOUS_SERVICE_NAME:-${SERVICE_NAME}}"
+    systemctl enable "${restored_service_name}" --now 2>/dev/null || systemctl start "${restored_service_name}" 2>/dev/null || true
 
-    if systemctl is-active --quiet "${SERVICE_NAME}"; then
-        echo -e "${green}Rollback succeeded. Previous ${SERVICE_NAME} service is running again.${plain}"
+    if systemctl is-active --quiet "${restored_service_name}"; then
+        echo -e "${green}Rollback succeeded. Previous ${restored_service_name} service is running again.${plain}"
         return 0
     fi
 
-    echo -e "${red}Rollback completed, but ${SERVICE_NAME} did not start automatically. Please inspect ${CURRENT_BACKUP_DIR}.${plain}"
+    echo -e "${red}Rollback completed, but ${restored_service_name} did not start automatically. Please inspect ${CURRENT_BACKUP_DIR}.${plain}"
     return 1
 }
 
@@ -310,7 +336,7 @@ check_update_requirement() {
     fi
 
     if [[ ${EXISTING_INSTALL} -ne 1 ]]; then
-        echo -e "${yellow}No existing ${SERVICE_NAME} installation was detected. Continuing with a fresh install.${plain}"
+        echo -e "${yellow}No existing compatible installation was detected. Continuing with a fresh install.${plain}"
         return 0
     fi
 
@@ -371,6 +397,17 @@ remove_legacy_cli() {
     if [[ "${LEGACY_CLI_PATH}" != "${CLI_PATH}" && -e "${LEGACY_CLI_PATH}" ]]; then
         rm -f "${LEGACY_CLI_PATH}"
     fi
+}
+
+remove_legacy_service() {
+    if [[ "${LEGACY_SERVICE_NAME}" == "${SERVICE_NAME}" ]]; then
+        return 0
+    fi
+
+    systemctl stop "${LEGACY_SERVICE_NAME}" 2>/dev/null || true
+    systemctl disable "${LEGACY_SERVICE_NAME}" 2>/dev/null || true
+    rm -f "/etc/systemd/system/${LEGACY_SERVICE_NAME}.service"
+    systemctl reset-failed "${LEGACY_SERVICE_NAME}" 2>/dev/null || true
 }
 
 resolve_package_dir() {
@@ -494,11 +531,14 @@ install_app() {
     download_release_asset
 
     if [[ ${EXISTING_INSTALL} -eq 1 ]]; then
-        echo -e "${yellow}Compatible legacy installation detected. ${PROJECT_NAME} will replace the binaries in place, keep the existing data directory, and switch the management command to ${CLI_NAME}.${plain}"
+        echo -e "${yellow}Compatible legacy installation detected. ${PROJECT_NAME} will replace the binaries in place, keep the existing data directory, and switch the service and command to b-ui.${plain}"
     fi
 
-    if [[ -e "${INSTALL_ROOT}/" ]]; then
+    if [[ ${EXISTING_INSTALL} -eq 1 ]]; then
         systemctl stop "${SERVICE_NAME}" 2>/dev/null || true
+        if [[ "${LEGACY_SERVICE_NAME}" != "${SERVICE_NAME}" ]]; then
+            systemctl stop "${LEGACY_SERVICE_NAME}" 2>/dev/null || true
+        fi
         backup_existing_installation
     fi
 
@@ -528,6 +568,7 @@ install_app() {
     chmod +x "${CLI_PATH}" || { rollback_installation; exit 1; }
     remove_legacy_cli
     cp -f "${package_dir}"/*.service /etc/systemd/system/ || { rollback_installation; exit 1; }
+    remove_legacy_service
     rm -rf "${package_dir}"
 
     config_after_install

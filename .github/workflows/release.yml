@@ -16,7 +16,7 @@ on:
       - '**.go'
       - 'go.mod'
       - 'go.sum'
-      - 's-ui.service'
+      - 'b-ui.service'
       - 'b-ui.sh'
 
 permissions:
@@ -186,7 +186,7 @@ jobs:
 
           mkdir b-ui
           cp sui b-ui/
-          cp s-ui.service b-ui/
+          cp b-ui.service b-ui/
           cp b-ui.sh b-ui/
 
       - name: Package

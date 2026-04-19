@@ -99,7 +99,7 @@ Use the same tags when building locally if you need feature parity with releases
 - Tagged builds publish Linux assets as `b-ui-linux-<arch>.tar.gz`.
 - Tagged builds publish Windows assets as `b-ui-windows-<arch>.zip`.
 - Tagged builds inject the Git tag into the binary version, so `sui -v` reflects the release tag.
-- Linux compatibility remains intentionally unchanged after install: legacy service name `s-ui`, install path `/usr/local/s-ui`, management command `b-ui`.
+- Linux compatibility after migration keeps the install path `/usr/local/s-ui`, while the service and management command are both renamed to `b-ui`.
 
 ### Environment Variables (development)
 

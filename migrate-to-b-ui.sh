@@ -17,8 +17,9 @@ Usage:
   bash migrate-to-b-ui.sh --help
 
 This script migrates an existing upstream installation to BeanYa/b-ui
-in place, switches the management command to b-ui, and then ensures the
-installation is updated to the latest published b-ui release by default.
+in place, switches the service and management command to b-ui, and then
+ensures the installation is updated to the latest published b-ui release
+by default.
 If a version is provided, migration targets that version instead.
 EOF
 }
