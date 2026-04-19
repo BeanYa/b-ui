@@ -20,8 +20,14 @@
 ```sh
 git clone https://github.com/BeanYa/b-ui.git
 cd b-ui
-git submodule update --init --recursive
+git submodule update --init --remote --recursive
 ```
+
+说明：
+
+- `frontend` 子模块默认跟踪 `b-ui-frontend` 的 `main` 分支
+- 但 Git 子模块机制本身仍然会在父仓库里记录一个具体 commit，这是 Git 的正常行为
+- 如果你想在本地显式刷新到前端最新 `main`，重复执行一次 `git submodule update --remote --recursive` 即可
 
 ## 从已安装的 S-UI 迁移
 

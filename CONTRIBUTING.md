@@ -35,7 +35,7 @@ Please be respectful and constructive when interacting with maintainers and othe
 ```bash
 git clone https://github.com/alireza0/s-ui
 cd s-ui
-git submodule update --init --recursive
+git submodule update --init --remote --recursive
 ```
 
 The **frontend** lives in a submodule. If you only work on the backend, you can use the existing `web/html` contents or build the frontend once (see below).
@@ -107,7 +107,7 @@ Use the same tags when building locally if you need feature parity with releases
 ```bash
 git clone https://github.com/alireza0/s-ui
 cd s-ui
-git submodule update --init --recursive
+git submodule update --init --remote --recursive
 docker build -t s-ui .
 # or: docker compose up -d
 ```

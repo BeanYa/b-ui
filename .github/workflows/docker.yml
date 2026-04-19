@@ -20,6 +20,10 @@ jobs:
         uses: actions/checkout@v6.0.2
         with:
           submodules: recursive
+      - name: Update frontend submodule to latest main
+        run: |
+          git submodule sync --recursive
+          git submodule update --init --remote --recursive
       - name: Set up Node.js
         uses: actions/setup-node@v6
         with:
