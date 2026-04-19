@@ -8,7 +8,6 @@
 import '@mdi/font/css/materialdesignicons.css'
 import 'vuetify/styles/main.css'
 
-import colors from 'vuetify/util/colors'
 import { fa, en, vi, zhHans, zhHant, ru } from 'vuetify/locale'
 
 // Composables
@@ -28,7 +27,7 @@ export default createVuetify({
     },
     VBtn: {
       rounded: 'pill',
-      style: 'letter-spacing: 0.2px; text-transform: none; font-weight: 600;',
+      style: 'letter-spacing: 0.3px; text-transform: none; font-weight: 600;',
     },
     VChip: {
       rounded: 'lg',
@@ -56,12 +55,12 @@ export default createVuetify({
       light: {
         colors: {
           primary: '#177ddc',
-          secondary: '#0f172a',
+          secondary: '#101828',
           accent: '#ff6363',
-          background: '#eef2f7',
+          background: '#edf1f7',
           surface: '#ffffff',
-          'surface-bright': '#f8fafc',
-          'surface-light': '#f1f5f9',
+          'surface-bright': '#f8faff',
+          'surface-light': '#eef3f8',
           error: '#ff6363',
           info: '#55b3ff',
           success: '#5fc992',

@@ -96,7 +96,7 @@ const gaugeColor = computed(() => {
 .gauge__cover {
   width: 75%;
   height: 150%;
-  background: rgb(var(--v-theme-background));
+  background: color-mix(in srgb, var(--app-surface-1) 100%, transparent);
   position: absolute;
   top: 25%;
   left: 50%;
@@ -109,8 +109,8 @@ const gaugeColor = computed(() => {
   justify-content: center;
   padding-bottom: 25%;
   box-sizing: border-box;
-  font-family: 'Lexend', sans-serif;
-  font-weight: bold;
+  font-family: 'Geist Mono Variable', monospace;
+  font-weight: 700;
   font-size: clamp(17px, 1.6vw, 24px);
   line-height: 1;
   text-align: center;

@@ -15,9 +15,6 @@
   </v-main>
 </template>
 
-<script lang="ts" setup>
-</script>
-
 <style>
 .shell-main {
   min-height: 100vh;
@@ -31,9 +28,8 @@
 }
 
 .shell-main__content {
-  border-radius: 34px;
-  min-height: calc(100vh - 112px);
-  padding: 10px 0 4px;
+  min-height: calc(100vh - 124px);
+  padding: 8px 0 4px;
 }
 
 .page-shell-enter-active,
@@ -46,7 +42,7 @@
 
 .page-shell-enter-from,
 .page-shell-leave-to {
-  filter: blur(6px);
+  filter: blur(8px);
   opacity: 0;
   transform: translateY(12px);
 }
@@ -57,8 +53,7 @@
   }
 
   .shell-main__content {
-    border-radius: 24px;
-    min-height: calc(100vh - 92px);
+    min-height: calc(100vh - 98px);
     padding: 8px 0 2px;
   }
 }

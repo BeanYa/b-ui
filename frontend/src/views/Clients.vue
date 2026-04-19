@@ -12,6 +12,7 @@
           <span class="app-page__hero-meta-item">{{ filteredClients.length }} visible</span>
           <span class="app-page__hero-meta-item">{{ groups.length }} groups</span>
           <span class="app-page__hero-meta-item">{{ inboundTags.length }} inbound tags</span>
+          <span class="app-page__hero-meta-item">{{ disabledCount }} disabled</span>
         </div>
       </div>
       <div class="app-page__hero-side">
@@ -67,6 +68,13 @@
     <v-row class="app-page__toolbar">
       <v-col cols="12">
         <div class="app-page__toolbar-actions app-toolbar-cluster">
+          <div class="clients-toolbar">
+            <div class="clients-toolbar__label">Inventory controls</div>
+            <div class="clients-toolbar__summary">
+              <span>{{ filterSettings.enabled ? 'Filtered set' : 'Full set' }}</span>
+              <span>{{ onlineCount }} online</span>
+            </div>
+          </div>
           <v-btn color="primary" @click="showModal(0)">{{ $t('actions.add') }}</v-btn>
           <v-menu v-model="actionMenu" :close-on-content-click="false" location="bottom center">
             <template v-slot:activator="{ props }">
@@ -154,6 +162,17 @@
         </div>
       </v-col>
     </v-row>
+    <div v-if="filterSettings.enabled" class="clients-filter-state app-panel">
+      <div class="clients-filter-state__head">
+        <span class="clients-filter-state__label">Active filter</span>
+        <v-btn size="small" variant="text" @click="clearFilter">{{ $t('actions.del') }}</v-btn>
+      </div>
+      <div class="clients-filter-state__chips">
+        <span class="app-page__hero-meta-item" v-if="filterSettings.state">{{ filterItems.find(item => item.value === filterSettings.state)?.title }}</span>
+        <span class="app-page__hero-meta-item" v-if="filterSettings.group !== '-'">{{ filterSettings.group || $t('none') }}</span>
+        <span class="app-page__hero-meta-item" v-if="filterSettings.text">{{ filterSettings.text }}</span>
+      </div>
+    </div>
     <v-row class="app-grid">
       <v-col cols="12">
         <v-data-table
@@ -324,6 +343,7 @@ const filterItems = [
 const filteredClients = computed(() => filterSettings.value.enabled ? filterSettings.value.filteredClients : clients.value)
 const onlineCount = computed(() => Data().onlines?.user?.length ?? 0)
 const expiredCount = computed(() => clients.value.filter(c => c.expiry > 0 && c.expiry < (Date.now() / 1000)).length)
+const disabledCount = computed(() => clients.value.filter(c => c.enable === false).length)
 
 const headers = [
   { title: i18n.global.t('client.name'), key: 'name' },
@@ -454,3 +474,51 @@ const percent = (c: Client) => { return c.volume>0 ? Math.round((c.up+c.down) *1
 const percentColor = (c: Client) => { return (c.up+c.down) >= c.volume ? 'error' : percent(c)>90 ? 'warning' : 'success' }
 
 </script>
+
+<style scoped>
+.clients-toolbar {
+  display: grid;
+  gap: 4px;
+  margin-inline-end: auto;
+}
+
+.clients-toolbar__label,
+.clients-filter-state__label {
+  color: var(--app-text-3);
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+}
+
+.clients-toolbar__summary {
+  color: var(--app-text-3);
+  display: flex;
+  flex-wrap: wrap;
+  font-size: 12px;
+  gap: 8px;
+}
+
+.clients-toolbar__summary span + span::before {
+  color: var(--app-text-4);
+  content: '•';
+  margin-inline-end: 8px;
+}
+
+.clients-filter-state {
+  padding: 12px 14px;
+}
+
+.clients-filter-state__head {
+  align-items: center;
+  display: flex;
+  justify-content: space-between;
+}
+
+.clients-filter-state__chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 10px;
+}
+</style>
