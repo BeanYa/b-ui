@@ -15,6 +15,7 @@ CLI_NAME="${CLI_NAME:-b-ui}"
 CLI_PATH="${CLI_PATH:-/usr/bin/${CLI_NAME}}"
 INSTALL_ROOT="${INSTALL_ROOT:-/usr/local/s-ui}"
 SERVICE_NAME="${SERVICE_NAME:-s-ui}"
+DISPLAY_NAME="${DISPLAY_NAME:-B-UI}"
 
 function LOGD() {
     echo -e "${yellow}[DEG] $* ${plain}"
@@ -60,7 +61,7 @@ confirm() {
 }
 
 confirm_restart() {
-    confirm "Restart the ${1} service" "y"
+    confirm "Restart the ${DISPLAY_NAME} service" "y"
     if [[ $? == 0 ]]; then
         restart
     else
@@ -352,15 +353,15 @@ start() {
     check_status $1
     if [[ $? == 0 ]]; then
         echo ""
-        LOGI -e "${1} is running, No need to start again, If you need to restart, please select restart"
+        LOGI -e "${DISPLAY_NAME} is already running. If you need to restart it, please select restart."
     else
         systemctl start $1
         sleep 2
         check_status $1
         if [[ $? == 0 ]]; then
-            LOGI "${1} Started Successfully"
+            LOGI "${DISPLAY_NAME} started successfully"
         else
-            LOGE "Failed to start ${1}, Probably because it takes longer than two seconds to start, Please check the log information later"
+            LOGE "Failed to start ${DISPLAY_NAME}. It may take longer than two seconds to start; please check the logs later."
         fi
     fi
 
@@ -373,15 +374,15 @@ stop() {
     check_status $1
     if [[ $? == 1 ]]; then
         echo ""
-        LOGI "${1} stopped, No need to stop again!"
+        LOGI "${DISPLAY_NAME} is already stopped"
     else
         systemctl stop $1
         sleep 2
         check_status
         if [[ $? == 1 ]]; then
-            LOGI "${1} stopped successfully"
+            LOGI "${DISPLAY_NAME} stopped successfully"
         else
-            LOGE "Failed to stop ${1}, Probably because the stop time exceeds two seconds, Please check the log information later"
+            LOGE "Failed to stop ${DISPLAY_NAME}. The stop may have exceeded two seconds; please check the logs later."
         fi
     fi
 
@@ -395,9 +396,9 @@ restart() {
     sleep 2
     check_status $1
     if [[ $? == 0 ]]; then
-        LOGI "${1} Restarted successfully"
+        LOGI "${DISPLAY_NAME} restarted successfully"
     else
-        LOGE "Failed to restart ${1}, Probably because it takes longer than two seconds to start, Please check the log information later"
+        LOGE "Failed to restart ${DISPLAY_NAME}. It may take longer than two seconds to start; please check the logs later."
     fi
     if [[ $# == 1 ]]; then
         before_show_menu
@@ -414,9 +415,9 @@ status() {
 enable() {
     systemctl enable $1
     if [[ $? == 0 ]]; then
-        LOGI "Set ${1} to boot automatically on startup successfully"
+        LOGI "${DISPLAY_NAME} autostart enabled successfully"
     else
-        LOGE "Failed to set ${1} Autostart"
+        LOGE "Failed to enable ${DISPLAY_NAME} autostart"
     fi
 
     if [[ $# == 1 ]]; then
@@ -427,9 +428,9 @@ enable() {
 disable() {
     systemctl disable $1
     if [[ $? == 0 ]]; then
-        LOGI "Autostart ${1} Cancelled successfully"
+        LOGI "${DISPLAY_NAME} autostart disabled successfully"
     else
-        LOGE "Failed to cancel ${1} autostart"
+        LOGE "Failed to disable ${DISPLAY_NAME} autostart"
     fi
 
     if [[ $# == 1 ]]; then
@@ -509,15 +510,15 @@ show_status() {
     check_status $1
     case $? in
     0)
-        echo -e "${1} state: ${green}Running${plain}"
+        echo -e "${DISPLAY_NAME} state: ${green}Running${plain}"
         show_enable_status $1
         ;;
     1)
-        echo -e "${1} state: ${yellow}Not Running${plain}"
+        echo -e "${DISPLAY_NAME} state: ${yellow}Not Running${plain}"
         show_enable_status $1
         ;;
     2)
-        echo -e "${1} state: ${red}Not Installed${plain}"
+        echo -e "${DISPLAY_NAME} state: ${red}Not Installed${plain}"
         ;;
     esac
 }
@@ -525,9 +526,9 @@ show_status() {
 show_enable_status() {
     check_enabled $1
     if [[ $? == 0 ]]; then
-        echo -e "Start ${1} automatically: ${green}Yes${plain}"
+        echo -e "Start ${DISPLAY_NAME} automatically: ${green}Yes${plain}"
     else
-        echo -e "Start ${1} automatically: ${red}No${plain}"
+        echo -e "Start ${DISPLAY_NAME} automatically: ${red}No${plain}"
     fi
 }
 
