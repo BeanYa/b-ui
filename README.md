@@ -5,7 +5,7 @@
 当前仓库的重点不再是“同步上游说明文档”，而是明确下面三件事：
 
 - 这是一个 fork，核心能力来源于上游 `S-UI`
-- 前端代码位于 `frontend/` 子模块，来源于 `s-ui-frontend`
+- 前端代码位于 `frontend/` 子模块，当前仓库为 `b-ui-frontend`
 - 所有新的 UI 改动默认遵循 [DESIGN.md](./DESIGN.md)
 
 ## 仓库结构
@@ -98,6 +98,7 @@ go build -o sui main.go
 
 - 上游后端: [alireza0/s-ui](https://github.com/alireza0/s-ui)
 - 上游前端: [alireza0/s-ui-frontend](https://github.com/alireza0/s-ui-frontend)
+- 当前前端仓库: [BeanYa/b-ui-frontend](https://github.com/BeanYa/b-ui-frontend)
 
 本仓库保留对上游的兼容基础，但文档、品牌名和前端视觉方向以 `B-UI` 为准。
 
