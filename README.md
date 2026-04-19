@@ -99,7 +99,7 @@ b-ui update
 b-ui update --force
 ```
 
-- `b-ui update`：仅当 GitHub 最新 release 版本与当前安装版本不同的时候才执行更新
+- `b-ui update`：仅在系统已经安装 `b-ui` 且当前版本落后于目标版本时执行更新
 - `b-ui update --force`：即使当前版本已经相同，也会重新下载并覆盖安装
 - `b-ui update v0.0.1`：更新到指定版本
 
@@ -109,6 +109,13 @@ b-ui update --force
 bash <(curl -Ls https://raw.githubusercontent.com/BeanYa/b-ui/main/install.sh) --update
 bash <(curl -Ls https://raw.githubusercontent.com/BeanYa/b-ui/main/install.sh) --force-update
 ```
+
+`--update` 的行为约束如下：
+
+- 系统未安装 `b-ui` 时直接退出，并提示先运行安装命令
+- 系统只有 `s-ui`、尚未迁移到 `b-ui` 时直接退出，并提示改用 `--migrate`
+- 系统已安装 `b-ui` 且当前版本已经等于或高于目标版本时直接退出，并提示使用 `--force-update`
+- 系统已安装 `b-ui` 且当前版本落后时，只更新 `b-ui` 本身，不执行旧版 `s-ui` 迁移流程
 
 ## 版本与发布
 

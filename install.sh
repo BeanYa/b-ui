@@ -10,6 +10,7 @@ REPO_NAME="${REPO_NAME:-b-ui}"
 PROJECT_NAME="${PROJECT_NAME:-B-UI}"
 RELEASE_BASE_URL="https://github.com/${REPO_OWNER}/${REPO_NAME}/releases"
 GITHUB_API_BASE_URL="https://api.github.com/repos/${REPO_OWNER}/${REPO_NAME}"
+SYSTEMD_DIR="${SYSTEMD_DIR:-/etc/systemd/system}"
 INSTALL_ROOT="${INSTALL_ROOT:-/usr/local/s-ui}"
 INSTALL_PARENT="$(dirname "${INSTALL_ROOT}")"
 CLI_NAME="${CLI_NAME:-b-ui}"
@@ -17,6 +18,9 @@ CLI_PATH="${CLI_PATH:-/usr/bin/${CLI_NAME}}"
 LEGACY_CLI_PATH="${LEGACY_CLI_PATH:-/usr/bin/s-ui}"
 SERVICE_NAME="${SERVICE_NAME:-b-ui}"
 LEGACY_SERVICE_NAME="${LEGACY_SERVICE_NAME:-s-ui}"
+INSTALL_COMMAND="bash <(curl -Ls https://raw.githubusercontent.com/${REPO_OWNER}/${REPO_NAME}/main/install.sh)"
+MIGRATE_COMMAND="${INSTALL_COMMAND} --migrate"
+FORCE_UPDATE_COMMAND="${INSTALL_COMMAND} --force-update"
 DB_FILE="${INSTALL_ROOT}/db/b-ui.db"
 LEGACY_DB_FILE="${INSTALL_ROOT}/db/s-ui.db"
 BACKUP_ROOT="${BACKUP_ROOT:-/var/backups/s-ui}"
@@ -25,8 +29,10 @@ DOWNLOAD_RETRY_DELAY="${DOWNLOAD_RETRY_DELAY:-15}"
 MODE="install"
 TARGET_VERSION=""
 EXISTING_INSTALL=0
+INSTALLATION_KIND="none"
 CURRENT_BACKUP_DIR=""
 PREVIOUS_SERVICE_NAME=""
+release=""
 
 cur_dir=$(pwd)
 
@@ -55,47 +61,55 @@ Examples:
 EOF
 }
 
-for arg in "$@"; do
-    case "$arg" in
-    -h | --help)
-        show_usage
-        exit 0
-        ;;
-    --migrate | --auto-migrate | --keep-config)
-        MODE="migrate"
-        ;;
-    --update)
-        MODE="update"
-        ;;
-    --force-update)
-        MODE="force-update"
-        ;;
-    *)
-        if [[ -z "$TARGET_VERSION" ]]; then
-            TARGET_VERSION="$arg"
-        else
-            echo -e "${red}Fatal error: ${plain} too many arguments: $*"
-            exit 1
-        fi
-        ;;
-    esac
-done
+parse_args() {
+    MODE="install"
+    TARGET_VERSION=""
 
-# check root
-[[ $EUID -ne 0 ]] && echo -e "${red}Fatal error: ${plain} Please run this script with root privilege \n " && exit 1
+    for arg in "$@"; do
+        case "$arg" in
+        -h | --help)
+            show_usage
+            exit 0
+            ;;
+        --migrate | --auto-migrate | --keep-config)
+            MODE="migrate"
+            ;;
+        --update)
+            MODE="update"
+            ;;
+        --force-update)
+            MODE="force-update"
+            ;;
+        *)
+            if [[ -z "${TARGET_VERSION}" ]]; then
+                TARGET_VERSION="$arg"
+            else
+                echo -e "${red}Fatal error: ${plain} too many arguments: $*"
+                exit 1
+            fi
+            ;;
+        esac
+    done
+}
 
-# Check OS and set release variable
-if [[ -f /etc/os-release ]]; then
-    source /etc/os-release
-    release=$ID
-elif [[ -f /usr/lib/os-release ]]; then
-    source /usr/lib/os-release
-    release=$ID
-else
-    echo "Failed to check the system OS, please contact the author!" >&2
-    exit 1
-fi
-echo "The OS release is: $release"
+require_root() {
+    [[ $EUID -ne 0 ]] && echo -e "${red}Fatal error: ${plain} Please run this script with root privilege \n " && exit 1
+}
+
+detect_os_release() {
+    if [[ -f /etc/os-release ]]; then
+        source /etc/os-release
+        release=$ID
+    elif [[ -f /usr/lib/os-release ]]; then
+        source /usr/lib/os-release
+        release=$ID
+    else
+        echo "Failed to check the system OS, please contact the author!" >&2
+        exit 1
+    fi
+
+    echo "The OS release is: $release"
+}
 
 arch() {
     case "$(uname -m)" in
@@ -109,8 +123,6 @@ arch() {
     *) echo -e "${green}Unsupported CPU architecture! ${plain}" && rm -f install.sh && exit 1 ;;
     esac
 }
-
-echo "arch: $(arch)"
 
 normalize_version() {
     local version_value="$1"
@@ -128,15 +140,44 @@ canonicalize_release_tag() {
 }
 
 detect_existing_install() {
-    if [[ -f "/etc/systemd/system/${SERVICE_NAME}.service" ]]; then
+    PREVIOUS_SERVICE_NAME=""
+    EXISTING_INSTALL=0
+    INSTALLATION_KIND="none"
+
+    if [[ -f "${SYSTEMD_DIR}/${SERVICE_NAME}.service" ]]; then
         PREVIOUS_SERVICE_NAME="${SERVICE_NAME}"
-    elif [[ -f "/etc/systemd/system/${LEGACY_SERVICE_NAME}.service" ]]; then
+    elif [[ -f "${SYSTEMD_DIR}/${LEGACY_SERVICE_NAME}.service" ]]; then
         PREVIOUS_SERVICE_NAME="${LEGACY_SERVICE_NAME}"
     fi
 
-    if [[ -d "${INSTALL_ROOT}" || -f "${DB_FILE}" || -f "/etc/systemd/system/${SERVICE_NAME}.service" || -f "/etc/systemd/system/${LEGACY_SERVICE_NAME}.service" || -f "${CLI_PATH}" || -f "${LEGACY_CLI_PATH}" ]]; then
+    if [[ -d "${INSTALL_ROOT}" || -f "${DB_FILE}" || -f "${LEGACY_DB_FILE}" || -f "${SYSTEMD_DIR}/${SERVICE_NAME}.service" || -f "${SYSTEMD_DIR}/${LEGACY_SERVICE_NAME}.service" || -f "${CLI_PATH}" || -f "${LEGACY_CLI_PATH}" ]]; then
         EXISTING_INSTALL=1
     fi
+
+    if [[ -f "${DB_FILE}" || -f "${SYSTEMD_DIR}/${SERVICE_NAME}.service" || -f "${CLI_PATH}" ]]; then
+        INSTALLATION_KIND="b-ui"
+        return 0
+    fi
+
+    if [[ -f "${LEGACY_DB_FILE}" || -f "${SYSTEMD_DIR}/${LEGACY_SERVICE_NAME}.service" || -f "${LEGACY_CLI_PATH}" ]]; then
+        INSTALLATION_KIND="legacy-only"
+    fi
+}
+
+version_is_gte() {
+    local left_version=""
+    local right_version=""
+    local max_version=""
+
+    left_version=$(normalize_version "$1")
+    right_version=$(normalize_version "$2")
+
+    if [[ -z "${left_version}" || -z "${right_version}" ]]; then
+        return 1
+    fi
+
+    max_version=$(printf '%s\n%s\n' "${left_version}" "${right_version}" | sort -V | tail -n1)
+    [[ "${max_version}" == "${left_version}" ]]
 }
 
 prepare_backup_dir() {
@@ -189,12 +230,12 @@ backup_existing_installation() {
         cp -a "${LEGACY_CLI_PATH}" "${CURRENT_BACKUP_DIR}/legacy-s-ui-cli"
     fi
 
-    if [[ -f "/etc/systemd/system/${SERVICE_NAME}.service" ]]; then
-        cp -a "/etc/systemd/system/${SERVICE_NAME}.service" "${CURRENT_BACKUP_DIR}/${SERVICE_NAME}.service"
+    if [[ -f "${SYSTEMD_DIR}/${SERVICE_NAME}.service" ]]; then
+        cp -a "${SYSTEMD_DIR}/${SERVICE_NAME}.service" "${CURRENT_BACKUP_DIR}/${SERVICE_NAME}.service"
     fi
 
-    if [[ "${LEGACY_SERVICE_NAME}" != "${SERVICE_NAME}" && -f "/etc/systemd/system/${LEGACY_SERVICE_NAME}.service" ]]; then
-        cp -a "/etc/systemd/system/${LEGACY_SERVICE_NAME}.service" "${CURRENT_BACKUP_DIR}/${LEGACY_SERVICE_NAME}.service"
+    if [[ "${LEGACY_SERVICE_NAME}" != "${SERVICE_NAME}" && -f "${SYSTEMD_DIR}/${LEGACY_SERVICE_NAME}.service" ]]; then
+        cp -a "${SYSTEMD_DIR}/${LEGACY_SERVICE_NAME}.service" "${CURRENT_BACKUP_DIR}/${LEGACY_SERVICE_NAME}.service"
     fi
 
     backup_existing_db
@@ -231,16 +272,16 @@ rollback_installation() {
     fi
 
     if [[ -f "${CURRENT_BACKUP_DIR}/${SERVICE_NAME}.service" ]]; then
-        cp -af "${CURRENT_BACKUP_DIR}/${SERVICE_NAME}.service" "/etc/systemd/system/${SERVICE_NAME}.service"
+        cp -af "${CURRENT_BACKUP_DIR}/${SERVICE_NAME}.service" "${SYSTEMD_DIR}/${SERVICE_NAME}.service"
     else
-        rm -f "/etc/systemd/system/${SERVICE_NAME}.service"
+        rm -f "${SYSTEMD_DIR}/${SERVICE_NAME}.service"
     fi
 
     if [[ "${LEGACY_SERVICE_NAME}" != "${SERVICE_NAME}" ]]; then
         if [[ -f "${CURRENT_BACKUP_DIR}/${LEGACY_SERVICE_NAME}.service" ]]; then
-            cp -af "${CURRENT_BACKUP_DIR}/${LEGACY_SERVICE_NAME}.service" "/etc/systemd/system/${LEGACY_SERVICE_NAME}.service"
+            cp -af "${CURRENT_BACKUP_DIR}/${LEGACY_SERVICE_NAME}.service" "${SYSTEMD_DIR}/${LEGACY_SERVICE_NAME}.service"
         else
-            rm -f "/etc/systemd/system/${LEGACY_SERVICE_NAME}.service"
+            rm -f "${SYSTEMD_DIR}/${LEGACY_SERVICE_NAME}.service"
         fi
     fi
 
@@ -340,9 +381,16 @@ check_update_requirement() {
         return 0
     fi
 
-    if [[ ${EXISTING_INSTALL} -ne 1 ]]; then
-        echo -e "${yellow}No existing compatible installation was detected. Continuing with a fresh install.${plain}"
-        return 0
+    if [[ "${INSTALLATION_KIND}" == "none" ]]; then
+        echo -e "${red}System does not have b-ui installed. Run the install script first.${plain}"
+        echo -e "${yellow}${INSTALL_COMMAND}${plain}"
+        exit 1
+    fi
+
+    if [[ "${INSTALLATION_KIND}" == "legacy-only" ]]; then
+        echo -e "${red}Detected s-ui but b-ui is not installed. Run migration first.${plain}"
+        echo -e "${yellow}${MIGRATE_COMMAND}${plain}"
+        exit 1
     fi
 
     current_version=$(get_current_installed_version || true)
@@ -356,8 +404,8 @@ check_update_requirement() {
     fi
     echo -e "${yellow}Target version: ${TARGET_VERSION}${plain}"
 
-    if [[ "${MODE}" == "update" && -n "${normalized_current}" && "${normalized_current}" == "${normalized_target}" ]]; then
-        echo -e "${green}${PROJECT_NAME} is already on ${TARGET_VERSION}. Nothing to do.${plain}"
+    if [[ "${MODE}" == "update" && -n "${normalized_current}" ]] && version_is_gte "${normalized_current}" "${normalized_target}"; then
+        echo -e "${green}${PROJECT_NAME} is already up to date. Use '${FORCE_UPDATE_COMMAND}' to reinstall anyway.${plain}"
         exit 0
     fi
 }
@@ -424,7 +472,7 @@ remove_legacy_service() {
 
     systemctl stop "${LEGACY_SERVICE_NAME}" 2>/dev/null || true
     systemctl disable "${LEGACY_SERVICE_NAME}" 2>/dev/null || true
-    rm -f "/etc/systemd/system/${LEGACY_SERVICE_NAME}.service"
+    rm -f "${SYSTEMD_DIR}/${LEGACY_SERVICE_NAME}.service"
     systemctl reset-failed "${LEGACY_SERVICE_NAME}" 2>/dev/null || true
 }
 
@@ -468,7 +516,11 @@ config_after_install() {
     fi
 
     if [[ "${MODE}" != "install" && ${EXISTING_INSTALL} -eq 1 ]]; then
-        echo -e "${green}Detected an existing compatible installation. Current settings, credentials, and migrated database contents have been kept.${plain}"
+        if [[ "${MODE}" == "migrate" || "${INSTALLATION_KIND}" == "legacy-only" ]]; then
+            echo -e "${green}Detected an existing compatible installation. Current settings, credentials, and migrated database contents have been kept.${plain}"
+        else
+            echo -e "${green}Detected an existing b-ui installation. Current settings and credentials have been kept.${plain}"
+        fi
         return 0
     fi
     
@@ -527,7 +579,7 @@ config_after_install() {
 }
 
 prepare_services() {
-    if [[ -f "/etc/systemd/system/sing-box.service" ]]; then
+    if [[ -f "${SYSTEMD_DIR}/sing-box.service" ]]; then
         echo -e "${yellow}Stopping sing-box service... ${plain}"
         systemctl stop sing-box
         rm -f "${INSTALL_ROOT}/bin/sing-box" "${INSTALL_ROOT}/bin/runSingbox.sh" "${INSTALL_ROOT}/bin/signal"
@@ -548,7 +600,7 @@ install_app() {
 
     download_release_asset
 
-    if [[ ${EXISTING_INSTALL} -eq 1 ]]; then
+    if [[ "${MODE}" == "migrate" || "${INSTALLATION_KIND}" == "legacy-only" ]]; then
         echo -e "${yellow}Compatible legacy installation detected. ${PROJECT_NAME} will replace the binaries in place, migrate the legacy database to b-ui.db on first start, keep the existing data directory, and switch the service and command to b-ui.${plain}"
     fi
 
@@ -585,7 +637,7 @@ install_app() {
     cp "${cli_script_source}" "${CLI_PATH}" || { rollback_installation; exit 1; }
     chmod +x "${CLI_PATH}" || { rollback_installation; exit 1; }
     remove_legacy_cli
-    cp -f "${package_dir}"/*.service /etc/systemd/system/ || { rollback_installation; exit 1; }
+    cp -f "${package_dir}"/*.service "${SYSTEMD_DIR}/" || { rollback_installation; exit 1; }
     remove_legacy_service
     rm -rf "${package_dir}"
 
@@ -607,9 +659,19 @@ install_app() {
     "${CLI_NAME}" help
 }
 
-echo -e "${green}Executing...${plain}"
-detect_existing_install
-resolve_target_version
-check_update_requirement
-install_base
-install_app
+main() {
+    echo -e "${green}Executing...${plain}"
+    parse_args "$@"
+    require_root
+    detect_os_release
+    echo "arch: $(arch)"
+    detect_existing_install
+    resolve_target_version
+    check_update_requirement
+    install_base
+    install_app
+}
+
+if [[ "${BASH_SOURCE[0]}" == "$0" ]]; then
+    main "$@"
+fi

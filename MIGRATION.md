@@ -69,6 +69,13 @@ bash <(curl -Ls https://raw.githubusercontent.com/BeanYa/b-ui/main/install.sh) -
 bash <(curl -Ls https://raw.githubusercontent.com/BeanYa/b-ui/main/install.sh) --force-update
 ```
 
-- `--update`: update only when the installed version differs from the target release
+- `--update`: update only when `b-ui` is already installed and the installed version is older than the target release
 - `--force-update`: reinstall the target release even when the version already matches
 - Both modes accept an optional version, for example `--update v0.0.1`
+
+Update mode exits early in these cases:
+
+- when `b-ui` is not installed yet, it points to the install command
+- when only upstream `s-ui` is installed, it points to the migrate command
+- when the installed `b-ui` version is already current or newer, it points to `--force-update`
+- normal `b-ui` updates do not perform the legacy `s-ui` migration flow
