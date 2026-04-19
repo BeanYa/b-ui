@@ -92,6 +92,14 @@ func GetLegacyDBPath() string {
 }
 
 func PrepareDBPath() (string, error) {
+	return prepareDBPath(false)
+}
+
+func PrepareDBPathForMigration() (string, error) {
+	return prepareDBPath(true)
+}
+
+func prepareDBPath(forceLegacyMigration bool) (string, error) {
 	targetPath := GetDBPath()
 	legacyPath := GetLegacyDBPath()
 	if filepath.Clean(targetPath) == filepath.Clean(legacyPath) {
@@ -102,19 +110,6 @@ func PrepareDBPath() (string, error) {
 	if err != nil {
 		return "", err
 	}
-	if targetExists {
-		return targetPath, nil
-	}
-
-	for _, conflictPath := range []string{targetPath + "-wal", targetPath + "-shm"} {
-		conflictExists, err := pathExists(conflictPath)
-		if err != nil {
-			return "", err
-		}
-		if conflictExists {
-			return "", fmt.Errorf("target database sidecar already exists: %s", conflictPath)
-		}
-	}
 
 	legacyExists, err := pathExists(legacyPath)
 	if err != nil {
@@ -124,7 +119,23 @@ func PrepareDBPath() (string, error) {
 		return targetPath, nil
 	}
 
-	err = migrateLegacyDBFiles(legacyPath, targetPath)
+	if targetExists {
+		if !forceLegacyMigration {
+			return targetPath, nil
+		}
+	} else {
+		for _, conflictPath := range []string{targetPath + "-wal", targetPath + "-shm"} {
+			conflictExists, err := pathExists(conflictPath)
+			if err != nil {
+				return "", err
+			}
+			if conflictExists {
+				return "", fmt.Errorf("target database sidecar already exists: %s", conflictPath)
+			}
+		}
+	}
+
+	err = migrateLegacyDBFiles(legacyPath, targetPath, forceLegacyMigration && targetExists)
 	if err != nil {
 		return "", err
 	}
@@ -149,7 +160,7 @@ func pathExists(path string) (bool, error) {
 	return false, err
 }
 
-func migrateLegacyDBFiles(legacyPath string, targetPath string) error {
+func migrateLegacyDBFiles(legacyPath string, targetPath string, overwriteTarget bool) error {
 	type fileMove struct {
 		sourcePath string
 		targetPath string
@@ -172,7 +183,7 @@ func migrateLegacyDBFiles(legacyPath string, targetPath string) error {
 		if err != nil {
 			return err
 		}
-		if targetExists {
+		if targetExists && !overwriteTarget {
 			return fmt.Errorf("target database file already exists: %s", targetPathWithSuffix)
 		}
 
@@ -189,6 +200,15 @@ func migrateLegacyDBFiles(legacyPath string, targetPath string) error {
 
 	if err := os.MkdirAll(filepath.Dir(targetPath), 01740); err != nil {
 		return err
+	}
+
+	if overwriteTarget {
+		for _, suffix := range []string{"", "-wal", "-shm"} {
+			targetPathWithSuffix := targetPath + suffix
+			if err := os.Remove(targetPathWithSuffix); err != nil && !errors.Is(err, os.ErrNotExist) {
+				return err
+			}
+		}
 	}
 
 	var copiedFiles []string

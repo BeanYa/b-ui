@@ -90,3 +90,49 @@ func TestPrepareDBPathKeepsExistingTargetDatabase(t *testing.T) {
 		t.Fatalf("target db changed unexpectedly: got %q", string(content))
 	}
 }
+
+func TestPrepareDBPathForMigrationReplacesExistingTargetWithLegacyData(t *testing.T) {
+	dbDir := t.TempDir()
+	t.Setenv("SUI_DB_FOLDER", dbDir)
+	t.Setenv("SUI_DB_NAME", "")
+
+	legacyPath := filepath.Join(dbDir, "s-ui.db")
+	targetPath := filepath.Join(dbDir, "b-ui.db")
+
+	if err := os.WriteFile(legacyPath, []byte("legacy-main"), 0o600); err != nil {
+		t.Fatalf("write legacy db: %v", err)
+	}
+	if err := os.WriteFile(legacyPath+"-wal", []byte("legacy-wal"), 0o600); err != nil {
+		t.Fatalf("write legacy wal: %v", err)
+	}
+	if err := os.WriteFile(targetPath, []byte("placeholder-main"), 0o600); err != nil {
+		t.Fatalf("write target db: %v", err)
+	}
+	if err := os.WriteFile(targetPath+"-wal", []byte("placeholder-wal"), 0o600); err != nil {
+		t.Fatalf("write target wal: %v", err)
+	}
+
+	dbPath, err := PrepareDBPathForMigration()
+	if err != nil {
+		t.Fatalf("prepare db path: %v", err)
+	}
+	if dbPath != targetPath {
+		t.Fatalf("db path mismatch: got %s want %s", dbPath, targetPath)
+	}
+
+	for _, file := range []struct {
+		path    string
+		content string
+	}{
+		{path: targetPath, content: "legacy-main"},
+		{path: targetPath + "-wal", content: "legacy-wal"},
+	} {
+		content, err := os.ReadFile(file.path)
+		if err != nil {
+			t.Fatalf("read migrated file %s: %v", file.path, err)
+		}
+		if string(content) != file.content {
+			t.Fatalf("migrated file %s mismatch: got %q want %q", file.path, string(content), file.content)
+		}
+	}
+}

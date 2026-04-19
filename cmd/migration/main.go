@@ -13,7 +13,7 @@ import (
 
 func MigrateDb() {
 	// void running on first install
-	path, err := config.PrepareDBPath()
+	path, err := config.PrepareDBPathForMigration()
 	if err != nil {
 		log.Fatal(err)
 		return
