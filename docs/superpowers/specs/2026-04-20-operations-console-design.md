@@ -1,7 +1,7 @@
 # B-UI Global Operations Console Design
 
 Date: 2026-04-20
-Status: Draft approved in conversation, written for review
+Status: Draft approved in conversation, updated for review
 Scope: `frontend/` global design, layout, motion, and theming refresh
 
 ## 1. Goal
@@ -13,6 +13,7 @@ The redesign must:
 - Make navigation, hierarchy, status, and actions easier to parse at a glance.
 - Add motion and visual refinement without relying on heavy rendering techniques.
 - Keep all rendering client-side and avoid introducing server-side performance costs.
+- Consolidate homepage runtime monitoring into a single, high-signal server probe card instead of repeating overlapping system-summary cards.
 
 ## 2. Product Context
 
@@ -28,7 +29,7 @@ The intended feel is a professional operations control surface rather than a cyb
 
 ### 3.1 Visual Personality
 
-Primary direction: cold, precise operations console.
+Primary direction: cold, precise operations console with segmented workbench structure.
 
 Characteristics:
 - clean structural lines
@@ -36,6 +37,7 @@ Characteristics:
 - subtle instrument-panel depth
 - selective use of status color
 - motion that clarifies state change rather than drawing attention to itself
+- explicit separation between stable runtime status and editable page content
 
 Avoid:
 - oversized glow treatments
@@ -122,7 +124,10 @@ Token intent:
 Tone: technical, calm, compact, legible.
 
 Rules:
-- keep the existing functional sans baseline unless replacement improves both themes meaningfully
+- use `Inter` for interface typography and `GeistMono` for code-like and numeric telemetry contexts
+- self-host both font families inside the frontend bundle or vendor them through local package assets
+- do not rely on Google-hosted font CDNs because deployments may run behind restricted networks
+- preserve multilingual fallback chains for CJK, Persian, and other non-Latin locales
 - use a consistent hierarchy for shell title, page title, section title, card title, metadata, and captions
 - tighten uppercase utility labels into a shared eyebrow style
 - preserve legibility in dense cards and tables
@@ -153,6 +158,8 @@ Shell requirements:
 - consistent top spacing and page width rhythm
 - reduced visual clutter in the background
 - lighter decorative layering on mobile
+- follow a segmented workbench model: left navigation, top context rail, central work area, and stable runtime-status zone pattern
+- allow pages to express the stable runtime zone as a side panel, top status strip, or compact status capsule cluster depending on page density
 
 ### 7.2 Page Layer
 
@@ -168,6 +175,12 @@ Each page family should feel structurally consistent:
 - entity edit or create pages
 - settings pages
 - modal-driven workflows
+
+Approved page-family mapping:
+- `Overview Workspace`: homepage runtime overview and telemetry
+- `Catalog Workspace`: inbounds, outbounds, endpoints, services, rules, TLS, admins
+- `Inventory Table Workspace`: clients and other dense inventories that benefit from tabular scanning
+- `Configuration Workspace`: settings, basics, DNS, and other multi-section system controls
 
 ### 7.3 Block Layer
 
@@ -191,10 +204,30 @@ Homepage should become the strongest expression of the console identity.
 
 Requirements:
 - preserve the improved telemetry readability work already completed
-- separate dashboard overview, runtime status, gauges, and detail charts into clearer bands
+- separate dashboard overview, primary runtime probe, and secondary telemetry/detail charts into clearer bands
 - create stronger scanning order from left to right and top to bottom
 - emphasize state summaries and operational shortcuts without oversized marketing-style hero treatment
 - maintain fixed data panels as a stable control surface
+- remove the current duplicated system-information cards
+- replace them with one combined runtime probe card that merges:
+  - CPU usage
+  - RAM usage
+  - Disk I/O activity
+  - core system information
+  - sing-box runtime information
+- style the combined runtime probe card closer to a server control panel or server probe
+- prefer live occupancy rings plus dynamic stream bars to show current status at a glance
+
+Homepage structure:
+- left or primary area: overview, counts, and action shortcuts
+- right or secondary area: one consolidated server probe card
+- lower bands: secondary charts and detail modules
+
+Combined probe-card behavior:
+- display CPU, RAM, and Disk I/O as continuously refreshed circular occupancy indicators
+- show runtime state, memory, threads, active users, uptime, host, and address inside the same card
+- avoid splitting the same operational story across multiple separate cards
+- keep the card visually dense but internally segmented so scanning remains easy
 
 Motion:
 - entry fade and slight lift for cards
@@ -211,6 +244,11 @@ Requirements:
 - improve row density without feeling cramped
 - create consistent placement for quick actions
 - improve empty states and secondary metadata treatment
+
+Approved distinctions:
+- `Clients` remains table-first because it is inventory-like and benefits from scanning expiry, volume, group, and online state in rows
+- `Inbounds`, `Outbounds`, and similar object pages should stay card-first because they are action-heavy and have fewer but more semantic fields
+- `Settings` and similar pages should use grouped control panels instead of generic stacked form blocks
 
 Visual style:
 - card/table shells should resemble instrument modules rather than generic content boxes
@@ -325,6 +363,7 @@ This design should be implemented in four phases.
 ### Phase 1: Foundation
 
 - normalize global design tokens in `frontend/src/styles/settings.scss`
+- add locally served `Inter` and `GeistMono` assets or equivalent vendored files under the frontend bundle
 - refine theme switching support in the theme plugin
 - define shared utility classes for page shells, sections, and content blocks
 
@@ -346,6 +385,12 @@ This design should be implemented in four phases.
 - form/editor pages
 - settings pages
 
+Representative priorities:
+- homepage first, including the merged server probe card
+- clients as the table-first inventory template
+- inbounds and outbounds as card-first catalog templates
+- settings as the grouped configuration-workspace template
+
 ## 13. Testing and Verification
 
 Verification must cover both visual quality and technical safety.
@@ -362,6 +407,7 @@ Recommended manual review pages:
 - `/`
 - `/clients`
 - `/inbounds`
+- `/outbounds`
 - `/settings`
 - at least one create/edit modal workflow
 
@@ -381,18 +427,23 @@ Main risks:
 - light theme feeling weaker if only dark surfaces are tuned carefully
 - performance regressions from excessive blur or shadows in repeated elements
 - form pages becoming over-styled and less scannable
+- the merged homepage probe card becoming visually impressive but less readable if too many metrics compete inside one panel
 
 Mitigations:
 - foundation-first rollout
 - representative page audits per phase
 - explicit light-theme review at every milestone
 - restrained motion defaults
+- keep the merged probe card internally segmented with fixed metric zones and limit it to current-state information only
 
 ## 16. Recommendation
 
 Proceed with a system-wide operations-console redesign centered on:
 - dual first-class themes
+- self-hosted `Inter` + `GeistMono` typography with multilingual fallbacks
 - unified shell and page structure
+- segmented workbench shell layout
+- a single homepage server probe card replacing duplicated system-summary cards
 - restrained, high-signal motion
 - reusable global primitives
 - performance-aware client-side rendering
