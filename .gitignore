@@ -9,7 +9,6 @@ main
 tmp
 .sync*
 *.tar.gz
-frontend/
 
 # local env files
 .env.local

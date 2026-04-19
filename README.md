@@ -5,7 +5,7 @@
 当前仓库的重点不再是“同步上游说明文档”，而是明确下面三件事：
 
 - 这是一个 fork，核心能力来源于上游 `S-UI`
-- 前端代码位于 `frontend/` 子模块，当前仓库为 `b-ui-frontend`
+- 前端代码直接位于当前仓库的 `frontend/` 目录，不再需要单独的子模块提交
 - 所有新的 UI 改动默认遵循 [DESIGN.md](./DESIGN.md)
 
 当前首页已经切到更明确的控制台布局：
@@ -25,7 +25,7 @@
 
 ## 仓库结构
 
-- `frontend/`: Vue 3 + Vuetify 4 前端子模块
+- `frontend/`: Vue 3 + Vuetify 4 前端源码目录，直接由当前仓库跟踪
 - `web/`: 编译后的前端静态资源会被打包到这里
 - `api/`, `service/`, `database/`, `middleware/`: Go 后端主体
 - `DESIGN.md`: 当前 UI 设计参考，现阶段采用 Raycast 风格的深色工具界面
@@ -35,15 +35,13 @@
 ```sh
 git clone https://github.com/BeanYa/b-ui.git
 cd b-ui
-git submodule update --init --remote --recursive
 ```
 
 说明：
 
-- `frontend` 子模块默认跟踪 `b-ui-frontend` 的 `main` 分支
-- 但 Git 子模块机制本身仍然会在父仓库里记录一个具体 commit，这是 Git 的正常行为
-- 如果你想在本地显式刷新到前端最新 `main`，重复执行一次 `git submodule update --remote --recursive` 即可
-- 当前 release / docker workflow 也会在 CI 中主动刷新 `frontend` 子模块到最新 `main` 后再构建
+- `frontend/` 已经和后端源码合并在同一个仓库里
+- 前端修改不再需要单独维护或确认额外的子模块 commit
+- CI 会直接使用当前仓库里的 `frontend/` 内容构建
 
 ## 从已安装的上游版本迁移
 
@@ -179,7 +177,7 @@ go build -o sui main.go
 
 - 上游后端: [alireza0/s-ui](https://github.com/alireza0/s-ui)
 - 上游前端: [alireza0/s-ui-frontend](https://github.com/alireza0/s-ui-frontend)
-- 当前前端仓库: [BeanYa/b-ui-frontend](https://github.com/BeanYa/b-ui-frontend)
+- 当前 fork 已将前端源码直接并入 `BeanYa/b-ui`
 
 本仓库保留对上游的兼容基础，但文档、品牌名和前端视觉方向以 `B-UI` 为准。
 

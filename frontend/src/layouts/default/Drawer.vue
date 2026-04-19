@@ -1,0 +1,292 @@
+<template>
+  <v-navigation-drawer
+    v-model="showDrawer"
+    class="app-drawer"
+    :temporary="isMobile"
+    :permanent="!isMobile"
+    :rail="!isMobile && collapsed"
+    :rail-width="88"
+    :width="296"
+  >
+    <div class="app-drawer__brand">
+      <div class="app-drawer__logo">
+        <v-img src="@/assets/logo.svg" width="26" />
+      </div>
+      <div v-if="!collapsed || isMobile" class="app-drawer__titles">
+        <div class="app-drawer__name">B-UI</div>
+        <div class="app-drawer__meta">Sing-box control surface</div>
+      </div>
+      <v-btn
+        v-if="isMobile"
+        class="app-drawer__close"
+        icon="mdi-close"
+        variant="text"
+        @click="$emit('toggleDrawer')"
+      />
+    </div>
+
+    <div class="app-drawer__section">Navigation Grid</div>
+
+    <v-list class="app-drawer__list" density="comfortable" nav>
+      <v-list-item
+        v-for="item in menu"
+        :key="item.title"
+        class="app-drawer__item"
+        link
+        :to="item.path"
+        :active="router.currentRoute.value.path == item.path"
+      >
+        <template v-slot:prepend>
+          <v-icon :icon="item.icon" />
+        </template>
+        <v-tooltip
+          v-if="collapsed && !isMobile"
+          activator="parent"
+          location="end"
+          :text="$t(item.title)"
+        />
+        <v-list-item-title v-if="!collapsed || isMobile" v-text="$t(item.title)" />
+      </v-list-item>
+    </v-list>
+
+    <template v-slot:append>
+      <div class="app-drawer__footer">
+        <div v-if="!collapsed || isMobile" class="app-drawer__footer-note">
+          <span class="app-drawer__footer-label">Console state</span>
+          <span class="app-drawer__footer-value">{{ router.currentRoute.value.path }}</span>
+        </div>
+        <v-tooltip
+          v-if="collapsed && !isMobile"
+          activator="parent"
+          location="end"
+          :text="$t('menu.logout')"
+        />
+        <v-btn
+          :block="!collapsed || isMobile"
+          color="error"
+          :prepend-icon="collapsed && !isMobile ? undefined : 'mdi-logout'"
+          variant="tonal"
+          :icon="collapsed && !isMobile ? 'mdi-logout' : undefined"
+          @click="Logout"
+        >
+          <template v-if="!collapsed || isMobile">
+            {{ $t('menu.logout') }}
+          </template>
+        </v-btn>
+      </div>
+    </template>
+  </v-navigation-drawer>
+</template>
+
+<script lang="ts" setup>
+import { computed } from 'vue'
+import router from '@/router'
+import { logout } from '@/plugins/httputil'
+
+const props = defineProps(['isMobile', 'displayDrawer', 'collapsed'])
+const emit = defineEmits(['toggleDrawer'])
+
+const showDrawer = computed({
+  get: (): boolean => props.isMobile ? props.displayDrawer : true,
+  set: (value: boolean) => {
+    if (props.isMobile && value !== props.displayDrawer) {
+      emit('toggleDrawer')
+    }
+  },
+})
+
+const menu = [
+  { title: 'pages.home', icon: 'mdi-home', path: '/' },
+  { title: 'pages.inbounds', icon: 'mdi-cloud-download', path: '/inbounds' },
+  { title: 'pages.clients', icon: 'mdi-account-multiple', path: '/clients' },
+  { title: 'pages.outbounds', icon: 'mdi-cloud-upload', path: '/outbounds' },
+  { title: 'pages.endpoints', icon: 'mdi-cloud-tags', path: '/endpoints' },
+  { title: 'pages.services', icon: 'mdi-server', path: '/services' },
+  { title: 'pages.tls', icon: 'mdi-certificate', path: '/tls' },
+  { title: 'pages.basics', icon: 'mdi-application-cog', path: '/basics' },
+  { title: 'pages.rules', icon: 'mdi-routes', path: '/rules' },
+  { title: 'pages.dns', icon: 'mdi-dns', path: '/dns' },
+  { title: 'pages.admins', icon: 'mdi-account-tie', path: '/admins' },
+  { title: 'pages.settings', icon: 'mdi-cog', path: '/settings' },
+]
+
+const Logout = async () => {
+  logout()
+}
+</script>
+
+<style scoped>
+.app-drawer {
+  border-inline-end: 1px solid var(--app-border-1);
+}
+
+.app-drawer__brand {
+  align-items: center;
+  display: flex;
+  flex-shrink: 0;
+  gap: 12px;
+  min-height: 74px;
+  padding: 14px 12px 10px;
+  position: relative;
+}
+
+.app-drawer__logo {
+  align-items: center;
+  background:
+    linear-gradient(180deg, color-mix(in srgb, var(--app-state-info) 18%, transparent), color-mix(in srgb, var(--app-state-info) 4%, transparent)),
+    color-mix(in srgb, var(--app-surface-3) 80%, transparent);
+  border: 1px solid var(--app-border-1);
+  border-radius: 18px;
+  box-shadow: 0 14px 36px rgba(10, 16, 24, 0.18);
+  display: inline-flex;
+  flex-shrink: 0;
+  height: 52px;
+  justify-content: center;
+  width: 52px;
+}
+
+.app-drawer__titles {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+
+.app-drawer__name {
+  color: var(--app-text-1);
+  font-size: 18px;
+  font-weight: 700;
+}
+
+.app-drawer__meta {
+  color: var(--app-text-3);
+  font-size: 12px;
+}
+
+.app-drawer__close {
+  border: 1px solid var(--app-border-1);
+}
+
+.app-drawer__section {
+  color: var(--app-text-4);
+  font-size: 11px;
+  flex-shrink: 0;
+  font-weight: 700;
+  letter-spacing: 0.24em;
+  padding: 8px 14px 10px;
+  text-transform: uppercase;
+}
+
+.app-drawer__list {
+  display: flex;
+  flex-direction: column;
+  flex: 1 1 auto;
+  gap: 6px;
+  min-height: 0;
+  overflow-y: auto;
+  padding-inline-end: 4px;
+}
+
+.app-drawer__item {
+  backdrop-filter: blur(12px);
+  border: 1px solid transparent;
+  min-height: 52px;
+  transition:
+    transform var(--app-motion-fast) var(--app-ease-standard),
+    border-color var(--app-motion-fast) var(--app-ease-standard),
+    background-color var(--app-motion-fast) var(--app-ease-standard);
+}
+
+.app-drawer__item:hover {
+  background: color-mix(in srgb, var(--app-surface-3) 86%, transparent);
+  border-color: var(--app-border-1);
+  transform: translateX(2px);
+}
+
+.app-drawer__footer {
+  flex-shrink: 0;
+  display: grid;
+  gap: 12px;
+  padding: 12px;
+}
+
+:deep(.v-navigation-drawer--rail .app-drawer__footer) {
+  align-items: center;
+  display: flex;
+  justify-content: center;
+}
+
+.app-drawer__footer-note {
+  background: color-mix(in srgb, var(--app-surface-3) 86%, transparent);
+  border: 1px solid var(--app-border-1);
+  border-radius: 18px;
+  display: grid;
+  gap: 4px;
+  min-height: 72px;
+  padding: 12px;
+}
+
+.app-drawer__footer-label {
+  color: var(--app-text-4);
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+}
+
+.app-drawer__footer-value {
+  color: var(--app-text-2);
+  font-size: 13px;
+  overflow-wrap: anywhere;
+}
+
+:deep(.v-navigation-drawer__content) {
+  background:
+    radial-gradient(circle at top left, color-mix(in srgb, var(--app-state-info) 10%, transparent), transparent 24%),
+    linear-gradient(180deg, color-mix(in srgb, #ffffff 3%, transparent), transparent 24%);
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  min-height: 0;
+  overflow: hidden;
+  padding: 12px 10px;
+}
+
+:deep(.v-navigation-drawer--rail .v-navigation-drawer__content) {
+  padding-inline: 8px;
+}
+
+:deep(.v-navigation-drawer--rail .app-drawer__brand) {
+  justify-content: center;
+  padding-inline: 0;
+}
+
+:deep(.v-navigation-drawer--rail .app-drawer__section) {
+  opacity: 0;
+  padding: 0;
+}
+
+:deep(.v-navigation-drawer--rail .app-drawer__item) {
+  justify-content: center;
+  transform: none;
+}
+
+:deep(.v-navigation-drawer--rail .app-drawer__footer-note) {
+  display: none;
+}
+
+:deep(.v-navigation-drawer--rail .app-drawer__item .v-list-item__prepend) {
+  margin-inline-end: 0;
+}
+
+@media (max-width: 960px) {
+  .app-drawer__brand {
+    padding-top: 10px;
+  }
+
+  :deep(.v-navigation-drawer__content) {
+    padding-inline: 12px;
+  }
+}
+</style>

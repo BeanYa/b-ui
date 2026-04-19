@@ -26,19 +26,18 @@ Please be respectful and constructive when interacting with maintainers and othe
 ### Prerequisites
 
 - **Go**: 1.25 or later (see `go.mod` for the exact version).
-- **Git**: For cloning and submodules.
+- **Git**: For cloning and normal source control operations.
 - **C compiler**: Required for CGO (e.g. `gcc`, `musl-dev` on Alpine).
 - **Node.js** (optional): Only if you plan to work on or rebuild the frontend. The repo can be run with pre-built frontend assets.
 
-### Clone and Submodules
+### Clone Repository
 
 ```bash
 git clone https://github.com/BeanYa/b-ui.git
 cd b-ui
-git submodule update --init --remote --recursive
 ```
 
-The **frontend** lives in the `frontend/` submodule and tracks [`BeanYa/b-ui-frontend`](https://github.com/BeanYa/b-ui-frontend). If you only work on the backend, you can use the existing `web/html` contents or build the frontend once (see below).
+The **frontend** now lives directly in the `frontend/` directory of this repository. There is no extra frontend submodule sync or separate frontend commit to manage. If you only work on the backend, you can use the existing `web/html` contents or build the frontend once (see below).
 
 ### Backend-Only Development (quickest)
 
@@ -61,7 +60,7 @@ The **frontend** lives in the `frontend/` submodule and tracks [`BeanYa/b-ui-fro
 
 ### Full Stack (Backend + Frontend)
 
-1. **Frontend** (separate repo in submodule):
+1. **Frontend**:
 
    ```bash
    cd frontend
@@ -115,7 +114,6 @@ Use the same tags when building locally if you need feature parity with releases
 ```bash
 git clone https://github.com/BeanYa/b-ui.git
 cd b-ui
-git submodule update --init --remote --recursive
 docker build -t b-ui .
 # or: docker compose up -d
 ```
