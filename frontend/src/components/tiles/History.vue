@@ -23,7 +23,7 @@ ChartJS.register(
   Title,
   Filler
 )
-ChartJS.defaults.font.family = 'Vazirmatn'
+ChartJS.defaults.font.family = 'Inter Variable'
 export default {
   components: {
     Line
@@ -55,7 +55,7 @@ export default {
             min: 0,
             max: 100,
             grid: {
-              color: '#777777',
+              color: 'rgba(156, 156, 157, 0.18)',
             },
             beginAtZero: true,
             ticks: {
@@ -86,7 +86,7 @@ export default {
         scales: {
           y: {
             grid: {
-              color: '#777777',
+              color: 'rgba(156, 156, 157, 0.18)',
             },
             beginAtZero: true,
             ticks: {
@@ -133,8 +133,8 @@ export default {
         datasets: [
           {
             label: '',
-            backgroundColor: 'rgba(255, 165, 0, 0.2)',
-            borderColor: 'rgba(255, 165, 0,0.8)',
+            backgroundColor: 'rgba(85, 179, 255, 0.16)',
+            borderColor: 'rgba(85, 179, 255, 0.82)',
             fill: true,
             data: newData
           }
@@ -156,15 +156,15 @@ export default {
         datasets: [
           {
             label: '',
-            backgroundColor: 'rgba(255, 165, 0, 0.2)',
-            borderColor: 'rgba(255, 165, 0,0.8)',
+            backgroundColor: 'rgba(85, 179, 255, 0.16)',
+            borderColor: 'rgba(85, 179, 255, 0.82)',
             fill: true,
             data: newData1
           },
           {
             label: '',
-            backgroundColor: 'rgba(0, 128, 0, 0.1)',
-            borderColor: 'rgba(0, 128, 0,0.8)',
+            backgroundColor: 'rgba(255, 99, 99, 0.12)',
+            borderColor: 'rgba(255, 99, 99, 0.78)',
             fill: true,
             data: newData2
           }

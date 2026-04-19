@@ -55,115 +55,159 @@
       </v-row>
       <v-window v-model="tab">
       <v-window-item value="t1">
-        <v-row>
-          <v-col cols="12" sm="6" md="4">
-            <v-text-field v-model="settings.webListen" :label="$t('setting.addr')" hide-details></v-text-field>
-          </v-col>
-          <v-col cols="12" sm="6" md="4">
-            <v-text-field v-model.number="webPort" min="1" type="number" :label="$t('setting.port')" hide-details></v-text-field>
-          </v-col>
-          <v-col cols="12" sm="6" md="4">
-            <v-text-field v-model="settings.webPath" :label="$t('setting.webPath')" hide-details></v-text-field>
-          </v-col>
-          <v-col cols="12" sm="6" md="4">
-            <v-text-field v-model="settings.webDomain" :label="$t('setting.domain')" hide-details></v-text-field>
-          </v-col>
-          <v-col cols="12" sm="6" md="4">
-            <v-text-field v-model="settings.webKeyFile" :label="$t('setting.sslKey')" hide-details></v-text-field>
-          </v-col>
-          <v-col cols="12" sm="6" md="4">
-            <v-text-field v-model="settings.webCertFile" :label="$t('setting.sslCert')" hide-details></v-text-field>
-          </v-col>
-          <v-col cols="12" sm="6" md="4">
-            <v-text-field v-model="settings.webURI" :label="$t('setting.webUri')" hide-details></v-text-field>
-          </v-col>
-          <v-col cols="12" sm="6" md="4">
-            <v-text-field
-              type="number"
-              v-model.number="sessionMaxAge"
-              min="0"
-              :label="$t('setting.sessionAge')"
-              :suffix="$t('date.m')"
-              hide-details
-              ></v-text-field>
-          </v-col>
-          <v-col cols="12" sm="6" md="4">
-            <v-text-field
-              type="number"
-              v-model.number="trafficAge"
-              min="0"
-              :label="$t('setting.trafficAge')"
-              :suffix="$t('date.d')"
-              hide-details
-              ></v-text-field>
-          </v-col>
-          <v-col cols="12" sm="6" md="4">
-            <v-text-field v-model="settings.timeLocation" :label="$t('setting.timeLoc')" hide-details></v-text-field>
-          </v-col>
-          <v-col cols="12">
-            <v-textarea
-              v-model="settings.tlsDomainHints"
-              :label="$t('setting.tlsDomainHints')"
-              :hint="$t('setting.tlsDomainHintsHint')"
-              persistent-hint
-              rows="5"
-            />
-          </v-col>
-        </v-row>
+        <div class="settings-stack">
+          <section class="settings-section app-panel">
+            <div class="settings-section__head">
+              <div class="settings-section__label">Interface binding</div>
+              <div class="settings-section__caption">Address, public path, and TLS assets for the web console.</div>
+            </div>
+            <v-row>
+              <v-col cols="12" sm="6" md="4">
+                <v-text-field v-model="settings.webListen" :label="$t('setting.addr')" hide-details></v-text-field>
+              </v-col>
+              <v-col cols="12" sm="6" md="4">
+                <v-text-field v-model.number="webPort" min="1" type="number" :label="$t('setting.port')" hide-details></v-text-field>
+              </v-col>
+              <v-col cols="12" sm="6" md="4">
+                <v-text-field v-model="settings.webPath" :label="$t('setting.webPath')" hide-details></v-text-field>
+              </v-col>
+              <v-col cols="12" sm="6" md="4">
+                <v-text-field v-model="settings.webDomain" :label="$t('setting.domain')" hide-details></v-text-field>
+              </v-col>
+              <v-col cols="12" sm="6" md="4">
+                <v-text-field v-model="settings.webKeyFile" :label="$t('setting.sslKey')" hide-details></v-text-field>
+              </v-col>
+              <v-col cols="12" sm="6" md="4">
+                <v-text-field v-model="settings.webCertFile" :label="$t('setting.sslCert')" hide-details></v-text-field>
+              </v-col>
+              <v-col cols="12" sm="6" md="4">
+                <v-text-field v-model="settings.webURI" :label="$t('setting.webUri')" hide-details></v-text-field>
+              </v-col>
+              <v-col cols="12" sm="6" md="4">
+                <v-text-field v-model="settings.timeLocation" :label="$t('setting.timeLoc')" hide-details></v-text-field>
+              </v-col>
+            </v-row>
+          </section>
+
+          <section class="settings-section app-panel">
+            <div class="settings-section__head">
+              <div class="settings-section__label">Retention and session windows</div>
+              <div class="settings-section__caption">Control how long sessions and traffic history remain available.</div>
+            </div>
+            <v-row>
+              <v-col cols="12" sm="6" md="4">
+                <v-text-field
+                  type="number"
+                  v-model.number="sessionMaxAge"
+                  min="0"
+                  :label="$t('setting.sessionAge')"
+                  :suffix="$t('date.m')"
+                  hide-details
+                ></v-text-field>
+              </v-col>
+              <v-col cols="12" sm="6" md="4">
+                <v-text-field
+                  type="number"
+                  v-model.number="trafficAge"
+                  min="0"
+                  :label="$t('setting.trafficAge')"
+                  :suffix="$t('date.d')"
+                  hide-details
+                ></v-text-field>
+              </v-col>
+            </v-row>
+          </section>
+
+          <section class="settings-section app-panel">
+            <div class="settings-section__head">
+              <div class="settings-section__label">TLS hinting</div>
+              <div class="settings-section__caption">Hints used to improve certificate and domain presentation in generated assets.</div>
+            </div>
+            <v-row>
+              <v-col cols="12">
+                <v-textarea
+                  v-model="settings.tlsDomainHints"
+                  :label="$t('setting.tlsDomainHints')"
+                  :hint="$t('setting.tlsDomainHintsHint')"
+                  persistent-hint
+                  rows="5"
+                />
+              </v-col>
+            </v-row>
+          </section>
+        </div>
       </v-window-item>
 
       <v-window-item value="t2">
-        <v-row>
-          <v-col cols="12" sm="6" md="4">
-            <v-switch color="primary" v-model="subEncode" :label="$t('setting.subEncode')" hide-details />
-          </v-col>
-          <v-col cols="12" sm="6" md="4">
-            <v-switch color="primary" v-model="subShowInfo" :label="$t('setting.subInfo')" hide-details />
-          </v-col>
-        </v-row>
-        <v-row>
-          <v-col cols="12" sm="6" md="4">
-            <v-text-field v-model="settings.subListen" :label="$t('setting.addr')" hide-details></v-text-field>
-          </v-col>
-          <v-col cols="12" sm="6" md="4">
-            <v-text-field
-              type="number"
-              v-model.number="subPort"
-              min="1"
-              :label="$t('setting.port')"
-              hide-details></v-text-field>
-          </v-col>
-        </v-row>
-        <v-row>
-          <v-col cols="12" sm="6" md="4">
-            <v-text-field v-model="settings.subKeyFile" :label="$t('setting.sslKey')" hide-details></v-text-field>
-          </v-col>
-          <v-col cols="12" sm="6" md="4">
-            <v-text-field v-model="settings.subCertFile" :label="$t('setting.sslCert')" hide-details></v-text-field>
-          </v-col>
-        </v-row>
-        <v-row>
-          <v-col cols="12" sm="6" md="4">
-            <v-text-field v-model="settings.subDomain" :label="$t('setting.domain')" hide-details></v-text-field>
-          </v-col>
-          <v-col cols="12" sm="6" md="4">
-            <v-text-field v-model="settings.subPath" :label="$t('setting.path')" hide-details></v-text-field>
-          </v-col>
-        </v-row>
-        <v-row>
-          <v-col cols="12" sm="6" md="4">
-            <v-text-field
-              type="number"
-              v-model.number="subUpdates"
-              min="0"
-              :label="$t('setting.update')"
-              hide-details
-              ></v-text-field>
-          </v-col>
-          <v-col cols="12" sm="6" md="4">
-            <v-text-field v-model="settings.subURI" :label="$t('setting.subUri')" hide-details></v-text-field>
-          </v-col>
-        </v-row>
+        <div class="settings-stack">
+          <section class="settings-section app-panel">
+            <div class="settings-section__head">
+              <div class="settings-section__label">Subscription behavior</div>
+              <div class="settings-section__caption">Encoding and metadata rules for generated subscription links.</div>
+            </div>
+            <v-row>
+              <v-col cols="12" sm="6" md="4">
+                <v-switch color="primary" v-model="subEncode" :label="$t('setting.subEncode')" hide-details />
+              </v-col>
+              <v-col cols="12" sm="6" md="4">
+                <v-switch color="primary" v-model="subShowInfo" :label="$t('setting.subInfo')" hide-details />
+              </v-col>
+              <v-col cols="12" sm="6" md="4">
+                <v-text-field
+                  type="number"
+                  v-model.number="subUpdates"
+                  min="0"
+                  :label="$t('setting.update')"
+                  hide-details
+                ></v-text-field>
+              </v-col>
+            </v-row>
+          </section>
+
+          <section class="settings-section app-panel">
+            <div class="settings-section__head">
+              <div class="settings-section__label">Endpoint exposure</div>
+              <div class="settings-section__caption">Address, path, domain, and URI controls for the subscription surface.</div>
+            </div>
+            <v-row>
+              <v-col cols="12" sm="6" md="4">
+                <v-text-field v-model="settings.subListen" :label="$t('setting.addr')" hide-details></v-text-field>
+              </v-col>
+              <v-col cols="12" sm="6" md="4">
+                <v-text-field
+                  type="number"
+                  v-model.number="subPort"
+                  min="1"
+                  :label="$t('setting.port')"
+                  hide-details></v-text-field>
+              </v-col>
+              <v-col cols="12" sm="6" md="4">
+                <v-text-field v-model="settings.subDomain" :label="$t('setting.domain')" hide-details></v-text-field>
+              </v-col>
+              <v-col cols="12" sm="6" md="4">
+                <v-text-field v-model="settings.subPath" :label="$t('setting.path')" hide-details></v-text-field>
+              </v-col>
+              <v-col cols="12" sm="6" md="4">
+                <v-text-field v-model="settings.subURI" :label="$t('setting.subUri')" hide-details></v-text-field>
+              </v-col>
+            </v-row>
+          </section>
+
+          <section class="settings-section app-panel">
+            <div class="settings-section__head">
+              <div class="settings-section__label">TLS material</div>
+              <div class="settings-section__caption">Optional certificate files for a secured subscription endpoint.</div>
+            </div>
+            <v-row>
+              <v-col cols="12" sm="6" md="4">
+                <v-text-field v-model="settings.subKeyFile" :label="$t('setting.sslKey')" hide-details></v-text-field>
+              </v-col>
+              <v-col cols="12" sm="6" md="4">
+                <v-text-field v-model="settings.subCertFile" :label="$t('setting.sslCert')" hide-details></v-text-field>
+              </v-col>
+            </v-row>
+          </section>
+        </div>
       </v-window-item>
 
       <v-window-item value="t3">
@@ -299,3 +343,46 @@ const stateChange = computed(() => {
   return !FindDiff.deepCompare(settings.value,oldSettings.value)
 })
 </script>
+
+<style scoped>
+.settings-stack {
+  display: grid;
+  gap: 14px;
+}
+
+.settings-section {
+  padding: 16px;
+}
+
+.settings-section__head {
+  align-items: end;
+  display: grid;
+  gap: 8px;
+  grid-template-columns: minmax(0, 1fr) minmax(220px, 0.8fr);
+  margin-bottom: 14px;
+}
+
+.settings-section__label {
+  color: var(--app-text-2);
+  font-size: 15px;
+  font-weight: 600;
+  line-height: 1.2;
+}
+
+.settings-section__caption {
+  color: var(--app-text-3);
+  font-size: 12px;
+  line-height: 1.5;
+  text-align: right;
+}
+
+@media (max-width: 720px) {
+  .settings-section__head {
+    grid-template-columns: 1fr;
+  }
+
+  .settings-section__caption {
+    text-align: left;
+  }
+}
+</style>

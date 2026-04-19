@@ -1,5 +1,5 @@
 <template>
-  <v-app-bar class="app-bar-shell" height="96">
+  <v-app-bar class="app-bar-shell" height="104">
     <div class="app-bar-shell__inner">
       <div class="app-bar-shell__leading">
         <v-btn
@@ -9,13 +9,14 @@
           @click="$emit('toggleDrawer')"
         />
         <div class="app-bar-shell__brand-mark">
-          <v-img src="@/assets/logo.svg" width="24" />
+          <v-img src="@/assets/logo.svg" width="26" />
         </div>
         <div class="app-bar-shell__headline">
-          <span class="app-bar-shell__eyebrow">Operations Console</span>
+          <span class="app-bar-shell__eyebrow">{{ pageSection }}</span>
           <v-app-bar-title :text="pageTitle" class="app-bar-shell__title" />
           <div class="app-bar-shell__meta">
             <span>{{ hostLabel }}</span>
+            <span>{{ route.path }}</span>
             <span>{{ activeThemeLabel }}</span>
           </div>
         </div>
@@ -24,10 +25,14 @@
       <div class="app-bar-shell__actions">
         <div class="app-bar-shell__status">
           <span class="app-bar-shell__status-dot"></span>
-          <span>{{ $t('main.stats.title') }}</span>
+          <span>{{ consoleStatus }}</span>
+        </div>
+        <div class="app-bar-shell__context">
+          <span class="app-bar-shell__context-chip">{{ localeLabel }}</span>
+          <span class="app-bar-shell__context-chip">{{ runtimeLabel }}</span>
         </div>
         <v-menu>
-          <template v-slot:activator="{ props }">
+          <template #activator="{ props }">
             <v-btn class="app-bar-shell__icon" icon v-bind="props" variant="text">
               <v-icon>mdi-translate</v-icon>
             </v-btn>
@@ -36,28 +41,28 @@
             <v-list-item
               v-for="lang in languages"
               :key="lang.value"
-              @click="changeLocale(lang.value)"
               :active="isActiveLocale(lang.value)"
+              @click="changeLocale(lang.value)"
             >
               <v-list-item-title>{{ lang.title }}</v-list-item-title>
             </v-list-item>
           </v-list>
         </v-menu>
         <v-menu>
-          <template v-slot:activator="{ props }">
+          <template #activator="{ props }">
             <v-btn class="app-bar-shell__icon" icon v-bind="props" variant="text">
               <v-icon>mdi-theme-light-dark</v-icon>
             </v-btn>
           </template>
           <v-list>
             <v-list-item
-              v-for="th in themes"
-              :key="th.value"
-              @click="changeTheme(th.value)"
-              :prepend-icon="th.icon"
-              :active="isActiveTheme(th.value)"
+              v-for="themeOption in themes"
+              :key="themeOption.value"
+              :active="isActiveTheme(themeOption.value)"
+              :prepend-icon="themeOption.icon"
+              @click="changeTheme(themeOption.value)"
             >
-              <v-list-item-title>{{ $t(`theme.${th.value}`) }}</v-list-item-title>
+              <v-list-item-title>{{ $t(`theme.${themeOption.value}`) }}</v-list-item-title>
             </v-list-item>
           </v-list>
         </v-menu>
@@ -67,12 +72,12 @@
 </template>
 
 <script lang="ts" setup>
-import { computed } from 'vue'
+import { computed, onBeforeUnmount, onMounted } from 'vue'
 import { useLocale, useTheme } from 'vuetify'
 import { useRoute } from 'vue-router'
 import { useI18n } from 'vue-i18n'
 import { languages } from '@/locales'
-import { applyThemePreference, getThemePreference, type ThemePreference } from '@/plugins/theme'
+import { applyThemePreference, getThemePreference, startThemeSync, stopThemeSync, type ThemePreference } from '@/plugins/theme'
 
 defineProps(['isMobile', 'collapsed'])
 
@@ -84,15 +89,15 @@ const theme = useTheme()
 const pageTitle = computed(() => t(String(route.name)))
 const hostLabel = computed(() => document.location.hostname || 'localhost')
 const activeThemeLabel = computed(() => `Theme · ${t(`theme.${getThemePreference()}`)}`)
-
-const changeLocale = (l: string) => {
-  i18nLocale.value = l
-  vuetifyLocale.current.value = l
-  localStorage.setItem('locale', l)
-  window.location.reload()
-}
-
-const isActiveLocale = (l: string) => i18nLocale.value === l
+const localeLabel = computed(() => `Locale · ${i18nLocale.value.toUpperCase()}`)
+const runtimeLabel = computed(() => `Segmented workspace`)
+const consoleStatus = computed(() => t('main.stats.title'))
+const pageSection = computed(() => {
+  if (route.path === '/') return 'Overview Workspace'
+  if (route.path === '/clients') return 'Inventory Workspace'
+  if (route.path === '/settings' || route.path === '/basics' || route.path === '/dns') return 'Configuration Workspace'
+  return 'Catalog Workspace'
+})
 
 const themes = [
   { value: 'light', icon: 'mdi-white-balance-sunny' },
@@ -100,33 +105,67 @@ const themes = [
   { value: 'system', icon: 'mdi-laptop' },
 ]
 
-const changeTheme = (th: string) => {
-  applyThemePreference(theme, th as ThemePreference)
+const changeLocale = (localeValue: string) => {
+  i18nLocale.value = localeValue
+  vuetifyLocale.current.value = localeValue
+  localStorage.setItem('locale', localeValue)
+  window.location.reload()
 }
 
-const isActiveTheme = (th: string) => getThemePreference() === th
+const isActiveLocale = (localeValue: string) => i18nLocale.value === localeValue
+
+const changeTheme = (themeValue: string) => {
+  applyThemePreference(theme, themeValue as ThemePreference)
+}
+
+const isActiveTheme = (themeValue: string) => getThemePreference() === themeValue
+
+onMounted(() => {
+  applyThemePreference(theme, getThemePreference(), false)
+  startThemeSync(theme)
+})
+
+onBeforeUnmount(() => {
+  stopThemeSync()
+})
 </script>
 
 <style scoped>
 .app-bar-shell {
   background: transparent !important;
   box-shadow: none !important;
-  padding: 12px 18px 0;
+  padding: 14px 18px 0;
 }
 
 .app-bar-shell__inner {
   align-items: center;
   border: 1px solid var(--app-border-1);
-  border-radius: 28px;
+  border-radius: 30px;
   box-shadow: var(--app-shadow-ring), var(--app-shadow-panel);
   display: flex;
   gap: 18px;
   justify-content: space-between;
-  min-height: 76px;
+  min-height: 82px;
   overflow: hidden;
-  padding: 12px 18px;
+  padding: 14px 18px;
   position: relative;
   width: 100%;
+}
+
+.app-bar-shell__inner::before {
+  background:
+    radial-gradient(circle at 0% 0%, color-mix(in srgb, var(--app-state-danger) 10%, transparent), transparent 22%),
+    linear-gradient(120deg, color-mix(in srgb, #ffffff 5%, transparent), transparent 30%);
+  content: '';
+  inset: 0;
+  pointer-events: none;
+  position: absolute;
+}
+
+.app-bar-shell__leading,
+.app-bar-shell__actions {
+  position: relative;
+  z-index: 1;
 }
 
 .app-bar-shell__leading {
@@ -134,31 +173,33 @@ const isActiveTheme = (th: string) => getThemePreference() === th
   display: flex;
   gap: 14px;
   min-width: 0;
-  position: relative;
-  z-index: 1;
 }
 
 .app-bar-shell__nav-btn,
 .app-bar-shell__icon {
   backdrop-filter: blur(14px);
   border: 1px solid var(--app-border-1);
-  transition:
-    background-color var(--app-motion-fast) var(--app-ease-standard),
-    border-color var(--app-motion-fast) var(--app-ease-standard),
-    transform var(--app-motion-fast) var(--app-ease-standard);
 }
 
-.app-bar-shell__nav-btn:hover,
-.app-bar-shell__icon:hover {
-  background: color-mix(in srgb, var(--app-surface-3) 88%, transparent);
-  border-color: var(--app-border-2);
-  transform: translateY(-1px);
+.app-bar-shell__brand-mark {
+  align-items: center;
+  background:
+    linear-gradient(180deg, color-mix(in srgb, var(--app-state-danger) 16%, transparent), color-mix(in srgb, var(--app-state-info) 8%, transparent)),
+    color-mix(in srgb, var(--app-surface-3) 84%, transparent);
+  border: 1px solid var(--app-border-1);
+  border-radius: 18px;
+  box-shadow: 0 16px 36px rgba(0, 0, 0, 0.18);
+  display: inline-flex;
+  flex-shrink: 0;
+  height: 44px;
+  justify-content: center;
+  width: 44px;
 }
 
 .app-bar-shell__headline {
   display: flex;
   flex-direction: column;
-  gap: 2px;
+  gap: 4px;
   min-width: 0;
 }
 
@@ -166,15 +207,15 @@ const isActiveTheme = (th: string) => getThemePreference() === th
   color: var(--app-text-3);
   font-size: 11px;
   font-weight: 700;
-  letter-spacing: 0.28em;
+  letter-spacing: 0.24em;
   text-transform: uppercase;
 }
 
 .app-bar-shell__title {
-  font-size: clamp(22px, 2vw, 28px);
+  font-size: clamp(24px, 2.2vw, 30px);
   font-weight: 600;
-  letter-spacing: 0;
-  line-height: 1.05;
+  line-height: 1.02;
+  letter-spacing: -0.01em;
 }
 
 .app-bar-shell__meta {
@@ -192,33 +233,17 @@ const isActiveTheme = (th: string) => getThemePreference() === th
   margin-inline-end: 10px;
 }
 
-.app-bar-shell__brand-mark {
-  align-items: center;
-  background:
-    linear-gradient(180deg, color-mix(in srgb, var(--app-state-info) 18%, transparent), color-mix(in srgb, var(--app-state-info) 4%, transparent)),
-    color-mix(in srgb, var(--app-surface-3) 80%, transparent);
-  border: 1px solid var(--app-border-1);
-  border-radius: 16px;
-  box-shadow: 0 14px 32px rgba(0, 0, 0, 0.14);
-  display: inline-flex;
-  flex-shrink: 0;
-  height: 42px;
-  justify-content: center;
-  width: 42px;
-}
-
 .app-bar-shell__actions {
   align-items: center;
   display: flex;
   flex-shrink: 0;
   gap: 8px;
-  position: relative;
-  z-index: 1;
 }
 
-.app-bar-shell__status {
+.app-bar-shell__status,
+.app-bar-shell__context-chip {
   align-items: center;
-  background: color-mix(in srgb, var(--app-surface-3) 80%, transparent);
+  background: color-mix(in srgb, var(--app-surface-3) 84%, transparent);
   border: 1px solid var(--app-border-1);
   border-radius: 999px;
   color: var(--app-text-2);
@@ -233,9 +258,20 @@ const isActiveTheme = (th: string) => getThemePreference() === th
 .app-bar-shell__status-dot {
   background: var(--app-state-success);
   border-radius: 999px;
-  box-shadow: 0 0 0 4px color-mix(in srgb, var(--app-state-success) 18%, transparent);
+  box-shadow: 0 0 0 4px color-mix(in srgb, var(--app-state-success) 16%, transparent);
   height: 8px;
   width: 8px;
+}
+
+.app-bar-shell__context {
+  display: flex;
+  gap: 8px;
+}
+
+@media (max-width: 1100px) {
+  .app-bar-shell__context {
+    display: none;
+  }
 }
 
 @media (max-width: 960px) {
@@ -245,12 +281,8 @@ const isActiveTheme = (th: string) => getThemePreference() === th
 
   .app-bar-shell__inner {
     gap: 10px;
-    min-height: 68px;
-    padding: 10px 12px;
-  }
-
-  .app-bar-shell__leading {
-    gap: 10px;
+    min-height: 74px;
+    padding: 12px;
   }
 
   .app-bar-shell__status {
@@ -258,12 +290,7 @@ const isActiveTheme = (th: string) => getThemePreference() === th
   }
 
   .app-bar-shell__title {
-    font-size: 20px;
-  }
-
-  .app-bar-shell__eyebrow {
-    font-size: 10px;
-    letter-spacing: 0.2em;
+    font-size: 22px;
   }
 
   .app-bar-shell__meta {
@@ -272,24 +299,15 @@ const isActiveTheme = (th: string) => getThemePreference() === th
 }
 
 @media (max-width: 720px) {
-  .app-bar-shell__inner {
-    gap: 12px;
-    min-height: 66px;
-    padding: 10px 12px;
-  }
-
-  .app-bar-shell__leading {
-    gap: 10px;
-  }
-
   .app-bar-shell__brand-mark {
-    border-radius: 12px;
-    height: 38px;
-    width: 38px;
+    border-radius: 14px;
+    height: 40px;
+    width: 40px;
   }
 
-  .app-bar-shell__actions {
-    gap: 6px;
+  .app-bar-shell__eyebrow {
+    font-size: 10px;
+    letter-spacing: 0.18em;
   }
 }
 </style>

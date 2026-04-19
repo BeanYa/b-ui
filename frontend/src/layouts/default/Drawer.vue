@@ -5,16 +5,16 @@
     :temporary="isMobile"
     :permanent="!isMobile"
     :rail="!isMobile && collapsed"
-    :rail-width="88"
-    :width="296"
+    :rail-width="92"
+    :width="308"
   >
     <div class="app-drawer__brand">
       <div class="app-drawer__logo">
-        <v-img src="@/assets/logo.svg" width="26" />
+        <v-img src="@/assets/logo.svg" width="28" />
       </div>
       <div v-if="!collapsed || isMobile" class="app-drawer__titles">
         <div class="app-drawer__name">B-UI</div>
-        <div class="app-drawer__meta">Sing-box control surface</div>
+        <div class="app-drawer__meta">Segmented control surface</div>
       </div>
       <v-btn
         v-if="isMobile"
@@ -25,49 +25,48 @@
       />
     </div>
 
-    <div class="app-drawer__section">Navigation Grid</div>
+    <div
+      v-for="group in menuGroups"
+      :key="group.label"
+      class="app-drawer__group"
+    >
+      <div class="app-drawer__section" v-if="!collapsed || isMobile">{{ group.label }}</div>
+      <v-list class="app-drawer__list" density="comfortable" nav>
+        <v-list-item
+          v-for="item in group.items"
+          :key="item.title"
+          class="app-drawer__item"
+          link
+          :to="item.path"
+          :active="router.currentRoute.value.path === item.path"
+        >
+          <template #prepend>
+            <v-icon :icon="item.icon" />
+          </template>
+          <v-tooltip
+            v-if="collapsed && !isMobile"
+            activator="parent"
+            location="end"
+            :text="$t(item.title)"
+          />
+          <v-list-item-title v-if="!collapsed || isMobile" v-text="$t(item.title)" />
+        </v-list-item>
+      </v-list>
+    </div>
 
-    <v-list class="app-drawer__list" density="comfortable" nav>
-      <v-list-item
-        v-for="item in menu"
-        :key="item.title"
-        class="app-drawer__item"
-        link
-        :to="item.path"
-        :active="router.currentRoute.value.path == item.path"
-      >
-        <template v-slot:prepend>
-          <v-icon :icon="item.icon" />
-        </template>
-        <v-tooltip
-          v-if="collapsed && !isMobile"
-          activator="parent"
-          location="end"
-          :text="$t(item.title)"
-        />
-        <v-list-item-title v-if="!collapsed || isMobile" v-text="$t(item.title)" />
-      </v-list-item>
-    </v-list>
-
-    <template v-slot:append>
+    <template #append>
       <div class="app-drawer__footer">
         <div v-if="!collapsed || isMobile" class="app-drawer__footer-note">
-          <span class="app-drawer__footer-label">Console state</span>
+          <span class="app-drawer__footer-label">Runtime route</span>
           <span class="app-drawer__footer-value">{{ router.currentRoute.value.path }}</span>
         </div>
-        <v-tooltip
-          v-if="collapsed && !isMobile"
-          activator="parent"
-          location="end"
-          :text="$t('menu.logout')"
-        />
         <v-btn
           :block="!collapsed || isMobile"
           color="error"
           :prepend-icon="collapsed && !isMobile ? undefined : 'mdi-logout'"
           variant="tonal"
           :icon="collapsed && !isMobile ? 'mdi-logout' : undefined"
-          @click="Logout"
+          @click="logoutUser"
         >
           <template v-if="!collapsed || isMobile">
             {{ $t('menu.logout') }}
@@ -95,22 +94,37 @@ const showDrawer = computed({
   },
 })
 
-const menu = [
-  { title: 'pages.home', icon: 'mdi-home', path: '/' },
-  { title: 'pages.inbounds', icon: 'mdi-cloud-download', path: '/inbounds' },
-  { title: 'pages.clients', icon: 'mdi-account-multiple', path: '/clients' },
-  { title: 'pages.outbounds', icon: 'mdi-cloud-upload', path: '/outbounds' },
-  { title: 'pages.endpoints', icon: 'mdi-cloud-tags', path: '/endpoints' },
-  { title: 'pages.services', icon: 'mdi-server', path: '/services' },
-  { title: 'pages.tls', icon: 'mdi-certificate', path: '/tls' },
-  { title: 'pages.basics', icon: 'mdi-application-cog', path: '/basics' },
-  { title: 'pages.rules', icon: 'mdi-routes', path: '/rules' },
-  { title: 'pages.dns', icon: 'mdi-dns', path: '/dns' },
-  { title: 'pages.admins', icon: 'mdi-account-tie', path: '/admins' },
-  { title: 'pages.settings', icon: 'mdi-cog', path: '/settings' },
+const menuGroups = [
+  {
+    label: 'Overview',
+    items: [
+      { title: 'pages.home', icon: 'mdi-home', path: '/' },
+      { title: 'pages.clients', icon: 'mdi-account-multiple', path: '/clients' },
+    ],
+  },
+  {
+    label: 'Catalog',
+    items: [
+      { title: 'pages.inbounds', icon: 'mdi-cloud-download', path: '/inbounds' },
+      { title: 'pages.outbounds', icon: 'mdi-cloud-upload', path: '/outbounds' },
+      { title: 'pages.endpoints', icon: 'mdi-cloud-tags', path: '/endpoints' },
+      { title: 'pages.services', icon: 'mdi-server', path: '/services' },
+      { title: 'pages.tls', icon: 'mdi-certificate', path: '/tls' },
+      { title: 'pages.rules', icon: 'mdi-routes', path: '/rules' },
+      { title: 'pages.admins', icon: 'mdi-account-tie', path: '/admins' },
+    ],
+  },
+  {
+    label: 'Configuration',
+    items: [
+      { title: 'pages.basics', icon: 'mdi-application-cog', path: '/basics' },
+      { title: 'pages.dns', icon: 'mdi-dns', path: '/dns' },
+      { title: 'pages.settings', icon: 'mdi-cog', path: '/settings' },
+    ],
+  },
 ]
 
-const Logout = async () => {
+const logoutUser = async () => {
   logout()
 }
 </script>
@@ -125,24 +139,23 @@ const Logout = async () => {
   display: flex;
   flex-shrink: 0;
   gap: 12px;
-  min-height: 74px;
-  padding: 14px 12px 10px;
-  position: relative;
+  min-height: 76px;
+  padding: 16px 14px 10px;
 }
 
 .app-drawer__logo {
   align-items: center;
   background:
-    linear-gradient(180deg, color-mix(in srgb, var(--app-state-info) 18%, transparent), color-mix(in srgb, var(--app-state-info) 4%, transparent)),
-    color-mix(in srgb, var(--app-surface-3) 80%, transparent);
+    linear-gradient(180deg, color-mix(in srgb, var(--app-state-danger) 14%, transparent), color-mix(in srgb, var(--app-state-info) 8%, transparent)),
+    color-mix(in srgb, var(--app-surface-3) 84%, transparent);
   border: 1px solid var(--app-border-1);
   border-radius: 18px;
-  box-shadow: 0 14px 36px rgba(10, 16, 24, 0.18);
+  box-shadow: 0 16px 36px rgba(0, 0, 0, 0.18);
   display: inline-flex;
   flex-shrink: 0;
-  height: 52px;
+  height: 54px;
   justify-content: center;
-  width: 52px;
+  width: 54px;
 }
 
 .app-drawer__titles {
@@ -168,34 +181,33 @@ const Logout = async () => {
   border: 1px solid var(--app-border-1);
 }
 
+.app-drawer__group {
+  display: grid;
+  gap: 6px;
+  padding-top: 4px;
+}
+
 .app-drawer__section {
   color: var(--app-text-4);
   font-size: 11px;
-  flex-shrink: 0;
   font-weight: 700;
-  letter-spacing: 0.24em;
-  padding: 8px 14px 10px;
+  letter-spacing: 0.22em;
+  padding: 8px 14px 4px;
   text-transform: uppercase;
 }
 
 .app-drawer__list {
   display: flex;
   flex-direction: column;
-  flex: 1 1 auto;
   gap: 6px;
   min-height: 0;
-  overflow-y: auto;
   padding-inline-end: 4px;
 }
 
 .app-drawer__item {
   backdrop-filter: blur(12px);
   border: 1px solid transparent;
-  min-height: 52px;
-  transition:
-    transform var(--app-motion-fast) var(--app-ease-standard),
-    border-color var(--app-motion-fast) var(--app-ease-standard),
-    background-color var(--app-motion-fast) var(--app-ease-standard);
+  min-height: 50px;
 }
 
 .app-drawer__item:hover {
@@ -205,16 +217,9 @@ const Logout = async () => {
 }
 
 .app-drawer__footer {
-  flex-shrink: 0;
   display: grid;
   gap: 12px;
   padding: 12px;
-}
-
-:deep(.v-navigation-drawer--rail .app-drawer__footer) {
-  align-items: center;
-  display: flex;
-  justify-content: center;
 }
 
 .app-drawer__footer-note {
@@ -243,10 +248,11 @@ const Logout = async () => {
 
 :deep(.v-navigation-drawer__content) {
   background:
-    radial-gradient(circle at top left, color-mix(in srgb, var(--app-state-info) 10%, transparent), transparent 24%),
+    radial-gradient(circle at top left, color-mix(in srgb, var(--app-state-info) 8%, transparent), transparent 24%),
     linear-gradient(180deg, color-mix(in srgb, #ffffff 3%, transparent), transparent 24%);
   display: flex;
   flex-direction: column;
+  gap: 4px;
   height: 100%;
   min-height: 0;
   overflow: hidden;
@@ -263,13 +269,11 @@ const Logout = async () => {
 }
 
 :deep(.v-navigation-drawer--rail .app-drawer__section) {
-  opacity: 0;
-  padding: 0;
+  display: none;
 }
 
 :deep(.v-navigation-drawer--rail .app-drawer__item) {
   justify-content: center;
-  transform: none;
 }
 
 :deep(.v-navigation-drawer--rail .app-drawer__footer-note) {
@@ -281,10 +285,6 @@ const Logout = async () => {
 }
 
 @media (max-width: 960px) {
-  .app-drawer__brand {
-    padding-top: 10px;
-  }
-
   :deep(.v-navigation-drawer__content) {
     padding-inline: 12px;
   }
