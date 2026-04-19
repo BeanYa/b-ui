@@ -5,6 +5,10 @@ on:
       - "*"
   workflow_dispatch:
 
+permissions:
+  contents: read
+  packages: write
+
 env:
   IMAGE_NAME: ghcr.io/beanya/b-ui
 
