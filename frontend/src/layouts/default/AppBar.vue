@@ -116,7 +116,6 @@ const isActiveTheme = (th: string) => getThemePreference() === th
 
 .app-bar-shell__inner {
   align-items: center;
-  background: linear-gradient(180deg, color-mix(in srgb, var(--app-surface-2) 94%, transparent), var(--app-surface-1));
   border: 1px solid var(--app-border-1);
   border-radius: 28px;
   box-shadow: var(--app-shadow-ring), var(--app-shadow-panel);
@@ -128,16 +127,6 @@ const isActiveTheme = (th: string) => getThemePreference() === th
   padding: 12px 18px;
   position: relative;
   width: 100%;
-}
-
-.app-bar-shell__inner::before {
-  background:
-    radial-gradient(circle at left, color-mix(in srgb, var(--app-state-info) 10%, transparent), transparent 26%),
-    linear-gradient(90deg, color-mix(in srgb, #ffffff 4%, transparent), transparent 34%);
-  content: '';
-  inset: 0;
-  pointer-events: none;
-  position: absolute;
 }
 
 .app-bar-shell__leading {

@@ -25,18 +25,15 @@
 }
 
 .shell-main__inner {
-  margin: 0 auto;
-  max-width: 1820px;
   min-height: 100%;
   padding: 8px 18px 30px;
   width: 100%;
 }
 
 .shell-main__content {
-  background: linear-gradient(180deg, color-mix(in srgb, var(--app-surface-0) 54%, transparent), transparent 18%);
   border-radius: 34px;
   min-height: calc(100vh - 112px);
-  padding: 10px 10px 4px;
+  padding: 10px 0 4px;
 }
 
 .page-shell-enter-active,
@@ -62,7 +59,7 @@
   .shell-main__content {
     border-radius: 24px;
     min-height: calc(100vh - 92px);
-    padding: 8px 6px 2px;
+    padding: 8px 0 2px;
   }
 }
 </style>
