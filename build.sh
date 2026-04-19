@@ -1,8 +1,8 @@
 #!/bin/sh
 
 cd frontend
-npm i
-npm run build:embed
+npm ci
+npm run build
 
 cd ..
 echo "Backend"

@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # Test Docker multi-platform build (linux/amd64, 386, arm64, arm/v7, arm/v6)
-# Requires: frontend_dist/ (run from repo root after building frontend)
+# Requires: frontend_dist/ (generated automatically from web/html when absent)
 
 set -e
 cd "$(dirname "$0")/.."
@@ -8,10 +8,10 @@ cd "$(dirname "$0")/.."
 echo "==> Preparing frontend_dist..."
 if [ ! -d "frontend_dist" ] || [ -z "$(ls -A frontend_dist 2>/dev/null)" ]; then
   echo "Building frontend..."
-  (cd frontend && npm install --prefer-offline --no-audit && npm run build)
+  (cd frontend && npm ci && npm run build)
   rm -rf frontend_dist
   mkdir -p frontend_dist
-  cp -R frontend/dist/* frontend_dist/
+  cp -R web/html/* frontend_dist/
   echo "frontend_dist ready."
 else
   echo "frontend_dist exists, skipping frontend build."

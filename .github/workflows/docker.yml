@@ -3,7 +3,6 @@ on:
   push:
     tags:
       - "*"
-  workflow_dispatch:
 
 permissions:
   contents: read
@@ -25,13 +24,13 @@ jobs:
       - name: Install dependencies and build frontend
         run: |
           cd frontend
-          npm install
+          npm ci
           npm run build
-      - name: Upload frontend build artifact
+      - name: Upload embedded web assets
         uses: actions/upload-artifact@v7
         with:
-          name: frontend-dist
-          path: frontend/dist/
+          name: web-html
+          path: web/html/
 
   build:
     needs: frontend-build
@@ -48,10 +47,10 @@ jobs:
     steps:
       - name: Checkout repository
         uses: actions/checkout@v6.0.2
-      - name: Download frontend build artifact
+      - name: Download embedded web assets
         uses: actions/download-artifact@v8
         with:
-          name: frontend-dist
+          name: web-html
           path: frontend_dist
       - name: Prepare
         run: |

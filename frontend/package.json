@@ -4,8 +4,9 @@
   "private": true,
   "scripts": {
     "dev": "vite --host",
-    "build": "vue-tsc --noEmit && vite build",
-    "build:embed": "npm run build && node ./scripts/sync-web-html.mjs",
+    "build:dist": "vue-tsc --noEmit && vite build",
+    "build": "npm run build:dist && node ./scripts/sync-web-html.mjs",
+    "build:embed": "npm run build",
     "test": "vitest run",
     "preview": "vite preview",
     "lint": "eslint . --fix --ignore-path .gitignore"
