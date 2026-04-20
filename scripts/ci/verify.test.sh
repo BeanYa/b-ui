@@ -31,6 +31,13 @@ set -euo pipefail
 printf '%s\n' "$*" >> "${PW_LOG_FILE}"
 EOF
 
+cat > "${MOCK_BIN}/wslpath" <<'EOF'
+#!/usr/bin/env bash
+set -euo pipefail
+path="${@: -1}"
+printf 'C:\\mock\\%s\n' "${path##*/}"
+EOF
+
 cat > "${MOCK_BIN}/go" <<'EOF'
 #!/usr/bin/env bash
 set -euo pipefail
@@ -39,7 +46,7 @@ printf 'go should not be invoked directly from bash when Windows toolchain is av
 exit 1
 EOF
 
-chmod +x "${MOCK_BIN}/pwsh.exe" "${MOCK_BIN}/go"
+chmod +x "${MOCK_BIN}/pwsh.exe" "${MOCK_BIN}/wslpath" "${MOCK_BIN}/go"
 
 export PW_LOG_FILE GO_LOG_FILE
 export PATH="${MOCK_BIN}:${PATH}"

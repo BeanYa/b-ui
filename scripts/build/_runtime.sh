@@ -6,8 +6,12 @@ bui_should_use_windows_toolchain() {
   bui_has_windows_toolchain
 }
 
+bui_has_windows_path_bridge() {
+  command -v wslpath >/dev/null 2>&1 || command -v cygpath >/dev/null 2>&1
+}
+
 bui_has_windows_toolchain() {
-  command -v pwsh.exe >/dev/null 2>&1
+  command -v pwsh.exe >/dev/null 2>&1 && bui_has_windows_path_bridge
 }
 
 bui_target_os() {
@@ -27,7 +31,7 @@ bui_target_os() {
 bui_to_host_path() {
   local path="$1"
 
-  if bui_should_use_windows_toolchain; then
+  if bui_has_windows_toolchain; then
     if command -v wslpath >/dev/null 2>&1; then
       wslpath -w "$path"
       return
@@ -60,4 +64,14 @@ bui_default_build_tags() {
 
 bui_resolve_build_tags() {
   printf '%s\n' "${BUILD_TAGS:-$(bui_default_build_tags)}"
+}
+
+bui_backend_ldflags() {
+  local ldflags='-w -s -checklinkname=0'
+
+  if [[ "$(bui_target_os)" == 'darwin' ]]; then
+    ldflags+=' -extldflags "-Wl,-no_warn_duplicate_libraries"'
+  fi
+
+  printf '%s\n' "${ldflags}"
 }

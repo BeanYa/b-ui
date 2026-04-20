@@ -10,6 +10,7 @@ OUTPUT_PATH="${OUTPUT_PATH:-${REPO_ROOT}/build/out/sui}"
 source "${SCRIPT_DIR}/_runtime.sh"
 
 BUILD_TAGS="$(bui_resolve_build_tags)"
+LDFLAGS="$(bui_backend_ldflags)"
 
 if bui_should_use_windows_toolchain; then
   bui_run_powershell_file \
@@ -23,4 +24,4 @@ fi
 mkdir -p "$(dirname "${OUTPUT_PATH}")"
 
 cd "${REPO_ROOT}"
-go build -ldflags '-w -s -checklinkname=0 -extldflags "-Wl,-no_warn_duplicate_libraries"' -tags "${BUILD_TAGS}" -o "${OUTPUT_PATH}" ./src/backend/cmd/b-ui
+go build -ldflags "${LDFLAGS}" -tags "${BUILD_TAGS}" -o "${OUTPUT_PATH}" ./src/backend/cmd/b-ui
