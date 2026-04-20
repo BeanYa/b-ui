@@ -1,6 +1,4 @@
 .DS_Store
-dist/
-release/
 backup/
 bin/
 db/
@@ -9,6 +7,19 @@ main
 tmp
 .sync*
 *.tar.gz
+
+# Stage 1A repository layout placeholders
+build/out/*
+!build/out/.gitkeep
+build/tmp/*
+!build/tmp/.gitkeep
+build/reports/*
+!build/reports/.gitkeep
+dist/*
+!dist/release/
+dist/release/*
+!dist/release/.gitkeep
+release/
 
 # local env files
 .env.local
