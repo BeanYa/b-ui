@@ -41,7 +41,9 @@
           :active="router.currentRoute.value.path === item.path"
         >
           <template #prepend>
-            <v-icon :icon="item.icon" />
+            <span class="app-drawer__icon-wrap">
+              <v-icon :icon="item.icon" />
+            </span>
           </template>
           <v-tooltip
             v-if="collapsed && !isMobile"
@@ -232,6 +234,13 @@ const logoutUser = async () => {
   width: 56px !important;
 }
 
+.app-drawer__icon-wrap {
+  align-items: center;
+  display: inline-flex;
+  justify-content: center;
+  min-width: 24px;
+}
+
 .app-drawer__item:hover {
   background: color-mix(in srgb, var(--app-surface-3) 86%, transparent);
   border-color: var(--app-border-1);
@@ -307,36 +316,48 @@ const logoutUser = async () => {
   display: none;
 }
 
-:deep(.v-navigation-drawer--rail .app-drawer__item .v-list-item__overlay) {
+:deep(.app-drawer__item--rail > .v-list-item__overlay) {
   left: 0;
   right: 0;
 }
 
-:deep(.v-navigation-drawer--rail .app-drawer__item .v-list-item__content) {
+:deep(.app-drawer__item--rail > .v-list-item__content) {
   display: none;
 }
 
-:deep(.v-navigation-drawer--rail .app-drawer__item .v-list-item__prepend) {
+:deep(.app-drawer__item--rail.v-list-item--nav) {
+  padding-inline: 0 !important;
+}
+
+:deep(.app-drawer__item--rail > .v-list-item__prepend) {
   align-items: center;
   display: flex;
   justify-content: center !important;
+  justify-self: center !important;
   margin-inline: 0 !important;
+  flex: 0 0 24px !important;
   min-width: 24px;
   padding-inline: 0;
   width: 24px !important;
 }
 
-:deep(.v-navigation-drawer--rail .app-drawer__item .v-list-item__prepend > .v-icon) {
+:deep(.app-drawer__item--rail > .v-list-item__prepend > .app-drawer__icon-wrap) {
+  align-items: center;
+  display: inline-flex;
+  justify-content: center;
+  width: 24px;
+}
+
+:deep(.app-drawer__item--rail > .v-list-item__prepend .v-icon) {
   margin-inline: 0 !important;
 }
 
-:deep(.v-navigation-drawer--rail .app-drawer__item .v-list-item__spacer) {
+:deep(.app-drawer__item--rail > .v-list-item__prepend > .v-list-item__spacer),
+:deep(.app-drawer__item--rail > .v-list-item__spacer) {
   display: none !important;
+  flex: 0 0 0 !important;
+  margin: 0 !important;
   width: 0 !important;
-}
-
-:deep(.v-navigation-drawer--rail .app-drawer__item .v-list-item__prepend > .v-list-item__spacer) {
-  display: none;
 }
 
 :deep(.v-navigation-drawer--rail .app-drawer__footer) {
