@@ -27,19 +27,17 @@ jobs:
         with:
           node-version: ${{ env.NODE_VERSION }}
           registry-url: 'https://registry.npmjs.org'
+          cache: 'npm'
+          cache-dependency-path: src/frontend/package-lock.json
 
       - name: Build frontend
-        run: |
-          cd frontend
-          npm ci
-          npm run build
-          cd ..
+        run: bash ./scripts/build/build-frontend.sh
 
       - name: Upload embedded web assets
         uses: actions/upload-artifact@v7
         with:
           name: web-html
-          path: web/html
+          path: src/backend/internal/infra/web/html
           retention-days: 1
 
   build-windows:
@@ -56,11 +54,17 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v6.0.2
 
+      - name: Refresh embedded web assets
+        shell: bash
+        run: |
+          rm -rf src/backend/internal/infra/web/html
+          mkdir -p src/backend/internal/infra/web/html
+
       - name: Download embedded web assets
         uses: actions/download-artifact@v8
         with:
           name: web-html
-          path: web/html
+          path: src/backend/internal/infra/web/html
 
       - name: Setup Go
         uses: actions/setup-go@v6
@@ -94,12 +98,15 @@ jobs:
           
           VERSION_LDFLAGS=""
           if [ "${GITHUB_REF_TYPE}" = "tag" ]; then VERSION_LDFLAGS="-X github.com/alireza0/s-ui/config.buildVersion=${GITHUB_REF_NAME}"; fi
-          go build -ldflags="-w -s -checklinkname=0 ${VERSION_LDFLAGS}" -tags "${{ env.TAGS }}" -o sui.exe main.go
+          go build -ldflags="-w -s -checklinkname=0 ${VERSION_LDFLAGS}" -tags "${{ env.TAGS }}" -o sui.exe ./src/backend/cmd/b-ui
           file sui.exe
           
           mkdir b-ui-windows
           cp sui.exe b-ui-windows/
-          cp -r windows/* b-ui-windows/
+          cp src/services/windows/b-ui-windows.xml b-ui-windows/
+          cp src/services/windows/b-ui-windows.bat b-ui-windows/
+          cp src/services/windows/install-windows.bat b-ui-windows/
+          cp src/services/windows/uninstall-windows.bat b-ui-windows/
 
       - name: Download libcronet-go
         shell: bash

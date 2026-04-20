@@ -21,16 +21,15 @@ jobs:
         uses: actions/setup-node@v6
         with:
           node-version: 25
+          cache: npm
+          cache-dependency-path: src/frontend/package-lock.json
       - name: Install dependencies and build frontend
-        run: |
-          cd frontend
-          npm ci
-          npm run build
+        run: bash ./scripts/build/build-frontend.sh
       - name: Upload embedded web assets
         uses: actions/upload-artifact@v7
         with:
           name: web-html
-          path: web/html/
+          path: src/backend/internal/infra/web/html/
 
   build:
     needs: frontend-build
@@ -51,7 +50,7 @@ jobs:
         uses: actions/download-artifact@v8
         with:
           name: web-html
-          path: frontend_dist
+          path: build/tmp/frontend_dist
       - name: Prepare
         run: |
           platform="${{ matrix.platform }}"
@@ -87,7 +86,7 @@ jobs:
         uses: docker/build-push-action@v7
         with:
           context: .
-          file: Dockerfile.frontend-artifact
+          file: packaging/docker/Dockerfile.frontend-artifact
           platforms: ${{ matrix.platform }}
           labels: ${{ steps.meta.outputs.labels }}
           tags: ${{ env.IMAGE_NAME }}

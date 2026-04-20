@@ -28,20 +28,16 @@ jobs:
         with:
           node-version: ${{ env.NODE_VERSION }}
           cache: 'npm'
-          cache-dependency-path: frontend/package-lock.json
+          cache-dependency-path: src/frontend/package-lock.json
 
       - name: Build frontend
-        run: |
-          cd frontend
-          npm ci
-          npm run build
-          cd ..
+        run: bash ./scripts/build/build-frontend.sh
 
       - name: Upload embedded web assets
         uses: actions/upload-artifact@v7
         with:
           name: web-html
-          path: web/html/
+          path: src/backend/internal/infra/web/html/
 
   build-linux:
     name: build-${{ matrix.platform }}
@@ -62,11 +58,16 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v6.0.2
 
+      - name: Refresh embedded web assets
+        run: |
+          rm -rf src/backend/internal/infra/web/html
+          mkdir -p src/backend/internal/infra/web/html
+
       - name: Download embedded web assets
         uses: actions/download-artifact@v8
         with:
           name: web-html
-          path: web/html
+          path: src/backend/internal/infra/web/html
 
       - name: Setup Go
         uses: actions/setup-go@v6
@@ -160,14 +161,14 @@ jobs:
           [ "${{ matrix.naive }}" = "true" ] && BUILD_TAGS="${BUILD_TAGS},with_naive_outbound,with_musl"
           VERSION_LDFLAGS=""
           if [ "${GITHUB_REF_TYPE}" = "tag" ]; then VERSION_LDFLAGS="-X github.com/alireza0/s-ui/config.buildVersion=${GITHUB_REF_NAME}"; fi
-          go build -ldflags="-w -s -checklinkname=0 -linkmode external -extldflags '-static' ${VERSION_LDFLAGS}" -tags "$BUILD_TAGS" -o sui main.go
+          go build -ldflags="-w -s -checklinkname=0 -linkmode external -extldflags '-static' ${VERSION_LDFLAGS}" -tags "$BUILD_TAGS" -o sui ./src/backend/cmd/b-ui
           file sui
           ldd sui 2>/dev/null || echo "Static binary confirmed"
 
           mkdir b-ui
           cp sui b-ui/
-          cp b-ui.service b-ui/
-          cp b-ui.sh b-ui/
+          cp src/services/systemd/b-ui.service b-ui/
+          cp src/services/runtime/b-ui.sh b-ui/
 
       - name: Package
         run: tar -zcvf b-ui-linux-${{ matrix.platform }}.tar.gz b-ui

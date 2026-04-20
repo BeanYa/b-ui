@@ -1,6 +1,6 @@
 # B-UI Frontend
 
-`B-UI Frontend` 是当前主仓库 `BeanYa/b-ui` 内直接维护的前端源码目录，来源于 [上游前端仓库](https://github.com/alireza0/s-ui-frontend)，并在这个 fork 中继续做视觉和交互层的定制。
+`B-UI Frontend` 是当前主仓库 `BeanYa/b-ui` 内直接维护的前端源码目录，位于 `src/frontend/`，来源于 [上游前端仓库](https://github.com/alireza0/s-ui-frontend)，并在这个 fork 中继续做视觉和交互层的定制。
 
 ## 技术栈
 
@@ -47,10 +47,10 @@ npm run lint
 
 ## 与根仓库协作
 
-前端构建产物会被复制到根仓库的 `web/html/` 中，由 Go 后端统一提供服务。通常流程如下：
+前端源码目录内直接执行 `npm run build` 时，产物会被复制到根仓库的 `web/html/` 中。当前仓库级构建、CI 和发布流程实际使用的嵌入目录是 `src/backend/internal/infra/web/html/`；如果你要刷新后端可执行文件会嵌入的静态资源，请在仓库根目录执行集中构建脚本：
 
 ```sh
-npm run build
+bash ./scripts/build/build-frontend.sh
 ```
 
-然后在根仓库执行静态资源同步与后端构建。
+然后再执行 `bash ./scripts/build/build-backend.sh`，或直接运行 `bash ./scripts/dev/run-local.sh` 完成本地联调。

@@ -5,7 +5,7 @@
 当前仓库的重点不再是“同步上游说明文档”，而是明确下面三件事：
 
 - 这是一个 fork，核心能力来源于上游 `S-UI`
-- 前端代码直接位于当前仓库的 `frontend/` 目录，不再需要单独的子模块提交
+- 前端代码直接位于当前仓库的 `src/frontend/` 目录，不再需要单独的子模块提交
 - 所有新的 UI 改动默认遵循 [DESIGN.md](./DESIGN.md)
 
 当前首页已经切到更明确的控制台布局：
@@ -19,15 +19,20 @@
 
 下图为当前运行界面的首页首屏效果，顶部工作区标题栏、操作台入口、控制地图与后续遥测区块保持同一套控制台布局语言，并优先保证桌面端首屏信息密度与对齐关系。
 
-![首页运行截图](./frontend/media/home-dashboard-telemetry.png)
+![首页运行截图](./src/frontend/media/home-dashboard-telemetry.png)
 
 **想参与开发？** 见 [CONTRIBUTING.md](./CONTRIBUTING.md)。
 
 ## 仓库结构
 
-- `frontend/`: Vue 3 + Vuetify 4 前端源码目录，直接由当前仓库跟踪
-- `web/`: 编译后的前端静态资源会被打包到这里
-- `api/`, `service/`, `database/`, `middleware/`: Go 后端主体
+- `src/frontend/`: Vue 3 + Vuetify 4 前端源码目录，直接由当前仓库跟踪
+- `src/backend/cmd/b-ui/`: Go 后端可执行入口
+- `src/backend/internal/`: Go 后端主体代码
+- `src/services/`: 运行时、systemd、Windows 服务相关资产
+- `scripts/build/`, `scripts/dev/`, `scripts/release/`: 集中的构建、开发、发布脚本
+- `packaging/docker/`: Docker 打包定义目录
+- `src/backend/internal/infra/web/html/`: 当前后端嵌入使用的前端静态资源目录
+- `web/`: 前端目录内直接执行 `npm run build` 时保留的同步输出目录
 - `DESIGN.md`: 当前 UI 设计参考，现阶段采用 Raycast 风格的深色工具界面
 
 ## 初始化
@@ -39,9 +44,9 @@ cd b-ui
 
 说明：
 
-- `frontend/` 已经和后端源码合并在同一个仓库里
+- `src/frontend/` 已经和后端源码合并在同一个仓库里
 - 前端修改不再需要单独维护或确认额外的子模块 commit
-- CI 会直接使用当前仓库里的 `frontend/` 内容构建
+- CI 会直接使用当前仓库里的 `src/frontend/` 内容构建
 
 ## 从已安装的上游版本迁移
 
@@ -135,7 +140,7 @@ git push origin v0.0.2
 ## 前端开发
 
 ```sh
-cd frontend
+cd src/frontend
 npm install
 npm run dev
 ```
@@ -149,21 +154,17 @@ npm run dev
 
 ## 前后端联调
 
-根目录脚本会同时处理前后端开发流程，现有项目里可继续使用：
+集中脚本会同时处理前后端开发流程，开发时请直接使用：
 
 ```sh
-./runSUI.sh
+bash ./scripts/dev/run-local.sh
 ```
 
 如果只手动构建前端并同步到后端静态目录，可以按现有流程执行：
 
 ```sh
-cd frontend
-npm install
-npm run build:embed
-
-# 回到仓库根目录
-go build -o sui main.go
+bash ./scripts/build/build-frontend.sh
+go build -o build/out/sui ./src/backend/cmd/b-ui
 ```
 
 ## Fork 说明
@@ -183,4 +184,4 @@ go build -o sui main.go
 - 主色以信息蓝和点缀红为主，不使用普通后台模板色板
 - 首页、登录页、导航框架应优先体现桌面工具感
 
-如果你准备继续改 UI，请先从 `DESIGN.md` 和 `frontend/src/` 下的布局文件开始。
+如果你准备继续改 UI，请先从 `DESIGN.md` 和 `src/frontend/src/` 下的布局文件开始。

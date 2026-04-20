@@ -37,48 +37,46 @@ git clone https://github.com/BeanYa/b-ui.git
 cd b-ui
 ```
 
-The **frontend** now lives directly in the `frontend/` directory of this repository. There is no extra frontend submodule sync or separate frontend commit to manage. If you only work on the backend, you can use the existing `web/html` contents or build the frontend once (see below).
+The **frontend** now lives directly in the `src/frontend/` directory of this repository. There is no extra frontend submodule sync or separate frontend commit to manage. If you only work on the backend, you can use the checked-in backend web assets or rebuild the frontend once (see below).
 
-### Backend-Only Development (quickest)
+### Local Development (quickstart)
 
-1. Build and run with the provided script (builds backend and runs with debug + local DB):
+1. Build and run with the centralized dev script (builds frontend + backend, then runs with debug + local DB):
 
    ```bash
-   ./runSUI.sh
+   bash ./scripts/dev/run-local.sh
    ```
 
-   This runs `./build.sh` then `SUI_DB_FOLDER="db" SUI_DEBUG=true ./sui`.
+   This runs `bash ./scripts/build/build-all.sh` then `SUI_DB_FOLDER="db" SUI_DEBUG=true ./build/out/sui`.
 
-2. Or build manually:
+2. Or build manually with the centralized build scripts:
 
    ```bash
-   ./build.sh
-   SUI_DB_FOLDER=db SUI_DEBUG=true ./sui
+   bash ./scripts/build/build-frontend.sh
+   bash ./scripts/build/build-backend.sh
+   SUI_DB_FOLDER=db SUI_DEBUG=true ./build/out/sui
    ```
 
    Default panel: **http://localhost:2095/app/** (user: `admin`, password: `admin` — change in production).
 
 ### Full Stack (Backend + Frontend)
 
-1. **Frontend**:
+1. **Frontend assets**:
 
    ```bash
-   cd frontend
-   npm install
-   npm run build:embed
-   cd ..
+   bash ./scripts/build/build-frontend.sh
    ```
 
 2. **Build backend**:
 
    ```bash
-   go build -ldflags "-w -s" -tags "with_quic,with_grpc,with_utls,with_acme,with_gvisor,with_tailscale" -o sui main.go
+   go build -ldflags "-w -s" -tags "with_quic,with_grpc,with_utls,with_acme,with_gvisor,with_tailscale" -o build/out/sui ./src/backend/cmd/b-ui
    ```
 
 3. Run:
 
    ```bash
-   SUI_DB_FOLDER=db SUI_DEBUG=true ./sui
+   SUI_DB_FOLDER=db SUI_DEBUG=true ./build/out/sui
    ```
 
 ### Build Tags
@@ -96,6 +94,7 @@ Use the same tags when building locally if you need feature parity with releases
 - Tagged builds publish Windows assets as `b-ui-windows-<arch>.zip`.
 - Tagged builds inject the Git tag into the binary version, so `sui -v` reflects the release tag.
 - Linux compatibility after migration keeps the install path `/usr/local/s-ui`, while the service and management command are both renamed to `b-ui`.
+- Release/build entry points are centralized under `scripts/build/` and `scripts/release/`; service assets live under `src/services/`, and Docker packaging definitions live under `packaging/docker/`.
 
 ### Environment Variables (development)
 
@@ -111,7 +110,7 @@ Use the same tags when building locally if you need feature parity with releases
 ```bash
 git clone https://github.com/BeanYa/b-ui.git
 cd b-ui
-docker build -t b-ui .
+docker build -f packaging/docker/Dockerfile -t b-ui .
 # or: docker compose up -d
 ```
 
@@ -141,12 +140,13 @@ docker build -t b-ui .
 
 ### Project Structure Conventions
 
-- **`api/`**: HTTP handlers and API routing (e.g. `apiHandler.go`, `apiV2Handler.go`).
-- **`service/`**: Business logic and panel/core operations.
-- **`database/model/`**: GORM models and DB entities.
-- **`util/`**: Shared utilities (e.g. link/sub conversion, JSON).
-- **`core/`**: sing-box integration and core runtime.
-- **`sub/`**: Subscription (link/json) handling.
+- **`src/backend/cmd/b-ui/`**: backend executable entrypoint.
+- **`src/backend/internal/http/`**: HTTP handlers and API routing.
+- **`src/backend/internal/app/`**: application services and orchestration.
+- **`src/backend/internal/domain/`**: core domain models and business rules.
+- **`src/backend/internal/infra/`**: database, runtime, and framework integrations.
+- **`src/backend/internal/shared/`**: shared helpers and cross-cutting utilities.
+- **`src/services/`**: runtime/system service assets for Linux and Windows.
 
 When adding new features, place code in the appropriate layer (handler → service → model/util) and avoid circular dependencies.
 
@@ -154,7 +154,7 @@ When adding new features, place code in the appropriate layer (handler → servi
 
 - Handlers: suffix `Handler` (e.g. `APIHandler`, `APIv2Handler`).
 - Services: suffix `Service` or use package name (e.g. `ApiService`, `LinkService`).
-- Models: clear struct names with JSON/gorm tags (see `database/model/`).
+- Models: clear struct names with JSON/gorm tags (see `src/backend/internal/infra/db/model/`).
 
 ---
 
@@ -162,20 +162,20 @@ When adding new features, place code in the appropriate layer (handler → servi
 
 ### Current State
 
-- The project does not yet have a formal test suite (no `*_test.go` files in the repo).
-- CI currently focuses on **builds** (e.g. `release.yml`) rather than automated tests.
+- The repository already includes focused Go and frontend tests, for example `src/backend/internal/domain/config/config_test.go` and the Vitest suites under `src/frontend/`.
+- Centralized verification now includes `go test ./...` and the build scripts exposed through `scripts/ci/verify.sh`.
 
 ### What You Can Do Now
 
-1. **Build verification**: Before submitting a PR, ensure the project builds:
+1. **Build and test verification**: Before submitting a PR, ensure the project passes the centralized verification flow:
 
    ```bash
-   go build -ldflags "-w -s" -tags "with_quic,with_grpc,with_utls,with_acme,with_gvisor,with_tailscale" -o sui main.go
+   bash ./scripts/ci/verify.sh
    ```
 
-2. **Manual testing**: Run with `./runSUI.sh`, test the changed area (panel, API, subscription, etc.).
+2. **Manual testing**: Run with `bash ./scripts/dev/run-local.sh`, test the changed area (panel, API, subscription, etc.).
 
-3. **Future tests**: Contributions that add **unit tests** (e.g. for `util/`, `service/`, or API handlers) or **integration tests** are very welcome. Prefer the standard library `testing` package and table-driven tests where appropriate.
+3. **Future tests**: Contributions that add **unit tests** (e.g. for `src/backend/internal/shared/util/`, `src/backend/internal/domain/services/`, or API handlers) or **integration tests** are very welcome. Prefer the standard library `testing` package and table-driven tests where appropriate.
 
 ### Running the Linter (optional)
 
@@ -194,11 +194,11 @@ Community help is especially valuable in these areas. Check the [Issues](https:/
 
 - **Multi-inbound per user**: Core differentiator inherited from upstream; improvements to UX, docs, and robustness are welcome.
 - **API (v1 and v2)**: Completeness, consistency, and documentation. Upstream API docs remain a useful reference: [API Documentation](https://github.com/alireza0/s-ui/wiki/API-Documentation).
-- **Subscription service**: Link conversion, JSON subscription, and info endpoints (`sub/`, `util/`).
+- **Subscription service**: Link conversion, JSON subscription, and info endpoints (`src/backend/internal/http/sub/`, `src/backend/internal/shared/util/`).
 - **Testing**: Adding unit and integration tests for critical paths.
 - **Documentation**: User docs, migration/update docs, release notes, and contribution docs.
-- **Platform support**: macOS is experimental; Windows and Linux improvements are welcome (see `windows/` and `.github/workflows/`).
-- **Frontend and design system**: UI work in `frontend/` should follow [`DESIGN.md`](./DESIGN.md) and keep the darker desktop-tool direction intact.
+- **Platform support**: macOS is experimental; Windows and Linux improvements are welcome (see `src/services/windows/` and `.github/workflows/`).
+- **Frontend and design system**: UI work in `src/frontend/` should follow [`DESIGN.md`](./DESIGN.md) and keep the darker desktop-tool direction intact.
 
 ### How to Find Tasks
 
