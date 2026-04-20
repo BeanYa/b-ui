@@ -1,7 +1,7 @@
 <template>
   <v-navigation-drawer
     v-model="showDrawer"
-    class="app-drawer"
+    :class="['app-drawer', { 'app-drawer--rail-state': isRail }]"
     :temporary="isMobile"
     :permanent="!isMobile"
     :rail="!isMobile && collapsed"
@@ -12,7 +12,7 @@
       <div class="app-drawer__logo">
         <v-img src="@/assets/logo.svg" width="28" />
       </div>
-      <div v-if="!collapsed || isMobile" class="app-drawer__titles">
+      <div class="app-drawer__titles">
         <div class="app-drawer__name">B-UI</div>
         <div class="app-drawer__meta">Segmented control surface</div>
       </div>
@@ -30,7 +30,7 @@
       :key="group.label"
       class="app-drawer__group"
     >
-      <div class="app-drawer__section" v-if="!collapsed || isMobile">{{ group.label }}</div>
+      <div class="app-drawer__section">{{ group.label }}</div>
       <v-list class="app-drawer__list" density="comfortable" nav>
         <v-list-item
           v-for="item in group.items"
@@ -51,23 +51,22 @@
             location="end"
             :text="$t(item.title)"
           />
-          <v-list-item-title v-if="!collapsed || isMobile" v-text="$t(item.title)" />
+          <v-list-item-title class="app-drawer__item-title" v-text="$t(item.title)" />
         </v-list-item>
       </v-list>
     </div>
 
     <template #append>
       <div class="app-drawer__footer">
-        <div v-if="!collapsed || isMobile" class="app-drawer__footer-note">
+        <div class="app-drawer__footer-note">
           <span class="app-drawer__footer-label">Runtime route</span>
           <span class="app-drawer__footer-value">{{ router.currentRoute.value.path }}</span>
         </div>
         <v-btn
           class="app-drawer__logout"
-          :block="!collapsed || isMobile"
+          :block="!isRail || isMobile"
           color="error"
           variant="tonal"
-          :icon="collapsed && !isMobile"
           @click="logoutUser"
         >
           <v-tooltip
@@ -76,11 +75,8 @@
             location="end"
             :text="$t('menu.logout')"
           />
-          <v-icon v-if="collapsed && !isMobile" icon="mdi-logout" />
-          <template v-if="!collapsed || isMobile">
-            <v-icon icon="mdi-logout" start />
-            {{ $t('menu.logout') }}
-          </template>
+          <v-icon class="app-drawer__logout-icon" icon="mdi-logout" />
+          <span class="app-drawer__logout-label">{{ $t('menu.logout') }}</span>
         </v-btn>
       </div>
     </template>
@@ -103,6 +99,8 @@ const showDrawer = computed({
     }
   },
 })
+
+const isRail = computed((): boolean => !props.isMobile && props.collapsed)
 
 const menuGroups = [
   {
@@ -144,6 +142,22 @@ const logoutUser = async () => {
   border-inline-end: 1px solid var(--app-border-1);
 }
 
+.app-drawer,
+.app-drawer__titles,
+.app-drawer__section,
+.app-drawer__footer-note,
+.app-drawer__logout,
+.app-drawer__logout-label {
+  transition:
+    opacity var(--app-motion-base) var(--app-ease-standard),
+    transform var(--app-motion-base) var(--app-ease-standard),
+    max-width var(--app-motion-base) var(--app-ease-standard),
+    max-height var(--app-motion-base) var(--app-ease-standard),
+    padding var(--app-motion-base) var(--app-ease-standard),
+    margin var(--app-motion-base) var(--app-ease-standard),
+    width var(--app-motion-base) var(--app-ease-standard);
+}
+
 .app-drawer__brand {
   align-items: center;
   display: flex;
@@ -173,7 +187,9 @@ const logoutUser = async () => {
   flex: 1;
   flex-direction: column;
   gap: 2px;
+  max-width: 180px;
   min-width: 0;
+  overflow: hidden;
 }
 
 .app-drawer__name {
@@ -202,6 +218,8 @@ const logoutUser = async () => {
   font-size: 11px;
   font-weight: 700;
   letter-spacing: 0.22em;
+  max-height: 28px;
+  overflow: hidden;
   padding: 8px 14px 4px;
   text-transform: uppercase;
 }
@@ -241,6 +259,27 @@ const logoutUser = async () => {
   min-width: 24px;
 }
 
+.app-drawer__item-title {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  transition:
+    opacity var(--app-motion-fast) var(--app-ease-standard),
+    transform var(--app-motion-fast) var(--app-ease-standard);
+  white-space: nowrap;
+}
+
+:deep(.app-drawer__item:not(.app-drawer__item--rail) > .v-list-item__prepend) {
+  align-items: center;
+  display: flex;
+  justify-content: center;
+  margin-inline-end: 14px;
+  width: 24px;
+}
+
+:deep(.app-drawer__item:not(.app-drawer__item--rail) > .v-list-item__prepend > .v-list-item__spacer) {
+  display: none;
+}
+
 .app-drawer__item:hover {
   background: color-mix(in srgb, var(--app-surface-3) 86%, transparent);
   border-color: var(--app-border-1);
@@ -259,7 +298,9 @@ const logoutUser = async () => {
   border-radius: 18px;
   display: grid;
   gap: 4px;
+  max-height: 88px;
   min-height: 72px;
+  overflow: hidden;
   padding: 12px;
 }
 
@@ -275,6 +316,21 @@ const logoutUser = async () => {
   color: var(--app-text-2);
   font-size: 13px;
   overflow-wrap: anywhere;
+}
+
+.app-drawer__logout {
+  justify-content: flex-start;
+  overflow: hidden;
+}
+
+.app-drawer__logout-icon {
+  flex: 0 0 auto;
+}
+
+.app-drawer__logout-label {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 :deep(.v-navigation-drawer__content) {
@@ -304,16 +360,8 @@ const logoutUser = async () => {
   padding-inline: 0;
 }
 
-:deep(.v-navigation-drawer--rail .app-drawer__section) {
-  display: none;
-}
-
 :deep(.v-navigation-drawer--rail .app-drawer__item) {
   grid-template-columns: minmax(0, 1fr) !important;
-}
-
-:deep(.v-navigation-drawer--rail .app-drawer__footer-note) {
-  display: none;
 }
 
 :deep(.app-drawer__item--rail > .v-list-item__overlay) {
@@ -321,12 +369,28 @@ const logoutUser = async () => {
   right: 0;
 }
 
-:deep(.app-drawer__item--rail > .v-list-item__content) {
-  display: none;
+:deep(.app-drawer__item > .v-list-item__content) {
+  min-width: 0;
+  overflow: hidden;
+  transition:
+    opacity var(--app-motion-fast) var(--app-ease-standard),
+    transform var(--app-motion-fast) var(--app-ease-standard),
+    flex-basis var(--app-motion-fast) var(--app-ease-standard),
+    width var(--app-motion-fast) var(--app-ease-standard),
+    margin var(--app-motion-fast) var(--app-ease-standard);
 }
 
 :deep(.app-drawer__item--rail.v-list-item--nav) {
   padding-inline: 0 !important;
+}
+
+:deep(.app-drawer__item--rail > .v-list-item__content) {
+  flex: 0 0 0 !important;
+  margin: 0 !important;
+  opacity: 0;
+  pointer-events: none;
+  transform: translateX(-8px);
+  width: 0 !important;
 }
 
 :deep(.app-drawer__item--rail > .v-list-item__prepend) {
@@ -370,6 +434,46 @@ const logoutUser = async () => {
   min-width: 52px;
   padding-inline: 0;
   width: 52px;
+}
+
+.app-drawer--rail-state .app-drawer__titles {
+  flex: 0 0 0;
+  margin: 0;
+  max-width: 0;
+  opacity: 0;
+  pointer-events: none;
+  transform: translateX(-10px);
+}
+
+.app-drawer--rail-state .app-drawer__section {
+  margin: 0;
+  max-height: 0;
+  opacity: 0;
+  padding-bottom: 0;
+  padding-top: 0;
+  transform: translateX(-8px);
+}
+
+.app-drawer--rail-state .app-drawer__footer-note {
+  border-width: 0;
+  margin: 0;
+  max-height: 0;
+  min-height: 0;
+  opacity: 0;
+  padding-bottom: 0;
+  padding-top: 0;
+  transform: translateY(8px);
+}
+
+.app-drawer--rail-state .app-drawer__logout {
+  justify-content: center;
+}
+
+.app-drawer--rail-state .app-drawer__logout-label {
+  margin: 0;
+  max-width: 0;
+  opacity: 0;
+  transform: translateX(-8px);
 }
 
 @media (max-width: 960px) {

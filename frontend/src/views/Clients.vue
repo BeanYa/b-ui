@@ -187,7 +187,7 @@
           :mobile="smAndDown"
           mobile-breakpoint="sm"
           width="100%"
-          class="app-card-shell app-data-table elevation-3"
+          class="app-card-shell app-data-table clients-table elevation-3"
           >
         <template v-slot:item.inbounds="{ item }">
           <span>
@@ -277,10 +277,26 @@
   </div>
 </template>
 <style>
+.clients-table {
+  background:
+    linear-gradient(
+      180deg,
+      color-mix(in srgb, var(--app-surface-2) 96%, var(--app-bg-base)),
+      color-mix(in srgb, var(--app-surface-1) 92%, var(--app-bg-base))
+    ) !important;
+}
+
+.clients-table > .v-table__wrapper,
+.clients-table > .v-table__wrapper > table,
+.clients-table .v-data-table-footer {
+  background: color-mix(in srgb, var(--app-surface-1) 94%, var(--app-bg-base)) !important;
+}
+
 .v-data-table__tr--mobile td {
   height: fit-content;
   min-height: 36px !important;
 }
+
 .v-data-table__tr--mobile td div {
   width:max-content;
 }
