@@ -33,10 +33,16 @@ try {
         -FrontendDir (Join-Path $RepoRoot "src\frontend") `
         -FrontendDistDir (Join-Path $RepoRoot "src\frontend\dist") `
         -BackendWebDir (Join-Path $RepoRoot "src\backend\internal\infra\web\html")
+    if ($LASTEXITCODE -ne 0) {
+        throw "build-frontend.ps1 failed with exit code $LASTEXITCODE"
+    }
 
     & pwsh -File (Join-Path $BuildScriptDir "build-backend.ps1") `
         -RepoRoot $RepoRoot `
         -OutputPath $BackendOutputPath
+    if ($LASTEXITCODE -ne 0) {
+        throw "build-backend.ps1 failed with exit code $LASTEXITCODE"
+    }
 
     Copy-Item $BackendOutputPath $PackageRoot -Force
     Copy-Item (Join-Path $ServiceDir "b-ui-windows.xml") $PackageRoot -Force

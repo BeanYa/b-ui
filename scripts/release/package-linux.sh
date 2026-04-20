@@ -54,6 +54,11 @@ set_linux_target_env() {
 ARCHIVE_ARCH="$(normalize_archive_arch "${ARCHIVE_ARCH:-$(uname -m)}")"
 OUTPUT_ARCHIVE="${REPO_ROOT}/dist/release/b-ui-linux-${ARCHIVE_ARCH}.tar.gz"
 
+if ! command -v go >/dev/null 2>&1; then
+    printf 'Linux release packaging requires a Go toolchain available in the current shell. Use a Linux runner/WSL environment with Go installed, or the CI release workflow.\n' >&2
+    exit 1
+fi
+
 bash "${REPO_ROOT}/scripts/build/build-frontend.sh"
 set_linux_target_env
 bash "${REPO_ROOT}/scripts/build/build-backend.sh"

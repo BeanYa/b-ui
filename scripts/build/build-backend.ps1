@@ -28,3 +28,6 @@ if ($outputDir) {
 
 Set-Location -LiteralPath $RepoRoot
 go build -ldflags '-w -s -checklinkname=0' -tags $BuildTags -o $OutputPath ./src/backend/cmd/b-ui
+if ($LASTEXITCODE -ne 0) {
+    throw "go build failed with exit code $LASTEXITCODE"
+}

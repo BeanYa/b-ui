@@ -22,7 +22,7 @@ if bui_should_use_windows_toolchain; then
 fi
 
 cd "${FRONTEND_DIR}"
-npm ci
+npm ci --include=dev
 npm run build:dist
 
 rm -rf "${BACKEND_WEB_DIR}"
