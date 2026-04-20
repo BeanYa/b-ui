@@ -398,7 +398,7 @@ bash <(curl -Ls https://raw.githubusercontent.com/BeanYa/b-ui/main/install.sh) -
 
 当服务器已经安装了上游 `s-ui`，并且你希望在保留数据的前提下原地替换为 `b-ui` 时，使用迁移。
 
-运行：
+一行迁移命令：
 
 ```sh
 bash <(curl -Ls https://raw.githubusercontent.com/BeanYa/b-ui/main/install.sh) --migrate
@@ -410,16 +410,44 @@ bash <(curl -Ls https://raw.githubusercontent.com/BeanYa/b-ui/main/install.sh) -
 bash <(curl -Ls https://raw.githubusercontent.com/BeanYa/b-ui/main/install.sh) --migrate v0.0.1
 ```
 
-迁移会做什么：
+`--migrate` 的实际步骤：
 
-- 检测兼容的上游安装
-- 停止旧 `s-ui` 服务
-- 在 `/var/backups/s-ui/<timestamp>/` 创建回滚备份
-- 用 `b-ui` 替换 `/usr/local/s-ui` 下的程序文件
-- 执行 `sui migrate`
-- 在需要时把 `s-ui.db` 迁移为 `b-ui.db`
-- 把服务名切换为 `b-ui`
-- 把管理命令切换为 `b-ui`
+- 检测兼容的上游安装。
+- 停止旧 `s-ui` 服务。
+- 在 `/var/backups/s-ui/<timestamp>/` 创建回滚备份。
+- 从 `BeanYa/b-ui` 下载目标 release；当前 Linux 资源名为 `b-ui-linux-<arch>.tar.gz`。
+- 原地替换已安装的二进制和 shell 脚本。
+- 执行 `sui migrate`；如果系统里只有旧 `s-ui.db`，会先把它迁移到 `b-ui.db`。
+- 把 systemd 服务名从 `s-ui` 切换为 `b-ui`。
+- 把管理命令从 `s-ui` 切换为 `b-ui`。
+- 启动并启用 `b-ui` 服务。
+
+迁移过程中会保留的内容：
+
+- 现有面板设置和管理员凭据会被保留。
+- 现有入站、出站、端口和其他持久化面板数据会继续保留。
+- 当只有旧数据库存在时，这些数据会自动从 `s-ui.db` 迁移到 `b-ui.db`。
+
+回滚行为：
+
+- 如果新版本启动失败，安装脚本会自动从回滚备份恢复之前的安装。
+- 自动回滚后会尝试重新拉起旧服务，避免迁移后服务直接中断。
+
+迁移后的更新模式：
+
+```sh
+bash <(curl -Ls https://raw.githubusercontent.com/BeanYa/b-ui/main/install.sh) --update
+bash <(curl -Ls https://raw.githubusercontent.com/BeanYa/b-ui/main/install.sh) --force-update
+```
+
+- 迁移完成后，后续更新会指向这个 fork，而不是上游仓库。
+- `--update` 只在已安装 `b-ui` 且当前版本低于目标版本时执行。
+- `--force-update` 会在版本相同的情况下也重新安装目标版本。
+- 两种模式都可以附带版本号，例如 `--update v0.0.1`。
+- 如果系统里还没有 `b-ui`，更新模式会提示先安装。
+- 如果系统里只有上游 `s-ui`，更新模式会提示先迁移。
+- 如果当前版本已是目标版本或更高版本，普通更新会提示改用 `--force-update`。
+- 普通 `b-ui` 更新不会再执行旧版 `s-ui` 的迁移流程。
 
 验证方法：
 
