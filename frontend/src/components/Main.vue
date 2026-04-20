@@ -466,7 +466,11 @@ onBeforeUnmount(() => {
 }
 
 .dashboard-shell__overview {
-  row-gap: 16px;
+  display: grid;
+  gap: 16px;
+  grid-template-areas: 'intro stats probe';
+  grid-template-columns: minmax(280px, 3fr) minmax(360px, 4fr) minmax(420px, 5fr);
+  margin: 0;
 }
 
 .dashboard-shell__tiles {
@@ -479,12 +483,33 @@ onBeforeUnmount(() => {
 .dashboard-shell__overview > .v-col,
 .dashboard-shell__overview-col {
   display: flex;
+  max-width: none;
+  padding: 0;
+  width: auto;
 }
 
 .dashboard-shell__overview-col--intro,
 .dashboard-shell__overview-col--stats,
 .dashboard-shell__overview-col--probe {
   min-width: 0;
+}
+
+.dashboard-shell__overview-col--intro {
+  grid-area: intro;
+}
+
+.dashboard-shell__overview-col--stats {
+  grid-area: stats;
+}
+
+.dashboard-shell__overview-col--probe {
+  grid-area: probe;
+}
+
+.dashboard-shell__overview-col > * {
+  flex: 1 1 auto;
+  min-width: 0;
+  width: 100%;
 }
 
 .overview-card {
@@ -987,8 +1012,10 @@ onBeforeUnmount(() => {
 }
 
 .tile-card--chart .tile-card__body {
-  aspect-ratio: 16 / 9;
+  aspect-ratio: auto;
+  height: clamp(220px, 28vh, 320px);
   min-height: 220px;
+  max-height: 320px;
 }
 
 .tile-card :deep(canvas) {
@@ -997,19 +1024,11 @@ onBeforeUnmount(() => {
 }
 
 @media (max-width: 1680px) {
-  .dashboard-shell__overview-col--intro {
-    flex: 0 0 40%;
-    max-width: 40%;
-  }
-
-  .dashboard-shell__overview-col--stats {
-    flex: 0 0 60%;
-    max-width: 60%;
-  }
-
-  .dashboard-shell__overview-col--probe {
-    flex: 0 0 100%;
-    max-width: 100%;
+  .dashboard-shell__overview {
+    grid-template-areas:
+      'intro stats'
+      'probe probe';
+    grid-template-columns: minmax(320px, 2fr) minmax(420px, 3fr);
   }
 
   .section-head,
@@ -1029,16 +1048,17 @@ onBeforeUnmount(() => {
   }
 
   .telemetry-grid--detail {
-    grid-template-columns: 1fr;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 }
 
 @media (max-width: 1380px) {
-  .dashboard-shell__overview-col--intro,
-  .dashboard-shell__overview-col--stats,
-  .dashboard-shell__overview-col--probe {
-    flex: 0 0 100%;
-    max-width: 100%;
+  .dashboard-shell__overview {
+    grid-template-areas:
+      'intro'
+      'stats'
+      'probe';
+    grid-template-columns: minmax(0, 1fr);
   }
 
   .probe-card__rings {
@@ -1058,7 +1078,7 @@ onBeforeUnmount(() => {
 
 @media (max-width: 1280px) {
   .dashboard-shell__overview {
-    row-gap: 14px;
+    gap: 14px;
   }
 
   .overview-card__actions {
@@ -1074,8 +1094,9 @@ onBeforeUnmount(() => {
   }
 
   .tile-card--chart .tile-card__body {
-    aspect-ratio: 15 / 9;
+    height: clamp(208px, 26vh, 288px);
     min-height: 208px;
+    max-height: 288px;
   }
 }
 
@@ -1103,8 +1124,9 @@ onBeforeUnmount(() => {
   }
 
   .tile-card--chart .tile-card__body {
-    aspect-ratio: 4 / 3;
+    height: clamp(196px, 24vh, 248px);
     min-height: 196px;
+    max-height: 248px;
   }
 }
 
@@ -1146,8 +1168,9 @@ onBeforeUnmount(() => {
   }
 
   .tile-card--chart .tile-card__body {
-    aspect-ratio: auto;
+    height: auto;
     min-height: 180px;
+    max-height: none;
   }
 }
 </style>

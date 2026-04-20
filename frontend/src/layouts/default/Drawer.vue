@@ -288,10 +288,13 @@ const logoutUser = async () => {
 :deep(.v-navigation-drawer--rail .app-drawer__item) {
   align-items: center;
   display: grid;
+  grid-template-areas: 'prepend';
+  grid-template-columns: minmax(0, 1fr);
   justify-content: center;
+  justify-items: center;
   margin-inline: auto;
   min-height: 52px;
-  padding-inline: 0;
+  padding-inline: 0 !important;
   place-items: center;
   width: 52px;
 }
@@ -312,9 +315,11 @@ const logoutUser = async () => {
 :deep(.v-navigation-drawer--rail .app-drawer__item .v-list-item__prepend) {
   align-items: center;
   display: flex;
+  grid-area: prepend;
   justify-content: center;
   margin-inline-end: 0;
-  width: auto;
+  padding-inline: 0;
+  width: 100%;
 }
 
 :deep(.v-navigation-drawer--rail .app-drawer__item .v-list-item__prepend > .v-icon) {
