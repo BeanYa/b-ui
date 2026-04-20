@@ -12,6 +12,8 @@
 
 ## 安装
 
+如果你是在找仓库整体的安装、运行、升级或面板使用说明，请回到根目录查看 [`README.md`](../../README.md)、[`docs/manual.md`](../../docs/manual.md) 和 [`MIGRATION.md`](../../MIGRATION.md)。这个 README 只保留前端源码目录本身的开发说明。
+
 ```sh
 npm install
 ```
@@ -47,10 +49,10 @@ npm run lint
 
 ## 与根仓库协作
 
-前端源码目录内直接执行 `npm run build` 时，产物会被复制到根仓库的 `web/html/` 中。当前仓库级构建、CI 和发布流程实际使用的嵌入目录是 `src/backend/internal/infra/web/html/`；如果你要刷新后端可执行文件会嵌入的静态资源，请在仓库根目录执行集中构建脚本：
+前端源码目录内直接执行 `npm run build`，主要用于验证前端工程本身可以正常构建。仓库级构建、后端嵌入静态资源、CI 和发布流程所使用的资源刷新，应在仓库根目录执行集中构建脚本：
 
 ```sh
 bash ./scripts/build/build-frontend.sh
 ```
 
-然后再执行 `bash ./scripts/build/build-backend.sh`，或直接运行 `bash ./scripts/dev/run-local.sh` 完成本地联调。
+按需要再执行 `bash ./scripts/build/build-backend.sh`，或直接运行 `bash ./scripts/dev/run-local.sh` 完成本地联调。

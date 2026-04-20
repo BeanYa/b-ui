@@ -10,7 +10,6 @@ Thank you for your interest in contributing to B-UI. This repository keeps the u
 - [Testing](#testing)
 - [Features That Need Help](#features-that-need-help)
 - [Pull Request Process](#pull-request-process)
-- [Adding This Guide in Your Repository](#adding-this-guide-in-your-repository)
 - [Reporting Bugs and Requesting Features](#reporting-bugs-and-requesting-features)
 
 ---
@@ -22,6 +21,8 @@ Please be respectful and constructive when interacting with maintainers and othe
 ---
 
 ## Development Environment Setup
+
+Before changing code or docs, use the root [`README.md`](./README.md) for the repository overview, [`docs/manual.md`](./docs/manual.md) for the user/operator workflow, and [`MIGRATION.md`](./MIGRATION.md) for upgrade or install-path migration details. This guide stays focused on contributor workflow.
 
 ### Prerequisites
 
@@ -41,43 +42,23 @@ The **frontend** now lives directly in the `src/frontend/` directory of this rep
 
 ### Local Development (quickstart)
 
-1. Build and run with the centralized dev script (builds frontend + backend, then runs with debug + local DB):
+1. Build and run with the centralized dev script:
 
    ```bash
    bash ./scripts/dev/run-local.sh
    ```
 
-   This runs `bash ./scripts/build/build-all.sh` then `SUI_DB_FOLDER="db" SUI_DEBUG=true ./build/out/sui`.
+   This is the fastest way to verify local changes across the frontend and backend together.
 
 2. Or build manually with the centralized build scripts:
 
    ```bash
-   bash ./scripts/build/build-frontend.sh
-   bash ./scripts/build/build-backend.sh
-   SUI_DB_FOLDER=db SUI_DEBUG=true ./build/out/sui
-   ```
+    bash ./scripts/build/build-frontend.sh
+    bash ./scripts/build/build-backend.sh
+    SUI_DB_FOLDER=db SUI_DEBUG=true ./build/out/sui
+    ```
 
-   Default panel: **http://localhost:2095/app/** (user: `admin`, password: `admin` — change in production).
-
-### Full Stack (Backend + Frontend)
-
-1. **Frontend assets**:
-
-   ```bash
-   bash ./scripts/build/build-frontend.sh
-   ```
-
-2. **Build backend**:
-
-   ```bash
-   go build -ldflags "-w -s" -tags "with_quic,with_grpc,with_utls,with_acme,with_gvisor,with_tailscale" -o build/out/sui ./src/backend/cmd/b-ui
-   ```
-
-3. Run:
-
-   ```bash
-   SUI_DB_FOLDER=db SUI_DEBUG=true ./build/out/sui
-   ```
+   Use this path when you only need to rebuild one side of the app or want to inspect failures step by step.
 
 ### Build Tags
 
@@ -89,12 +70,8 @@ Use the same tags when building locally if you need feature parity with releases
 
 ### Release and Versioning
 
-- Mainline release tags currently follow `v0.0.x` in this fork.
-- Tagged builds publish Linux assets as `b-ui-linux-<arch>.tar.gz`.
-- Tagged builds publish Windows assets as `b-ui-windows-<arch>.zip`.
-- Tagged builds inject the Git tag into the binary version, so `sui -v` reflects the release tag.
-- Linux compatibility after migration keeps the install path `/usr/local/s-ui`, while the service and management command are both renamed to `b-ui`.
-- Release/build entry points are centralized under `scripts/build/` and `scripts/release/`; service assets live under `src/services/`, and Docker packaging definitions live under `packaging/docker/`.
+- Contributor-facing release automation lives under `scripts/build/` and `scripts/release/`.
+- User-facing release packaging, install-layout, and migration details belong in [`README.md`](./README.md), [`docs/manual.md`](./docs/manual.md), and [`MIGRATION.md`](./MIGRATION.md).
 
 ### Environment Variables (development)
 
@@ -107,12 +84,7 @@ Use the same tags when building locally if you need feature parity with releases
 
 ### Docker (optional)
 
-```bash
-git clone https://github.com/BeanYa/b-ui.git
-cd b-ui
-docker build -f packaging/docker/Dockerfile -t b-ui .
-# or: docker compose up -d
-```
+Contributors who need container-based workflows should inspect `packaging/docker/` and the related scripts directly. End-user deployment steps belong in the root [`README.md`](./README.md) and [`docs/manual.md`](./docs/manual.md).
 
 ---
 
@@ -174,6 +146,8 @@ When adding new features, place code in the appropriate layer (handler → servi
    ```
 
 2. **Manual testing**: Run with `bash ./scripts/dev/run-local.sh`, test the changed area (panel, API, subscription, etc.).
+
+   If you need the current end-user setup or runtime flow while testing, follow the root [`README.md`](./README.md) and [`docs/manual.md`](./docs/manual.md) instead of duplicating those steps in contribution notes.
 
 3. **Future tests**: Contributions that add **unit tests** (e.g. for `src/backend/internal/shared/util/`, `src/backend/internal/domain/services/`, or API handlers) or **integration tests** are very welcome. Prefer the standard library `testing` package and table-driven tests where appropriate.
 
@@ -245,27 +219,7 @@ If you want to work on a larger feature, open an issue first to discuss approach
 - Prefer **small, reviewable PRs**. Split large features into logical steps.
 - Avoid unrelated changes (e.g. formatting-only or refactors in a feature PR).
 - Ensure your branch is up to date with `main` before submitting (rebase or merge as the project prefers).
-
----
-
-## Adding This Guide in Your Repository
-
-If you maintain a fork or your own repository and want the contribution guide to be visible and linked properly:
-
-1. **Keep `CONTRIBUTING.md` in the repository root**  
-   GitHub automatically discovers a file named `CONTRIBUTING.md` (or `CONTRIBUTING`) in the root. When someone opens a new issue or pull request, GitHub can show a link to it. The community profile also uses it for the “Contributing” section.
-
-2. **Link from README**  
-   Add a short line in your main `README.md` so new contributors see it when they land on the repo, for example:
-   ```markdown
-   **Want to contribute?** See [CONTRIBUTING.md](CONTRIBUTING.md) for development setup, coding conventions, and the pull request process.
-   ```
-
-3. **Optional: GitHub “Contributing” link**  
-   In the repository **Settings → General → Features**, ensure “Issues” (and optionally “Discussions”) are enabled. The link to `CONTRIBUTING.md` appears when users create a new issue or PR; no extra config is needed as long as the file is in the root.
-
-4. **When forking**  
-   If you fork B-UI, `CONTRIBUTING.md` is already in the repo. Update the clone URLs, image names, and repo names in this file if you want your fork’s instructions to point to your own repository.
+- When a change affects onboarding, operations, or upgrades, update the matching user-facing doc in [`README.md`](./README.md), [`docs/manual.md`](./docs/manual.md), or [`MIGRATION.md`](./MIGRATION.md) alongside the code change.
 
 ---
 
