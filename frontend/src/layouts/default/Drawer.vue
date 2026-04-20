@@ -1,10 +1,16 @@
 <template>
   <v-navigation-drawer
     v-model="showDrawer"
-    :class="['app-drawer', { 'app-drawer--rail-state': isRail }]"
+    :class="[
+      'app-drawer',
+      {
+        'app-drawer--rail-state': isRail,
+        'app-drawer--content-hidden': isContentHidden,
+      },
+    ]"
     :temporary="isMobile"
     :permanent="!isMobile"
-    :rail="!isMobile && collapsed"
+    :rail="isRail"
     :rail-width="92"
     :width="308"
   >
@@ -46,7 +52,7 @@
             </span>
           </template>
           <v-tooltip
-            v-if="collapsed && !isMobile"
+            v-if="isRail"
             activator="parent"
             location="end"
             :text="$t(item.title)"
@@ -64,13 +70,13 @@
         </div>
         <v-btn
           class="app-drawer__logout"
-          :block="!isRail || isMobile"
+          :block="showExpandedContent || isMobile"
           color="error"
           variant="tonal"
           @click="logoutUser"
         >
           <v-tooltip
-            v-if="collapsed && !isMobile"
+            v-if="isRail"
             activator="parent"
             location="end"
             :text="$t('menu.logout')"
@@ -84,12 +90,15 @@
 </template>
 
 <script lang="ts" setup>
-import { computed } from 'vue'
+import { computed, onBeforeUnmount, ref, watch } from 'vue'
 import router from '@/router'
 import { logout } from '@/plugins/httputil'
 
 const props = defineProps(['isMobile', 'displayDrawer', 'collapsed'])
 const emit = defineEmits(['toggleDrawer'])
+const DRAWER_CONTENT_TRANSITION_MS = 140
+
+let drawerContentTimer: ReturnType<typeof setTimeout> | null = null
 
 const showDrawer = computed({
   get: (): boolean => props.isMobile ? props.displayDrawer : true,
@@ -100,7 +109,49 @@ const showDrawer = computed({
   },
 })
 
-const isRail = computed((): boolean => !props.isMobile && props.collapsed)
+const drawerRail = ref(!props.isMobile && props.collapsed)
+const showExpandedContent = ref(props.isMobile || !props.collapsed)
+
+const clearDrawerContentTimer = () => {
+  if (!drawerContentTimer) return
+
+  clearTimeout(drawerContentTimer)
+  drawerContentTimer = null
+}
+
+const syncDrawerVisualState = () => {
+  clearDrawerContentTimer()
+
+  if (props.isMobile) {
+    drawerRail.value = false
+    showExpandedContent.value = true
+    return
+  }
+
+  if (props.collapsed) {
+    showExpandedContent.value = false
+    drawerContentTimer = setTimeout(() => {
+      drawerRail.value = true
+      drawerContentTimer = null
+    }, DRAWER_CONTENT_TRANSITION_MS)
+    return
+  }
+
+  drawerRail.value = false
+  drawerContentTimer = setTimeout(() => {
+    showExpandedContent.value = true
+    drawerContentTimer = null
+  }, DRAWER_CONTENT_TRANSITION_MS)
+}
+
+watch(() => [props.isMobile, props.collapsed], syncDrawerVisualState, { immediate: true })
+
+onBeforeUnmount(() => {
+  clearDrawerContentTimer()
+})
+
+const isRail = computed((): boolean => !props.isMobile && drawerRail.value)
+const isContentHidden = computed((): boolean => !props.isMobile && !showExpandedContent.value)
 
 const menuGroups = [
   {
@@ -384,7 +435,18 @@ const logoutUser = async () => {
   padding-inline: 0 !important;
 }
 
-:deep(.app-drawer__item--rail > .v-list-item__content) {
+:deep(.app-drawer__item > .v-list-item__content) {
+  min-width: 0;
+  overflow: hidden;
+  transition:
+    opacity var(--app-motion-fast) var(--app-ease-standard),
+    transform var(--app-motion-fast) var(--app-ease-standard),
+    flex-basis var(--app-motion-fast) var(--app-ease-standard),
+    width var(--app-motion-fast) var(--app-ease-standard),
+    margin var(--app-motion-fast) var(--app-ease-standard);
+}
+
+.app-drawer--content-hidden :deep(.app-drawer__item > .v-list-item__content) {
   flex: 0 0 0 !important;
   margin: 0 !important;
   opacity: 0;
@@ -436,7 +498,7 @@ const logoutUser = async () => {
   width: 52px;
 }
 
-.app-drawer--rail-state .app-drawer__titles {
+.app-drawer--content-hidden .app-drawer__titles {
   flex: 0 0 0;
   margin: 0;
   max-width: 0;
@@ -445,7 +507,7 @@ const logoutUser = async () => {
   transform: translateX(-10px);
 }
 
-.app-drawer--rail-state .app-drawer__section {
+.app-drawer--content-hidden .app-drawer__section {
   margin: 0;
   max-height: 0;
   opacity: 0;
@@ -454,7 +516,7 @@ const logoutUser = async () => {
   transform: translateX(-8px);
 }
 
-.app-drawer--rail-state .app-drawer__footer-note {
+.app-drawer--content-hidden .app-drawer__footer-note {
   border-width: 0;
   margin: 0;
   max-height: 0;
@@ -469,7 +531,7 @@ const logoutUser = async () => {
   justify-content: center;
 }
 
-.app-drawer--rail-state .app-drawer__logout-label {
+.app-drawer--content-hidden .app-drawer__logout-label {
   margin: 0;
   max-width: 0;
   opacity: 0;
