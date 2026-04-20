@@ -4,7 +4,7 @@
       <div class="app-bar-shell__leading">
         <v-btn
           class="app-bar-shell__nav-btn"
-          :icon="isMobile ? 'mdi-menu' : (collapsed ? 'mdi-menu-open' : 'mdi-menu')"
+          :icon="isMobile ? 'mdi-menu' : (collapsed ? 'mdi-menu' : 'mdi-menu-open')"
           variant="text"
           @click="$emit('toggleDrawer')"
         />
@@ -135,13 +135,18 @@ onBeforeUnmount(() => {
   backdrop-filter: none !important;
   background: transparent !important;
   border-color: transparent !important;
+  border-radius: 34px;
   box-shadow: none !important;
+  isolation: isolate;
+  overflow: hidden !important;
   padding: 14px 18px 0;
 }
 
 .app-bar-shell :deep(.v-toolbar__content),
 .app-bar-shell :deep(.v-toolbar__extension) {
   background: transparent !important;
+  border-radius: inherit;
+  overflow: hidden;
   padding: 0 !important;
 }
 

@@ -288,15 +288,14 @@ const logoutUser = async () => {
 :deep(.v-navigation-drawer--rail .app-drawer__item) {
   align-items: center;
   display: grid;
-  grid-template-areas: 'prepend';
-  grid-template-columns: minmax(0, 1fr);
+  grid-template: 'prepend' / minmax(0, 1fr) !important;
   justify-content: center;
-  justify-items: center;
+  justify-items: center !important;
   margin-inline: auto;
   min-height: 52px;
   padding-inline: 0 !important;
   place-items: center;
-  width: 52px;
+  width: 56px !important;
 }
 
 :deep(.v-navigation-drawer--rail .app-drawer__footer-note) {
@@ -316,14 +315,18 @@ const logoutUser = async () => {
   align-items: center;
   display: flex;
   grid-area: prepend;
-  justify-content: center;
-  margin-inline-end: 0;
+  justify-content: center !important;
+  margin-inline: 0 !important;
   padding-inline: 0;
-  width: 100%;
+  width: 100% !important;
 }
 
 :deep(.v-navigation-drawer--rail .app-drawer__item .v-list-item__prepend > .v-icon) {
   margin-inline: auto;
+}
+
+:deep(.v-navigation-drawer--rail .app-drawer__item .v-list-item__spacer) {
+  display: none !important;
 }
 
 :deep(.v-navigation-drawer--rail .app-drawer__item .v-list-item__prepend > .v-list-item__spacer) {

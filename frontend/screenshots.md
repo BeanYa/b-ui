@@ -3,6 +3,8 @@
 ### Main
 !["main"](./media/main.png "main")
 
+当前截图为运行中首页首屏，用于反映最新的控制台概览布局。
+
 ### Inbounds
 ![inbounds](./media/inbounds.png "inbounds")
 
