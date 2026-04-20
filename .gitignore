@@ -20,6 +20,8 @@ dist/*
 dist/release/*
 !dist/release/.gitkeep
 release/
+!scripts/release/
+!scripts/release/**
 
 # local env files
 .env.local

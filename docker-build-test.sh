@@ -1,29 +1,6 @@
 #!/usr/bin/env bash
-# Test Docker multi-platform build (linux/amd64, 386, arm64, arm/v7, arm/v6)
-# Requires: frontend_dist/ (generated automatically from web/html when absent)
 
-set -e
-cd "$(dirname "$0")/.."
+set -euo pipefail
 
-echo "==> Preparing frontend_dist..."
-if [ ! -d "frontend_dist" ] || [ -z "$(ls -A frontend_dist 2>/dev/null)" ]; then
-  echo "Building frontend..."
-  (cd frontend && npm ci && npm run build)
-  rm -rf frontend_dist
-  mkdir -p frontend_dist
-  cp -R web/html/* frontend_dist/
-  echo "frontend_dist ready."
-else
-  echo "frontend_dist exists, skipping frontend build."
-fi
-
-PLATFORMS="linux/amd64,linux/386,linux/arm64/v8,linux/arm/v7,linux/arm/v6"
-echo "==> Testing Docker build for: $PLATFORMS"
-docker buildx build \
-  --platform "$PLATFORMS" \
-  -f Dockerfile.frontend-artifact \
-  --build-arg CRONET_RELEASE=latest \
-  --progress=plain \
-  . 2>&1 | tee docker-build-test.log
-
-echo "==> Done. Check docker-build-test.log for full output."
+SCRIPT_DIR=$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)
+exec bash "${SCRIPT_DIR}/scripts/build/docker-build-test.sh" "$@"

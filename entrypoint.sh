@@ -1,10 +1,6 @@
-#!/bin/sh
+#!/usr/bin/env sh
 
-DB_FOLDER="${SUI_DB_FOLDER:-/app/db}"
-DB_PATH="${DB_FOLDER}/b-ui.db"
-LEGACY_DB_PATH="${DB_FOLDER}/s-ui.db"
-if [ -f "$DB_PATH" ] || [ -f "$LEGACY_DB_PATH" ]; then
-	./sui migrate
-fi
+set -eu
 
-exec ./sui
+SCRIPT_DIR=$(CDPATH= cd -- "$(dirname -- "$0")" && pwd)
+exec "${SCRIPT_DIR}/src/services/container/entrypoint.sh" "$@"

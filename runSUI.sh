@@ -1,2 +1,6 @@
-./build.sh
-SUI_DB_FOLDER="db" SUI_DEBUG=true ./sui
+#!/usr/bin/env bash
+
+set -euo pipefail
+
+SCRIPT_DIR=$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)
+exec bash "${SCRIPT_DIR}/scripts/dev/run-local.sh" "$@"
