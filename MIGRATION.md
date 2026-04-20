@@ -16,22 +16,16 @@ check to the latest published `b-ui` release.
 ## One-line migration
 
 ```sh
-bash <(curl -Ls https://raw.githubusercontent.com/BeanYa/b-ui/main/migrate-to-b-ui.sh)
+bash <(curl -Ls https://raw.githubusercontent.com/BeanYa/b-ui/main/install.sh) --migrate
 ```
 
 To migrate to a specific release:
 
 ```sh
-bash <(curl -Ls https://raw.githubusercontent.com/BeanYa/b-ui/main/migrate-to-b-ui.sh) v0.0.1
+bash <(curl -Ls https://raw.githubusercontent.com/BeanYa/b-ui/main/install.sh) --migrate v0.0.1
 ```
 
-The migration helper is a thin wrapper around:
-
-```sh
-bash <(curl -Ls https://raw.githubusercontent.com/BeanYa/b-ui/main/install.sh) --migrate
-```
-
-## What the migration script does
+## What `--migrate` does
 
 1. Detects an existing compatible upstream installation.
 2. Stops the legacy `s-ui` service.

@@ -55,25 +55,13 @@ cd b-ui
 
 迁移后的目标数据库路径为 `/usr/local/s-ui/db/b-ui.db`。如果检测到旧的 `/usr/local/s-ui/db/s-ui.db` 且新库不存在，程序会在首次迁移/启动时自动把旧库内容迁移到 `b-ui.db`，避免端口、入站、出站和面板配置被初始化成空数据。
 
-推荐直接执行：
-
-```sh
-bash <(curl -Ls https://raw.githubusercontent.com/BeanYa/b-ui/main/migrate-to-b-ui.sh)
-```
-
-如果要迁移到指定版本：
-
-```sh
-bash <(curl -Ls https://raw.githubusercontent.com/BeanYa/b-ui/main/migrate-to-b-ui.sh) v0.0.1
-```
-
-如果你想直接调用安装脚本，也可以显式使用迁移模式：
+推荐统一使用安装脚本的迁移模式：
 
 ```sh
 bash <(curl -Ls https://raw.githubusercontent.com/BeanYa/b-ui/main/install.sh) --migrate
 ```
 
-迁移脚本会自动完成以下操作：
+`install.sh --migrate` 会自动完成以下操作：
 
 1. 检测现有旧版安装
 2. 停止旧服务
@@ -86,7 +74,7 @@ bash <(curl -Ls https://raw.githubusercontent.com/BeanYa/b-ui/main/install.sh) -
 8. 未指定版本时，再执行一次最新 `b-ui` release 的更新检查
 9. 重新启动新的 `b-ui` 服务
 
-如果新版本启动失败，安装脚本会自动回滚到迁移前的版本。未显式指定版本时，迁移脚本的默认目标是最新发布的 `b-ui`。
+如果新版本启动失败，安装脚本会自动回滚到迁移前的版本。未显式指定版本时，默认目标是最新发布的 `b-ui`。
 
 更多说明见 [MIGRATION.md](./MIGRATION.md)。
 
