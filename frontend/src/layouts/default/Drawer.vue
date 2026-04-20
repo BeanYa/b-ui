@@ -35,7 +35,7 @@
         <v-list-item
           v-for="item in group.items"
           :key="item.title"
-          class="app-drawer__item"
+          :class="['app-drawer__item', { 'app-drawer__item--rail': collapsed && !isMobile }]"
           link
           :to="item.path"
           :active="router.currentRoute.value.path === item.path"
@@ -218,6 +218,20 @@ const logoutUser = async () => {
   min-height: 50px;
 }
 
+.app-drawer__item--rail {
+  align-items: center;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) !important;
+  justify-content: center;
+  justify-items: center !important;
+  margin-inline: auto;
+  min-height: 52px;
+  padding-inline: 0 !important;
+  place-items: center;
+  text-align: center;
+  width: 56px !important;
+}
+
 .app-drawer__item:hover {
   background: color-mix(in srgb, var(--app-surface-3) 86%, transparent);
   border-color: var(--app-border-1);
@@ -286,16 +300,7 @@ const logoutUser = async () => {
 }
 
 :deep(.v-navigation-drawer--rail .app-drawer__item) {
-  align-items: center;
-  display: grid;
-  grid-template: 'prepend' / minmax(0, 1fr) !important;
-  justify-content: center;
-  justify-items: center !important;
-  margin-inline: auto;
-  min-height: 52px;
-  padding-inline: 0 !important;
-  place-items: center;
-  width: 56px !important;
+  grid-template-columns: minmax(0, 1fr) !important;
 }
 
 :deep(.v-navigation-drawer--rail .app-drawer__footer-note) {
@@ -314,19 +319,20 @@ const logoutUser = async () => {
 :deep(.v-navigation-drawer--rail .app-drawer__item .v-list-item__prepend) {
   align-items: center;
   display: flex;
-  grid-area: prepend;
   justify-content: center !important;
   margin-inline: 0 !important;
+  min-width: 24px;
   padding-inline: 0;
-  width: 100% !important;
+  width: 24px !important;
 }
 
 :deep(.v-navigation-drawer--rail .app-drawer__item .v-list-item__prepend > .v-icon) {
-  margin-inline: auto;
+  margin-inline: 0 !important;
 }
 
 :deep(.v-navigation-drawer--rail .app-drawer__item .v-list-item__spacer) {
   display: none !important;
+  width: 0 !important;
 }
 
 :deep(.v-navigation-drawer--rail .app-drawer__item .v-list-item__prepend > .v-list-item__spacer) {
