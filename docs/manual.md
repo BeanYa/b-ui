@@ -39,7 +39,7 @@ bash <(curl -Ls https://raw.githubusercontent.com/BeanYa/b-ui/main/install.sh) v
 
 - 脚本会提示设置面板端口、面板路径、订阅端口和订阅路径。
 - 也可以在安装时修改管理员用户名和密码。
-- 如果跳过凭据修改，脚本会生成随机管理员凭据并打印一次。
+- 只有在全新安装时拒绝继续后续交互式修改流程，脚本才会生成随机管理员凭据并打印一次。
 
 ## 2. 首次登录与初始化
 
@@ -48,7 +48,7 @@ bash <(curl -Ls https://raw.githubusercontent.com/BeanYa/b-ui/main/install.sh) v
 凭据来源：
 
 - 如果你在安装过程中主动修改过用户名和密码，使用你填写的值。
-- 如果你在全新安装时跳过了凭据修改，使用安装脚本打印的随机管理员凭据。
+- 如果你在全新安装时直接拒绝继续后续交互式修改流程，使用安装脚本打印的随机管理员凭据。
 - 如果这是已有 `b-ui` 的更新，现有凭据会被保留。
 - 如果这是从上游 `s-ui` 迁移，现有凭据和数据库内容会被保留。
 
@@ -56,7 +56,7 @@ bash <(curl -Ls https://raw.githubusercontent.com/BeanYa/b-ui/main/install.sh) v
 
 1. 打开安装脚本输出的面板地址。
 2. 用当前管理员用户名和密码登录。
-3. 如果是全新安装且无法登录，重新检查安装输出中的随机凭据。
+3. 如果是全新安装且当时拒绝了后续交互式修改流程，无法登录时重新检查安装输出中的随机凭据。
 
 建议先检查这几项：
 
@@ -117,16 +117,10 @@ bash <(curl -Ls https://raw.githubusercontent.com/BeanYa/b-ui/main/install.sh) v
 
 ## 4. TLS 设置
 
-`TLS Settings` 用来定义可复用的 TLS 模板。入站通过 `tls_id` 绑定这些模板。绑定后，客户端导出配置会继承模板中的 TLS 信息，包括：
+`TLS Settings` 用来定义可复用的 TLS 模板。入站通过 `tls_id` 绑定这些模板。绑定后，客户端导出 JSON 会组合入站字段和模板中的 TLS 信息；生成的客户端链接只会带上该协议链接格式实际支持的那部分字段。
 
-- `enabled`
-- `server_name`
-- `alpn`
-- `min_version`
-- `max_version`
-- 证书材料
-- cipher suites
-- 可选的 Reality 或 ECH 设置
+- JSON 视图中常见的 TLS 字段包括 `enabled`、`server_name`、`alpn`、`min_version`、`max_version`、证书相关字段，以及可选的 Reality 或 ECH 设置。
+- 生成链接时通常只会携带协议链接本身支持的字段；不要假设链接一定会包含 `min_version`、`max_version`、证书材料、`cipher suites` 或 `ECH`。
 
 面板路径：
 
@@ -195,9 +189,9 @@ ACME 说明：
 关键逻辑：
 
 - `vless`、`trojan`、`vmess` 会把 `transport` 复制到导出结果中。
-- `hysteria2` 导出时会把带宽字段映射为客户端侧的 `up_mbps` / `down_mbps`，并可带上 `obfs`。
+- `hysteria2` 导出到客户端 JSON 时会保留 `up_mbps` / `down_mbps` 这类字段；生成链接时对应查询参数使用 `upmbps` / `downmbps`，并可带上 `obfs`。
 - 如果入站没有绑定 TLS 模板，导出结果中的 `tls` 字段会被删除。
-- 对于基于 TLS 的协议，导出结果里的 `server_name`、`alpn`、证书信息和 Reality 参数全部来自绑定的 TLS 模板。
+- 对于基于 TLS 的协议，客户端导出 JSON 中的 `server_name`、`alpn` 以及可用的 Reality 等 TLS 参数来自绑定的 TLS 模板；链接里只会出现协议链接格式实际支持的那部分字段。
 
 验证方法：
 
@@ -292,7 +286,7 @@ ACME 说明：
 - 确认入站保存后 `tls_id` 不为空。
 - 确认绑定的 TLS 模板没有误开 Reality。
 - 在 Hysteria2 客户端中测试导出的密码和主机名。
-- 检查导出的 Hysteria2 客户端配置或链接内容，确认其中包含 `password`、`up_mbps`、`down_mbps`，以及你实际启用的 `obfs`、多端口或 `fastopen` 等字段。
+- 检查导出的 Hysteria2 客户端配置或链接内容：JSON 里确认 `password`、`up_mbps`、`down_mbps`；链接里确认 `password`、`upmbps`、`downmbps`，以及你实际启用的 `obfs`、多端口或 `fastopen` 等字段。
 
 ### 6.3 VLESS + Reality
 
@@ -493,7 +487,7 @@ bash <(curl -Ls https://raw.githubusercontent.com/BeanYa/b-ui/main/install.sh) -
 - 安装命令在下载前失败：检查 root 权限和到 GitHub 的出站连通性。
 - 更新拒绝执行：确认系统里安装的是 `b-ui`；如果只有上游 `s-ui`，请先迁移。
 - 服务启动后又回滚：检查 `systemctl status b-ui`、`journalctl -u b-ui` 和 `/var/backups/s-ui/` 下的回滚备份。
-- 全新安装后不知道登录凭据：如果跳过了交互式设置，安装脚本会打印随机管理员凭据。
+- 全新安装后不知道登录凭据：只有在拒绝继续后续交互式修改流程时，安装脚本才会打印随机管理员凭据。
 - 修改接口设置后面板地址不对：重新检查 `Settings` -> `Interface`，保存后重启应用。
 - TLS 握手失败：检查 `server_name`、证书路径或证书内容，以及入站是否绑定了正确的 TLS 模板。
 - `VLESS + TLS` 失败：检查端口开放、域名解析、`UUID` 和可选 `transport`。

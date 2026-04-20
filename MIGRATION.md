@@ -1,6 +1,6 @@
 # Migration From Upstream
 
-Migration guidance has moved to `docs/manual.md#8-从上游迁移`.
+Migration guidance has moved to [docs/manual.md#8-%E4%BB%8E%E4%B8%8A%E6%B8%B8%E8%BF%81%E7%A7%BB](docs/manual.md#8-%E4%BB%8E%E4%B8%8A%E6%B8%B8%E8%BF%81%E7%A7%BB).
 
 That section now covers:
 
