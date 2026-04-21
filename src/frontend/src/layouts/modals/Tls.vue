@@ -50,10 +50,27 @@
                 hide-details
                 clearable
                 :items="domainHintItems"
-                item-title="title"
+                item-title="domain"
                 item-value="value"
                 :loading="domainHintLoading"
                 v-model="inTls.server_name">
+                <template #item="{ props, item }">
+                  <v-list-item v-bind="props" :title="item.domain">
+                    <template #append>
+                      <div class="tls-domain-hint-labels">
+                        <v-chip
+                          v-for="label in item.metaLabels"
+                          :key="label"
+                          size="x-small"
+                          variant="text"
+                          density="comfortable"
+                        >
+                          {{ label }}
+                        </v-chip>
+                      </div>
+                    </template>
+                  </v-list-item>
+                </template>
               </v-combobox>
             </v-col>
             <v-col cols="auto" v-if="inTls.server_name != undefined">
@@ -188,10 +205,27 @@
                   hide-details
                   clearable
                   :items="domainHintItems"
-                  item-title="title"
+                  item-title="domain"
                   item-value="value"
                   :loading="domainHintLoading"
                   v-model="inTls.reality.handshake.server">
+                  <template #item="{ props, item }">
+                    <v-list-item v-bind="props" :title="item.domain">
+                      <template #append>
+                        <div class="tls-domain-hint-labels">
+                          <v-chip
+                            v-for="label in item.metaLabels"
+                            :key="label"
+                            size="x-small"
+                            variant="text"
+                            density="comfortable"
+                          >
+                            {{ label }}
+                          </v-chip>
+                        </div>
+                      </template>
+                    </v-list-item>
+                  </template>
                 </v-combobox>
               </v-col>
               <v-col cols="12" sm="6" md="4">
@@ -360,16 +394,7 @@ import { createTlsPreset, getTlsPresetBaseName, type TlsPresetKey } from '@/plug
 import { push } from 'notivue'
 import { i18n } from '@/locales'
 import RandomUtil from '@/plugins/randomUtil'
-
-interface DomainHintItem {
-  domain: string
-  status: string
-  tlsVersion?: string
-  alpn?: string
-  redirect?: boolean
-  latencyMs?: number
-  error?: string
-}
+import { buildDomainHintItems, type DomainHintDisplayItem, type DomainHintItem } from './tlsDomainHints'
 
 export default {
   props: ['visible', 'data', 'id'],
@@ -657,18 +682,8 @@ export default {
       get(): boolean { return this.inTls?.reality?.max_time_difference != undefined },
       set(v:boolean) { if (this.inTls.reality) this.inTls.reality.max_time_difference = v ? "1m" : undefined }
     },
-    domainHintItems(): { title: string, value: string }[] {
-      return this.domainHints.map((item: DomainHintItem) => {
-        const parts = [this.$t(`tls.status.${item.status}`).toString()]
-        if (item.tlsVersion) parts.push(item.tlsVersion)
-        if (item.alpn) parts.push(item.alpn.toUpperCase())
-        if (item.redirect) parts.push(this.$t('tls.redirected').toString())
-        if (item.latencyMs) parts.push(`${item.latencyMs}ms`)
-        return {
-          title: `${item.domain} · ${parts.join(' · ')}`,
-          value: item.domain,
-        }
-      })
+    domainHintItems(): DomainHintDisplayItem[] {
+      return buildDomainHintItems(this.domainHints, (key) => this.$t(key).toString())
     }
   },
   watch: {
@@ -682,3 +697,12 @@ export default {
   components: { AcmeVue, EchVue }
 }
 </script>
+
+<style scoped>
+.tls-domain-hint-labels {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  justify-content: flex-end;
+}
+</style>
