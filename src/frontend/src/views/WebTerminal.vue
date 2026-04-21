@@ -81,8 +81,10 @@ const transcriptText = computed(() => session.value.transcript.map(entry => entr
 const connect = () => {
   if (!canConnect.value) return
 
-  const baseUrl = (window as any).BASE_URL ?? '/'
-  const protocol = window.location.protocol === 'https:' ? 'wss://' : 'ws://'
+  const rawBaseUrl = String((window as any).BASE_URL ?? '/')
+  const normalizedBaseUrl = rawBaseUrl.endsWith('/') ? rawBaseUrl : `${rawBaseUrl}/`
+  const wsUrl = new URL(`${normalizedBaseUrl}api/webssh/ws`, window.location.origin)
+  wsUrl.protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:'
 
   applySession({
     type: 'connection',
@@ -90,7 +92,13 @@ const connect = () => {
     text: 'Opening terminal connection...',
   })
 
-  const currentSocket = new WebSocket(`${protocol}${window.location.host}${baseUrl}api/webssh/ws`)
+  console.debug('[WebTerminal] connecting websocket', {
+    rawBaseUrl,
+    normalizedBaseUrl,
+    url: wsUrl.toString(),
+  })
+
+  const currentSocket = new WebSocket(wsUrl)
   socket.value = currentSocket
 
   currentSocket.addEventListener('open', () => {
@@ -114,6 +122,10 @@ const connect = () => {
         message,
       })
     } catch {
+      console.warn('[WebTerminal] ignored malformed websocket payload', {
+        payload: event.data,
+      })
+
       applySession({
         type: 'connection',
         status: session.value.status,
@@ -124,6 +136,8 @@ const connect = () => {
 
   currentSocket.addEventListener('error', () => {
     if (socket.value !== currentSocket) return
+
+    console.error('[WebTerminal] websocket error event')
 
     socket.value = null
     currentSocket.close()
@@ -136,6 +150,8 @@ const connect = () => {
   })
 
   currentSocket.addEventListener('close', () => {
+    console.debug('[WebTerminal] websocket closed')
+
     if (socket.value === currentSocket) {
       socket.value = null
 
@@ -209,13 +225,14 @@ onBeforeUnmount(() => {
 }
 
 .web-terminal__transcript {
-  background: rgb(var(--v-theme-surface-variant));
+  background: #000;
   border-radius: 16px;
   min-height: 280px;
   padding: 16px;
 }
 
 .web-terminal__transcript pre {
+  color: #e5e7eb;
   font-family: 'Geist Mono Variable', monospace;
   margin: 0;
   white-space: pre-wrap;
@@ -223,7 +240,7 @@ onBeforeUnmount(() => {
 }
 
 .web-terminal__placeholder {
-  color: rgba(var(--v-theme-on-surface), 0.7);
+  color: rgba(229, 231, 235, 0.72);
 }
 
 .web-terminal__composer {
