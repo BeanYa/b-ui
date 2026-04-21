@@ -2,6 +2,7 @@
 import { createRouter, createWebHistory } from 'vue-router'
 import Login from '@/views/Login.vue'
 import Data from '@/store/modules/data'
+import useAuthStore from '@/store/modules/auth'
 
 const routes = [
   {
@@ -75,6 +76,12 @@ const routes = [
         name: 'pages.settings',
         component: () => import('@/views/Settings.vue'),
       },
+      {
+        path: '/webterminal',
+        name: 'pages.webTerminal',
+        meta: { requiresAdmin: true },
+        component: () => import('@/views/WebTerminal.vue'),
+      },
     ],
   },
 ]
@@ -88,10 +95,11 @@ const DEFAULT_TITLE = 'B-UI'
 let intervalId:any
 
 // Navigation guard to check authentication state
-router.beforeEach((to) => {
+router.beforeEach(async (to) => {
   // Check the session cookie
   const sessionCookie = document.cookie.split(';').find(cookie => cookie.trim().startsWith('s-ui='))
   const isAuthenticated = !!sessionCookie
+  const auth = useAuthStore()
 
   // If the route requires authentication and the user is not authenticated, redirect to /login
   if (to.meta.requiresAuth && !isAuthenticated) {
@@ -100,6 +108,14 @@ router.beforeEach((to) => {
   if (to.path === '/login' && isAuthenticated) {
     // If already authenticated and visiting /login, redirect to '/'
     return '/'
+  }
+  if (to.meta.requiresAdmin) {
+    if (!auth.loaded) {
+      await auth.loadAuthState()
+    }
+    if (!auth.isAdmin) {
+      return '/'
+    }
   }
 
   // Load default data

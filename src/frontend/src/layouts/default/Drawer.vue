@@ -93,10 +93,12 @@
 import { computed, onBeforeUnmount, ref, watch } from 'vue'
 import router from '@/router'
 import { logout } from '@/plugins/httputil'
+import useAuthStore from '@/store/modules/auth'
 
 const props = defineProps(['isMobile', 'displayDrawer', 'collapsed'])
 const emit = defineEmits(['toggleDrawer'])
 const DRAWER_CONTENT_TRANSITION_MS = 140
+const auth = useAuthStore()
 
 let drawerContentTimer: ReturnType<typeof setTimeout> | null = null
 
@@ -153,7 +155,7 @@ onBeforeUnmount(() => {
 const isRail = computed((): boolean => !props.isMobile && drawerRail.value)
 const isContentHidden = computed((): boolean => !props.isMobile && !showExpandedContent.value)
 
-const menuGroups = [
+const menuGroups = computed(() => [
   {
     label: 'Overview',
     items: [
@@ -171,6 +173,9 @@ const menuGroups = [
       { title: 'pages.tls', icon: 'mdi-certificate', path: '/tls' },
       { title: 'pages.rules', icon: 'mdi-routes', path: '/rules' },
       { title: 'pages.admins', icon: 'mdi-account-tie', path: '/admins' },
+      ...(auth.isAdmin
+        ? [{ title: 'pages.webTerminal', icon: 'mdi-console', path: '/webterminal' }]
+        : []),
     ],
   },
   {
@@ -181,7 +186,7 @@ const menuGroups = [
       { title: 'pages.settings', icon: 'mdi-cog', path: '/settings' },
     ],
   },
-]
+])
 
 const logoutUser = async () => {
   logout()
