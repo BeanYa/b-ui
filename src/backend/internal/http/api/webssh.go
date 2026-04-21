@@ -104,5 +104,5 @@ func (a *APIHandler) getWebSSHSessionFactory() webSSHSessionFactory {
 		return a.webSSHSessionFactory
 	}
 
-	return newSSHWebSSHSessionFactory(&a.ApiService.SettingService)
+	return newLocalWebSSHSessionFactory(&a.ApiService.SettingService)
 }
