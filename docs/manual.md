@@ -41,6 +41,79 @@ bash <(curl -Ls https://raw.githubusercontent.com/BeanYa/b-ui/main/install.sh) v
 - 也可以在安装时修改管理员用户名和密码。
 - 只有在全新安装时拒绝继续后续交互式修改流程，脚本才会生成随机管理员凭据并打印一次。
 
+### Docker 部署引导
+
+Docker 模式面向已经能提供 `b-ui` 镜像的环境。入口脚本是仓库内的 `scripts/release/install-docker.sh`。
+
+最小示例：
+
+```sh
+IMAGE_REF=<your-image-ref> bash ./scripts/release/install-docker.sh
+```
+
+运行前要求：
+
+- 宿主机已安装 `docker` 和 `docker compose`
+- 当前 shell 能执行 `curl`
+- 你已经准备好要部署的镜像引用，并通过 `IMAGE_REF` 传入脚本
+
+交互式流程会按顺序收集：
+
+1. 面板端口和面板路径
+2. 订阅端口和订阅路径
+3. 管理员用户名和密码
+4. 可选协议引导类型：跳过、`VLESS + TLS`、`VLESS + Reality`、`Hysteria2`
+5. 选中协议后对应的最小引导字段，例如客户端名称、UUID 或密码、监听端口，以及 TLS / Reality 所需参数
+
+脚本完成后会依次执行：
+
+1. 检查 `docker`、`docker compose`、`curl`
+2. 生成部署文件
+3. `docker compose up -d`
+4. 等待面板就绪
+5. 写入基础面板设置和管理员凭据
+6. 登录面板 API
+7. 如果你选择了协议引导，则自动创建 TLS 模板、客户端和入站
+8. 输出最终面板地址和 compose 文件路径
+
+默认访问模型：
+
+- 面板默认是直接 `http://<server-ip>:<panel-port><panel-path>` 访问
+- 订阅默认是直接 `http://<server-ip>:<sub-port><sub-path>` 暴露
+- 这套引导不依赖宿主机 Nginx，也不包含额外反向代理层
+- 脚本只用本机 `127.0.0.1` 轮询面板就绪，但给操作者的访问方式仍应理解为服务器 `IP:port`
+
+生成的文件和目录：
+
+- `deploy/docker-compose.yml`：最终 compose 文件
+- `deploy/db/`：数据库持久化目录，会挂载到容器内 `/app/db`
+- `deploy/cert/`：证书持久化目录，会挂载到容器内 `/app/cert`
+- `deploy/panel-cookie.jar`：脚本在引导阶段临时创建的 cookie jar，结束后会自动清理，不应依赖它作为持久化产物
+
+证书行为边界：
+
+- Docker 引导不会给面板自身自动申请 ACME 证书
+- `VLESS + TLS` 和 `Hysteria2` 都属于证书型 TLS 引导
+- 当交互里把 TLS `server_name` 留空时，引导会走面板当前可生成的自签名材料路径，适合先把面板和协议跑通
+- 如果你已经有证书和私钥，可以把文件放到宿主机 `deploy/cert/`，它们会出现在容器内 `/app/cert/`，随后到面板 `TLS Settings` 中把模板切换到这些挂载路径
+- 为了兼容首次自签名或证书尚未完全就绪的场景，`VLESS + TLS` 和 `Hysteria2` 自动生成的客户端侧 TLS 会先保留 `insecure: true`；当你确认已经换成可信证书后，应该回到面板里把对应客户端或模板收紧
+- `VLESS + Reality` 不使用普通证书链，而是通过 Reality 握手目标、密钥和 `short_id` 建立模板
+
+协议引导选项：
+
+- `VLESS + TLS`：创建标准 TLS 模板、VLESS 客户端和 VLESS 入站；需要客户端名称、UUID、监听端口，可选 `server_name`
+- `VLESS + Reality`：创建 Reality 模板、VLESS 客户端和 VLESS 入站；需要客户端名称、UUID、监听端口、握手目标域名、握手目标端口、`short_id`
+- `Hysteria2`：创建 Hysteria2 TLS 模板、Hysteria2 客户端和 Hysteria2 入站；需要客户端名称、密码、监听端口，可选 `server_name`
+- `跳过`：只完成面板和 compose 部署，不自动创建协议对象
+
+部署后的第一轮检查：
+
+1. 打开脚本输出的 `Panel URL`
+2. 用交互阶段设置的管理员用户名和密码登录
+3. 确认 `deploy/docker-compose.yml` 已生成且 `docker compose -f deploy/docker-compose.yml ps` 显示容器在运行
+4. 如果引导了协议，进入 `TLS Settings`、`Clients`、`Inbounds` 检查自动创建的对象是否存在
+5. 如果后续改成可信证书，再回到 `TLS Settings` 更新模板并重测客户端
+
 ## 2. 首次登录与初始化
 
 这个阶段的目标是确认面板可访问、凭据可用、以及基础参数处于可继续配置站点的状态。
