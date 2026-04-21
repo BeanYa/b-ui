@@ -4,25 +4,21 @@ import (
 	"bytes"
 	"context"
 	"io"
+	"runtime"
+	"strings"
 	"testing"
 	"time"
-
-	"golang.org/x/crypto/ssh"
 )
 
 type stubWebSSHSettings struct {
-	host        string
-	port        int
-	username    string
-	password    string
-	idleTimeout time.Duration
+	idleTimeout         time.Duration
+	terminalIdleTimeout time.Duration
 }
 
-func (s stubWebSSHSettings) GetWebSSHHost() (string, error)               { return s.host, nil }
-func (s stubWebSSHSettings) GetWebSSHPort() (int, error)                  { return s.port, nil }
-func (s stubWebSSHSettings) GetWebSSHUsername() (string, error)           { return s.username, nil }
-func (s stubWebSSHSettings) GetWebSSHPassword() (string, error)           { return s.password, nil }
 func (s stubWebSSHSettings) GetWebSSHIdleTimeout() (time.Duration, error) { return s.idleTimeout, nil }
+func (s stubWebSSHSettings) GetWebTerminalIdleTimeout() (time.Duration, error) {
+	return s.terminalIdleTimeout, nil
+}
 
 type nopWriteCloser struct{}
 
@@ -45,8 +41,44 @@ func (r *recordingWriteCloser) Close() error {
 	return nil
 }
 
-func TestSSHWebSSHSessionCloseUnblocksInFlightSender(t *testing.T) {
-	session := &sshWebSSHSession{
+type blockingWebSSHProcess struct {
+	stdin  io.WriteCloser
+	stdout *io.PipeReader
+	stderr *io.PipeReader
+	waitCh chan struct{}
+}
+
+func newBlockingWebSSHProcess() *blockingWebSSHProcess {
+	stdoutReader, stdoutWriter := io.Pipe()
+	stderrReader, stderrWriter := io.Pipe()
+	_ = stdoutWriter.Close()
+	_ = stderrWriter.Close()
+	return &blockingWebSSHProcess{
+		stdin:  &recordingWriteCloser{},
+		stdout: stdoutReader,
+		stderr: stderrReader,
+		waitCh: make(chan struct{}),
+	}
+}
+
+func (p *blockingWebSSHProcess) InputPipe() (io.WriteCloser, error) { return p.stdin, nil }
+func (p *blockingWebSSHProcess) OutputPipe() (io.ReadCloser, error) { return p.stdout, nil }
+func (p *blockingWebSSHProcess) Start() error                       { return nil }
+func (p *blockingWebSSHProcess) Wait() error {
+	<-p.waitCh
+	return nil
+}
+func (p *blockingWebSSHProcess) Kill() error {
+	select {
+	case <-p.waitCh:
+	default:
+		close(p.waitCh)
+	}
+	return nil
+}
+
+func TestLocalWebSSHSessionCloseUnblocksInFlightSender(t *testing.T) {
+	session := &localWebSSHSession{
 		stdin:    nopWriteCloser{},
 		messages: make(chan webSSHServerMessage),
 		done:     make(chan struct{}),
@@ -88,8 +120,8 @@ func TestSSHWebSSHSessionCloseUnblocksInFlightSender(t *testing.T) {
 	}
 }
 
-func TestSSHWebSSHSessionIgnoresStaleIdleTimeoutCallbackAfterActivity(t *testing.T) {
-	session := &sshWebSSHSession{
+func TestLocalWebSSHSessionIgnoresStaleIdleTimeoutCallbackAfterActivity(t *testing.T) {
+	session := &localWebSSHSession{
 		stdin:       nopWriteCloser{},
 		messages:    make(chan webSSHServerMessage, 2),
 		done:        make(chan struct{}),
@@ -119,8 +151,8 @@ func TestSSHWebSSHSessionIgnoresStaleIdleTimeoutCallbackAfterActivity(t *testing
 	_ = session.Close()
 }
 
-func TestSSHWebSSHSessionTimeoutClaimsTimerStateBeforeConcurrentReset(t *testing.T) {
-	session := &sshWebSSHSession{
+func TestLocalWebSSHSessionTimeoutClaimsTimerStateBeforeConcurrentReset(t *testing.T) {
+	session := &localWebSSHSession{
 		stdin:       nopWriteCloser{},
 		messages:    make(chan webSSHServerMessage, 2),
 		done:        make(chan struct{}),
@@ -168,9 +200,9 @@ func TestSSHWebSSHSessionTimeoutClaimsTimerStateBeforeConcurrentReset(t *testing
 	}
 }
 
-func TestSSHWebSSHSessionRejectsInputAfterTimeoutClaimBeforeClose(t *testing.T) {
+func TestLocalWebSSHSessionRejectsInputAfterTimeoutClaimBeforeClose(t *testing.T) {
 	stdin := &recordingWriteCloser{}
-	session := &sshWebSSHSession{
+	session := &localWebSSHSession{
 		stdin:       stdin,
 		messages:    make(chan webSSHServerMessage, 2),
 		done:        make(chan struct{}),
@@ -201,8 +233,8 @@ func TestSSHWebSSHSessionRejectsInputAfterTimeoutClaimBeforeClose(t *testing.T) 
 	}
 }
 
-func TestSSHWebSSHSessionOutputDoesNotRefreshIdleTimeout(t *testing.T) {
-	session := &sshWebSSHSession{
+func TestLocalWebSSHSessionOutputDoesNotRefreshIdleTimeout(t *testing.T) {
+	session := &localWebSSHSession{
 		stdin:       nopWriteCloser{},
 		messages:    make(chan webSSHServerMessage, 4),
 		done:        make(chan struct{}),
@@ -230,76 +262,145 @@ func TestSSHWebSSHSessionOutputDoesNotRefreshIdleTimeout(t *testing.T) {
 	}
 }
 
-func TestNewSSHWebSSHSessionFactoryUsesDedicatedConnectTimeout(t *testing.T) {
+func TestNewLocalWebSSHSessionFactoryStartsConfiguredShell(t *testing.T) {
 	settings := stubWebSSHSettings{
-		host:        "127.0.0.1",
-		port:        22,
-		username:    "root",
-		password:    "secret",
-		idleTimeout: 37 * time.Second,
+		idleTimeout:         37 * time.Second,
+		terminalIdleTimeout: 37 * time.Second,
 	}
 
 	called := false
-	originalDial := sshDialContextClient
-	sshDialContextClient = func(ctx context.Context, network string, address string, config *ssh.ClientConfig) (*ssh.Client, error) {
+	originalShellCommand := webSSHShellCommand
+	originalStart := startWebSSHProcess
+	webSSHShellCommand = func() (string, []string) {
+		return "/bin/test-shell", []string{"-l", "-c"}
+	}
+	startWebSSHProcess = func(ctx context.Context, name string, args ...string) (webSSHProcess, error) {
 		called = true
-		if network != "tcp" {
-			t.Fatalf("expected tcp network, got %q", network)
+		if name != "/bin/test-shell" {
+			t.Fatalf("expected shell path to be forwarded, got %q", name)
 		}
-		if address != "127.0.0.1:22" {
-			t.Fatalf("expected SSH address, got %q", address)
-		}
-		if config.Timeout != defaultWebSSHConnectTimeout {
-			t.Fatalf("expected dedicated connect timeout %v, got %v", defaultWebSSHConnectTimeout, config.Timeout)
+		if len(args) != 2 || args[0] != "-l" || args[1] != "-c" {
+			t.Fatalf("expected shell args to be forwarded, got %#v", args)
 		}
 		return nil, io.EOF
 	}
 	defer func() {
-		sshDialContextClient = originalDial
+		webSSHShellCommand = originalShellCommand
+		startWebSSHProcess = originalStart
 	}()
 
-	_, err := newSSHWebSSHSessionFactory(settings)(context.Background())
+	_, err := newLocalWebSSHSessionFactory(settings)(context.Background())
 	if err != io.EOF {
-		t.Fatalf("expected dial error to be returned, got %v", err)
+		t.Fatalf("expected startup error to be returned, got %v", err)
 	}
 	if !called {
-		t.Fatal("expected SSH dialer to be invoked")
+		t.Fatal("expected local shell starter to be invoked")
 	}
 }
 
-func TestNewSSHWebSSHSessionFactoryCancelsDialWhenContextEnds(t *testing.T) {
+func TestNewLocalWebSSHSessionFactoryCancelsStartWhenContextEnds(t *testing.T) {
 	settings := stubWebSSHSettings{
-		host:        "127.0.0.1",
-		port:        22,
-		username:    "root",
-		password:    "secret",
-		idleTimeout: 37 * time.Second,
+		idleTimeout:         37 * time.Second,
+		terminalIdleTimeout: 37 * time.Second,
 	}
 
 	ctx, cancel := context.WithCancel(context.Background())
 	cancel()
 
 	called := false
-	originalDial := sshDialContextClient
-	sshDialContextClient = func(ctx context.Context, network string, address string, config *ssh.ClientConfig) (*ssh.Client, error) {
+	originalStart := startWebSSHProcess
+	startWebSSHProcess = func(ctx context.Context, name string, args ...string) (webSSHProcess, error) {
 		called = true
 		select {
 		case <-ctx.Done():
 			return nil, ctx.Err()
 		case <-time.After(1 * time.Second):
-			t.Fatal("expected canceled context to stop SSH dial promptly")
+			t.Fatal("expected canceled context to stop shell startup promptly")
 			return nil, nil
 		}
 	}
 	defer func() {
-		sshDialContextClient = originalDial
+		startWebSSHProcess = originalStart
 	}()
 
-	_, err := newSSHWebSSHSessionFactory(settings)(ctx)
+	_, err := newLocalWebSSHSessionFactory(settings)(ctx)
 	if err != context.Canceled {
 		t.Fatalf("expected context cancellation error, got %v", err)
 	}
 	if !called {
-		t.Fatal("expected SSH dialer to be invoked")
+		t.Fatal("expected shell starter to be invoked")
+	}
+}
+
+func TestNewLocalWebSSHSessionFactoryUsesTerminalIdleTimeoutSetting(t *testing.T) {
+	settings := stubWebSSHSettings{
+		idleTimeout:         11 * time.Second,
+		terminalIdleTimeout: 29 * time.Second,
+	}
+
+	process := newBlockingWebSSHProcess()
+	originalStart := startWebSSHProcess
+	startWebSSHProcess = func(ctx context.Context, name string, args ...string) (webSSHProcess, error) {
+		return process, nil
+	}
+	defer func() {
+		startWebSSHProcess = originalStart
+	}()
+
+	rawSession, err := newLocalWebSSHSessionFactory(settings)(context.Background())
+	if err != nil {
+		t.Fatalf("expected session factory to succeed, got %v", err)
+	}
+	session, ok := rawSession.(*localWebSSHSession)
+	if !ok {
+		t.Fatalf("expected local session type, got %T", rawSession)
+	}
+	defer session.Close()
+
+	if session.idleTimeout != 29*time.Second {
+		t.Fatalf("expected terminal idle timeout to be used, got %v", session.idleTimeout)
+	}
+}
+
+func TestNewLocalWebSSHSessionFactoryLaunchesTTYBackedShell(t *testing.T) {
+	if runtime.GOOS == "windows" {
+		t.Skip("pty behavior test is unix-only")
+	}
+
+	settings := stubWebSSHSettings{terminalIdleTimeout: 5 * time.Second}
+	originalShellCommand := webSSHShellCommand
+	webSSHShellCommand = func() (string, []string) {
+		return "/bin/sh", []string{"-c", "if test -t 0; then printf PTY-YES; else printf PTY-NO; fi"}
+	}
+	defer func() {
+		webSSHShellCommand = originalShellCommand
+	}()
+
+	session, err := newLocalWebSSHSessionFactory(settings)(context.Background())
+	if err != nil {
+		t.Fatalf("expected session factory to succeed, got %v", err)
+	}
+	defer session.Close()
+
+	var output strings.Builder
+	deadline := time.After(3 * time.Second)
+	for {
+		select {
+		case message, ok := <-session.Messages():
+			if !ok {
+				if strings.Contains(output.String(), "PTY-YES") {
+					return
+				}
+				t.Fatalf("expected shell output to confirm tty-backed stdin, got %q", output.String())
+			}
+			if message.Type == "output" {
+				output.WriteString(message.Data)
+				if strings.Contains(output.String(), "PTY-YES") {
+					return
+				}
+			}
+		case <-deadline:
+			t.Fatalf("timed out waiting for tty-backed shell output, got %q", output.String())
+		}
 	}
 }

@@ -3,31 +3,39 @@ package api
 import (
 	"context"
 	"errors"
-	"fmt"
 	"io"
-	"net"
-	"strconv"
+	"os"
+	"os/exec"
+	"runtime"
 	"sync"
 	"time"
 
-	"golang.org/x/crypto/ssh"
+	"github.com/creack/pty"
 )
 
-const defaultWebSSHConnectTimeout = 10 * time.Second
-
-var sshDialContextClient = dialSSHClientContext
+var webSSHShellCommand = defaultWebSSHShellCommand
+var startWebSSHProcess = newExecWebSSHProcess
 
 type webSSHSettings interface {
-	GetWebSSHHost() (string, error)
-	GetWebSSHPort() (int, error)
-	GetWebSSHUsername() (string, error)
-	GetWebSSHPassword() (string, error)
-	GetWebSSHIdleTimeout() (time.Duration, error)
+	GetWebTerminalIdleTimeout() (time.Duration, error)
 }
 
-type sshWebSSHSession struct {
-	client                  *ssh.Client
-	sshSession              *ssh.Session
+type webSSHProcess interface {
+	InputPipe() (io.WriteCloser, error)
+	OutputPipe() (io.ReadCloser, error)
+	Start() error
+	Wait() error
+	Kill() error
+}
+
+type execWebSSHProcess struct {
+	cmd    *exec.Cmd
+	input  io.WriteCloser
+	output io.ReadCloser
+}
+
+type localWebSSHSession struct {
+	process                 webSSHProcess
 	stdin                   io.WriteCloser
 	messages                chan webSSHServerMessage
 	idleTimeout             time.Duration
@@ -43,79 +51,37 @@ type sshWebSSHSession struct {
 	done                    chan struct{}
 }
 
-func newSSHWebSSHSessionFactory(settings webSSHSettings) webSSHSessionFactory {
+func newLocalWebSSHSessionFactory(settings webSSHSettings) webSSHSessionFactory {
 	return func(ctx context.Context) (webSSHSession, error) {
-		host, err := settings.GetWebSSHHost()
-		if err != nil {
-			return nil, err
-		}
-		port, err := settings.GetWebSSHPort()
-		if err != nil {
-			return nil, err
-		}
-		username, err := settings.GetWebSSHUsername()
-		if err != nil {
-			return nil, err
-		}
-		password, err := settings.GetWebSSHPassword()
-		if err != nil {
-			return nil, err
-		}
-		idleTimeout, err := settings.GetWebSSHIdleTimeout()
+		idleTimeout, err := settings.GetWebTerminalIdleTimeout()
 		if err != nil {
 			return nil, err
 		}
 
-		if host == "" || username == "" || password == "" {
-			return nil, fmt.Errorf("webssh settings are incomplete")
-		}
-
-		sshConfig := newSSHClientConfig(username, password)
-
-		client, err := sshDialContextClient(ctx, "tcp", net.JoinHostPort(host, strconv.Itoa(port)), sshConfig)
+		shellName, shellArgs := webSSHShellCommand()
+		process, err := startWebSSHProcess(ctx, shellName, shellArgs...)
 		if err != nil {
 			return nil, err
 		}
 
-		sshSession, err := client.NewSession()
-		if err != nil {
-			client.Close()
+		if err := process.Start(); err != nil {
 			return nil, err
 		}
 
-		stdin, err := sshSession.StdinPipe()
+		stdin, err := process.InputPipe()
 		if err != nil {
-			sshSession.Close()
-			client.Close()
+			_ = process.Kill()
 			return nil, err
 		}
-		stdout, err := sshSession.StdoutPipe()
+		output, err := process.OutputPipe()
 		if err != nil {
-			sshSession.Close()
-			client.Close()
-			return nil, err
-		}
-		stderr, err := sshSession.StderrPipe()
-		if err != nil {
-			sshSession.Close()
-			client.Close()
+			_ = stdin.Close()
+			_ = process.Kill()
 			return nil, err
 		}
 
-		if err := sshSession.RequestPty("xterm", 40, 120, ssh.TerminalModes{}); err != nil {
-			sshSession.Close()
-			client.Close()
-			return nil, err
-		}
-		if err := sshSession.Shell(); err != nil {
-			sshSession.Close()
-			client.Close()
-			return nil, err
-		}
-
-		session := &sshWebSSHSession{
-			client:      client,
-			sshSession:  sshSession,
+		session := &localWebSSHSession{
+			process:     process,
 			stdin:       stdin,
 			messages:    make(chan webSSHServerMessage, 32),
 			idleTimeout: idleTimeout,
@@ -124,8 +90,7 @@ func newSSHWebSSHSessionFactory(settings webSSHSettings) webSSHSessionFactory {
 		session.startIdleTimer()
 		session.sendMessage(webSSHServerMessage{Type: "status", Data: "connected"})
 
-		go session.forwardOutput(stdout)
-		go session.forwardOutput(stderr)
+		go session.forwardOutput(output)
 		go session.waitForExit()
 		go func() {
 			<-ctx.Done()
@@ -136,32 +101,119 @@ func newSSHWebSSHSessionFactory(settings webSSHSettings) webSSHSessionFactory {
 	}
 }
 
-func newSSHClientConfig(username string, password string) *ssh.ClientConfig {
-	return &ssh.ClientConfig{
-		User:            username,
-		Auth:            []ssh.AuthMethod{ssh.Password(password)},
-		HostKeyCallback: ssh.InsecureIgnoreHostKey(),
-		Timeout:         defaultWebSSHConnectTimeout,
+func defaultWebSSHShellCommand() (string, []string) {
+	if runtime.GOOS == "windows" {
+		return "cmd.exe", nil
 	}
+	return "/bin/sh", nil
 }
 
-func dialSSHClientContext(ctx context.Context, network string, address string, config *ssh.ClientConfig) (*ssh.Client, error) {
-	dialer := &net.Dialer{Timeout: config.Timeout}
-	conn, err := dialer.DialContext(ctx, network, address)
-	if err != nil {
-		return nil, err
-	}
-
-	clientConn, chans, reqs, err := ssh.NewClientConn(conn, address, config)
-	if err != nil {
-		_ = conn.Close()
-		return nil, err
-	}
-
-	return ssh.NewClient(clientConn, chans, reqs), nil
+func newExecWebSSHProcess(ctx context.Context, name string, args ...string) (webSSHProcess, error) {
+	return &execWebSSHProcess{cmd: exec.CommandContext(ctx, name, args...)}, nil
 }
 
-func (s *sshWebSSHSession) SendInput(input string) error {
+func (p *execWebSSHProcess) InputPipe() (io.WriteCloser, error) {
+	if p.input == nil {
+		return nil, errors.New("web terminal input unavailable")
+	}
+	return p.input, nil
+}
+
+func (p *execWebSSHProcess) OutputPipe() (io.ReadCloser, error) {
+	if p.output == nil {
+		return nil, errors.New("web terminal output unavailable")
+	}
+	return p.output, nil
+}
+
+func (p *execWebSSHProcess) Start() error {
+	if runtime.GOOS == "windows" {
+		stdin, err := p.cmd.StdinPipe()
+		if err != nil {
+			return err
+		}
+		stdout, err := p.cmd.StdoutPipe()
+		if err != nil {
+			_ = stdin.Close()
+			return err
+		}
+		stderr, err := p.cmd.StderrPipe()
+		if err != nil {
+			_ = stdin.Close()
+			_ = stdout.Close()
+			return err
+		}
+		if err := p.cmd.Start(); err != nil {
+			_ = stdin.Close()
+			_ = stdout.Close()
+			_ = stderr.Close()
+			return err
+		}
+		p.input = stdin
+		p.output = &mergedReadCloser{readers: []io.ReadCloser{stdout, stderr}}
+		return nil
+	}
+
+	terminal, err := pty.Start(p.cmd)
+	if err != nil {
+		return err
+	}
+	p.input = terminal
+	p.output = terminal
+	return nil
+}
+
+func (p *execWebSSHProcess) Wait() error {
+	return p.cmd.Wait()
+}
+
+func (p *execWebSSHProcess) Kill() error {
+	if p.cmd.Process == nil {
+		return nil
+	}
+	if err := p.cmd.Process.Kill(); err != nil && !errors.Is(err, os.ErrProcessDone) {
+		return err
+	}
+	return nil
+}
+
+type mergedReadCloser struct {
+	readers []io.ReadCloser
+	index   int
+}
+
+func (r *mergedReadCloser) Read(p []byte) (int, error) {
+	for r.index < len(r.readers) {
+		n, err := r.readers[r.index].Read(p)
+		if err == io.EOF {
+			if closeErr := r.readers[r.index].Close(); closeErr != nil {
+				return n, closeErr
+			}
+			r.index++
+			if n > 0 {
+				return n, nil
+			}
+			continue
+		}
+		return n, err
+	}
+	return 0, io.EOF
+}
+
+func (r *mergedReadCloser) Close() error {
+	var firstErr error
+	for _, reader := range r.readers {
+		if reader == nil {
+			continue
+		}
+		if err := reader.Close(); err != nil && firstErr == nil {
+			firstErr = err
+		}
+	}
+	return firstErr
+}
+
+func (s *localWebSSHSession) SendInput(input string) error {
 	if !s.canDeliverIO() {
 		return errors.New("webssh session closed")
 	}
@@ -173,11 +225,11 @@ func (s *sshWebSSHSession) SendInput(input string) error {
 	return err
 }
 
-func (s *sshWebSSHSession) Messages() <-chan webSSHServerMessage {
+func (s *localWebSSHSession) Messages() <-chan webSSHServerMessage {
 	return s.messages
 }
 
-func (s *sshWebSSHSession) Close() error {
+func (s *localWebSSHSession) Close() error {
 	var err error
 	s.closeOnce.Do(func() {
 		s.markExpired()
@@ -194,14 +246,9 @@ func (s *sshWebSSHSession) Close() error {
 				err = closeErr
 			}
 		}
-		if s.sshSession != nil {
-			if closeErr := s.sshSession.Close(); closeErr != nil && err == nil {
-				err = closeErr
-			}
-		}
-		if s.client != nil {
-			if closeErr := s.client.Close(); closeErr != nil && err == nil {
-				err = closeErr
+		if s.process != nil {
+			if killErr := s.process.Kill(); killErr != nil && err == nil {
+				err = killErr
 			}
 		}
 		s.messagesMu.Lock()
@@ -213,22 +260,23 @@ func (s *sshWebSSHSession) Close() error {
 	return err
 }
 
-func (s *sshWebSSHSession) waitForExit() {
-	if s.sshSession == nil {
+func (s *localWebSSHSession) waitForExit() {
+	if s.process == nil {
 		s.sendMessage(webSSHServerMessage{Type: "status", Data: "closed"})
 		_ = s.Close()
 		return
 	}
-	err := s.sshSession.Wait()
-	if err != nil {
-		s.sendMessage(webSSHServerMessage{Type: "status", Data: err.Error()})
-	} else {
+	if err := s.process.Wait(); err != nil {
+		if s.canDeliverIO() {
+			s.sendMessage(webSSHServerMessage{Type: "status", Data: err.Error()})
+		}
+	} else if s.canDeliverIO() {
 		s.sendMessage(webSSHServerMessage{Type: "status", Data: "closed"})
 	}
 	_ = s.Close()
 }
 
-func (s *sshWebSSHSession) forwardOutput(reader io.Reader) {
+func (s *localWebSSHSession) forwardOutput(reader io.Reader) {
 	buffer := make([]byte, 4096)
 	for {
 		n, err := reader.Read(buffer)
@@ -239,7 +287,7 @@ func (s *sshWebSSHSession) forwardOutput(reader io.Reader) {
 			s.sendMessage(webSSHServerMessage{Type: "output", Data: string(buffer[:n])})
 		}
 		if err != nil {
-			if err != io.EOF {
+			if err != io.EOF && s.canDeliverIO() {
 				s.sendMessage(webSSHServerMessage{Type: "status", Data: err.Error()})
 			}
 			return
@@ -247,7 +295,7 @@ func (s *sshWebSSHSession) forwardOutput(reader io.Reader) {
 	}
 }
 
-func (s *sshWebSSHSession) startIdleTimer() uint64 {
+func (s *localWebSSHSession) startIdleTimer() uint64 {
 	if s.idleTimeout <= 0 {
 		return 0
 	}
@@ -259,7 +307,7 @@ func (s *sshWebSSHSession) startIdleTimer() uint64 {
 	return s.timerGen
 }
 
-func (s *sshWebSSHSession) resetIdleTimer() uint64 {
+func (s *localWebSSHSession) resetIdleTimer() uint64 {
 	s.timerMu.Lock()
 	defer s.timerMu.Unlock()
 	if s.timer == nil {
@@ -269,7 +317,7 @@ func (s *sshWebSSHSession) resetIdleTimer() uint64 {
 	return s.scheduleIdleTimerLocked()
 }
 
-func (s *sshWebSSHSession) scheduleIdleTimerLocked() uint64 {
+func (s *localWebSSHSession) scheduleIdleTimerLocked() uint64 {
 	s.timerGen++
 	generation := s.timerGen
 	s.timer = time.AfterFunc(s.idleTimeout, func() {
@@ -278,7 +326,7 @@ func (s *sshWebSSHSession) scheduleIdleTimerLocked() uint64 {
 	return generation
 }
 
-func (s *sshWebSSHSession) handleIdleTimeout(generation uint64) {
+func (s *localWebSSHSession) handleIdleTimeout(generation uint64) {
 	s.timerMu.Lock()
 	if generation != s.timerGen {
 		s.timerMu.Unlock()
@@ -299,25 +347,25 @@ func (s *sshWebSSHSession) handleIdleTimeout(generation uint64) {
 	_ = s.Close()
 }
 
-func (s *sshWebSSHSession) canDeliverIO() bool {
+func (s *localWebSSHSession) canDeliverIO() bool {
 	s.stateMu.RLock()
 	defer s.stateMu.RUnlock()
 	return !s.expired
 }
 
-func (s *sshWebSSHSession) markExpired() {
+func (s *localWebSSHSession) markExpired() {
 	s.stateMu.Lock()
 	defer s.stateMu.Unlock()
 	s.expired = true
 }
 
-func (s *sshWebSSHSession) markExpiredLocked() {
+func (s *localWebSSHSession) markExpiredLocked() {
 	s.stateMu.Lock()
 	defer s.stateMu.Unlock()
 	s.expired = true
 }
 
-func (s *sshWebSSHSession) sendMessage(message webSSHServerMessage) {
+func (s *localWebSSHSession) sendMessage(message webSSHServerMessage) {
 	s.messagesMu.RLock()
 	defer s.messagesMu.RUnlock()
 	if s.messages == nil {
