@@ -50,6 +50,7 @@ export default {
     dns: "DNS",
     admins: "ادمین‌ها",
     settings: "پیکربندی",
+    webTerminal: "ترمینال وب",
   },
   main: {
     tiles: "کاشی‌ها",

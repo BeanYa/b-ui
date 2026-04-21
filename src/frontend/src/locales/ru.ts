@@ -50,6 +50,7 @@ export default {
     dns: "DNS",
     admins: "Администраторы",
     settings: "Настройки",
+    webTerminal: "Веб-терминал",
   },
   main: {
     tiles: "Плитки",

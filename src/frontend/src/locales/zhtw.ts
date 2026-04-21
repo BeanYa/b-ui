@@ -50,6 +50,7 @@ export default {
     dns: "DNS",
     admins: "管理員",
     settings: "設置",
+    webTerminal: "WebTerminal",
   },
   main: {
     tiles: "信息卡",

@@ -89,6 +89,7 @@ import { useLocale, useTheme } from 'vuetify'
 import { i18n, languages } from '@/locales'
 import { useRouter } from 'vue-router'
 import HttpUtil from '@/plugins/httputil'
+import useAuthStore from '@/store/modules/auth'
 import { applyThemePreference, getThemePreference, type ThemePreference } from '@/plugins/theme'
 import { getLoginWindowThemeModel, type LoginWindowThemeName } from '@/views/loginWindowTheme'
 
@@ -125,12 +126,14 @@ const passwordRules = [
 
 const loading = ref(false)
 const router = useRouter()
+const auth = useAuthStore()
 
 const login = async () => {
   if (username.value == '' || password.value == '') return
   loading.value=true
   const response = await HttpUtil.post('api/login',{user: username.value, pass: password.value})
   if(response.success){
+    await auth.loadAuthState()
     setTimeout(() => {
       loading.value=false
       router.push('/')

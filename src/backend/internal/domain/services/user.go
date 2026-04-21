@@ -13,6 +13,19 @@ import (
 type UserService struct {
 }
 
+func (s *UserService) IsFirstUser(username string) (bool, error) {
+	if username == "" {
+		return false, nil
+	}
+
+	user, err := s.GetFirstUser()
+	if err != nil {
+		return false, err
+	}
+
+	return user.Username == username, nil
+}
+
 func (s *UserService) GetFirstUser() (*model.User, error) {
 	db := database.GetDB()
 

@@ -42,32 +42,33 @@ var defaultConfig = `{
 }`
 
 var defaultValueMap = map[string]string{
-	"webListen":      "",
-	"webDomain":      "",
-	"webPort":        "2095",
-	"secret":         common.Random(32),
-	"webCertFile":    "",
-	"webKeyFile":     "",
-	"webPath":        "/app/",
-	"webURI":         "",
-	"sessionMaxAge":  "0",
-	"trafficAge":     "30",
-	"timeLocation":   "Asia/Tehran",
-	"tlsDomainHints": "www.youtube.com\nwww.cloudflare.com\nwww.apple.com\nwww.microsoft.com\nwww.amazon.com\nwww.github.com\nwww.nvidia.com\nwww.adobe.com\nwww.bing.com\nwww.dropbox.com",
-	"subListen":      "",
-	"subPort":        "2096",
-	"subPath":        "/sub/",
-	"subDomain":      "",
-	"subCertFile":    "",
-	"subKeyFile":     "",
-	"subUpdates":     "12",
-	"subEncode":      "true",
-	"subShowInfo":    "false",
-	"subURI":         "",
-	"subJsonExt":     "",
-	"subClashExt":    "",
-	"config":         defaultConfig,
-	"version":        config.GetVersion(),
+	"webListen":              "",
+	"webDomain":              "",
+	"webPort":                "2095",
+	"secret":                 common.Random(32),
+	"webCertFile":            "",
+	"webKeyFile":             "",
+	"webPath":                "/app/",
+	"webURI":                 "",
+	"webTerminalIdleTimeout": "300",
+	"sessionMaxAge":          "0",
+	"trafficAge":             "30",
+	"timeLocation":           "Asia/Tehran",
+	"tlsDomainHints":         "www.youtube.com\nwww.cloudflare.com\nwww.apple.com\nwww.microsoft.com\nwww.amazon.com\nwww.github.com\nwww.nvidia.com\nwww.adobe.com\nwww.bing.com\nwww.dropbox.com",
+	"subListen":              "",
+	"subPort":                "2096",
+	"subPath":                "/sub/",
+	"subDomain":              "",
+	"subCertFile":            "",
+	"subKeyFile":             "",
+	"subUpdates":             "12",
+	"subEncode":              "true",
+	"subShowInfo":            "false",
+	"subURI":                 "",
+	"subJsonExt":             "",
+	"subClashExt":            "",
+	"config":                 defaultConfig,
+	"version":                config.GetVersion(),
 }
 
 type SettingService struct {
@@ -100,6 +101,8 @@ func (s *SettingService) GetAllSetting() (*map[string]string, error) {
 	delete(allSetting, "secret")
 	delete(allSetting, "config")
 	delete(allSetting, "version")
+	delete(allSetting, "webTerminalIdleTimeout")
+	delete(allSetting, "webSSHIdleTimeout")
 
 	return &allSetting, nil
 }
@@ -237,6 +240,40 @@ func (s *SettingService) GetSecret() ([]byte, error) {
 
 func (s *SettingService) GetSessionMaxAge() (int, error) {
 	return s.getInt("sessionMaxAge")
+}
+
+func (s *SettingService) GetWebTerminalIdleTimeout() (time.Duration, error) {
+	seconds, err := s.getTerminalIdleTimeoutSeconds()
+	if err != nil {
+		return 0, err
+	}
+	if seconds <= 0 {
+		return 0, nil
+	}
+	return time.Duration(seconds) * time.Second, nil
+}
+
+func (s *SettingService) getTerminalIdleTimeoutSeconds() (int, error) {
+	setting, err := s.getSetting("webTerminalIdleTimeout")
+	if err == nil {
+		return strconv.Atoi(setting.Value)
+	}
+	if err != nil && !database.IsNotFound(err) {
+		return 0, err
+	}
+
+	legacySetting, legacyErr := s.getSetting("webSSHIdleTimeout")
+	if legacyErr == nil {
+		if saveErr := s.saveSetting("webTerminalIdleTimeout", legacySetting.Value); saveErr != nil {
+			return 0, saveErr
+		}
+		return strconv.Atoi(legacySetting.Value)
+	}
+	if legacyErr != nil && !database.IsNotFound(legacyErr) {
+		return 0, legacyErr
+	}
+
+	return strconv.Atoi(defaultValueMap["webTerminalIdleTimeout"])
 }
 
 func (s *SettingService) GetTrafficAge() (int, error) {

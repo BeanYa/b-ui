@@ -50,6 +50,7 @@ export default {
     dns: "DNS",
     admins: "Admins",
     settings: "Settings",
+    webTerminal: "WebTerminal",
   },
   main: {
     tiles: "Tiles",

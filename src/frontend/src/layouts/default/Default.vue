@@ -23,14 +23,16 @@
 </template>
 
 <script lang="ts" setup>
-import { computed, ref, watch } from 'vue'
+import { computed, onMounted, ref, watch } from 'vue'
 import { useDisplay } from 'vuetify'
+import useAuthStore from '@/store/modules/auth'
 import DefaultBar from './AppBar.vue'
 import Drawer from './Drawer.vue'
 import DefaultView from './View.vue'
 
 const { mdAndDown, width } = useDisplay()
 const DRAWER_WIDE_BREAKPOINT = 1680
+const auth = useAuthStore()
 
 const isMobile = computed((): boolean => mdAndDown.value)
 const isWideScreen = computed((): boolean => width.value >= DRAWER_WIDE_BREAKPOINT)
@@ -63,6 +65,12 @@ watch([isMobile, isWideScreen], ([mobile, wide]) => {
   }
 
   collapsed.value = wide ? localStorage.getItem('shell.drawer.collapsed') === '1' : true
+})
+
+onMounted(() => {
+  if (!auth.loaded) {
+    void auth.loadAuthState()
+  }
 })
 </script>
 
