@@ -7,11 +7,23 @@ import (
 
 	service "github.com/alireza0/s-ui/src/backend/internal/domain/services"
 	database "github.com/alireza0/s-ui/src/backend/internal/infra/db"
+	"github.com/alireza0/s-ui/src/backend/internal/infra/db/model"
 	logger "github.com/alireza0/s-ui/src/backend/internal/infra/logging"
 	"github.com/alireza0/s-ui/src/backend/internal/shared/util"
 
 	"github.com/gin-gonic/gin"
 )
+
+type apiUserService interface {
+	GetUsers() (*[]model.User, error)
+	Login(username string, password string, remoteIP string) (string, error)
+	ChangePass(id string, oldPass string, newUser string, newPass string) error
+	LoadTokens() ([]byte, error)
+	GetUserTokens(username string) (*[]model.Tokens, error)
+	AddToken(username string, expiry int64, desc string) (string, error)
+	DeleteToken(id string) error
+	IsFirstUser(username string) (bool, error)
+}
 
 type ApiService struct {
 	service.SettingService
@@ -27,6 +39,12 @@ type ApiService struct {
 	service.StatsService
 	service.ServerService
 	service.DomainHintService
+	userService apiUserService
+}
+
+type authState struct {
+	Username string `json:"username"`
+	IsAdmin  bool   `json:"isAdmin"`
 }
 
 func (a *ApiService) LoadData(c *gin.Context) {
@@ -174,12 +192,34 @@ func (a *ApiService) LoadPartialData(c *gin.Context, objs []string) error {
 }
 
 func (a *ApiService) GetUsers(c *gin.Context) {
-	users, err := a.UserService.GetUsers()
+	users, err := a.getUserService().GetUsers()
 	if err != nil {
 		jsonMsg(c, "", err)
 		return
 	}
 	jsonObj(c, *users, nil)
+}
+
+func (a *ApiService) GetAuthState(c *gin.Context) {
+	username := GetLoginUser(c)
+	isAdmin, err := a.getUserService().IsFirstUser(username)
+	if err != nil {
+		jsonMsg(c, "", err)
+		return
+	}
+
+	jsonObj(c, authState{
+		Username: username,
+		IsAdmin:  isAdmin,
+	}, nil)
+}
+
+func (a *ApiService) getUserService() apiUserService {
+	if a.userService != nil {
+		return a.userService
+	}
+
+	return &a.UserService
 }
 
 func (a *ApiService) GetSettings(c *gin.Context) {
@@ -267,7 +307,7 @@ func (a *ApiService) postActions(c *gin.Context) (string, json.RawMessage, error
 
 func (a *ApiService) Login(c *gin.Context) {
 	remoteIP := getRemoteIp(c)
-	loginUser, err := a.UserService.Login(c.Request.FormValue("user"), c.Request.FormValue("pass"), remoteIP)
+	loginUser, err := a.getUserService().Login(c.Request.FormValue("user"), c.Request.FormValue("pass"), remoteIP)
 	if err != nil {
 		jsonMsg(c, "", err)
 		return
@@ -293,7 +333,7 @@ func (a *ApiService) ChangePass(c *gin.Context) {
 	oldPass := c.Request.FormValue("oldPass")
 	newUsername := c.Request.FormValue("newUsername")
 	newPass := c.Request.FormValue("newPass")
-	err := a.UserService.ChangePass(id, oldPass, newUsername, newPass)
+	err := a.getUserService().ChangePass(id, oldPass, newUsername, newPass)
 	if err == nil {
 		logger.Info("change user credentials success")
 		jsonMsg(c, "save", nil)
@@ -363,12 +403,12 @@ func (a *ApiService) Logout(c *gin.Context) {
 }
 
 func (a *ApiService) LoadTokens() ([]byte, error) {
-	return a.UserService.LoadTokens()
+	return a.getUserService().LoadTokens()
 }
 
 func (a *ApiService) GetTokens(c *gin.Context) {
 	loginUser := GetLoginUser(c)
-	tokens, err := a.UserService.GetUserTokens(loginUser)
+	tokens, err := a.getUserService().GetUserTokens(loginUser)
 	jsonObj(c, tokens, err)
 }
 
@@ -381,13 +421,13 @@ func (a *ApiService) AddToken(c *gin.Context) {
 		return
 	}
 	desc := c.Request.FormValue("desc")
-	token, err := a.UserService.AddToken(loginUser, expiryInt, desc)
+	token, err := a.getUserService().AddToken(loginUser, expiryInt, desc)
 	jsonObj(c, token, err)
 }
 
 func (a *ApiService) DeleteToken(c *gin.Context) {
 	tokenId := c.Request.FormValue("id")
-	err := a.UserService.DeleteToken(tokenId)
+	err := a.getUserService().DeleteToken(tokenId)
 	jsonMsg(c, "", err)
 }
 

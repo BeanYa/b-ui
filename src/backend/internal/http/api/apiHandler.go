@@ -79,6 +79,8 @@ func (a *APIHandler) getHandler(c *gin.Context) {
 		return
 	case "users":
 		a.ApiService.GetUsers(c)
+	case "authState":
+		a.ApiService.GetAuthState(c)
 	case "settings":
 		a.ApiService.GetSettings(c)
 	case "stats":
