@@ -1,18 +1,10 @@
 <template>
   <v-navigation-drawer
     v-model="showDrawer"
-    :class="[
-      'app-drawer',
-      {
-        'app-drawer--rail-state': isRail,
-        'app-drawer--content-hidden': isContentHidden,
-      },
-    ]"
+    :class="['app-drawer', drawerClasses]"
     :temporary="isMobile"
     :permanent="!isMobile"
-    :rail="isRail"
-    :rail-width="92"
-    :width="308"
+    :width="drawerVisualState.width"
   >
     <div class="app-drawer__brand">
       <div class="app-drawer__logo">
@@ -41,7 +33,7 @@
         <v-list-item
           v-for="item in group.items"
           :key="item.title"
-          :class="['app-drawer__item', { 'app-drawer__item--rail': collapsed && !isMobile }]"
+          :class="['app-drawer__item', { 'app-drawer__item--rail': isItemRail }]"
           link
           :to="item.path"
           :active="router.currentRoute.value.path === item.path"
@@ -70,7 +62,7 @@
         </div>
         <v-btn
           class="app-drawer__logout"
-          :block="showExpandedContent || isMobile"
+          :block="!isContentHidden || isMobile"
           color="error"
           variant="tonal"
           @click="logoutUser"
@@ -93,10 +85,15 @@
 import { computed, onBeforeUnmount, ref, watch } from 'vue'
 import router from '@/router'
 import { logout } from '@/plugins/httputil'
+import {
+  getDrawerVisualState,
+  getSettledDrawerPhase,
+  planDrawerPhaseTransition,
+  type DrawerPhase,
+} from './drawerTransition'
 
 const props = defineProps(['isMobile', 'displayDrawer', 'collapsed'])
 const emit = defineEmits(['toggleDrawer'])
-const DRAWER_CONTENT_TRANSITION_MS = 140
 
 let drawerContentTimer: ReturnType<typeof setTimeout> | null = null
 
@@ -109,8 +106,7 @@ const showDrawer = computed({
   },
 })
 
-const drawerRail = ref(!props.isMobile && props.collapsed)
-const showExpandedContent = ref(props.isMobile || !props.collapsed)
+const drawerPhase = ref<DrawerPhase>(props.isMobile ? 'expanded' : getSettledDrawerPhase(props.collapsed))
 
 const clearDrawerContentTimer = () => {
   if (!drawerContentTimer) return
@@ -122,36 +118,58 @@ const clearDrawerContentTimer = () => {
 const syncDrawerVisualState = () => {
   clearDrawerContentTimer()
 
-  if (props.isMobile) {
-    drawerRail.value = false
-    showExpandedContent.value = true
+  const transition = planDrawerPhaseTransition({
+    collapsed: props.collapsed,
+    currentPhase: drawerPhase.value,
+    isMobile: props.isMobile,
+    layoutChanged: false,
+  })
+
+  drawerPhase.value = transition.nextPhase
+
+  if (transition.settleAfterMs === null) {
     return
   }
 
-  if (props.collapsed) {
-    showExpandedContent.value = false
-    drawerContentTimer = setTimeout(() => {
-      drawerRail.value = true
-      drawerContentTimer = null
-    }, DRAWER_CONTENT_TRANSITION_MS)
-    return
-  }
-
-  drawerRail.value = false
   drawerContentTimer = setTimeout(() => {
-    showExpandedContent.value = true
+    drawerPhase.value = getSettledDrawerPhase(props.collapsed)
     drawerContentTimer = null
-  }, DRAWER_CONTENT_TRANSITION_MS)
+  }, transition.settleAfterMs)
 }
 
-watch(() => [props.isMobile, props.collapsed], syncDrawerVisualState, { immediate: true })
+watch(() => [props.isMobile, props.collapsed] as const, ([isMobile, collapsed], previous) => {
+  if (!previous || previous[0] !== isMobile) {
+    clearDrawerContentTimer()
+    drawerPhase.value = planDrawerPhaseTransition({
+      collapsed,
+      currentPhase: drawerPhase.value,
+      isMobile,
+      layoutChanged: true,
+    }).nextPhase
+    return
+  }
+
+  syncDrawerVisualState()
+}, { immediate: true })
 
 onBeforeUnmount(() => {
   clearDrawerContentTimer()
 })
 
-const isRail = computed((): boolean => !props.isMobile && drawerRail.value)
-const isContentHidden = computed((): boolean => !props.isMobile && !showExpandedContent.value)
+const drawerVisualState = computed(() => getDrawerVisualState({
+  collapsed: props.collapsed,
+  isMobile: props.isMobile,
+  phase: drawerPhase.value,
+}))
+const isRail = computed((): boolean => drawerVisualState.value.isRail)
+const isItemRail = computed((): boolean => drawerVisualState.value.itemRail)
+const isContentHidden = computed((): boolean => drawerVisualState.value.contentHidden)
+const drawerClasses = computed(() => ({
+  'app-drawer--collapsing': drawerPhase.value === 'collapsing',
+  'app-drawer--content-hidden': isContentHidden.value,
+  'app-drawer--expanding': drawerPhase.value === 'expanding',
+  'app-drawer--rail-state': isRail.value,
+}))
 
 const menuGroups = [
   {
@@ -241,6 +259,8 @@ const logoutUser = async () => {
   max-width: 180px;
   min-width: 0;
   overflow: hidden;
+  transform-origin: left center;
+  will-change: opacity, transform;
 }
 
 .app-drawer__name {
@@ -273,6 +293,8 @@ const logoutUser = async () => {
   overflow: hidden;
   padding: 8px 14px 4px;
   text-transform: uppercase;
+  transform-origin: left center;
+  will-change: opacity, transform;
 }
 
 .app-drawer__list {
@@ -353,6 +375,8 @@ const logoutUser = async () => {
   min-height: 72px;
   overflow: hidden;
   padding: 12px;
+  transform-origin: left center;
+  will-change: opacity, transform;
 }
 
 .app-drawer__footer-label {
@@ -381,6 +405,8 @@ const logoutUser = async () => {
 .app-drawer__logout-label {
   overflow: hidden;
   text-overflow: ellipsis;
+  transform-origin: left center;
+  will-change: opacity, transform;
   white-space: nowrap;
 }
 
@@ -397,21 +423,21 @@ const logoutUser = async () => {
   padding: 12px 10px;
 }
 
-:deep(.v-navigation-drawer--rail .v-navigation-drawer__content) {
+.app-drawer--rail-state :deep(.v-navigation-drawer__content) {
   padding-inline: 8px;
 }
 
-:deep(.v-navigation-drawer--rail .app-drawer__list) {
+.app-drawer--rail-state :deep(.app-drawer__list) {
   align-items: center;
   padding-inline: 0;
 }
 
-:deep(.v-navigation-drawer--rail .app-drawer__brand) {
+.app-drawer--rail-state :deep(.app-drawer__brand) {
   justify-content: center;
   padding-inline: 0;
 }
 
-:deep(.v-navigation-drawer--rail .app-drawer__item) {
+.app-drawer--rail-state :deep(.app-drawer__item) {
   grid-template-columns: minmax(0, 1fr) !important;
 }
 
@@ -423,27 +449,18 @@ const logoutUser = async () => {
 :deep(.app-drawer__item > .v-list-item__content) {
   min-width: 0;
   overflow: hidden;
+  transform-origin: left center;
   transition:
     opacity var(--app-motion-fast) var(--app-ease-standard),
     transform var(--app-motion-fast) var(--app-ease-standard),
     flex-basis var(--app-motion-fast) var(--app-ease-standard),
     width var(--app-motion-fast) var(--app-ease-standard),
     margin var(--app-motion-fast) var(--app-ease-standard);
+  will-change: opacity, transform;
 }
 
 :deep(.app-drawer__item--rail.v-list-item--nav) {
   padding-inline: 0 !important;
-}
-
-:deep(.app-drawer__item > .v-list-item__content) {
-  min-width: 0;
-  overflow: hidden;
-  transition:
-    opacity var(--app-motion-fast) var(--app-ease-standard),
-    transform var(--app-motion-fast) var(--app-ease-standard),
-    flex-basis var(--app-motion-fast) var(--app-ease-standard),
-    width var(--app-motion-fast) var(--app-ease-standard),
-    margin var(--app-motion-fast) var(--app-ease-standard);
 }
 
 .app-drawer--content-hidden :deep(.app-drawer__item > .v-list-item__content) {
@@ -453,6 +470,11 @@ const logoutUser = async () => {
   pointer-events: none;
   transform: translateX(-8px);
   width: 0 !important;
+}
+
+.app-drawer--collapsing :deep(.app-drawer__item > .v-list-item__content) {
+  opacity: 0;
+  transform: translateX(-8px);
 }
 
 :deep(.app-drawer__item--rail > .v-list-item__prepend) {
@@ -486,12 +508,12 @@ const logoutUser = async () => {
   width: 0 !important;
 }
 
-:deep(.v-navigation-drawer--rail .app-drawer__footer) {
+.app-drawer--rail-state :deep(.app-drawer__footer) {
   justify-items: center;
   padding-inline: 8px;
 }
 
-:deep(.v-navigation-drawer--rail .app-drawer__logout) {
+.app-drawer--rail-state :deep(.app-drawer__logout) {
   min-height: 52px;
   min-width: 52px;
   padding-inline: 0;
@@ -524,7 +546,7 @@ const logoutUser = async () => {
   opacity: 0;
   padding-bottom: 0;
   padding-top: 0;
-  transform: translateY(8px);
+  transform: translateX(-8px);
 }
 
 .app-drawer--rail-state .app-drawer__logout {
@@ -534,6 +556,14 @@ const logoutUser = async () => {
 .app-drawer--content-hidden .app-drawer__logout-label {
   margin: 0;
   max-width: 0;
+  opacity: 0;
+  transform: translateX(-8px);
+}
+
+.app-drawer--collapsing .app-drawer__titles,
+.app-drawer--collapsing .app-drawer__section,
+.app-drawer--collapsing .app-drawer__footer-note,
+.app-drawer--collapsing .app-drawer__logout-label {
   opacity: 0;
   transform: translateX(-8px);
 }
