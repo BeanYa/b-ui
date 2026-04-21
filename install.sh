@@ -8,8 +8,18 @@ TARGET_PATH="${SCRIPT_DIR}/${TARGET_REL}"
 REPO_OWNER="${REPO_OWNER:-BeanYa}"
 REPO_NAME="${REPO_NAME:-b-ui}"
 
-if [[ -f "${TARGET_PATH}" ]]; then
-    exec bash "${TARGET_PATH}" "$@"
-fi
+main() {
+    if [[ -f "${TARGET_PATH}" ]]; then
+        exec bash "${TARGET_PATH}" "$@"
+    fi
 
-exec bash <(curl -Ls "https://raw.githubusercontent.com/${REPO_OWNER}/${REPO_NAME}/main/${TARGET_REL}") "$@"
+    exec bash <(curl -Ls "https://raw.githubusercontent.com/${REPO_OWNER}/${REPO_NAME}/main/${TARGET_REL}") "$@"
+}
+
+if [[ "${BASH_SOURCE[0]}" == "$0" ]]; then
+    main "$@"
+elif [[ -f "${TARGET_PATH}" ]]; then
+    source "${TARGET_PATH}"
+else
+    source <(curl -Ls "https://raw.githubusercontent.com/${REPO_OWNER}/${REPO_NAME}/main/${TARGET_REL}")
+fi
