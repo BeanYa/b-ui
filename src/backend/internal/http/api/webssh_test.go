@@ -1,15 +1,20 @@
 package api
 
 import (
+	"context"
 	"encoding/json"
 	"errors"
 	"net/http"
 	"net/http/httptest"
+	"strings"
 	"testing"
+	"time"
 
 	service "github.com/alireza0/s-ui/src/backend/internal/domain/services"
 	"github.com/alireza0/s-ui/src/backend/internal/infra/db/model"
 	logger "github.com/alireza0/s-ui/src/backend/internal/infra/logging"
+	"github.com/coder/websocket"
+	"github.com/coder/websocket/wsjson"
 	"github.com/gin-contrib/sessions"
 	"github.com/gin-contrib/sessions/cookie"
 	"github.com/gin-gonic/gin"
@@ -49,6 +54,45 @@ type authStateResponse struct {
 	} `json:"obj"`
 }
 
+type stubWebSSHSession struct {
+	inputs    []string
+	inputErr  error
+	messages  chan webSSHServerMessage
+	closed    bool
+	afterSend func()
+}
+
+func newStubWebSSHSession() *stubWebSSHSession {
+	return &stubWebSSHSession{
+		messages: make(chan webSSHServerMessage, 8),
+	}
+}
+
+func (s *stubWebSSHSession) SendInput(input string) error {
+	s.inputs = append(s.inputs, input)
+	if s.inputErr != nil {
+		return s.inputErr
+	}
+	s.messages <- webSSHServerMessage{Type: "output", Data: strings.ToUpper(input)}
+	s.messages <- webSSHServerMessage{Type: "status", Data: "bridge-open"}
+	if s.afterSend != nil {
+		s.afterSend()
+	}
+	return nil
+}
+
+func (s *stubWebSSHSession) Messages() <-chan webSSHServerMessage {
+	return s.messages
+}
+
+func (s *stubWebSSHSession) Close() error {
+	if !s.closed {
+		s.closed = true
+		close(s.messages)
+	}
+	return nil
+}
+
 func TestUserServiceIsFirstUserReturnsFalseForEmptyUsername(t *testing.T) {
 	isAdmin, err := (&service.UserService{}).IsFirstUser("")
 	if err != nil {
@@ -60,7 +104,7 @@ func TestUserServiceIsFirstUserReturnsFalseForEmptyUsername(t *testing.T) {
 }
 
 func TestAPIAuthStateRequiresLogin(t *testing.T) {
-	router := newTestAPIRouter(nil)
+	router := newTestAPIRouter(nil, nil)
 
 	req := httptest.NewRequest(http.MethodGet, "/api/authState", nil)
 	req.Header.Set("X-Requested-With", "XMLHttpRequest")
@@ -85,7 +129,7 @@ func TestAPIAuthStateRequiresLogin(t *testing.T) {
 func TestAPIAuthStateReturnsAdminCapabilityForFirstUser(t *testing.T) {
 	router := newTestAPIRouter(stubUserService{isFirstUser: func(username string) (bool, error) {
 		return username == "admin", nil
-	}})
+	}}, nil)
 	cookieHeader := loginCookie(t, router, "admin")
 
 	req := httptest.NewRequest(http.MethodGet, "/api/authState", nil)
@@ -111,7 +155,7 @@ func TestAPIAuthStateReturnsAdminCapabilityForFirstUser(t *testing.T) {
 func TestAPIAuthStateReturnsNonAdminForLaterUser(t *testing.T) {
 	router := newTestAPIRouter(stubUserService{isFirstUser: func(username string) (bool, error) {
 		return username == "admin", nil
-	}})
+	}}, nil)
 	cookieHeader := loginCookie(t, router, "operator")
 
 	req := httptest.NewRequest(http.MethodGet, "/api/authState", nil)
@@ -137,7 +181,7 @@ func TestAPIAuthStateReturnsNonAdminForLaterUser(t *testing.T) {
 func TestAPIAuthStateReturnsUserServiceError(t *testing.T) {
 	router := newTestAPIRouter(stubUserService{isFirstUser: func(username string) (bool, error) {
 		return false, errors.New("boom")
-	}})
+	}}, nil)
 	cookieHeader := loginCookie(t, router, "admin")
 
 	req := httptest.NewRequest(http.MethodGet, "/api/authState", nil)
@@ -157,13 +201,197 @@ func TestAPIAuthStateReturnsUserServiceError(t *testing.T) {
 	}
 }
 
-func newTestAPIRouter(userService apiUserService) *gin.Engine {
+func TestAPIWebSSHRejectsNonAdminUsers(t *testing.T) {
+	router := newTestAPIRouter(stubUserService{isFirstUser: func(username string) (bool, error) {
+		return username == "admin", nil
+	}}, nil)
+	cookieHeader := loginCookie(t, router, "operator")
+	server := httptest.NewServer(router)
+	defer server.Close()
+
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+
+	_, response, err := websocket.Dial(ctx, strings.Replace(server.URL, "http://", "ws://", 1)+"/api/webssh/ws", &websocket.DialOptions{
+		HTTPHeader: http.Header{
+			"Cookie": []string{cookieHeader},
+		},
+	})
+	if err == nil {
+		t.Fatal("expected non-admin websocket request to be rejected")
+	}
+	if response == nil {
+		t.Fatal("expected rejection response")
+	}
+	if response.StatusCode != http.StatusForbidden {
+		t.Fatalf("expected status %d, got %d", http.StatusForbidden, response.StatusCode)
+	}
+}
+
+func TestAPIWebSSHForwardsBridgeMessagesForAdminUsers(t *testing.T) {
+	session := newStubWebSSHSession()
+	router := newTestAPIRouter(stubUserService{isFirstUser: func(username string) (bool, error) {
+		return username == "admin", nil
+	}}, func(context.Context) (webSSHSession, error) {
+		return session, nil
+	})
+	cookieHeader := loginCookie(t, router, "admin")
+	server := httptest.NewServer(router)
+	defer server.Close()
+
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+
+	conn, _, err := websocket.Dial(ctx, strings.Replace(server.URL, "http://", "ws://", 1)+"/api/webssh/ws", &websocket.DialOptions{
+		HTTPHeader: http.Header{
+			"Cookie": []string{cookieHeader},
+		},
+	})
+	if err != nil {
+		t.Fatalf("dial websocket: %v", err)
+	}
+	defer conn.Close(websocket.StatusNormalClosure, "")
+
+	if err := wsjson.Write(ctx, conn, webSSHClientMessage{Type: "input", Data: "pwd\n"}); err != nil {
+		t.Fatalf("write websocket message: %v", err)
+	}
+
+	var output webSSHServerMessage
+	if err := wsjson.Read(ctx, conn, &output); err != nil {
+		t.Fatalf("read output message: %v", err)
+	}
+	if output.Type != "output" {
+		t.Fatalf("expected output message, got %#v", output)
+	}
+	if output.Data != "PWD\n" {
+		t.Fatalf("expected transformed bridge output, got %q", output.Data)
+	}
+
+	var status webSSHServerMessage
+	if err := wsjson.Read(ctx, conn, &status); err != nil {
+		t.Fatalf("read status message: %v", err)
+	}
+	if status.Type != "status" {
+		t.Fatalf("expected status message, got %#v", status)
+	}
+	if status.Data != "bridge-open" {
+		t.Fatalf("expected bridge status, got %q", status.Data)
+	}
+
+	if len(session.inputs) != 1 || session.inputs[0] != "pwd\n" {
+		t.Fatalf("expected bridge input to be forwarded, got %#v", session.inputs)
+	}
+}
+
+func TestAPIWebSSHReturnsBridgeErrorStatus(t *testing.T) {
+	session := newStubWebSSHSession()
+	session.inputErr = errors.New("bridge write failed")
+	router := newTestAPIRouter(stubUserService{isFirstUser: func(username string) (bool, error) {
+		return username == "admin", nil
+	}}, func(context.Context) (webSSHSession, error) {
+		return session, nil
+	})
+	cookieHeader := loginCookie(t, router, "admin")
+	server := httptest.NewServer(router)
+	defer server.Close()
+
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+
+	conn, _, err := websocket.Dial(ctx, strings.Replace(server.URL, "http://", "ws://", 1)+"/api/webssh/ws", &websocket.DialOptions{
+		HTTPHeader: http.Header{
+			"Cookie": []string{cookieHeader},
+		},
+	})
+	if err != nil {
+		t.Fatalf("dial websocket: %v", err)
+	}
+	defer conn.Close(websocket.StatusNormalClosure, "")
+
+	if err := wsjson.Write(ctx, conn, webSSHClientMessage{Type: "input", Data: "pwd\n"}); err != nil {
+		t.Fatalf("write websocket message: %v", err)
+	}
+
+	var status webSSHServerMessage
+	if err := wsjson.Read(ctx, conn, &status); err != nil {
+		t.Fatalf("read status message: %v", err)
+	}
+	if status.Type != "status" {
+		t.Fatalf("expected status message, got %#v", status)
+	}
+	if status.Data != "bridge write failed" {
+		t.Fatalf("expected bridge error status, got %q", status.Data)
+	}
+}
+
+func TestAPIWebSSHReturnsIdleTimeoutStatusBeforeClosing(t *testing.T) {
+	session := newStubWebSSHSession()
+	session.afterSend = func() {
+		session.messages <- webSSHServerMessage{Type: "status", Data: "idle-timeout"}
+		_ = session.Close()
+	}
+	router := newTestAPIRouter(stubUserService{isFirstUser: func(username string) (bool, error) {
+		return username == "admin", nil
+	}}, func(context.Context) (webSSHSession, error) {
+		return session, nil
+	})
+	cookieHeader := loginCookie(t, router, "admin")
+	server := httptest.NewServer(router)
+	defer server.Close()
+
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+
+	conn, _, err := websocket.Dial(ctx, strings.Replace(server.URL, "http://", "ws://", 1)+"/api/webssh/ws", &websocket.DialOptions{
+		HTTPHeader: http.Header{
+			"Cookie": []string{cookieHeader},
+		},
+	})
+	if err != nil {
+		t.Fatalf("dial websocket: %v", err)
+	}
+	defer conn.Close(websocket.StatusNormalClosure, "")
+
+	if err := wsjson.Write(ctx, conn, webSSHClientMessage{Type: "input", Data: "pwd\n"}); err != nil {
+		t.Fatalf("write websocket message: %v", err)
+	}
+
+	var output webSSHServerMessage
+	if err := wsjson.Read(ctx, conn, &output); err != nil {
+		t.Fatalf("read output message: %v", err)
+	}
+	if output.Type != "output" {
+		t.Fatalf("expected output message, got %#v", output)
+	}
+
+	var status webSSHServerMessage
+	if err := wsjson.Read(ctx, conn, &status); err != nil {
+		t.Fatalf("read bridge-open status: %v", err)
+	}
+	if status.Type != "status" || status.Data != "bridge-open" {
+		t.Fatalf("expected initial bridge-open status, got %#v", status)
+	}
+
+	if err := wsjson.Read(ctx, conn, &status); err != nil {
+		t.Fatalf("read idle-timeout status: %v", err)
+	}
+	if status.Type != "status" || status.Data != "idle-timeout" {
+		t.Fatalf("expected idle-timeout status, got %#v", status)
+	}
+
+	if _, _, err := conn.Read(ctx); err == nil {
+		t.Fatal("expected websocket to close after idle-timeout")
+	}
+}
+
+func newTestAPIRouter(userService apiUserService, webSSHFactory webSSHSessionFactory) *gin.Engine {
 	gin.SetMode(gin.TestMode)
 	logger.InitLogger(logging.ERROR)
 	router := gin.New()
 	router.Use(sessions.Sessions("s-ui", cookie.NewStore([]byte("test-secret"))))
 	handler := &APIHandler{}
 	handler.ApiService.userService = userService
+	handler.webSSHSessionFactory = webSSHFactory
 	handler.initRouter(router.Group("/api"))
 	router.GET("/__test/login/:username", func(c *gin.Context) {
 		if err := SetLoginUser(c, c.Param("username"), 0); err != nil {

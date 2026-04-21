@@ -10,7 +10,8 @@ import (
 
 type APIHandler struct {
 	ApiService
-	apiv2 *APIv2Handler
+	apiv2                *APIv2Handler
+	webSSHSessionFactory webSSHSessionFactory
 }
 
 func NewAPIHandler(g *gin.RouterGroup, a2 *APIv2Handler) {
@@ -27,6 +28,7 @@ func (a *APIHandler) initRouter(g *gin.RouterGroup) {
 			checkLogin(c)
 		}
 	})
+	g.GET("/webssh/ws", a.handleWebSSH)
 	g.POST("/:postAction", a.postHandler)
 	g.GET("/:getAction", a.getHandler)
 }
