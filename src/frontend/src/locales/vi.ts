@@ -140,6 +140,7 @@ export default {
   },
   login: {
     title: "Đăng nhập",
+    subtitle: "Truy cập bảng điều khiển B-UI bằng tài khoản quản trị của bạn.",
     username: "Tên người dùng",
     unRules: "Tên người dùng không thể trống",
     password: "Mật khẩu",

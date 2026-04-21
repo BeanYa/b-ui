@@ -140,6 +140,7 @@ export default {
   },
   login: {
     title: "ورود",
+    subtitle: "با حساب مدیر خود به محیط کنترلی B-UI دسترسی پیدا کنید.",
     username: "نام کاربری",
     unRules: "نام کاربری نمی‌تواند خالی باشد",
     password: "کلمه عبور",
