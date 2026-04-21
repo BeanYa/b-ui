@@ -24,6 +24,8 @@ Please be respectful and constructive when interacting with maintainers and othe
 
 Before changing code or docs, use the root [`README.md`](./README.md) for the repository overview, [`docs/manual.md`](./docs/manual.md) for the user/operator workflow, and [`MIGRATION.md`](./MIGRATION.md) for upgrade or install-path migration details. This guide stays focused on contributor workflow.
 
+This project also keeps a local `docs/superpowers/` workspace for design specs, implementation plans, and other Superpower skill outputs used to support development. These documents are auxiliary engineering artifacts that help structure feature work, debugging, review, and release preparation alongside the normal Git workflow.
+
 ### Prerequisites
 
 - **Go**: 1.25 or later (see `go.mod` for the exact version).
