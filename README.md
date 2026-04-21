@@ -23,6 +23,20 @@ bash <(curl -Ls https://raw.githubusercontent.com/BeanYa/b-ui/main/install.sh)
 bash <(curl -Ls https://raw.githubusercontent.com/BeanYa/b-ui/main/install.sh) v0.0.1
 ```
 
+### Docker 引导入口
+
+Docker 模式使用 `scripts/release/install-docker.sh`，会交互式收集面板端口、路径、管理员凭据，以及可选的协议引导信息，然后在当前目录下生成 `deploy/docker-compose.yml`、`deploy/db/`、`deploy/cert/` 并启动容器。
+
+```sh
+IMAGE_REF=<your-image-ref> bash ./scripts/release/install-docker.sh
+```
+
+- 默认面板访问方式是直接 `http://<server-ip>:<panel-port><panel-path>`，不依赖宿主机 Nginx
+- 脚本不会为面板自动申请 ACME 证书；如需可信证书，请把文件挂载到 `deploy/cert/` 后在面板中改用对应路径
+- 可选协议引导支持 `VLESS + TLS`、`VLESS + Reality`、`Hysteria2`，也可以跳过只部署面板
+- 为了让首次引导更容易跑通，`VLESS + TLS` 和 `Hysteria2` 生成的客户端 TLS 侧默认会保留 `insecure: true`；如果你已经换成可信证书，请回到面板里把对应客户端或模板收紧
+- 更完整的 Docker 说明见 [`docs/manual.md`](./docs/manual.md)
+
 ### 快速开始
 
 1. 以 root 运行安装命令。
