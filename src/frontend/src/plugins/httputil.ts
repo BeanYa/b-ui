@@ -37,6 +37,8 @@ function _handleMsg(msg: any): void {
 export const logout = async () => {
   const response = await HttpUtils.get('api/logout')
   if(response.success){
+    const { default: useAuthStore } = await import('@/store/modules/auth')
+    useAuthStore().reset()
     router.push('/login')
   }
 }

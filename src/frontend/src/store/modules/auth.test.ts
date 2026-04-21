@@ -56,6 +56,21 @@ describe('auth store', () => {
     expect(auth.isAdmin).toBe(false)
     expect(auth.loaded).toBe(false)
   })
+
+  it('resets cached auth state', async () => {
+    const { default: useAuthStore } = await import('./auth')
+    const auth = useAuthStore()
+
+    auth.username = 'admin'
+    auth.isAdmin = true
+    auth.loaded = true
+
+    auth.reset()
+
+    expect(auth.username).toBe('')
+    expect(auth.isAdmin).toBe(false)
+    expect(auth.loaded).toBe(false)
+  })
 })
 
 describe('Default layout auth bootstrap', () => {
@@ -67,5 +82,27 @@ describe('Default layout auth bootstrap', () => {
 
     expect(source).toContain("@/store/modules/auth")
     expect(source).toMatch(/onMounted\(\(\) => \{[\s\S]*if \(!auth\.loaded\) \{[\s\S]*auth\.loadAuthState\(\)[\s\S]*\}[\s\S]*\}\)/)
+  })
+})
+
+describe('Login and logout auth refresh', () => {
+  it('refreshes auth state after a successful login before returning to the shell', () => {
+    const source = readFileSync(
+      fileURLToPath(new URL('../../views/Login.vue', import.meta.url)),
+      'utf8',
+    )
+
+    expect(source).toContain("@/store/modules/auth")
+    expect(source).toMatch(/if\(response\.success\)\{[\s\S]*await auth\.loadAuthState\(\)[\s\S]*router\.push\('\/'\)/)
+  })
+
+  it('clears cached auth state when logging out', () => {
+    const source = readFileSync(
+      fileURLToPath(new URL('../../plugins/httputil.ts', import.meta.url)),
+      'utf8',
+    )
+
+    expect(source).toContain("@/store/modules/auth")
+    expect(source).toMatch(/if\(response\.success\)\{[\s\S]*useAuthStore\(\)\.reset\(\)[\s\S]*router\.push\('\/login'\)/)
   })
 })

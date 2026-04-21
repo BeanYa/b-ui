@@ -8,6 +8,11 @@ const Auth = defineStore('Auth', {
     loaded: false,
   }),
   actions: {
+    reset() {
+      this.username = ''
+      this.isAdmin = false
+      this.loaded = false
+    },
     async loadAuthState() {
       const msg = await HttpUtils.get('api/authState')
       if (!msg.success) {

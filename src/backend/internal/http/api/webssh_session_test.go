@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"io"
+	"sync"
 	"runtime"
 	"strings"
 	"testing"
@@ -260,6 +261,49 @@ func TestLocalWebSSHSessionOutputDoesNotRefreshIdleTimeout(t *testing.T) {
 	if message.Type != "status" || message.Data != "idle-timeout" {
 		t.Fatalf("expected idle-timeout status after output-only activity, got %#v", message)
 	}
+}
+
+func TestMergedReadCloserStreamsStderrBeforeStdoutCloses(t *testing.T) {
+	stdoutReader, stdoutWriter := io.Pipe()
+	stderrReader, stderrWriter := io.Pipe()
+	reader := &mergedReadCloser{readers: []io.ReadCloser{stdoutReader, stderrReader}}
+	defer reader.Close()
+
+	readResult := make(chan struct {
+		data string
+		err  error
+	}, 1)
+	go func() {
+		buffer := make([]byte, 32)
+		n, err := reader.Read(buffer)
+		readResult <- struct {
+			data string
+			err  error
+		}{data: string(buffer[:n]), err: err}
+	}()
+
+	var writeWG sync.WaitGroup
+	writeWG.Add(1)
+	go func() {
+		defer writeWG.Done()
+		_, _ = io.WriteString(stderrWriter, "stderr-ready")
+	}()
+
+	select {
+	case result := <-readResult:
+		if result.err != nil {
+			t.Fatalf("expected stderr data without error, got %v", result.err)
+		}
+		if result.data != "stderr-ready" {
+			t.Fatalf("expected stderr data to be forwarded, got %q", result.data)
+		}
+	case <-time.After(200 * time.Millisecond):
+		t.Fatal("expected stderr output before stdout closes")
+	}
+
+	_ = stdoutWriter.Close()
+	_ = stderrWriter.Close()
+	writeWG.Wait()
 }
 
 func TestNewLocalWebSSHSessionFactoryStartsConfiguredShell(t *testing.T) {

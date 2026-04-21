@@ -178,39 +178,88 @@ func (p *execWebSSHProcess) Kill() error {
 }
 
 type mergedReadCloser struct {
-	readers []io.ReadCloser
-	index   int
+	readers   []io.ReadCloser
+	reader    *io.PipeReader
+	writer    *io.PipeWriter
+	initOnce  sync.Once
+	closeOnce sync.Once
+	writeMu   sync.Mutex
+	errMu     sync.Mutex
+	wg        sync.WaitGroup
+	firstErr  error
 }
 
 func (r *mergedReadCloser) Read(p []byte) (int, error) {
-	for r.index < len(r.readers) {
-		n, err := r.readers[r.index].Read(p)
-		if err == io.EOF {
-			if closeErr := r.readers[r.index].Close(); closeErr != nil {
-				return n, closeErr
-			}
-			r.index++
-			if n > 0 {
-				return n, nil
-			}
-			continue
-		}
-		return n, err
-	}
-	return 0, io.EOF
+	r.startFanIn()
+	return r.reader.Read(p)
 }
 
 func (r *mergedReadCloser) Close() error {
 	var firstErr error
-	for _, reader := range r.readers {
-		if reader == nil {
-			continue
+	r.closeOnce.Do(func() {
+		for _, reader := range r.readers {
+			if reader == nil {
+				continue
+			}
+			if err := reader.Close(); err != nil && firstErr == nil {
+				firstErr = err
+			}
 		}
-		if err := reader.Close(); err != nil && firstErr == nil {
-			firstErr = err
+		if r.writer != nil {
+			_ = r.writer.Close()
 		}
-	}
+		if r.reader != nil {
+			_ = r.reader.Close()
+		}
+	})
 	return firstErr
+}
+
+func (r *mergedReadCloser) startFanIn() {
+	r.initOnce.Do(func() {
+		r.reader, r.writer = io.Pipe()
+		for _, reader := range r.readers {
+			if reader == nil {
+				continue
+			}
+
+			r.wg.Add(1)
+			go func(reader io.ReadCloser) {
+				defer r.wg.Done()
+				defer reader.Close()
+
+				buffer := make([]byte, 4096)
+				for {
+					n, err := reader.Read(buffer)
+					if n > 0 {
+						r.writeMu.Lock()
+						_, writeErr := r.writer.Write(buffer[:n])
+						r.writeMu.Unlock()
+						if writeErr != nil {
+							return
+						}
+					}
+					if err != nil {
+						if err != io.EOF {
+							r.errMu.Lock()
+							if r.firstErr == nil {
+								r.firstErr = err
+							}
+							r.errMu.Unlock()
+						}
+						return
+					}
+				}
+			}(reader)
+		}
+
+		go func() {
+			r.wg.Wait()
+			r.errMu.Lock()
+			defer r.errMu.Unlock()
+			_ = r.writer.CloseWithError(r.firstErr)
+		}()
+	})
 }
 
 func (s *localWebSSHSession) SendInput(input string) error {
