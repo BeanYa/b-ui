@@ -140,6 +140,7 @@ export default {
   },
   login: {
     title: "Login",
+    subtitle: "Access the B-UI control surface with your administrator account.",
     username: "Username",
     unRules: "Username can not be empty",
     password: "Password",

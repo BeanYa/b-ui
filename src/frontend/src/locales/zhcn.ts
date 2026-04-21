@@ -140,6 +140,7 @@ export default {
   },
   login: {
     title: "登录",
+    subtitle: "使用您的管理员账户访问 B-UI 控制界面。",
     username: "用户名",
     unRules: "用户名不能为空",
     password: "密码",
