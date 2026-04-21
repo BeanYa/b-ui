@@ -64,9 +64,10 @@ The **frontend** now lives directly in the `src/frontend/` directory of this rep
 
 The backend is built with these tags for full functionality:
 
-- `with_quic`, `with_grpc`, `with_utls`, `with_acme`, `with_gvisor`, `with_tailscale`
+- `with_quic`, `with_grpc`, `with_utls`, `with_acme`, `with_gvisor`, `with_naive_outbound`, `with_tailscale`
+- platform-specific builds additionally layer in tags such as `with_musl` or `with_purego`, plus compatibility tags like `badlinkname` and `tfogo_checklinkname0`
 
-Use the same tags when building locally if you need feature parity with releases.
+Use the centralized build scripts when you need release-parity behavior locally, because they resolve the correct tag set per host and target.
 
 ### Release and Versioning
 

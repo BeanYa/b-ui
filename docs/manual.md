@@ -92,7 +92,7 @@ bash <(curl -Ls https://raw.githubusercontent.com/BeanYa/b-ui/main/install.sh) v
 
 推荐首次使用：`VLESS + TLS`。
 
-这是最快、最稳妥、最适合作为第一次成功路径的组合：一个 TLS 模板、一个 VLESS 入站、一次客户端验证。
+这是最快、最稳妥、最适合作为第一次成功路径的组合：一个 TLS 模板、一个客户端、一个 VLESS 入站、一次客户端验证。
 
 前置条件：
 
@@ -107,11 +107,12 @@ bash <(curl -Ls https://raw.githubusercontent.com/BeanYa/b-ui/main/install.sh) v
 2. 进入 `TLS Settings`。
 3. 点击 `Add`，或使用内置 `TLS` 预设按钮。
 4. 创建一个 TLS 模板。
-5. 进入 `Inbounds`。
-6. 新建一个 `vless` 入站，并绑定刚刚创建的 TLS 模板。
-7. 添加客户端。
-8. 复制节点或订阅信息到客户端。
-9. 做一次基础连通性验证。
+5. 进入 `Clients`。
+6. 新建一个客户端，先保存客户端的 `UUID`，如有需要再在客户端编辑器里设置 `Flow`。
+7. 进入 `Inbounds`。
+8. 新建一个 `vless` 入站，并绑定刚刚创建的 TLS 模板与已有客户端。
+9. 复制节点或订阅信息到客户端。
+10. 做一次基础连通性验证。
 
 如果你只想先跑通，请先完成本节，再去看后面的字段细节章节。
 
@@ -126,7 +127,7 @@ bash <(curl -Ls https://raw.githubusercontent.com/BeanYa/b-ui/main/install.sh) v
 
 - `TLS Settings` -> `Add`
 - `TLS Settings` -> 内置预设按钮：`TLS`、`Hysteria2`、`Reality`
-- 从入站内快速创建：`TLS` 卡片 -> `Quick Create`
+- 在入站编辑界面中选择一个已存在的 TLS 模板
 
 最重要的字段：
 
@@ -189,7 +190,7 @@ ACME 说明：
 关键逻辑：
 
 - `vless`、`trojan`、`vmess` 会把 `transport` 复制到导出结果中。
-- `hysteria2` 导出到客户端 JSON 时会保留 `up_mbps` / `down_mbps` 这类字段；生成链接时对应查询参数使用 `upmbps` / `downmbps`，并可带上 `obfs`。
+- `hysteria2` 在导出到客户端 JSON 时会把服务端带宽字段转换成客户端侧的 `up_mbps` / `down_mbps`；生成链接时则映射为 `upmbps` / `downmbps`，并可带上 `obfs`。
 - 如果入站没有绑定 TLS 模板，导出结果中的 `tls` 字段会被删除。
 - 对于基于 TLS 的协议，客户端导出 JSON 中的 `server_name`、`alpn` 以及可用的 Reality 等 TLS 参数来自绑定的 TLS 模板；链接里只会出现协议链接格式实际支持的那部分字段。
 
@@ -212,10 +213,12 @@ ACME 说明：
 - 一个可用的 TLS 模板
 - 一个公网域名
 - 证书和密钥，或可用的 ACME 签发条件
+- 一个已经在 `Clients` 中创建好的客户端
 
 #### 面板里先点哪里
 
 - `TLS Settings` -> 创建或确认标准 TLS 模板
+- `Clients` -> 创建或确认一个客户端
 - `Inbounds` -> `Add` -> 选择 `vless`
 
 #### 哪些字段必须填
@@ -228,12 +231,13 @@ ACME 说明：
   - `Tag`
   - `Listen`
   - `Listen Port`
-  - `UUID`
   - `TLS`
+  - 绑定已有客户端
 
 建议字段：
 
-- `Flow` 除非客户端明确要求，否则留空
+- `UUID` 不在入站表单中填写；先到 `Clients` 页面或客户端编辑器中创建客户端
+- `Flow` 也在客户端编辑器中配置；当前新建 VLESS 客户端通常默认会带上 `xtls-rprx-vision`，只有在客户端或部署目标明确不需要时再手动调整
 - `Transport` 只有在确实需要 HTTP、WebSocket、gRPC、HTTPUpgrade 时再启用
 - 如果公网主机名和本地绑定地址不同，在客户端侧 `Addr` 中补充对外地址
 
@@ -254,11 +258,12 @@ ACME 说明：
 
 - 一个适合 `Hysteria2` 的 TLS 模板，优先使用内置 `Hysteria2` 预设
 - 对外可达的 UDP 端口
-- 客户端使用的密码
+- 一个已经在 `Clients` 中创建好的客户端，密码在该客户端里配置
 
 #### 面板里先点哪里
 
 - `TLS Settings` -> 内置 `Hysteria2` 预设或 `Add`
+- `Clients` -> 创建或确认一个客户端
 - `Inbounds` -> `Add` -> 选择 `hysteria2`
 
 #### 哪些字段必须填
@@ -271,12 +276,13 @@ ACME 说明：
   - `Tag`
   - `Listen`
   - `Listen Port`
-  - `Password`
   - `TLS`
   - 带宽参数，除非启用了 `Ignore Client Bandwidth`
+  - 绑定已有客户端
 
 可选字段：
 
+- `Password` 不在服务端入站表单中填写；先在客户端编辑器里为该客户端设置密码
 - `Obfs` 与 salamander 密码
 - `Masquerade`
 - 客户端侧多端口跳跃相关字段
@@ -286,7 +292,7 @@ ACME 说明：
 - 确认入站保存后 `tls_id` 不为空。
 - 确认绑定的 TLS 模板没有误开 Reality。
 - 在 Hysteria2 客户端中测试导出的密码和主机名。
-- 检查导出的 Hysteria2 客户端配置或链接内容：JSON 里确认 `password`、`up_mbps`、`down_mbps`；链接里确认 `password`、`upmbps`、`downmbps`，以及你实际启用的 `obfs`、多端口或 `fastopen` 等字段。
+- 检查导出的 Hysteria2 客户端配置或链接内容：JSON 里确认 `password`、`up_mbps`、`down_mbps`；链接里确认 `password`、`upmbps`、`downmbps`，并注意它们是由服务端带宽字段换位映射过来的，同时确认你实际启用的 `obfs`、多端口或 `fastopen` 等字段。
 
 ### 6.3 VLESS + Reality
 
@@ -319,8 +325,13 @@ ACME 说明：
   - `Tag`
   - `Listen`
   - `Listen Port`
-  - `UUID`
   - `TLS` 指向 Reality 模板
+  - 绑定已有客户端
+
+补充说明：
+
+- `UUID` 不在 VLESS 入站表单中填写；请先在 `Clients` 页面或客户端编辑器中创建客户端。
+- 如果需要 `Flow`，同样在客户端编辑器中配置，而不是在入站表单中配置。
 
 #### 创建完后如何验证
 

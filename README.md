@@ -27,15 +27,15 @@ bash <(curl -Ls https://raw.githubusercontent.com/BeanYa/b-ui/main/install.sh) v
 
 1. 以 root 运行安装命令。
 2. 安装完成后确认服务状态：`systemctl status b-ui`。
-3. 后续更新使用 `b-ui update`，强制重装当前版本使用 `b-ui update --force`。
-4. 先完成安装并确认服务正常运行，再根据当前面板页面和已有文档继续配置入站、证书与面板参数。
+3. 先阅读完整用户手册 [`docs/manual.md`](./docs/manual.md)，按手册完成 TLS、客户端和入站配置。
+4. 后续更新使用 `b-ui update`，强制重装当前版本使用 `b-ui update --force`。
 
 ## 文档导航
 
 - 安装迁移上游 `s-ui`：[`MIGRATION.md`](./MIGRATION.md)
+- 完整用户手册：[`docs/manual.md`](./docs/manual.md)
 - 贡献与本地开发：[`CONTRIBUTING.md`](./CONTRIBUTING.md)
 - 前端设计基线：[`DESIGN.md`](./DESIGN.md)
-- 完整用户手册：当前仓库尚未单独整理，现阶段以安装说明、迁移说明和开发文档为主
 
 ## 更新
 
