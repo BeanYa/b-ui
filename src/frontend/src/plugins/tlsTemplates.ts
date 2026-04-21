@@ -37,24 +37,23 @@ const presets: Record<TlsPresetKey, Omit<tls, 'name' | 'id'>> = {
       enabled: true,
       server_name: '',
       alpn: ['h2', 'http/1.1'],
-      min_version: '1.2',
-      max_version: '1.3',
       certificate_path: '',
       key_path: '',
     },
-    client: {},
+    client: {
+      insecure: true,
+    },
   },
   hysteria2: {
     server: {
       enabled: true,
       server_name: '',
-      alpn: ['h3'],
-      min_version: '1.3',
-      max_version: '1.3',
       certificate_path: '',
       key_path: '',
     },
-    client: {},
+    client: {
+      insecure: true,
+    },
   },
   reality: {
     server: {
@@ -68,7 +67,6 @@ const presets: Record<TlsPresetKey, Omit<tls, 'name' | 'id'>> = {
         },
         private_key: '',
         short_id: RandomUtil.randomShortId(),
-        max_time_difference: '1m',
       },
     },
     client: {
