@@ -4,9 +4,9 @@ import (
 	"bytes"
 	"context"
 	"io"
-	"sync"
 	"runtime"
 	"strings"
+	"sync"
 	"testing"
 	"time"
 )
@@ -43,10 +43,11 @@ func (r *recordingWriteCloser) Close() error {
 }
 
 type blockingWebSSHProcess struct {
-	stdin  io.WriteCloser
-	stdout *io.PipeReader
-	stderr *io.PipeReader
-	waitCh chan struct{}
+	stdin   io.WriteCloser
+	stdout  *io.PipeReader
+	stderr  *io.PipeReader
+	waitCh  chan struct{}
+	resized [][2]int
 }
 
 func newBlockingWebSSHProcess() *blockingWebSSHProcess {
@@ -65,6 +66,10 @@ func newBlockingWebSSHProcess() *blockingWebSSHProcess {
 func (p *blockingWebSSHProcess) InputPipe() (io.WriteCloser, error) { return p.stdin, nil }
 func (p *blockingWebSSHProcess) OutputPipe() (io.ReadCloser, error) { return p.stdout, nil }
 func (p *blockingWebSSHProcess) Start() error                       { return nil }
+func (p *blockingWebSSHProcess) Resize(cols int, rows int) error {
+	p.resized = append(p.resized, [2]int{cols, rows})
+	return nil
+}
 func (p *blockingWebSSHProcess) Wait() error {
 	<-p.waitCh
 	return nil
@@ -261,6 +266,31 @@ func TestLocalWebSSHSessionOutputDoesNotRefreshIdleTimeout(t *testing.T) {
 	if message.Type != "status" || message.Data != "idle-timeout" {
 		t.Fatalf("expected idle-timeout status after output-only activity, got %#v", message)
 	}
+}
+
+func TestLocalWebSSHSessionResizeForwardsDimensionsToProcess(t *testing.T) {
+	process := newBlockingWebSSHProcess()
+	session := &localWebSSHSession{
+		process:     process,
+		stdin:       nopWriteCloser{},
+		messages:    make(chan webSSHServerMessage, 2),
+		done:        make(chan struct{}),
+		idleTimeout: time.Second,
+	}
+	session.startIdleTimer()
+
+	if err := session.Resize(132, 40); err != nil {
+		t.Fatalf("expected resize to succeed, got %v", err)
+	}
+
+	if len(process.resized) != 1 {
+		t.Fatalf("expected process resize to be called once, got %#v", process.resized)
+	}
+	if process.resized[0][0] != 132 || process.resized[0][1] != 40 {
+		t.Fatalf("expected resize dimensions 132x40, got %#v", process.resized[0])
+	}
+
+	_ = session.Close()
 }
 
 func TestMergedReadCloserStreamsStderrBeforeStdoutCloses(t *testing.T) {

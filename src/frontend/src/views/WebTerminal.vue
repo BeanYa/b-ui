@@ -9,7 +9,7 @@
         </p>
         <div class="app-page__hero-meta">
           <span class="app-page__hero-meta-item">Connection status: {{ session.status }}</span>
-          <span class="app-page__hero-meta-item">{{ session.transcript.length }} events</span>
+          <span class="app-page__hero-meta-item">Interactive TTY stream</span>
         </div>
       </div>
     </section>
@@ -30,25 +30,10 @@
         <div>
           <div class="web-terminal__label">Transcript</div>
           <div class="web-terminal__transcript" role="log" aria-live="polite">
-            <div v-if="session.transcript.length === 0" class="web-terminal__placeholder">
-              Connect to start the terminal session.
+            <div ref="terminalHost" class="web-terminal__viewport"></div>
+            <div v-if="session.status !== 'connected'" class="web-terminal__placeholder">
+              Connect to start the interactive terminal session.
             </div>
-            <pre v-else>{{ transcriptText }}</pre>
-          </div>
-        </div>
-
-        <div>
-          <div class="web-terminal__label">Command</div>
-          <div class="web-terminal__composer">
-            <v-text-field
-              v-model="command"
-              hide-details
-              density="comfortable"
-              placeholder="Enter a command"
-              :disabled="!canSend"
-              @keydown.enter.prevent="sendCommand"
-            ></v-text-field>
-            <v-btn color="primary" :disabled="!canSend || !command.trim()" @click="sendCommand">Send</v-btn>
           </div>
         </div>
       </v-card-text>
@@ -57,7 +42,10 @@
 </template>
 
 <script lang="ts" setup>
-import { computed, onBeforeUnmount, ref, shallowRef } from 'vue'
+import { computed, onBeforeUnmount, onMounted, ref, shallowRef } from 'vue'
+import { FitAddon } from '@xterm/addon-fit'
+import { Terminal } from '@xterm/xterm'
+import '@xterm/xterm/css/xterm.css'
 
 import {
   createWebTerminalSession,
@@ -66,8 +54,12 @@ import {
 } from '@/features/webterminal/session'
 
 const session = ref(createWebTerminalSession())
-const command = ref('')
 const socket = shallowRef<WebSocket | null>(null)
+const terminalHost = ref<HTMLDivElement | null>(null)
+const terminal = shallowRef<Terminal | null>(null)
+const fitAddon = shallowRef<FitAddon | null>(null)
+const resizeObserver = shallowRef<ResizeObserver | null>(null)
+const terminalInputSubscription = shallowRef<{ dispose: () => void } | null>(null)
 
 const applySession = (action: Parameters<typeof reduceWebTerminalSession>[1]) => {
   session.value = reduceWebTerminalSession(session.value, action)
@@ -75,8 +67,22 @@ const applySession = (action: Parameters<typeof reduceWebTerminalSession>[1]) =>
 
 const canConnect = computed(() => session.value.status === 'disconnected')
 const canDisconnect = computed(() => session.value.status !== 'disconnected')
-const canSend = computed(() => session.value.status === 'connected' && socket.value !== null)
-const transcriptText = computed(() => session.value.transcript.map(entry => entry.text).join('\n'))
+
+const writeTerminalStatusLine = (text: string) => {
+  terminal.value?.writeln(`\r\n${text}`)
+}
+
+const sendResize = () => {
+  const currentTerminal = terminal.value
+  const currentSocket = socket.value
+  if (!currentTerminal || !currentSocket || currentSocket.readyState !== WebSocket.OPEN) return
+
+  currentSocket.send(JSON.stringify({
+    type: 'resize',
+    cols: currentTerminal.cols,
+    rows: currentTerminal.rows,
+  }))
+}
 
 const connect = () => {
   if (!canConnect.value) return
@@ -92,6 +98,10 @@ const connect = () => {
     text: 'Opening terminal connection...',
   })
 
+  terminal.value?.reset()
+  terminal.value?.focus()
+  writeTerminalStatusLine('Opening terminal connection...')
+
   console.debug('[WebTerminal] connecting websocket', {
     rawBaseUrl,
     normalizedBaseUrl,
@@ -103,6 +113,10 @@ const connect = () => {
 
   currentSocket.addEventListener('open', () => {
     if (socket.value !== currentSocket) return
+
+    terminal.value?.focus()
+    fitAddon.value?.fit()
+    sendResize()
 
     applySession({
       type: 'connection',
@@ -121,6 +135,14 @@ const connect = () => {
         type: 'server-message',
         message,
       })
+
+      if (message.type === 'output') {
+        terminal.value?.write(message.data)
+      }
+
+      if (message.type === 'status') {
+        writeTerminalStatusLine(message.data)
+      }
     } catch {
       console.warn('[WebTerminal] ignored malformed websocket payload', {
         payload: event.data,
@@ -147,6 +169,8 @@ const connect = () => {
       status: 'disconnected',
       text: 'Terminal connection error.',
     })
+
+    writeTerminalStatusLine('Terminal connection error.')
   })
 
   currentSocket.addEventListener('close', () => {
@@ -160,6 +184,8 @@ const connect = () => {
         status: 'disconnected',
         text: 'Terminal disconnected.',
       })
+
+      writeTerminalStatusLine('Terminal disconnected.')
     }
   })
 }
@@ -176,21 +202,65 @@ const disconnect = () => {
     status: 'disconnected',
     text: 'Terminal disconnected.',
   })
+
+  writeTerminalStatusLine('Terminal disconnected.')
 }
 
-const sendCommand = () => {
-  if (!canSend.value || command.value.trim().length === 0 || socket.value === null) return
+onMounted(() => {
+  const host = terminalHost.value
+  if (!host) return
 
-  socket.value.send(JSON.stringify({ type: 'input', data: `${command.value}\n` }))
-  command.value = ''
-}
+  const currentTerminal = new Terminal({
+    convertEol: false,
+    cursorBlink: true,
+    fontFamily: 'Geist Mono Variable, monospace',
+    fontSize: 15,
+    lineHeight: 1.35,
+    theme: {
+      background: '#000000',
+      foreground: '#e5e7eb',
+      cursor: '#e5e7eb',
+      selectionBackground: '#374151',
+    },
+  })
+  const currentFitAddon = new FitAddon()
+
+  currentTerminal.loadAddon(currentFitAddon)
+  currentTerminal.open(host)
+  currentFitAddon.fit()
+  currentTerminal.focus()
+  currentTerminal.writeln('Press Connect to start the interactive terminal session.')
+
+  terminalInputSubscription.value = currentTerminal.onData((data) => {
+    if (session.value.status !== 'connected' || socket.value === null || socket.value.readyState !== WebSocket.OPEN) return
+
+    socket.value.send(JSON.stringify({ type: 'input', data }))
+  })
+
+  terminal.value = currentTerminal
+  fitAddon.value = currentFitAddon
+
+  const observer = new ResizeObserver(() => {
+    currentFitAddon.fit()
+    sendResize()
+  })
+  observer.observe(host)
+  resizeObserver.value = observer
+})
 
 onBeforeUnmount(() => {
   const currentSocket = socket.value
-  if (!currentSocket) return
+  if (currentSocket) {
+    socket.value = null
+    currentSocket.close()
+  }
 
-  socket.value = null
-  currentSocket.close()
+  terminalInputSubscription.value?.dispose()
+  terminalInputSubscription.value = null
+  resizeObserver.value?.disconnect()
+  resizeObserver.value = null
+  terminal.value?.dispose()
+  terminal.value = null
 })
 </script>
 
@@ -227,34 +297,33 @@ onBeforeUnmount(() => {
 .web-terminal__transcript {
   background: #000;
   border-radius: 16px;
+  display: grid;
   min-height: 280px;
+  position: relative;
   padding: 16px;
 }
 
-.web-terminal__transcript pre {
-  color: #e5e7eb;
-  font-family: 'Geist Mono Variable', monospace;
-  margin: 0;
-  white-space: pre-wrap;
-  word-break: break-word;
+.web-terminal__viewport {
+  min-height: 320px;
+  width: 100%;
+}
+
+.web-terminal__viewport :deep(.xterm),
+.web-terminal__viewport :deep(.xterm-viewport),
+.web-terminal__viewport :deep(.xterm-screen) {
+  border-radius: 12px;
 }
 
 .web-terminal__placeholder {
+  align-self: start;
   color: rgba(229, 231, 235, 0.72);
-}
-
-.web-terminal__composer {
-  display: grid;
-  gap: 12px;
-  grid-template-columns: minmax(0, 1fr) auto;
+  left: 22px;
+  pointer-events: none;
+  position: absolute;
+  top: 22px;
 }
 
 @media (max-width: 720px) {
-  .web-terminal__toolbar,
-  .web-terminal__composer {
-    grid-template-columns: 1fr;
-  }
-
   .web-terminal__toolbar {
     align-items: stretch;
     flex-direction: column;

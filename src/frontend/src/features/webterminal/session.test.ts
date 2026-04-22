@@ -34,7 +34,7 @@ describe('web terminal session reducer', () => {
     ])
   })
 
-  it('appends server output and status messages to the transcript', () => {
+  it('records status messages while leaving terminal stream output to xterm rendering', () => {
     const messages: WebTerminalServerMessage[] = [
       { type: 'output', data: 'pwd\n' },
       { type: 'status', data: 'Command completed' },
@@ -46,7 +46,6 @@ describe('web terminal session reducer', () => {
     }), createWebTerminalSession())
 
     expect(session.transcript).toEqual([
-      { kind: 'output', text: 'pwd\n' },
       { kind: 'status', text: 'Command completed' },
     ])
   })

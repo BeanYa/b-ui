@@ -3,19 +3,27 @@ import { fileURLToPath } from 'node:url'
 import { describe, expect, it } from 'vitest'
 
 describe('WebTerminal view source', () => {
-  it('normalizes BASE_URL and opens the terminal websocket with an explicit ws protocol', () => {
+  it('uses xterm.js interactive terminal with websocket input and resize messages', () => {
     const source = readFileSync(fileURLToPath(new URL('./WebTerminal.vue', import.meta.url)), 'utf8')
 
+    expect(source).toContain("import { FitAddon } from '@xterm/addon-fit'")
+    expect(source).toContain("import { Terminal } from '@xterm/xterm'")
+    expect(source).toContain("import '@xterm/xterm/css/xterm.css'")
     expect(source).toContain("const normalizedBaseUrl = rawBaseUrl.endsWith('/') ? rawBaseUrl : `${rawBaseUrl}/`")
     expect(source).toContain("const wsUrl = new URL(`${normalizedBaseUrl}api/webssh/ws`, window.location.origin)")
-    expect(source).toContain("wsUrl.protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:'")
+    expect(source).toContain("type: 'input', data")
+    expect(source).toContain("type: 'resize',")
+    expect(source).toContain('cols: currentTerminal.cols')
+    expect(source).toContain('rows: currentTerminal.rows')
     expect(source).toContain('const currentSocket = new WebSocket(wsUrl)')
   })
 
-  it('sends newline-terminated input messages for terminal execution', () => {
+  it('fits terminal viewport and sends resize on open and host resize', () => {
     const source = readFileSync(fileURLToPath(new URL('./WebTerminal.vue', import.meta.url)), 'utf8')
 
-    expect(source).toMatch(/JSON\.stringify\(\{ type: 'input', data: `\$\{command\.value\}\\n` \}\)/)
+    expect(source).toContain('fitAddon.value?.fit()')
+    expect(source).toContain('sendResize()')
+    expect(source).toContain('const observer = new ResizeObserver(() => {')
   })
 
   it('guards websocket frame parsing and tears down stale sockets safely on error and close', () => {
@@ -35,7 +43,7 @@ describe('WebTerminal view source', () => {
 
     expect(source).toContain('Connection status')
     expect(source).toContain('Transcript')
-    expect(source).toContain('Command')
+    expect(source).toContain('web-terminal__viewport')
     expect(source).toContain('Connect')
     expect(source).toContain('Disconnect')
   })
