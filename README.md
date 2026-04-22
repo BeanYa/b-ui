@@ -44,6 +44,13 @@ IMAGE_REF=<your-image-ref> bash ./scripts/release/install-docker.sh
 3. 先阅读完整用户手册 [`docs/manual.md`](./docs/manual.md)，按手册完成 TLS、客户端和入站配置。
 4. 后续更新使用 `b-ui update`，强制重装当前版本使用 `b-ui update --force`。
 
+## 功能速览
+
+- **交互式 WebTerminal**：管理员可以在面板内直接打开 `/webterminal`，连接服务器本地 shell，进行实时键盘输入、光标交互、流式输出查看与终端窗口尺寸同步。
+- **更安全的终端连接流程**：WebTerminal 页面默认不会自动连入；需要先点击 `Connect` 并确认。离开页面、刷新页面或关闭标签页前会再次提醒，并在确认后主动中断当前终端会话。
+- **Docker 引导部署**：提供 `scripts/release/install-docker.sh` 作为交互式 Docker 引导入口，可直接生成 compose 文件、初始化面板并按需引导基础协议对象。
+- **与上游兼容的安装布局**：默认安装根目录、数据库路径和服务运行方式继续兼容上游 `s-ui` 布局，便于迁移与运维。
+
 ## 文档导航
 
 - 安装迁移上游 `s-ui`：[`MIGRATION.md`](./MIGRATION.md)

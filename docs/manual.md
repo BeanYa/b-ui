@@ -559,6 +559,43 @@ bash <(curl -Ls https://raw.githubusercontent.com/BeanYa/b-ui/main/install.sh) -
 - `Subscription`：订阅地址、端口、路径、域名、URI、可选证书文件
 - 修改后根据提示执行 `Restart App`
 
+### 9.1 WebTerminal
+
+`WebTerminal` 是一个面向管理员的浏览器内交互式终端，用来直接连接服务器本地 shell，做运行状态检查、快速诊断和只读/轻量命令操作。
+
+入口与权限：
+
+- 路径是 `/webterminal`
+- 只有管理员可用；后端会再次校验权限，前端展示不是唯一安全边界
+- 页面默认不会自动连接终端
+
+连接行为：
+
+1. 打开 `WebTerminal` 页面后，下方终端卡片会先显示半透明遮罩。
+2. 点击遮罩中的 `Connect`，或工具栏中的 `Connect` 按钮。
+3. 确认后，浏览器才会真正发起 WebSocket 连接并打开终端会话。
+4. 连接建立后，可以直接在终端区域进行实时键盘输入，而不是通过单独的命令输入框逐条提交。
+
+当前支持的交互能力：
+
+- 光标显示与实时键盘输入
+- 流式终端输出
+- 终端窗口尺寸变化同步到后端
+- 常见 ANSI / TTY 输出渲染
+- 在同一管理界面内完成诊断，不需要额外 SSH 客户端
+
+离开页面时的行为：
+
+- 如果当前终端仍处于连接或激活状态，切换路由时会弹出确认框
+- 刷新页面、关闭标签页、后退离开时，浏览器也会给出离开提醒
+- 确认离开后，当前 WebTerminal 会话会被主动中断，正在执行的命令或交互任务可能被打断
+
+使用建议：
+
+- 适合执行 `pwd`、`ls`、`systemctl status b-ui`、日志观察、配置文件快速检查等轻量运维操作
+- 如果你要执行长时间任务、交互式全屏程序或需要会话持久化的操作，优先使用 SSH、tmux、screen 等传统方式
+- WebTerminal 更适合作为面板内诊断入口，而不是长期驻留终端
+
 做完任何改动后的基础验证：
 
 - 保存表单
@@ -577,3 +614,5 @@ bash <(curl -Ls https://raw.githubusercontent.com/BeanYa/b-ui/main/install.sh) -
 - `VLESS + TLS` 失败：检查端口开放、域名解析、`UUID` 和可选 `transport`。
 - `Hysteria2` 失败：检查 UDP 放行、TLS 预设、密码或 `obfs`，以及是否错误省略了带宽参数。
 - `VLESS + Reality` 失败：检查握手目标、`public_key`、`short_id` 和客户端的 Reality 支持。
+- `WebTerminal` 页面无法进入：先确认当前登录用户是管理员；如果只是前端菜单可见性异常，后端权限校验仍会拒绝非管理员连接。
+- `WebTerminal` 一直停在 disconnected：先确认已经点击 `Connect` 并完成确认；如果仍无法连接，再检查浏览器到面板的 WebSocket 路径、反向代理升级头以及面板服务状态。
