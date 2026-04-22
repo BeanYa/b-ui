@@ -71,3 +71,31 @@ type Tokens struct {
 	UserId uint   `json:"userId" form:"userId"`
 	User   *User  `json:"user" gorm:"foreignKey:UserId;references:Id"`
 }
+
+type ClusterLocalNode struct {
+	Id         uint   `json:"id" gorm:"primaryKey;autoIncrement"`
+	NodeID     string `json:"nodeId" gorm:"uniqueIndex"`
+	PublicKey  string `json:"publicKey"`
+	PrivateKey string `json:"privateKey"`
+}
+
+type ClusterDomain struct {
+	Id             uint   `json:"id" gorm:"primaryKey;autoIncrement"`
+	Domain         string `json:"domain" gorm:"uniqueIndex"`
+	HubURL         string `json:"hubUrl"`
+	TokenEncrypted string `json:"-"`
+	LastVersion    int64  `json:"lastVersion" gorm:"default:0"`
+}
+
+type ClusterMember struct {
+	Id                uint           `json:"id" gorm:"primaryKey;autoIncrement"`
+	NodeID            string         `json:"nodeId" gorm:"uniqueIndex"`
+	Name              string         `json:"name"`
+	BaseURL           string         `json:"baseUrl"`
+	PublicKey         string         `json:"publicKey"`
+	DomainID          uint           `json:"domainId"`
+	LastVersion       int64          `json:"lastVersion" gorm:"default:0"`
+	LastNotifiedAt    int64          `json:"lastNotifiedAt" gorm:"default:0"`
+	LastNotifiedValue int64          `json:"lastNotifiedValue" gorm:"default:0"`
+	Domain            *ClusterDomain `json:"domain,omitempty" gorm:"foreignKey:DomainID;references:Id"`
+}
