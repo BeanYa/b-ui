@@ -8,6 +8,8 @@ tmp
 .sync*
 *.tar.gz
 
+# Adapted from github/gitignore Go.gitignore + Node.gitignore
+
 # Stage 1A repository layout placeholders
 build/out/*
 !build/out/.gitkeep
@@ -23,12 +25,22 @@ release/
 !scripts/release/
 !scripts/release/**
 
-# local env files
+# Environment files
+.env
+.env.*
+!.env.example
+!.env.*.example
 .env.local
 .env.*.local
 
 # Log files
 *.log*
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+lerna-debug.log*
+report.[0-9]*.[0-9]*.[0-9]*.[0-9]*.json
 .cache
 
 # Windows build artifacts
@@ -42,8 +54,31 @@ windows/sui-*.exe
 # Frontend build artifacts
 src/frontend/node_modules/
 src/frontend/dist/
+src/frontend/coverage/
+src/frontend/.vite/
+src/frontend/.pnpm-store/
+src/frontend/.eslintcache
+src/frontend/*.tsbuildinfo
+src/frontend/vite.config.js.timestamp-*
+src/frontend/vite.config.ts.timestamp-*
 frontend/node_modules/
 frontend/dist/
+frontend/coverage/
+frontend/.vite/
+frontend/.pnpm-store/
+frontend/.eslintcache
+frontend/*.tsbuildinfo
+frontend/vite.config.js.timestamp-*
+frontend/vite.config.ts.timestamp-*
+
+# Go / backend test artifacts
+*.test
+*.out
+coverage.*
+*.coverprofile
+profile.cov
+go.work
+go.work.sum
 
 # Editor directories and files
 .idea
