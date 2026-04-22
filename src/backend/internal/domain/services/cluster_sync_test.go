@@ -5,6 +5,7 @@ import (
 	"crypto/ed25519"
 	"crypto/rand"
 	"encoding/base64"
+	"fmt"
 	"testing"
 
 	"github.com/alireza0/s-ui/src/backend/internal/infra/db/model"
@@ -42,12 +43,12 @@ func TestClusterMessageEnvelopeAcceptsSignedSyncNotifyVersionV1(t *testing.T) {
 func TestClusterSyncServiceSuppressesDuplicateNotifyVersion(t *testing.T) {
 	store := &stubClusterSyncStore{
 		members: map[string]*model.ClusterMember{
-			"node-a": {NodeID: "node-a", LastVersion: 7},
+			stubClusterSyncKey(0, "node-a"): {NodeID: "node-a", DomainID: 0, LastVersion: 7},
 		},
 	}
 	service := &ClusterSyncService{store: store}
 
-	processed, err := service.HandleIncomingNotifyVersion(context.Background(), "node-a", 7)
+	processed, err := service.HandleIncomingNotifyVersion(context.Background(), 0, "node-a", 7)
 	if err != nil {
 		t.Fatalf("handle duplicate notify version: %v", err)
 	}
@@ -62,15 +63,15 @@ func TestClusterSyncServiceDoesNotRebroadcastReceivedNotifyVersion(t *testing.T)
 			1: {Id: 1, Domain: "edge.example.com", HubURL: "https://hub.example.com", LastVersion: 1},
 		},
 		members: map[string]*model.ClusterMember{
-			"node-a": {NodeID: "node-a", DomainID: 1, LastVersion: 3},
-			"node-b": {NodeID: "node-b", LastVersion: 1},
+			stubClusterSyncKey(1, "node-a"): {NodeID: "node-a", DomainID: 1, LastVersion: 3},
+			stubClusterSyncKey(0, "node-b"): {NodeID: "node-b", DomainID: 0, LastVersion: 1},
 		},
 	}
 	broadcaster := &stubClusterBroadcaster{}
 	hub := &stubClusterHubSyncer{}
 	service := &ClusterSyncService{store: store, broadcaster: broadcaster, hubSyncer: hub}
 
-	processed, err := service.HandleIncomingNotifyVersion(context.Background(), "node-a", 4)
+	processed, err := service.HandleIncomingNotifyVersion(context.Background(), 1, "node-a", 4)
 	if err != nil {
 		t.Fatalf("handle notify version: %v", err)
 	}
@@ -128,13 +129,41 @@ func TestClusterSyncServiceManualPollSyncsFromHubWhenRemoteVersionNewer(t *testi
 	}
 }
 
+func TestClusterSyncServiceUsesDomainScopedMemberLookup(t *testing.T) {
+	store := &stubClusterSyncStore{
+		domains: map[uint]*model.ClusterDomain{
+			2: {Id: 2, Domain: "domain-y", HubURL: "https://hub.example.com", LastVersion: 3},
+		},
+		members: map[string]*model.ClusterMember{
+			stubClusterSyncKey(1, "node-a"): {NodeID: "node-a", DomainID: 1, LastVersion: 1},
+			stubClusterSyncKey(2, "node-a"): {NodeID: "node-a", DomainID: 2, LastVersion: 2},
+		},
+	}
+	hub := &stubClusterHubSyncer{}
+	service := &ClusterSyncService{store: store, hubSyncer: hub}
+
+	processed, err := service.HandleIncomingNotifyVersion(context.Background(), 2, "node-a", 4)
+	if err != nil {
+		t.Fatalf("handle notify version: %v", err)
+	}
+	if !processed {
+		t.Fatal("expected notify version to be processed")
+	}
+	if store.members[stubClusterSyncKey(1, "node-a")].LastVersion != 1 {
+		t.Fatalf("expected domain 1 member version to remain 1, got %d", store.members[stubClusterSyncKey(1, "node-a")].LastVersion)
+	}
+	if store.members[stubClusterSyncKey(2, "node-a")].LastVersion != 4 {
+		t.Fatalf("expected domain 2 member version to become 4, got %d", store.members[stubClusterSyncKey(2, "node-a")].LastVersion)
+	}
+}
+
 type stubClusterSyncStore struct {
 	domains map[uint]*model.ClusterDomain
 	members map[string]*model.ClusterMember
 }
 
-func (s *stubClusterSyncStore) GetMember(nodeID string) (*model.ClusterMember, error) {
-	member := s.members[nodeID]
+func (s *stubClusterSyncStore) GetMember(domainID uint, nodeID string) (*model.ClusterMember, error) {
+	member := s.members[stubClusterSyncKey(domainID, nodeID)]
 	if member == nil {
 		return nil, errClusterMemberNotFound
 	}
@@ -144,7 +173,7 @@ func (s *stubClusterSyncStore) GetMember(nodeID string) (*model.ClusterMember, e
 
 func (s *stubClusterSyncStore) SaveMember(member *model.ClusterMember) error {
 	copy := *member
-	s.members[member.NodeID] = &copy
+	s.members[stubClusterSyncKey(member.DomainID, member.NodeID)] = &copy
 	return nil
 }
 
@@ -215,6 +244,10 @@ type stubClusterHubSyncer struct {
 	versionChecks  int
 	syncCalls      int
 	syncedVersions []int64
+}
+
+func stubClusterSyncKey(domainID uint, nodeID string) string {
+	return fmt.Sprintf("%d:%s", domainID, nodeID)
 }
 
 func (s *stubClusterHubSyncer) LatestVersion(_ context.Context, _ *model.ClusterDomain) (int64, error) {

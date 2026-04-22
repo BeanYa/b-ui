@@ -4,36 +4,57 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
+	"net"
 	"net/http"
+	"net/url"
 	"strings"
 	"time"
 )
 
 type clusterHubClient interface {
-	RegisterNode(context.Context, string, ClusterHubRegisterNodeRequest) (*ClusterHubRegisterNodeResponse, error)
-	GetLatestVersion(context.Context, string, string) (*ClusterHubVersionResponse, error)
-	GetSnapshot(context.Context, string, string) (*ClusterHubSnapshotResponse, error)
+	RegisterNode(context.Context, string, ClusterHubRegisterNodeRequest) (*ClusterHubOperationResponse, error)
+	GetLatestVersion(context.Context, string, string, string) (*ClusterHubVersionResponse, error)
+	GetSnapshot(context.Context, string, string, string) (*ClusterHubSnapshotResponse, error)
 }
 
 type ClusterHubRegisterNodeRequest struct {
-	NodeID    string `json:"nodeId"`
-	Name      string `json:"name"`
-	Domain    string `json:"domain"`
-	PublicKey string `json:"publicKey"`
-	BaseURL   string `json:"baseUrl"`
+	RequestID   string                   `json:"request_id"`
+	DomainID    string                   `json:"domain_id"`
+	DomainToken string                   `json:"domain_token"`
+	Member      ClusterHubMemberRegister `json:"member"`
+}
+
+type ClusterHubMemberRegister struct {
+	MemberID  string `json:"member_id"`
+	NodeID    string `json:"node_id"`
+	Address   string `json:"address"`
+	BaseURL   string `json:"base_url"`
+	PublicKey string `json:"public_key"`
+	Name      string `json:"name,omitempty"`
 }
 
 type ClusterHubMemberResponse struct {
+	MemberID  string `json:"member_id"`
 	NodeID    string `json:"nodeId"`
+	NodeIDAlt string `json:"node_id"`
 	Name      string `json:"name"`
 	BaseURL   string `json:"baseUrl"`
+	BaseURLAlt string `json:"base_url"`
 	PublicKey string `json:"publicKey"`
+	PublicKeyAlt string `json:"public_key"`
+	PeerToken string `json:"peerToken"`
+	PeerTokenAlt string `json:"peer_token"`
+	Address   string `json:"address"`
 }
 
-type ClusterHubRegisterNodeResponse struct {
-	Member  ClusterHubMemberResponse `json:"member"`
-	Message string                   `json:"message"`
+type ClusterHubOperationResponse struct {
+	OperationID string `json:"operation_id"`
+	RequestID   string `json:"request_id"`
+	Status      string `json:"status"`
+	DomainID    string `json:"domain_id"`
+	Type        string `json:"type"`
 }
 
 type ClusterHubVersionResponse struct {
@@ -41,27 +62,66 @@ type ClusterHubVersionResponse struct {
 }
 
 type ClusterHubSnapshotResponse struct {
+	DomainID string                     `json:"domain_id"`
 	Version int64                      `json:"version"`
 	Members []ClusterHubMemberResponse `json:"members"`
+}
+
+func (m ClusterHubMemberResponse) EffectiveNodeID() string {
+	if m.NodeID != "" {
+		return m.NodeID
+	}
+	return m.NodeIDAlt
+}
+
+func (m ClusterHubMemberResponse) EffectiveBaseURL() string {
+	if m.BaseURL != "" {
+		return m.BaseURL
+	}
+	if m.BaseURLAlt != "" {
+		return m.BaseURLAlt
+	}
+	return m.Address
+}
+
+func (m ClusterHubMemberResponse) EffectivePublicKey() string {
+	if m.PublicKey != "" {
+		return m.PublicKey
+	}
+	return m.PublicKeyAlt
+}
+
+func (m ClusterHubMemberResponse) EffectivePeerToken() string {
+	if m.PeerToken != "" {
+		return m.PeerToken
+	}
+	return m.PeerTokenAlt
 }
 
 type ClusterHubClient struct {
 	HTTPClient *http.Client
 }
 
-func (c *ClusterHubClient) RegisterNode(ctx context.Context, hubURL string, request ClusterHubRegisterNodeRequest) (*ClusterHubRegisterNodeResponse, error) {
-	response := &ClusterHubRegisterNodeResponse{}
-	if err := c.postJSON(ctx, strings.TrimRight(hubURL, "/")+"/register", request, response); err != nil {
+func (c *ClusterHubClient) RegisterNode(ctx context.Context, hubURL string, request ClusterHubRegisterNodeRequest) (*ClusterHubOperationResponse, error) {
+	if err := validateClusterHubURL(hubURL); err != nil {
+		return nil, err
+	}
+	response := &ClusterHubOperationResponse{}
+	if err := c.postJSON(ctx, strings.TrimRight(hubURL, "/")+"/v1/domains/register", request, response); err != nil {
 		return nil, err
 	}
 	return response, nil
 }
 
-func (c *ClusterHubClient) GetLatestVersion(ctx context.Context, hubURL string, domain string) (*ClusterHubVersionResponse, error) {
-	request, err := http.NewRequestWithContext(ctx, http.MethodGet, strings.TrimRight(hubURL, "/")+"/version?domain="+domain, nil)
+func (c *ClusterHubClient) GetLatestVersion(ctx context.Context, hubURL string, domain string, domainToken string) (*ClusterHubVersionResponse, error) {
+	if err := validateClusterHubURL(hubURL); err != nil {
+		return nil, err
+	}
+	request, err := http.NewRequestWithContext(ctx, http.MethodGet, strings.TrimRight(hubURL, "/")+"/v1/domains/"+domain+"/version", nil)
 	if err != nil {
 		return nil, err
 	}
+	request.Header.Set("X-Domain-Token", domainToken)
 	response, err := c.httpClient().Do(request)
 	if err != nil {
 		return nil, err
@@ -77,11 +137,15 @@ func (c *ClusterHubClient) GetLatestVersion(ctx context.Context, hubURL string, 
 	return decoded, nil
 }
 
-func (c *ClusterHubClient) GetSnapshot(ctx context.Context, hubURL string, domain string) (*ClusterHubSnapshotResponse, error) {
-	request, err := http.NewRequestWithContext(ctx, http.MethodGet, strings.TrimRight(hubURL, "/")+"/snapshot?domain="+domain, nil)
+func (c *ClusterHubClient) GetSnapshot(ctx context.Context, hubURL string, domain string, domainToken string) (*ClusterHubSnapshotResponse, error) {
+	if err := validateClusterHubURL(hubURL); err != nil {
+		return nil, err
+	}
+	request, err := http.NewRequestWithContext(ctx, http.MethodGet, strings.TrimRight(hubURL, "/")+"/v1/domains/"+domain+"/snapshot", nil)
 	if err != nil {
 		return nil, err
 	}
+	request.Header.Set("X-Domain-Token", domainToken)
 	response, err := c.httpClient().Do(request)
 	if err != nil {
 		return nil, err
@@ -123,6 +187,27 @@ func requireHTTPSuccess(response *http.Response, operation string) error {
 		return nil
 	}
 	return fmt.Errorf("%s failed: %s", operation, response.Status)
+}
+
+func validateClusterHubURL(hubURL string) error {
+	parsed, err := url.Parse(hubURL)
+	if err != nil {
+		return err
+	}
+	if parsed.Scheme == "https" {
+		return nil
+	}
+	if parsed.Scheme != "http" {
+		return errors.New("cluster hub URL must use http or https")
+	}
+	host := parsed.Hostname()
+	if host == "localhost" || host == "127.0.0.1" || host == "::1" {
+		return nil
+	}
+	if ip := net.ParseIP(host); ip != nil && ip.IsLoopback() {
+		return nil
+	}
+	return errors.New("cluster hub URL must use https for non-local addresses")
 }
 
 func (c *ClusterHubClient) httpClient() *http.Client {

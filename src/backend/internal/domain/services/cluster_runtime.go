@@ -8,6 +8,7 @@ import (
 	"io"
 	"net/http"
 	"net/url"
+	"net"
 	"strings"
 	"time"
 
@@ -18,6 +19,7 @@ import (
 type ClusterHubSyncer struct {
 	client clusterHubClient
 	store  clusterServiceStore
+	secretProvider clusterSecretProvider
 }
 
 func (s *ClusterHubSyncer) LatestVersion(ctx context.Context, domain *model.ClusterDomain) (int64, error) {
@@ -25,7 +27,15 @@ func (s *ClusterHubSyncer) LatestVersion(ctx context.Context, domain *model.Clus
 	if client == nil {
 		client = &ClusterHubClient{}
 	}
-	response, err := client.GetLatestVersion(ctx, domain.HubURL, domain.Domain)
+	secret, err := s.getSecretProvider().GetSecret()
+	if err != nil {
+		return 0, err
+	}
+	domainToken, err := DecryptClusterDomainToken(secret, domain.TokenEncrypted)
+	if err != nil {
+		return 0, err
+	}
+	response, err := client.GetLatestVersion(ctx, domain.HubURL, domain.Domain, domainToken)
 	if err != nil {
 		return 0, err
 	}
@@ -41,17 +51,34 @@ func (s *ClusterHubSyncer) SyncDomain(ctx context.Context, domain *model.Cluster
 	if store == nil {
 		store = &dbClusterStore{}
 	}
-	snapshot, err := client.GetSnapshot(ctx, domain.HubURL, domain.Domain)
+	secret, err := s.getSecretProvider().GetSecret()
+	if err != nil {
+		return err
+	}
+	domainToken, err := DecryptClusterDomainToken(secret, domain.TokenEncrypted)
+	if err != nil {
+		return err
+	}
+	snapshot, err := client.GetSnapshot(ctx, domain.HubURL, domain.Domain, domainToken)
 	if err != nil {
 		return err
 	}
 	members := make([]model.ClusterMember, 0, len(snapshot.Members))
 	for _, item := range snapshot.Members {
+		peerTokenEncrypted := ""
+		peerToken := item.EffectivePeerToken()
+		if peerToken != "" {
+			peerTokenEncrypted, err = EncryptClusterDomainToken(secret, peerToken)
+			if err != nil {
+				return err
+			}
+		}
 		members = append(members, model.ClusterMember{
-			NodeID:      item.NodeID,
+			NodeID:      item.EffectiveNodeID(),
 			Name:        item.Name,
-			BaseURL:     item.BaseURL,
-			PublicKey:   item.PublicKey,
+			BaseURL:     item.EffectiveBaseURL(),
+			PublicKey:   item.EffectivePublicKey(),
+			PeerTokenEncrypted: peerTokenEncrypted,
 			DomainID:    domain.Id,
 			LastVersion: snapshot.Version,
 		})
@@ -64,6 +91,13 @@ func (s *ClusterHubSyncer) SyncDomain(ctx context.Context, domain *model.Cluster
 		domain.LastVersion = version
 	}
 	return store.SaveDomain(domain)
+}
+
+func (s *ClusterHubSyncer) getSecretProvider() clusterSecretProvider {
+	if s.secretProvider != nil {
+		return s.secretProvider
+	}
+	return &SettingService{}
 }
 
 type ClusterHTTPBroadcaster struct {
@@ -95,7 +129,7 @@ func (b *ClusterHTTPBroadcaster) BroadcastNotifyVersion(ctx context.Context, ver
 		if member.NodeID == excludeNodeID || member.BaseURL == "" || member.Domain == nil {
 			continue
 		}
-		token, err := DecryptClusterDomainToken(secret, member.Domain.TokenEncrypted)
+		token, err := DecryptClusterDomainToken(secret, member.PeerTokenEncrypted)
 		if err != nil {
 			return err
 		}
@@ -107,7 +141,11 @@ func (b *ClusterHTTPBroadcaster) BroadcastNotifyVersion(ctx context.Context, ver
 		if err != nil {
 			return err
 		}
-		request, err := http.NewRequestWithContext(ctx, http.MethodPost, clusterPeerMessageURL(member.BaseURL), bytes.NewReader(body))
+		messageURL, err := clusterPeerMessageURL(member.BaseURL)
+		if err != nil {
+			return err
+		}
+		request, err := http.NewRequestWithContext(ctx, http.MethodPost, messageURL, bytes.NewReader(body))
 		if err != nil {
 			return err
 		}
@@ -151,14 +189,34 @@ func (b *ClusterHTTPBroadcaster) getStore() clusterBroadcastStore {
 	return &dbClusterBroadcastStore{}
 }
 
-func clusterPeerMessageURL(baseURL string) string {
+func clusterPeerMessageURL(baseURL string) (string, error) {
 	parsed, err := url.Parse(baseURL)
 	if err != nil {
-		return strings.TrimRight(baseURL, "/") + "/cluster/message"
+		return "", err
+	}
+	if err := validateClusterPeerScheme(parsed); err != nil {
+		return "", err
 	}
 	parsed.Path = strings.TrimSuffix(parsed.Path, "/") + "/cluster/message"
 	parsed.RawPath = ""
-	return parsed.String()
+	return parsed.String(), nil
+}
+
+func validateClusterPeerScheme(parsed *url.URL) error {
+	if parsed.Scheme == "https" {
+		return nil
+	}
+	if parsed.Scheme != "http" {
+		return errors.New("cluster peer URL must use http or https")
+	}
+	host := parsed.Hostname()
+	if host == "localhost" || host == "127.0.0.1" || host == "::1" {
+		return nil
+	}
+	if ip := net.ParseIP(host); ip != nil && ip.IsLoopback() {
+		return nil
+	}
+	return errors.New("cluster peer URL must use https for non-local addresses")
 }
 
 type dbClusterBroadcastStore struct{}

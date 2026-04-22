@@ -82,7 +82,7 @@ func VerifyClusterEnvelope(envelope *ClusterEnvelope, publicKey string) (*Cluste
 }
 
 type clusterSyncStore interface {
-	GetMember(nodeID string) (*model.ClusterMember, error)
+	GetMember(domainID uint, nodeID string) (*model.ClusterMember, error)
 	SaveMember(*model.ClusterMember) error
 	ListMembers() ([]model.ClusterMember, error)
 	GetDomain(id uint) (*model.ClusterDomain, error)
@@ -112,8 +112,8 @@ func NewRuntimeClusterSyncService() ClusterSyncService {
 	}
 }
 
-func (s *ClusterSyncService) HandleIncomingNotifyVersion(ctx context.Context, nodeID string, version int64) (bool, error) {
-	member, err := s.store.GetMember(nodeID)
+func (s *ClusterSyncService) HandleIncomingNotifyVersion(ctx context.Context, domainID uint, nodeID string, version int64) (bool, error) {
+	member, err := s.store.GetMember(domainID, nodeID)
 	if err != nil {
 		return false, err
 	}
@@ -130,8 +130,10 @@ func (s *ClusterSyncService) HandleIncomingNotifyVersion(ctx context.Context, no
 		if err != nil {
 			return false, err
 		}
-		if err := s.hubSyncer.SyncDomain(ctx, domain, version); err != nil {
-			return false, err
+		if domain.HubURL != "" {
+			if err := s.hubSyncer.SyncDomain(ctx, domain, version); err != nil {
+				return false, err
+			}
 		}
 	}
 	return true, nil

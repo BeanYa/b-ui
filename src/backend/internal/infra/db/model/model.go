@@ -89,11 +89,12 @@ type ClusterDomain struct {
 
 type ClusterMember struct {
 	Id                uint           `json:"id" gorm:"primaryKey;autoIncrement"`
-	NodeID            string         `json:"nodeId" gorm:"uniqueIndex"`
+	NodeID            string         `json:"nodeId" gorm:"uniqueIndex:idx_cluster_domain_node"`
 	Name              string         `json:"name"`
 	BaseURL           string         `json:"baseUrl"`
 	PublicKey         string         `json:"publicKey"`
-	DomainID          uint           `json:"domainId"`
+	PeerTokenEncrypted string        `json:"-"`
+	DomainID          uint           `json:"domainId" gorm:"uniqueIndex:idx_cluster_domain_node"`
 	LastVersion       int64          `json:"lastVersion" gorm:"default:0"`
 	LastNotifiedAt    int64          `json:"lastNotifiedAt" gorm:"default:0"`
 	LastNotifiedValue int64          `json:"lastNotifiedValue" gorm:"default:0"`

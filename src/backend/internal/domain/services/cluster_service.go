@@ -61,6 +61,7 @@ type clusterServiceStore interface {
 	ListDomains() ([]model.ClusterDomain, error)
 	GetDomain(uint) (*model.ClusterDomain, error)
 	GetMemberByNodeID(string) (*model.ClusterMember, error)
+	GetMemberByDomainNodeID(uint, string) (*model.ClusterMember, error)
 	SaveMember(*model.ClusterMember) error
 	ListMembers() ([]model.ClusterMember, error)
 	DeleteMember(uint) error
@@ -100,12 +101,22 @@ func (s *ClusterService) Register(request ClusterRegisterRequest) (*ClusterOpera
 		if client == nil {
 			client = &ClusterHubClient{}
 		}
-		response, err := client.RegisterNode(context.Background(), request.HubURL, ClusterHubRegisterNodeRequest{
-			NodeID:    identity.NodeID,
-			Name:      request.Name,
-			Domain:    request.Domain,
-			PublicKey: identity.PublicKey,
-			BaseURL:   request.BaseURL,
+		requestID, err := uuid.NewV4()
+		if err != nil {
+			return nil, err
+		}
+		_, err = client.RegisterNode(context.Background(), request.HubURL, ClusterHubRegisterNodeRequest{
+			RequestID:   requestID.String(),
+			DomainID:    request.Domain,
+			DomainToken: request.Token,
+			Member: ClusterHubMemberRegister{
+				MemberID:  identity.NodeID,
+				NodeID:    identity.NodeID,
+				Address:   request.BaseURL,
+				BaseURL:   request.BaseURL,
+				PublicKey: identity.PublicKey,
+				Name:      request.Name,
+			},
 		})
 		if err != nil {
 			return nil, err
@@ -116,22 +127,36 @@ func (s *ClusterService) Register(request ClusterRegisterRequest) (*ClusterOpera
 		if err := store.SaveDomain(domain); err != nil {
 			return nil, err
 		}
-		if response.Member.NodeID != "" {
-			member, err := store.GetMemberByNodeID(response.Member.NodeID)
-			if err != nil && !errors.Is(err, errClusterMemberNotFound) {
-				return nil, err
+		snapshot, err := client.GetSnapshot(context.Background(), request.HubURL, request.Domain, request.Token)
+		if err != nil {
+			return nil, err
+		}
+		members := make([]model.ClusterMember, 0, len(snapshot.Members))
+		for _, item := range snapshot.Members {
+			peerTokenEncrypted := ""
+			peerToken := item.EffectivePeerToken()
+			if peerToken != "" {
+				peerTokenEncrypted, err = EncryptClusterDomainToken(secret, peerToken)
+				if err != nil {
+					return nil, err
+				}
 			}
-			if member == nil {
-				member = &model.ClusterMember{}
-			}
-			member.NodeID = response.Member.NodeID
-			member.Name = response.Member.Name
-			member.BaseURL = response.Member.BaseURL
-			member.PublicKey = response.Member.PublicKey
-			member.DomainID = domain.Id
-			if err := store.SaveMember(member); err != nil {
-				return nil, err
-			}
+			members = append(members, model.ClusterMember{
+				NodeID:             item.EffectiveNodeID(),
+				Name:               item.Name,
+				BaseURL:            item.EffectiveBaseURL(),
+				PublicKey:          item.EffectivePublicKey(),
+				PeerTokenEncrypted: peerTokenEncrypted,
+				DomainID:           domain.Id,
+				LastVersion:        snapshot.Version,
+			})
+		}
+		if err := store.ReplaceDomainMembers(domain.Id, members); err != nil {
+			return nil, err
+		}
+		domain.LastVersion = snapshot.Version
+		if err := store.SaveDomain(domain); err != nil {
+			return nil, err
 		}
 	} else {
 		domain.Domain = request.Domain
@@ -208,20 +233,37 @@ func (s *ClusterService) DeleteMember(id uint) error {
 }
 
 func (s *ClusterService) ReceiveMessage(envelope *ClusterEnvelope, token string) error {
-	domain, err := s.findDomainByToken(token)
+	domain, err := s.getStore().GetDomainByName(envelope.Domain)
 	if err != nil {
 		return err
 	}
-	member, err := s.getStore().GetMemberByNodeID(envelope.SourceNodeID)
+	localIdentity, err := s.localIdentity.GetOrCreate()
 	if err != nil {
 		return err
 	}
-	if member.DomainID != domain.Id {
-		return errors.New("cluster member domain mismatch")
+	localMember, err := findClusterMemberByDomainNodeID(s.getStore(), domain.Id, localIdentity.NodeID)
+	if err != nil {
+		return err
+	}
+	if localMember == nil {
+		return errClusterMemberNotFound
+	}
+	if err := s.validateClusterPeerToken(localMember, token); err != nil {
+		return err
+	}
+	member, err := findClusterMemberByDomainNodeID(s.getStore(), domain.Id, envelope.SourceNodeID)
+	if err != nil {
+		return err
+	}
+	if member == nil {
+		return errClusterMemberNotFound
 	}
 	message, err := VerifyClusterEnvelope(envelope, member.PublicKey)
 	if err != nil {
 		return err
+	}
+	if message.Domain != domain.Domain {
+		return errors.New("cluster member domain mismatch")
 	}
 	syncService := s.syncService
 	if syncService.store == nil {
@@ -233,7 +275,7 @@ func (s *ClusterService) ReceiveMessage(envelope *ClusterEnvelope, token string)
 	if syncService.hubSyncer == nil {
 		syncService.hubSyncer = s.getHubSyncer()
 	}
-	_, err = syncService.HandleIncomingNotifyVersion(context.Background(), message.SourceNodeID, message.Version)
+	_, err = syncService.HandleIncomingNotifyVersion(context.Background(), domain.Id, message.SourceNodeID, message.Version)
 	if err != nil {
 		return err
 	}
@@ -241,23 +283,19 @@ func (s *ClusterService) ReceiveMessage(envelope *ClusterEnvelope, token string)
 	return s.getStore().SaveDomain(domain)
 }
 
-func (s *ClusterService) findDomainByToken(token string) (*model.ClusterDomain, error) {
+func (s *ClusterService) validateClusterPeerToken(member *model.ClusterMember, token string) error {
 	secret, err := s.getSecretProvider().GetSecret()
 	if err != nil {
-		return nil, err
+		return err
 	}
-	domains, err := s.getStore().ListDomains()
+	decrypted, err := DecryptClusterDomainToken(secret, member.PeerTokenEncrypted)
 	if err != nil {
-		return nil, err
+		return err
 	}
-	for _, domain := range domains {
-		decrypted, err := DecryptClusterDomainToken(secret, domain.TokenEncrypted)
-		if err == nil && decrypted == token {
-			copy := domain
-			return &copy, nil
-		}
+	if decrypted != token {
+		return errors.New("cluster peer token not found")
 	}
-	return nil, errors.New("cluster domain token not found")
+	return nil
 }
 
 func newClusterOperationStatus(state string, message string) (*ClusterOperationStatus, error) {
@@ -294,8 +332,8 @@ func trimClusterOperationsLocked() {
 
 type dbClusterSyncStore struct{}
 
-func (s *dbClusterSyncStore) GetMember(nodeID string) (*model.ClusterMember, error) {
-	return (&dbClusterStore{}).GetMemberByNodeID(nodeID)
+func (s *dbClusterSyncStore) GetMember(domainID uint, nodeID string) (*model.ClusterMember, error) {
+	return (&dbClusterStore{}).GetMemberByDomainNodeID(domainID, nodeID)
 }
 
 func (s *dbClusterSyncStore) SaveMember(member *model.ClusterMember) error {
@@ -368,6 +406,18 @@ func (s *dbClusterStore) GetMemberByNodeID(nodeID string) (*model.ClusterMember,
 	return member, nil
 }
 
+func (s *dbClusterStore) GetMemberByDomainNodeID(domainID uint, nodeID string) (*model.ClusterMember, error) {
+	member := &model.ClusterMember{}
+	err := database.GetDB().Where("domain_id = ? AND node_id = ?", domainID, nodeID).First(member).Error
+	if database.IsNotFound(err) {
+		return nil, errClusterMemberNotFound
+	}
+	if err != nil {
+		return nil, err
+	}
+	return member, nil
+}
+
 func (s *dbClusterStore) SaveMember(member *model.ClusterMember) error {
 	return database.GetDB().Save(member).Error
 }
@@ -417,13 +467,27 @@ func (s *ClusterService) getSecretProvider() clusterSecretProvider {
 }
 
 func (s *ClusterService) getHubSyncer() clusterHubSyncer {
-	return &ClusterHubSyncer{client: s.hubClient, store: s.getStore()}
+	return &ClusterHubSyncer{client: s.hubClient, store: s.getStore(), secretProvider: s.getSecretProvider()}
+}
+
+func findClusterMemberByDomainNodeID(store clusterServiceStore, domainID uint, nodeID string) (*model.ClusterMember, error) {
+	members, err := store.ListMembers()
+	if err != nil {
+		return nil, err
+	}
+	for _, member := range members {
+		if member.DomainID == domainID && member.NodeID == nodeID {
+			copy := member
+			return &copy, nil
+		}
+	}
+	return nil, nil
 }
 
 type clusterSyncStoreAdapter struct{ store clusterServiceStore }
 
-func (a *clusterSyncStoreAdapter) GetMember(nodeID string) (*model.ClusterMember, error) {
-	return a.store.GetMemberByNodeID(nodeID)
+func (a *clusterSyncStoreAdapter) GetMember(domainID uint, nodeID string) (*model.ClusterMember, error) {
+	return a.store.GetMemberByDomainNodeID(domainID, nodeID)
 }
 
 func (a *clusterSyncStoreAdapter) SaveMember(member *model.ClusterMember) error {
