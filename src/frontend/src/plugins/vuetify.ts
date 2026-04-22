@@ -5,10 +5,10 @@
  */
 
 // Styles
+import '@mdi/font/css/materialdesignicons.css'
 import 'vuetify/styles/main.css'
 
 import { fa, en, vi, zhHans, zhHant, ru } from 'vuetify/locale'
-import { aliases, mdi } from 'vuetify/iconsets/mdi-svg'
 
 // Composables
 import { createVuetify } from 'vuetify'
@@ -16,13 +16,6 @@ import { getThemePreference, resolveThemeName } from './theme'
 
 // https://vuetifyjs.com/en/introduction/why-vuetify/#feature-guides
 export default createVuetify({
-  icons: {
-    defaultSet: 'mdi',
-    aliases,
-    sets: {
-      mdi,
-    },
-  },
   defaults: {
     VRow: { density: 'compact' },
     VAppBar: {
