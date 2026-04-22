@@ -23,6 +23,9 @@ describe('ClusterCenter view source', () => {
     expect(source).toContain("$t('pages.clusterCenter')")
     expect(source).toContain('Manual Sync')
     expect(source).toContain('Register / Join Domain')
+    expect(source).toContain('isUsableAbsoluteUrl')
+    expect(source).toContain('Hub URL must be an absolute URL')
+    expect(source).toContain('This Node Base URL must be an absolute URL')
   })
 
   it('uses the existing control-surface visual language instead of a generic table-only page', () => {

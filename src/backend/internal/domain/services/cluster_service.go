@@ -61,6 +61,7 @@ type clusterServiceStore interface {
 	SaveDomain(*model.ClusterDomain) error
 	ListDomains() ([]model.ClusterDomain, error)
 	GetDomain(uint) (*model.ClusterDomain, error)
+	GetMember(uint) (*model.ClusterMember, error)
 	GetMemberByNodeID(string) (*model.ClusterMember, error)
 	GetMemberByDomainNodeID(uint, string) (*model.ClusterMember, error)
 	SaveMember(*model.ClusterMember) error
@@ -230,7 +231,34 @@ func (s *ClusterService) ManualSync() (*ClusterOperationStatus, error) {
 }
 
 func (s *ClusterService) DeleteMember(id uint) error {
-	return s.getStore().DeleteMember(id)
+	store := s.getStore()
+	member, err := store.GetMember(id)
+	if err != nil {
+		return err
+	}
+	domain, err := store.GetDomain(member.DomainID)
+	if err != nil {
+		return err
+	}
+	if domain.HubURL == "" {
+		return errors.New("cluster hub URL not set")
+	}
+	secret, err := s.getSecretProvider().GetSecret()
+	if err != nil {
+		return err
+	}
+	domainToken, err := DecryptClusterDomainToken(secret, domain.TokenEncrypted)
+	if err != nil {
+		return err
+	}
+	client := s.hubClient
+	if client == nil {
+		client = &ClusterHubClient{}
+	}
+	if _, err := client.DeleteMember(context.Background(), domain.HubURL, domain.Domain, domainToken, member.NodeID); err != nil {
+		return err
+	}
+	return store.DeleteMember(id)
 }
 
 func (s *ClusterService) ReceiveMessage(envelope *ClusterEnvelope, token string) error {
@@ -393,6 +421,18 @@ func (s *dbClusterStore) GetDomain(id uint) (*model.ClusterDomain, error) {
 		return nil, err
 	}
 	return domain, nil
+}
+
+func (s *dbClusterStore) GetMember(id uint) (*model.ClusterMember, error) {
+	member := &model.ClusterMember{}
+	err := database.GetDB().First(member, id).Error
+	if database.IsNotFound(err) {
+		return nil, errClusterMemberNotFound
+	}
+	if err != nil {
+		return nil, err
+	}
+	return member, nil
 }
 
 func (s *dbClusterStore) GetMemberByNodeID(nodeID string) (*model.ClusterMember, error) {

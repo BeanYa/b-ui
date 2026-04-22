@@ -70,6 +70,31 @@ func TestClusterServiceRegisterDoesNotPersistDomainWhenHubRegistrationFails(t *t
 	}
 }
 
+func TestClusterServiceDeleteMemberDeletesHubMembershipBeforeLocalMirror(t *testing.T) {
+	secret := []byte("panel-secret-for-cluster-tests")
+	store := &stubClusterServiceStore{
+		domains: map[string]*model.ClusterDomain{
+			"edge.example.com": {Id: 1, Domain: "edge.example.com", HubURL: "https://hub.example.com", TokenEncrypted: mustEncryptClusterToken(t, string(secret), "domain-token")},
+		},
+		members: map[string]*model.ClusterMember{
+			serviceMemberKey(1, "node-a"): {Id: 7, NodeID: "node-a", DomainID: 1},
+		},
+	}
+	hub := &stubClusterHubClient{}
+	service := &ClusterService{
+		secretProvider: stubClusterSecretProvider{secret: secret},
+		store:          store,
+		hubClient:      hub,
+	}
+
+	if err := service.DeleteMember(7); err != nil {
+		t.Fatalf("delete member: %v", err)
+	}
+	if store.deletedMemberID != 7 {
+		t.Fatalf("expected local member delete for id 7, got %d", store.deletedMemberID)
+	}
+}
+
 func TestClusterServiceReceiveMessageRejectsWrongPeerTokenEvenWhenDomainTokenMatches(t *testing.T) {
 	secret := []byte("panel-secret-for-cluster-tests")
 	sourcePublicKey, sourcePrivateKey, err := ed25519.GenerateKey(rand.Reader)
@@ -137,6 +162,7 @@ type stubClusterServiceStore struct {
 	members      map[string]*model.ClusterMember
 	savedMembers []*model.ClusterMember
 	replacedMembers [][]model.ClusterMember
+	deletedMemberID uint
 }
 
 func (s *stubClusterServiceStore) GetDomainByName(name string) (*model.ClusterDomain, error) {
@@ -170,6 +196,15 @@ func (s *stubClusterServiceStore) GetDomain(id uint) (*model.ClusterDomain, erro
 		}
 	}
 	return nil, errClusterDomainNotFound
+}
+func (s *stubClusterServiceStore) GetMember(id uint) (*model.ClusterMember, error) {
+	for _, member := range s.members {
+		if member.Id == id {
+			copy := *member
+			return &copy, nil
+		}
+	}
+	return nil, errClusterMemberNotFound
 }
 func (s *stubClusterServiceStore) GetMemberByNodeID(nodeID string) (*model.ClusterMember, error) {
 	if s.members == nil {
@@ -208,7 +243,10 @@ func (s *stubClusterServiceStore) ListMembers() ([]model.ClusterMember, error) {
 	}
 	return members, nil
 }
-func (s *stubClusterServiceStore) DeleteMember(uint) error                     { return nil }
+func (s *stubClusterServiceStore) DeleteMember(id uint) error {
+	s.deletedMemberID = id
+	return nil
+}
 func (s *stubClusterServiceStore) ReplaceDomainMembers(_ uint, members []model.ClusterMember) error {
 	copyMembers := make([]model.ClusterMember, len(members))
 	copy(copyMembers, members)
@@ -219,7 +257,9 @@ func (s *stubClusterServiceStore) ReplaceDomainMembers(_ uint, members []model.C
 type stubClusterHubClient struct {
 	registerResponse *ClusterHubOperationResponse
 	snapshotResponse *ClusterHubSnapshotResponse
+	deleteResponse   *ClusterHubOperationResponse
 	registerErr      error
+	deleteErr        error
 }
 
 func (s *stubClusterHubClient) RegisterNode(_ context.Context, _ string, _ ClusterHubRegisterNodeRequest) (*ClusterHubOperationResponse, error) {
@@ -235,6 +275,16 @@ func (s *stubClusterHubClient) GetLatestVersion(context.Context, string, string,
 
 func (s *stubClusterHubClient) GetSnapshot(context.Context, string, string, string) (*ClusterHubSnapshotResponse, error) {
 	return s.snapshotResponse, nil
+}
+
+func (s *stubClusterHubClient) DeleteMember(context.Context, string, string, string, string) (*ClusterHubOperationResponse, error) {
+	if s.deleteErr != nil {
+		return nil, s.deleteErr
+	}
+	if s.deleteResponse != nil {
+		return s.deleteResponse, nil
+	}
+	return &ClusterHubOperationResponse{OperationID: "op-delete", Status: "completed"}, nil
 }
 
 type stubClusterSecretProvider struct{ secret []byte }

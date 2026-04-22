@@ -17,6 +17,7 @@ type clusterHubClient interface {
 	RegisterNode(context.Context, string, ClusterHubRegisterNodeRequest) (*ClusterHubOperationResponse, error)
 	GetLatestVersion(context.Context, string, string, string) (*ClusterHubVersionResponse, error)
 	GetSnapshot(context.Context, string, string, string) (*ClusterHubSnapshotResponse, error)
+	DeleteMember(context.Context, string, string, string, string) (*ClusterHubOperationResponse, error)
 }
 
 type ClusterHubRegisterNodeRequest struct {
@@ -155,6 +156,38 @@ func (c *ClusterHubClient) GetSnapshot(ctx context.Context, hubURL string, domai
 		return nil, err
 	}
 	decoded := &ClusterHubSnapshotResponse{}
+	if err := json.NewDecoder(response.Body).Decode(decoded); err != nil {
+		return nil, err
+	}
+	return decoded, nil
+}
+
+func (c *ClusterHubClient) DeleteMember(ctx context.Context, hubURL string, domain string, domainToken string, memberID string) (*ClusterHubOperationResponse, error) {
+	if err := validateClusterHubURL(hubURL); err != nil {
+		return nil, err
+	}
+	payload := map[string]string{
+		"request_id":   fmt.Sprintf("delete-%d", time.Now().UnixNano()),
+		"domain_token": domainToken,
+	}
+	body, err := json.Marshal(payload)
+	if err != nil {
+		return nil, err
+	}
+	request, err := http.NewRequestWithContext(ctx, http.MethodDelete, strings.TrimRight(hubURL, "/")+"/v1/domains/"+domain+"/members/"+memberID, bytes.NewReader(body))
+	if err != nil {
+		return nil, err
+	}
+	request.Header.Set("Content-Type", "application/json")
+	response, err := c.httpClient().Do(request)
+	if err != nil {
+		return nil, err
+	}
+	defer response.Body.Close()
+	if err := requireHTTPSuccess(response, "hub delete member"); err != nil {
+		return nil, err
+	}
+	decoded := &ClusterHubOperationResponse{}
 	if err := json.NewDecoder(response.Body).Decode(decoded); err != nil {
 		return nil, err
 	}

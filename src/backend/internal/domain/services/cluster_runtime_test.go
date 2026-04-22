@@ -103,6 +103,10 @@ func (s *stubClusterRuntimeHubClient) GetSnapshot(_ context.Context, _ string, d
 	return s.snapshot, nil
 }
 
+func (s *stubClusterRuntimeHubClient) DeleteMember(context.Context, string, string, string, string) (*ClusterHubOperationResponse, error) {
+	return nil, nil
+}
+
 type stubClusterRuntimeStore struct {
 	replaceCalls     []stubClusterRuntimeReplaceCall
 	membersByDomain  map[uint][]model.ClusterMember
@@ -122,6 +126,7 @@ func (s *stubClusterRuntimeStore) SaveDomain(domain *model.ClusterDomain) error 
 }
 func (s *stubClusterRuntimeStore) ListDomains() ([]model.ClusterDomain, error) { return nil, nil }
 func (s *stubClusterRuntimeStore) GetDomain(uint) (*model.ClusterDomain, error) { return nil, nil }
+func (s *stubClusterRuntimeStore) GetMember(uint) (*model.ClusterMember, error) { return nil, errClusterMemberNotFound }
 func (s *stubClusterRuntimeStore) GetMemberByNodeID(string) (*model.ClusterMember, error) {
 	return nil, errClusterMemberNotFound
 }

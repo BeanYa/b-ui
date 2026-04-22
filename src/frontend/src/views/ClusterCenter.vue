@@ -137,6 +137,15 @@ const selectedDomainMembers = computed(() => members.value.filter((member) => me
 
 const domainMemberCount = (domainId: number) => members.value.filter((member) => member.domainId === domainId).length
 
+const isUsableAbsoluteUrl = (value: string) => {
+  try {
+    const parsed = new URL(value)
+    return parsed.protocol === 'https:' || parsed.hostname === 'localhost' || parsed.hostname === '127.0.0.1' || parsed.hostname === '::1'
+  } catch {
+    return false
+  }
+}
+
 const loadData = async () => {
   pageLoading.value = true
   const [domainsMsg, membersMsg] = await Promise.all([
@@ -174,6 +183,18 @@ const pollOperation = async (operationId: string) => {
 }
 
 const registerDomain = async () => {
+  if (!form.value.domain || !form.value.hubUrl || !form.value.token || !form.value.baseUrl) {
+    push.error({ title: i18n.global.t('failed'), message: 'Domain, Hub URL, Domain Token, and This Node Base URL are required.' })
+    return
+  }
+  if (!isUsableAbsoluteUrl(form.value.hubUrl)) {
+    push.error({ title: i18n.global.t('failed'), message: 'Hub URL must be an absolute URL and use https unless it is localhost.' })
+    return
+  }
+  if (!isUsableAbsoluteUrl(form.value.baseUrl)) {
+    push.error({ title: i18n.global.t('failed'), message: 'This Node Base URL must be an absolute URL and use https unless it is localhost.' })
+    return
+  }
   actionLoading.value = true
   const registerMsg = await HttpUtils.post('api/cluster/register', {
     domain: form.value.domain,
