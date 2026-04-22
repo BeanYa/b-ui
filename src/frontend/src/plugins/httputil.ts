@@ -1,6 +1,7 @@
 import api from './api'
 import { i18n } from '@/locales'
 import router from '@/router'
+import store from '@/store'
 import { push } from 'notivue'
 
 export interface Msg {
@@ -37,8 +38,8 @@ function _handleMsg(msg: any): void {
 export const logout = async () => {
   const response = await HttpUtils.get('api/logout')
   if(response.success){
-    const { default: useAuthStore } = await import('@/store/modules/auth')
-    useAuthStore().reset()
+    const authStore = (store as any)._s?.get('Auth') as { reset?: () => void } | undefined
+    authStore?.reset?.()
     router.push('/login')
   }
 }

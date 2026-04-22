@@ -102,7 +102,7 @@ describe('Login and logout auth refresh', () => {
       'utf8',
     )
 
-    expect(source).toContain("@/store/modules/auth")
-    expect(source).toMatch(/if\(response\.success\)\{[\s\S]*useAuthStore\(\)\.reset\(\)[\s\S]*router\.push\('\/login'\)/)
+    expect(source).toContain("@/store")
+    expect(source).toMatch(/if\(response\.success\)\{[\s\S]*authStore\?\.reset\?\.\(\)[\s\S]*router\.push\('\/login'\)/)
   })
 })

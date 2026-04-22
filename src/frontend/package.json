@@ -14,7 +14,7 @@
   "dependencies": {
     "@fontsource-variable/geist-mono": "^5.2.7",
     "@fontsource-variable/inter": "^5.2.8",
-    "@mdi/font": "7.4.47",
+    "@mdi/js": "^7.4.47",
     "@xterm/addon-fit": "^0.11.0",
     "@xterm/xterm": "^6.0.0",
     "axios": "^1.14.0",
@@ -39,7 +39,6 @@
     "@types/node": "^25.5.0",
     "@vitejs/plugin-vue": "^6.0.5",
     "eslint-plugin-vue": "^10.8.0",
-    "material-design-icons-iconfont": "^6.7.0",
     "sass": "^1.98.0",
     "typescript": "^6.0.2",
     "vite": "^8.0.3",
