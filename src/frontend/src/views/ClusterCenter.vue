@@ -2,15 +2,15 @@
   <div class="app-page">
     <section class="app-page__hero">
       <div class="app-page__hero-head">
-        <div class="app-page__hero-kicker">Cluster Workspace</div>
+        <div class="app-page__hero-kicker">{{ $t('clusterCenter.heroKicker') }}</div>
         <h1 class="app-page__hero-title">{{ $t('pages.clusterCenter') }}</h1>
         <p class="app-page__hero-copy">
-          Register domains against the Hub, inspect mirrored membership, and trigger explicit sync cycles from one segmented control surface.
+          {{ $t('clusterCenter.heroCopy') }}
         </p>
         <div class="app-page__hero-meta">
-          <span class="app-page__hero-meta-item">{{ domains.length }} domains</span>
-          <span class="app-page__hero-meta-item">{{ members.length }} members</span>
-          <span class="app-page__hero-meta-item">{{ selectedDomain ? `v${selectedDomain.lastVersion}` : 'No domain selected' }}</span>
+          <span class="app-page__hero-meta-item">{{ domains.length }} {{ $t('clusterCenter.domainsTitle').toLowerCase() }}</span>
+          <span class="app-page__hero-meta-item">{{ members.length }} {{ $t('clusterCenter.mirroredMembers') }}</span>
+          <span class="app-page__hero-meta-item">{{ selectedDomain ? `v${selectedDomain.lastVersion}` : $t('clusterCenter.metaNoDomain') }}</span>
         </div>
       </div>
     </section>
@@ -18,9 +18,9 @@
     <v-row class="app-page__toolbar">
       <v-col cols="12">
         <div class="app-page__toolbar-actions cluster-center__actions">
-          <v-btn color="primary" @click="registerDialog = true">Register / Join Domain</v-btn>
-          <v-btn variant="outlined" color="warning" :loading="actionLoading" @click="manualSync">Manual Sync</v-btn>
-          <v-btn variant="text" :loading="pageLoading" @click="loadData">Refresh</v-btn>
+          <v-btn color="primary" @click="registerDialog = true">{{ $t('clusterCenter.actions.register') }}</v-btn>
+          <v-btn variant="outlined" color="warning" :loading="actionLoading" @click="manualSync">{{ $t('clusterCenter.actions.manualSync') }}</v-btn>
+          <v-btn variant="text" :loading="pageLoading" @click="loadData">{{ $t('clusterCenter.actions.refresh') }}</v-btn>
         </div>
       </v-col>
     </v-row>
@@ -28,9 +28,9 @@
     <v-row class="cluster-center__grid">
       <v-col cols="12" xl="4" lg="5">
         <v-card class="app-card-shell cluster-center__domains" :loading="pageLoading">
-          <v-card-title>Domains</v-card-title>
+          <v-card-title>{{ $t('clusterCenter.domainsTitle') }}</v-card-title>
           <v-card-text>
-            <div v-if="domains.length === 0" class="cluster-center__empty">No domains registered yet.</div>
+            <div v-if="domains.length === 0" class="cluster-center__empty">{{ $t('clusterCenter.noDomains') }}</div>
             <div v-else class="cluster-center__domain-list">
               <button
                 v-for="domain in domains"
@@ -43,8 +43,8 @@
                   <strong>{{ domain.domain }}</strong>
                   <span class="cluster-center__version">v{{ domain.lastVersion }}</span>
                 </div>
-                <div class="cluster-center__domain-url">{{ domain.hubUrl || 'Hub URL not set' }}</div>
-                <div class="cluster-center__domain-meta">{{ domainMemberCount(domain.id) }} mirrored members</div>
+                <div class="cluster-center__domain-url">{{ domain.hubUrl || $t('clusterCenter.fields.hubUrl') }}</div>
+                <div class="cluster-center__domain-meta">{{ domainMemberCount(domain.id) }} {{ $t('clusterCenter.mirroredMembers') }}</div>
               </button>
             </div>
           </v-card-text>
@@ -53,19 +53,19 @@
 
       <v-col cols="12" xl="8" lg="7">
         <v-card class="app-card-shell cluster-center__members" :loading="pageLoading">
-          <v-card-title>{{ selectedDomain ? selectedDomain.domain : 'Select a domain' }}</v-card-title>
+          <v-card-title>{{ selectedDomain ? selectedDomain.domain : $t('clusterCenter.selectDomain') }}</v-card-title>
           <v-card-text>
-            <div v-if="!selectedDomain" class="cluster-center__empty">Choose a domain to inspect its mirrored members.</div>
-            <div v-else-if="selectedDomainMembers.length === 0" class="cluster-center__empty">No mirrored members for this domain yet.</div>
+            <div v-if="!selectedDomain" class="cluster-center__empty">{{ $t('clusterCenter.inspectPrompt') }}</div>
+            <div v-else-if="selectedDomainMembers.length === 0" class="cluster-center__empty">{{ $t('clusterCenter.noMembers') }}</div>
             <div v-else class="cluster-center__member-table-wrap">
               <table class="cluster-center__member-table">
                 <thead>
                   <tr>
-                    <th>Node</th>
-                    <th>Name</th>
-                    <th>Base URL</th>
-                    <th>Version</th>
-                    <th>Action</th>
+                    <th>{{ $t('clusterCenter.table.node') }}</th>
+                    <th>{{ $t('clusterCenter.table.name') }}</th>
+                    <th>{{ $t('clusterCenter.table.baseUrl') }}</th>
+                    <th>{{ $t('clusterCenter.table.version') }}</th>
+                    <th>{{ $t('clusterCenter.table.action') }}</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -76,7 +76,7 @@
                     <td>v{{ member.lastVersion }}</td>
                     <td>
                       <v-btn size="small" color="warning" variant="outlined" :loading="deletingMemberId === member.id" @click="deleteMember(member)">
-                        Delete
+                        {{ $t('clusterCenter.actions.delete') }}
                       </v-btn>
                     </td>
                   </tr>
@@ -90,18 +90,18 @@
 
     <v-dialog v-model="registerDialog" class="app-dialog app-dialog--compact" max-width="520">
       <v-card class="app-card-shell">
-        <v-card-title>Register / Join Domain</v-card-title>
+        <v-card-title>{{ $t('clusterCenter.dialogTitle') }}</v-card-title>
         <v-card-text class="cluster-center__dialog-body">
-          <v-text-field v-model="form.domain" label="Domain" hide-details />
-          <v-text-field v-model="form.hubUrl" label="Hub URL" hide-details />
-          <v-text-field v-model="form.token" label="Domain Token" type="password" hide-details />
-          <v-text-field v-model="form.baseUrl" label="This Node Base URL" hide-details />
-          <v-text-field v-model="form.name" label="Display Name" hide-details />
+          <v-text-field v-model="form.domain" :label="$t('clusterCenter.fields.domain')" hide-details />
+          <v-text-field v-model="form.hubUrl" :label="$t('clusterCenter.fields.hubUrl')" hide-details />
+          <v-text-field v-model="form.token" :label="$t('clusterCenter.fields.token')" type="password" hide-details />
+          <v-text-field v-model="form.baseUrl" :label="$t('clusterCenter.fields.baseUrl')" hide-details />
+          <v-text-field v-model="form.name" :label="$t('clusterCenter.fields.name')" hide-details />
         </v-card-text>
         <v-card-actions>
           <v-spacer />
-          <v-btn variant="text" @click="registerDialog = false">Cancel</v-btn>
-          <v-btn color="primary" :loading="actionLoading" @click="registerDomain">Submit</v-btn>
+          <v-btn variant="text" @click="registerDialog = false">{{ $t('clusterCenter.actions.cancel') }}</v-btn>
+          <v-btn color="primary" :loading="actionLoading" @click="registerDomain">{{ $t('clusterCenter.actions.submit') }}</v-btn>
         </v-card-actions>
       </v-card>
     </v-dialog>
@@ -184,15 +184,15 @@ const pollOperation = async (operationId: string) => {
 
 const registerDomain = async () => {
   if (!form.value.domain || !form.value.hubUrl || !form.value.token || !form.value.baseUrl) {
-    push.error({ title: i18n.global.t('failed'), message: 'Domain, Hub URL, Domain Token, and This Node Base URL are required.' })
+    push.error({ title: i18n.global.t('failed'), message: i18n.global.t('clusterCenter.validation.required') })
     return
   }
   if (!isUsableAbsoluteUrl(form.value.hubUrl)) {
-    push.error({ title: i18n.global.t('failed'), message: 'Hub URL must be an absolute URL and use https unless it is localhost.' })
+    push.error({ title: i18n.global.t('failed'), message: i18n.global.t('clusterCenter.validation.hubUrl') })
     return
   }
   if (!isUsableAbsoluteUrl(form.value.baseUrl)) {
-    push.error({ title: i18n.global.t('failed'), message: 'This Node Base URL must be an absolute URL and use https unless it is localhost.' })
+    push.error({ title: i18n.global.t('failed'), message: i18n.global.t('clusterCenter.validation.baseUrl') })
     return
   }
   actionLoading.value = true
@@ -214,7 +214,7 @@ const registerDomain = async () => {
     form.value = { domain: '', hubUrl: '', token: '', baseUrl: '', name: '' }
     push.success({
       title: i18n.global.t('success'),
-      message: 'Cluster domain registration completed.',
+      message: i18n.global.t('clusterCenter.successRegistered'),
       duration: 5000,
     })
   }
