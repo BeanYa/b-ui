@@ -85,6 +85,17 @@ const HttpUtils = {
     _handleMsg(msg)
     return msg
   },
+  async delete(url: string, data: object = {}, options: any = undefined): Promise<Msg> {
+    let msg: Msg
+    try {
+        const resp = await api.delete(url, { data, ...options })
+        msg = _respToMsg(resp)
+    } catch (e: any) {
+        msg = { success: false, msg: e.toString(), obj: null }
+    }
+    _handleMsg(msg)
+    return msg
+  },
 }
 
 export default HttpUtils

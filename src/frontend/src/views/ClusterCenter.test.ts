@@ -1,0 +1,40 @@
+import { readFileSync } from 'node:fs'
+import { fileURLToPath } from 'node:url'
+import { describe, expect, it } from 'vitest'
+
+describe('ClusterCenter view source', () => {
+  it('loads domains and members from cluster APIs and exposes register, sync, and delete actions', () => {
+    const source = readFileSync(fileURLToPath(new URL('./ClusterCenter.vue', import.meta.url)), 'utf8')
+
+    expect(source).toContain("HttpUtils.get('api/cluster/domains')")
+    expect(source).toContain("HttpUtils.get('api/cluster/members')")
+    expect(source).toContain("HttpUtils.post('api/cluster/register'")
+    expect(source).toContain("HttpUtils.post('api/cluster/sync'")
+    expect(source).toContain("HttpUtils.delete(`api/cluster/members/${member.id}`)")
+    expect(source).toContain("HttpUtils.get(`api/cluster/operations/${operationId}`)")
+  })
+
+  it('filters member rows by the selected domain and keeps the page admin-oriented', () => {
+    const source = readFileSync(fileURLToPath(new URL('./ClusterCenter.vue', import.meta.url)), 'utf8')
+
+    expect(source).toContain('const selectedDomainId = ref<number | null>(null)')
+    expect(source).toContain('const selectedDomainMembers = computed(() =>')
+    expect(source).toContain('member.domainId === selectedDomainId.value')
+    expect(source).toContain("$t('pages.clusterCenter')")
+    expect(source).toContain('Manual Sync')
+    expect(source).toContain('Register / Join Domain')
+    expect(source).toContain('isUsableAbsoluteUrl')
+    expect(source).toContain('Hub URL must be an absolute URL')
+    expect(source).toContain('This Node Base URL must be an absolute URL')
+  })
+
+  it('uses the existing control-surface visual language instead of a generic table-only page', () => {
+    const source = readFileSync(fileURLToPath(new URL('./ClusterCenter.vue', import.meta.url)), 'utf8')
+
+    expect(source).toContain('app-page__hero')
+    expect(source).toContain('app-card-shell')
+    expect(source).toContain('cluster-center__domains')
+    expect(source).toContain('cluster-center__members')
+    expect(source).not.toContain('v-data-table')
+  })
+})

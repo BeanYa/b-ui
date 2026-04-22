@@ -50,6 +50,7 @@ export default {
     dns: "DNS",
     admins: "管理員",
     settings: "設置",
+    clusterCenter: "集群中心",
     webTerminal: "WebTerminal",
   },
   main: {

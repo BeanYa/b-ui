@@ -50,6 +50,7 @@ export default {
     dns: "DNS",
     admins: "ادمین‌ها",
     settings: "پیکربندی",
+    clusterCenter: "مرکز خوشه",
     webTerminal: "ترمینال وب",
   },
   main: {

@@ -33,6 +33,8 @@ func (c *CronJob) Start(loc *time.Location, trafficAge int) error {
 		c.cron.AddJob("@every 6h", NewDomainHintJob())
 		// database WAL checkpoint
 		c.cron.AddJob("@every 10m", NewWALCheckpointJob())
+		// cluster version polling
+		c.cron.AddJob("@every 30m", NewClusterVersionPollJob())
 	}()
 	go NewDomainHintJob().Run()
 

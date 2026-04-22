@@ -110,6 +110,9 @@ func InitDB(dbPath string) error {
 		&model.Stats{},
 		&model.Client{},
 		&model.Changes{},
+		&model.ClusterLocalNode{},
+		&model.ClusterDomain{},
+		&model.ClusterMember{},
 	)
 	if err != nil {
 		return err

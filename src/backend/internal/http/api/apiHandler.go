@@ -3,6 +3,7 @@ package api
 import (
 	"strings"
 
+	service "github.com/alireza0/s-ui/src/backend/internal/domain/services"
 	"github.com/alireza0/s-ui/src/backend/internal/shared/util/common"
 
 	"github.com/gin-gonic/gin"
@@ -11,12 +12,14 @@ import (
 type APIHandler struct {
 	ApiService
 	apiv2                *APIv2Handler
+	clusterService       clusterAPIService
 	webSSHSessionFactory webSSHSessionFactory
 }
 
 func NewAPIHandler(g *gin.RouterGroup, a2 *APIv2Handler) {
 	a := &APIHandler{
-		apiv2: a2,
+		apiv2:          a2,
+		clusterService: &service.ClusterService{},
 	}
 	a.initRouter(g)
 }
@@ -29,6 +32,12 @@ func (a *APIHandler) initRouter(g *gin.RouterGroup) {
 		}
 	})
 	g.GET("/webssh/ws", a.handleWebSSH)
+	g.POST("/cluster/register", a.registerCluster)
+	g.GET("/cluster/operations/:id", a.getClusterOperation)
+	g.GET("/cluster/domains", a.listClusterDomains)
+	g.GET("/cluster/members", a.listClusterMembers)
+	g.POST("/cluster/sync", a.manualClusterSync)
+	g.DELETE("/cluster/members/:id", a.deleteClusterMember)
 	g.POST("/:postAction", a.postHandler)
 	g.GET("/:getAction", a.getHandler)
 }
