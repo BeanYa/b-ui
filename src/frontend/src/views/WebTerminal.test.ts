@@ -8,6 +8,8 @@ describe('WebTerminal view source', () => {
 
     expect(source).toContain("import { FitAddon } from '@xterm/addon-fit'")
     expect(source).toContain("import { Terminal } from '@xterm/xterm'")
+    expect(source).toContain("import { onBeforeRouteLeave } from 'vue-router'")
+    expect(source).not.toContain('useRouter')
     expect(source).toContain("import '@xterm/xterm/css/xterm.css'")
     expect(source).toContain("const normalizedBaseUrl = rawBaseUrl.endsWith('/') ? rawBaseUrl : `${rawBaseUrl}/`")
     expect(source).toContain("const wsUrl = new URL(`${normalizedBaseUrl}api/webssh/ws`, window.location.origin)")
@@ -24,6 +26,11 @@ describe('WebTerminal view source', () => {
     expect(source).toContain('fitAddon.value?.fit()')
     expect(source).toContain('sendResize()')
     expect(source).toContain('const observer = new ResizeObserver(() => {')
+    expect(source).toContain("window.addEventListener('beforeunload', handleBeforeUnload)")
+    expect(source).toContain('onBeforeRouteLeave((to, _from, next) => {')
+    expect(source).toContain('proceed: () => next(),')
+    expect(source).toContain('cancel: () => next(false),')
+    expect(source).not.toContain('await router.push(targetPath)')
   })
 
   it('guards websocket frame parsing and tears down stale sockets safely on error and close', () => {
@@ -44,6 +51,9 @@ describe('WebTerminal view source', () => {
     expect(source).toContain('Connection status')
     expect(source).toContain('Transcript')
     expect(source).toContain('web-terminal__viewport')
+    expect(source).toContain('Interactive Web Terminal')
+    expect(source).toContain('Connect web terminal?')
+    expect(source).toContain('Leave WebTerminal?')
     expect(source).toContain('Connect')
     expect(source).toContain('Disconnect')
   })
