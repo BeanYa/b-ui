@@ -56,8 +56,11 @@ type authStateResponse struct {
 
 type stubWebSSHSession struct {
 	inputs    []string
+	resizes   [][2]int
 	inputErr  error
+	resizeErr error
 	messages  chan webSSHServerMessage
+	resizeCh  chan struct{}
 	closed    bool
 	afterSend func()
 }
@@ -65,6 +68,7 @@ type stubWebSSHSession struct {
 func newStubWebSSHSession() *stubWebSSHSession {
 	return &stubWebSSHSession{
 		messages: make(chan webSSHServerMessage, 8),
+		resizeCh: make(chan struct{}, 1),
 	}
 }
 
@@ -83,6 +87,18 @@ func (s *stubWebSSHSession) SendInput(input string) error {
 
 func (s *stubWebSSHSession) Messages() <-chan webSSHServerMessage {
 	return s.messages
+}
+
+func (s *stubWebSSHSession) Resize(cols int, rows int) error {
+	s.resizes = append(s.resizes, [2]int{cols, rows})
+	select {
+	case s.resizeCh <- struct{}{}:
+	default:
+	}
+	if s.resizeErr != nil {
+		return s.resizeErr
+	}
+	return nil
 }
 
 func (s *stubWebSSHSession) Close() error {
@@ -321,6 +337,48 @@ func TestAPIWebSSHReturnsBridgeErrorStatus(t *testing.T) {
 	}
 	if status.Data != "bridge write failed" {
 		t.Fatalf("expected bridge error status, got %q", status.Data)
+	}
+}
+
+func TestAPIWebSSHForwardsResizeMessagesForAdminUsers(t *testing.T) {
+	session := newStubWebSSHSession()
+	router := newTestAPIRouter(stubUserService{isFirstUser: func(username string) (bool, error) {
+		return username == "admin", nil
+	}}, func(context.Context) (webSSHSession, error) {
+		return session, nil
+	})
+	cookieHeader := loginCookie(t, router, "admin")
+	server := httptest.NewServer(router)
+	defer server.Close()
+
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+
+	conn, _, err := websocket.Dial(ctx, strings.Replace(server.URL, "http://", "ws://", 1)+"/api/webssh/ws", &websocket.DialOptions{
+		HTTPHeader: http.Header{
+			"Cookie": []string{cookieHeader},
+		},
+	})
+	if err != nil {
+		t.Fatalf("dial websocket: %v", err)
+	}
+	defer conn.Close(websocket.StatusNormalClosure, "")
+
+	if err := wsjson.Write(ctx, conn, webSSHClientMessage{Type: "resize", Cols: 120, Rows: 36}); err != nil {
+		t.Fatalf("write resize websocket message: %v", err)
+	}
+
+	select {
+	case <-session.resizeCh:
+	case <-time.After(1 * time.Second):
+		t.Fatal("expected resize message to reach bridge")
+	}
+
+	if len(session.resizes) != 1 {
+		t.Fatalf("expected one resize forwarded, got %#v", session.resizes)
+	}
+	if session.resizes[0][0] != 120 || session.resizes[0][1] != 36 {
+		t.Fatalf("expected resize dimensions 120x36, got %#v", session.resizes[0])
 	}
 }
 

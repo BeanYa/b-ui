@@ -13,6 +13,8 @@ import (
 type webSSHClientMessage struct {
 	Type string `json:"type"`
 	Data string `json:"data,omitempty"`
+	Cols int    `json:"cols,omitempty"`
+	Rows int    `json:"rows,omitempty"`
 }
 
 type webSSHServerMessage struct {
@@ -22,6 +24,7 @@ type webSSHServerMessage struct {
 
 type webSSHSession interface {
 	SendInput(input string) error
+	Resize(cols int, rows int) error
 	Messages() <-chan webSSHServerMessage
 	Close() error
 }
@@ -89,6 +92,11 @@ func (a *APIHandler) readWebSSHMessages(ctx context.Context, conn *websocket.Con
 		switch message.Type {
 		case "input":
 			if err := session.SendInput(message.Data); err != nil {
+				readErr <- err
+				return
+			}
+		case "resize":
+			if err := session.Resize(message.Cols, message.Rows); err != nil {
 				readErr <- err
 				return
 			}

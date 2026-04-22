@@ -24,6 +24,7 @@ type webSSHProcess interface {
 	InputPipe() (io.WriteCloser, error)
 	OutputPipe() (io.ReadCloser, error)
 	Start() error
+	Resize(cols int, rows int) error
 	Wait() error
 	Kill() error
 }
@@ -32,6 +33,7 @@ type execWebSSHProcess struct {
 	cmd    *exec.Cmd
 	input  io.WriteCloser
 	output io.ReadCloser
+	pty    *os.File
 }
 
 type localWebSSHSession struct {
@@ -160,7 +162,21 @@ func (p *execWebSSHProcess) Start() error {
 	}
 	p.input = terminal
 	p.output = terminal
+	p.pty = terminal
 	return nil
+}
+
+func (p *execWebSSHProcess) Resize(cols int, rows int) error {
+	if cols <= 0 || rows <= 0 {
+		return nil
+	}
+	if runtime.GOOS == "windows" {
+		return nil
+	}
+	if p.pty == nil {
+		return nil
+	}
+	return pty.Setsize(p.pty, &pty.Winsize{Cols: uint16(cols), Rows: uint16(rows)})
 }
 
 func (p *execWebSSHProcess) Wait() error {
@@ -272,6 +288,23 @@ func (s *localWebSSHSession) SendInput(input string) error {
 	}
 	_, err := io.WriteString(s.stdin, input)
 	return err
+}
+
+func (s *localWebSSHSession) Resize(cols int, rows int) error {
+	if !s.canDeliverIO() {
+		return errors.New("webssh session closed")
+	}
+	if cols <= 0 || rows <= 0 {
+		return nil
+	}
+	s.resetIdleTimer()
+	if !s.canDeliverIO() {
+		return errors.New("webssh session closed")
+	}
+	if s.process == nil {
+		return errors.New("webssh session closed")
+	}
+	return s.process.Resize(cols, rows)
 }
 
 func (s *localWebSSHSession) Messages() <-chan webSSHServerMessage {

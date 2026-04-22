@@ -44,7 +44,11 @@ export const reduceWebTerminalSession = (
     }
   }
 
-  if (action.message.type !== 'output' && action.message.type !== 'status') {
+  if (action.message.type === 'output') {
+    return state
+  }
+
+  if (action.message.type !== 'status') {
     return state
   }
 
