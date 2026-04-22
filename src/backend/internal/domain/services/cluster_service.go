@@ -36,6 +36,7 @@ type ClusterDomainResponse struct {
 
 type ClusterMemberResponse struct {
 	ID          uint   `json:"id"`
+	DomainID    uint   `json:"domainId"`
 	NodeID      string `json:"nodeId"`
 	Name        string `json:"name"`
 	BaseURL     string `json:"baseUrl"`
@@ -202,7 +203,7 @@ func (s *ClusterService) ListMembers() ([]ClusterMemberResponse, error) {
 	}
 	response := make([]ClusterMemberResponse, 0, len(members))
 	for _, member := range members {
-		response = append(response, ClusterMemberResponse{ID: member.Id, NodeID: member.NodeID, Name: member.Name, BaseURL: member.BaseURL, LastVersion: member.LastVersion})
+		response = append(response, ClusterMemberResponse{ID: member.Id, DomainID: member.DomainID, NodeID: member.NodeID, Name: member.Name, BaseURL: member.BaseURL, LastVersion: member.LastVersion})
 	}
 	return response, nil
 }

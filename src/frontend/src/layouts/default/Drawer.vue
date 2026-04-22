@@ -192,7 +192,10 @@ const menuGroups = computed(() => [
       { title: 'pages.rules', icon: 'mdi-routes', path: '/rules' },
       { title: 'pages.admins', icon: 'mdi-account-tie', path: '/admins' },
       ...(auth.isAdmin
-        ? [{ title: 'pages.webTerminal', icon: 'mdi-console', path: '/webterminal' }]
+        ? [
+            { title: 'pages.clusterCenter', icon: 'mdi-lan-connect', path: '/clusters' },
+            { title: 'pages.webTerminal', icon: 'mdi-console', path: '/webterminal' },
+          ]
         : []),
     ],
   },

@@ -82,6 +82,12 @@ const routes = [
         meta: { requiresAdmin: true },
         component: () => import('@/views/WebTerminal.vue'),
       },
+      {
+        path: '/clusters',
+        name: 'pages.clusterCenter',
+        meta: { requiresAdmin: true },
+        component: () => import('@/views/ClusterCenter.vue'),
+      },
     ],
   },
 ]

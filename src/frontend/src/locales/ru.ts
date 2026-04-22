@@ -50,6 +50,7 @@ export default {
     dns: "DNS",
     admins: "Администраторы",
     settings: "Настройки",
+    clusterCenter: "Центр кластера",
     webTerminal: "Веб-терминал",
   },
   main: {

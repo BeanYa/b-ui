@@ -17,4 +17,12 @@ describe('router admin-only terminal route', () => {
     expect(source).toContain("@/store/modules/auth")
     expect(source).toMatch(/if \(to\.meta\.requiresAdmin\) \{[\s\S]*if \(!auth\.loaded\) \{[\s\S]*await auth\.loadAuthState\(\)[\s\S]*\}[\s\S]*if \(!auth\.isAdmin\) \{[\s\S]*return ['"]\/['"][\s\S]*\}[\s\S]*\}/)
   })
+
+  it('defines a guarded Cluster Center route inside the authenticated shell', () => {
+    const source = readFileSync(fileURLToPath(new URL('./index.ts', import.meta.url)), 'utf8')
+
+    expect(source).toMatch(/path:\s*['"]\/clusters['"],[\s\S]*name:\s*['"]pages\.clusterCenter['"]/)
+    expect(source).toMatch(/meta:\s*\{[\s\S]*requiresAdmin:\s*true[\s\S]*\}/)
+    expect(source).toContain("@/views/ClusterCenter.vue")
+  })
 })

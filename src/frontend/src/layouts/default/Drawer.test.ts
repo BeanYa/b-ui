@@ -14,7 +14,7 @@ describe('drawer admin-only terminal menu entry', () => {
 
     expect(source).toContain("@/store/modules/auth")
     expect(source).toMatch(/const auth = useAuthStore\(\)/)
-    expect(source).toMatch(/auth\.isAdmin\s*\?\s*\[\s*\{\s*title:\s*['"]pages\.webTerminal['"],[\s\S]*path:\s*['"]\/webterminal['"]/)
+    expect(source).toMatch(/auth\.isAdmin\s*\?\s*\[[\s\S]*title:\s*['"]pages\.webTerminal['"][\s\S]*path:\s*['"]\/webterminal['"]/) 
   })
 
   it('provides a pages.webTerminal label in every locale', () => {
@@ -24,5 +24,21 @@ describe('drawer admin-only terminal menu entry', () => {
     expect(vi.pages.webTerminal).toBeTruthy()
     expect(zhcn.pages.webTerminal).toBeTruthy()
     expect(zhtw.pages.webTerminal).toBeTruthy()
+  })
+
+  it('shows the Cluster Center entry only for admins', () => {
+    const source = readFileSync(fileURLToPath(new URL('./Drawer.vue', import.meta.url)), 'utf8')
+
+    expect(source).toContain("@/store/modules/auth")
+    expect(source).toMatch(/auth\.isAdmin\s*\?\s*\[[\s\S]*title:\s*['"]pages\.clusterCenter['"][\s\S]*path:\s*['"]\/clusters['"]/)
+  })
+
+  it('provides a pages.clusterCenter label in every locale', () => {
+    expect(en.pages.clusterCenter).toBeTruthy()
+    expect(fa.pages.clusterCenter).toBeTruthy()
+    expect(ru.pages.clusterCenter).toBeTruthy()
+    expect(vi.pages.clusterCenter).toBeTruthy()
+    expect(zhcn.pages.clusterCenter).toBeTruthy()
+    expect(zhtw.pages.clusterCenter).toBeTruthy()
   })
 })
