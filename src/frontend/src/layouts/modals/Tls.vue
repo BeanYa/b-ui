@@ -390,7 +390,8 @@ import { tls, iTls, defaultInTls, oTls, defaultOutTls } from '@/types/tls'
 import AcmeVue from '@/components/tls/Acme.vue'
 import EchVue from '@/components/tls/Ech.vue'
 import HttpUtils from '@/plugins/httputil'
-import { createTlsPreset, getTlsPresetBaseName, type TlsPresetKey } from '@/plugins/tlsTemplates'
+import { createMaterializedTlsPreset } from '@/plugins/tlsPresetMaterial'
+import { getTlsPresetBaseName, type TlsPresetKey } from '@/plugins/tlsTemplates'
 import { push } from 'notivue'
 import { i18n } from '@/locales'
 import RandomUtil from '@/plugins/randomUtil'
@@ -481,11 +482,21 @@ export default {
         this.title = "add"
       }
     },
-    applyPreset(preset: TlsPresetKey) {
+    async applyPreset(preset: TlsPresetKey) {
       const currentName = this.tls.name?.trim()
       const nextName = currentName?.length ? currentName : getTlsPresetBaseName(preset)
-      this.tls = this.normalizeTls(createTlsPreset(preset, nextName))
-      this.syncStateFromTls()
+      this.loading = true
+      try {
+        this.tls = this.normalizeTls(await createMaterializedTlsPreset(preset, nextName))
+        this.syncStateFromTls()
+      } catch (error: any) {
+        push.error({
+          title: i18n.global.t('failed').toString(),
+          message: error?.message ?? String(error),
+        })
+      } finally {
+        this.loading = false
+      }
     },
     async loadDomainHints(force = false) {
       this.domainHintLoading = true

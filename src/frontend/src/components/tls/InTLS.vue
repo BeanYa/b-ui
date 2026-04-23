@@ -37,9 +37,11 @@
 </template>
 
 <script lang="ts">
-import { createTlsPreset, ensureUniqueTlsName, getTlsPresetBaseName, type TlsPresetKey } from '@/plugins/tlsTemplates'
+import { createMaterializedTlsPreset } from '@/plugins/tlsPresetMaterial'
+import { ensureUniqueTlsName, getTlsPresetBaseName, type TlsPresetKey } from '@/plugins/tlsTemplates'
 import { i18n } from '@/locales'
 import Data from '@/store/modules/data'
+import { push } from 'notivue'
 export default {
   props: ['inbound', 'tlsConfigs'],
   data() {
@@ -55,19 +57,27 @@ export default {
   methods: {
     async createPreset(preset: TlsPresetKey) {
       this.creating = true
-      const name = ensureUniqueTlsName(
-        getTlsPresetBaseName(preset),
-        this.$props.tlsConfigs?.map((item: any) => item.name) ?? [],
-      )
-      const payload = createTlsPreset(preset, name)
-      const success = await Data().save('tls', 'new', payload)
-      if (success) {
-        const created = Data().tlsConfigs.findLast((item: any) => item.name === name)
-        if (created) {
-          this.$props.inbound.tls_id = created.id
+      try {
+        const name = ensureUniqueTlsName(
+          getTlsPresetBaseName(preset),
+          this.$props.tlsConfigs?.map((item: any) => item.name) ?? [],
+        )
+        const payload = await createMaterializedTlsPreset(preset, name)
+        const success = await Data().save('tls', 'new', payload)
+        if (success) {
+          const created = Data().tlsConfigs.findLast((item: any) => item.name === name)
+          if (created) {
+            this.$props.inbound.tls_id = created.id
+          }
         }
+      } catch (error: any) {
+        push.error({
+          title: i18n.global.t('failed').toString(),
+          message: error?.message ?? String(error),
+        })
+      } finally {
+        this.creating = false
       }
-      this.creating = false
     },
   },
   computed: {

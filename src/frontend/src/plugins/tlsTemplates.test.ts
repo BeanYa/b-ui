@@ -1,6 +1,7 @@
 import { beforeAll, describe, expect, it } from 'vitest'
 
 let createTlsPreset: typeof import('./tlsTemplates').createTlsPreset
+let createMaterializedTlsPreset: typeof import('./tlsPresetMaterial').createMaterializedTlsPreset
 
 beforeAll(async () => {
   Object.defineProperty(globalThis, 'window', {
@@ -17,6 +18,7 @@ beforeAll(async () => {
   })
 
   ;({ createTlsPreset } = await import('./tlsTemplates'))
+  ;({ createMaterializedTlsPreset } = await import('./tlsPresetMaterial'))
 })
 
 describe('createTlsPreset', () => {
@@ -44,5 +46,72 @@ describe('createTlsPreset', () => {
     const preset = createTlsPreset('reality')
 
     expect(preset.server.reality?.max_time_difference).toBeUndefined()
+  })
+
+  it('materializes the standard preset with generated certificate text', async () => {
+    const preset = await createMaterializedTlsPreset('standard', undefined, {
+      async generateTlsKeypair(serverName) {
+        expect(serverName).toBe("''")
+        return [
+          '-----BEGIN PRIVATE KEY-----',
+          'private-line',
+          '-----END PRIVATE KEY-----',
+          '-----BEGIN CERTIFICATE-----',
+          'cert-line',
+          '-----END CERTIFICATE-----',
+        ]
+      },
+      async generateRealityKeypair() {
+        throw new Error('unexpected reality generation')
+      },
+    })
+
+    expect(preset.server.key).toEqual([
+      '-----BEGIN PRIVATE KEY-----',
+      'private-line',
+      '-----END PRIVATE KEY-----',
+    ])
+    expect(preset.server.certificate).toEqual([
+      '-----BEGIN CERTIFICATE-----',
+      'cert-line',
+      '-----END CERTIFICATE-----',
+    ])
+    expect(preset.server.key_path).toBeUndefined()
+    expect(preset.server.certificate_path).toBeUndefined()
+  })
+
+  it('materializes the hysteria2 preset with generated certificate text', async () => {
+    const preset = await createMaterializedTlsPreset('hysteria2', undefined, {
+      async generateTlsKeypair() {
+        return [
+          '-----BEGIN EC PRIVATE KEY-----',
+          'private-line',
+          '-----END EC PRIVATE KEY-----',
+          '-----BEGIN CERTIFICATE-----',
+          'cert-line',
+          '-----END CERTIFICATE-----',
+        ]
+      },
+      async generateRealityKeypair() {
+        throw new Error('unexpected reality generation')
+      },
+    })
+
+    expect(preset.server.key?.[0]).toBe('-----BEGIN EC PRIVATE KEY-----')
+    expect(preset.server.certificate?.[0]).toBe('-----BEGIN CERTIFICATE-----')
+  })
+
+  it('materializes the reality preset with generated public and private keys', async () => {
+    const preset = await createMaterializedTlsPreset('reality', undefined, {
+      async generateTlsKeypair() {
+        throw new Error('unexpected tls generation')
+      },
+      async generateRealityKeypair() {
+        return ['PrivateKey: private-key', 'PublicKey: public-key']
+      },
+    })
+
+    expect(preset.server.reality?.private_key).toBe('private-key')
+    expect(preset.client.reality?.public_key).toBe('public-key')
   })
 })

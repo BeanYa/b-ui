@@ -25,6 +25,7 @@
               :key="preset.value"
               variant="outlined"
               color="primary"
+              :loading="presetLoading === preset.value"
               @click="showPresetModal(preset.value)"
             >
               {{ preset.title }}
@@ -109,11 +110,13 @@
 <script lang="ts" setup>
 import TlsVue from '@/layouts/modals/Tls.vue'
 import { i18n } from '@/locales'
-import { createTlsPreset, ensureUniqueTlsName, getTlsPresetBaseName, type TlsPresetKey } from '@/plugins/tlsTemplates'
+import { createMaterializedTlsPreset } from '@/plugins/tlsPresetMaterial'
+import { ensureUniqueTlsName, getTlsPresetBaseName, type TlsPresetKey } from '@/plugins/tlsTemplates'
 import Data from '@/store/modules/data'
 import { computed, ref } from 'vue'
 import { Inbound } from '@/types/inbounds'
 import { tls } from '@/types/tls'
+import { push } from 'notivue'
 
 const tlsConfigs = computed((): any[] => {
   return Data().tlsConfigs
@@ -132,6 +135,7 @@ const modal = ref({
   id: 0,
   data: "",
 })
+const presetLoading = ref<TlsPresetKey | ''>('')
 
 const presetItems: { title: string, value: TlsPresetKey }[] = [
   { title: i18n.global.t('tls.presets.standard').toString(), value: 'standard' },
@@ -146,12 +150,22 @@ const showModal = (id: number, data?: tls) => {
   modal.value.data = data ? JSON.stringify(data) : (id == 0 ? '{}' : JSON.stringify(tlsConfigs.value.findLast(t => t.id == id)))
   modal.value.visible = true
 }
-const showPresetModal = (preset: TlsPresetKey) => {
+const showPresetModal = async (preset: TlsPresetKey) => {
   const name = ensureUniqueTlsName(
     getTlsPresetBaseName(preset),
     tlsConfigs.value.map(item => item.name),
   )
-  showModal(0, createTlsPreset(preset, name))
+  presetLoading.value = preset
+  try {
+    showModal(0, await createMaterializedTlsPreset(preset, name))
+  } catch (error: any) {
+    push.error({
+      title: i18n.global.t('failed').toString(),
+      message: error?.message ?? String(error),
+    })
+  } finally {
+    presetLoading.value = ''
+  }
 }
 const clone = (obj: any) => {
   let data = JSON.parse(JSON.stringify(obj))
