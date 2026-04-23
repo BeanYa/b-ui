@@ -47,6 +47,10 @@ describe('drawer admin-only terminal menu entry', () => {
     const source = readFileSync(fileURLToPath(new URL('./Drawer.vue', import.meta.url)), 'utf8')
 
     expect(source).toContain('class="app-drawer__groups"')
+    expect(source).toContain('display: flex;')
+    expect(source).toContain('flex-direction: column;')
+    expect(source).toContain('align-content: start;')
+    expect(source).toContain('flex: 0 0 auto;')
     expect(source).toContain('overflow-y: auto;')
     expect(source).toContain('if (!auth.loaded) {')
     expect(source).toContain('void auth.loadAuthState()')

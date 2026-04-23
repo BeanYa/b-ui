@@ -297,14 +297,17 @@ const logoutUser = async () => {
 }
 
 .app-drawer__group {
+  align-content: start;
   display: grid;
+  flex: 0 0 auto;
   gap: 6px;
   padding-top: 4px;
 }
 
 .app-drawer__groups {
-  display: grid;
+  display: flex;
   flex: 1 1 auto;
+  flex-direction: column;
   gap: 4px;
   min-height: 0;
   overflow-x: hidden;
@@ -327,6 +330,7 @@ const logoutUser = async () => {
 
 .app-drawer__list {
   display: flex;
+  flex: 0 0 auto;
   flex-direction: column;
   gap: 6px;
   min-height: 0;
