@@ -1,0 +1,1 @@
+var e={alpn:[`h3`,`h2`,`http/1.1`],min_version:`1.2`,max_version:`1.3`,cipher_suites:[]},t={alpn:[`h3`,`h2`,`http/1.1`],min_version:`1.2`,max_version:`1.3`,cipher_suites:[],utls:{enabled:!0,fingerprint:`chrome`},reality:{enabled:!0,public_key:``,short_id:``},ech:{enabled:!0,pq_signature_schemes_enabled:!1,dynamic_record_sizing_disabled:!1,config_path:``}};export{t as n,e as t};

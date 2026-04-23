@@ -55,6 +55,8 @@ func (a *APIHandler) postHandler(c *gin.Context) {
 		a.ApiService.Save(c, loginUser)
 	case "restartApp":
 		a.ApiService.RestartApp(c)
+	case "panelUpdate":
+		a.ApiService.StartPanelUpdate(c)
 	case "restartSb":
 		a.ApiService.RestartSb(c)
 	case "linkConvert":
@@ -98,6 +100,8 @@ func (a *APIHandler) getHandler(c *gin.Context) {
 		a.ApiService.GetStats(c)
 	case "status":
 		a.ApiService.GetStatus(c)
+	case "panelUpdate":
+		a.ApiService.GetPanelUpdate(c)
 	case "onlines":
 		a.ApiService.GetOnlines(c)
 	case "logs":

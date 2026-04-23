@@ -3,6 +3,62 @@
     <LogVue v-model="logModal.visible" :control="logModal" :visible="logModal.visible" />
     <Backup v-model="backupModal.visible" :control="backupModal" :visible="backupModal.visible" />
     <UsageStats v-model:visible="usageStatsModal.visible" />
+    <v-dialog v-model="panelUpdateDialog.visible" max-width="560" :persistent="panelUpdateDialog.mode === 'progress'">
+      <v-card class="rounded-lg">
+        <v-card-title>{{ $t('main.updatePanel.title') }}</v-card-title>
+        <v-card-text>
+          <div v-if="panelUpdateDialog.loading" class="panel-update__status">
+            <v-progress-circular indeterminate color="primary" />
+          </div>
+          <template v-else>
+            <div class="panel-update__versions">
+              <div class="panel-update__version-row">
+                <span>{{ $t('main.updatePanel.currentVersion') }}</span>
+                <strong>{{ panelUpdateDialog.info?.currentVersion || '--' }}</strong>
+              </div>
+              <div class="panel-update__version-row">
+                <span>{{ $t('main.updatePanel.latestVersion') }}</span>
+                <strong>{{ panelUpdateDialog.info?.latestVersion || '--' }}</strong>
+              </div>
+            </div>
+            <p class="panel-update__copy">{{ panelUpdateBody }}</p>
+            <p v-if="panelUpdateDialog.mode === 'progress'" class="panel-update__copy panel-update__copy--muted">
+              {{ $t('main.updatePanel.progressHint') }}
+            </p>
+            <p
+              v-if="panelUpdateDialog.info?.updateState?.logPath && panelUpdateDialog.info?.updateState?.phase === 'failed'"
+              class="panel-update__copy panel-update__copy--muted"
+            >
+              {{ $t('main.updatePanel.logPath') }} {{ panelUpdateDialog.info?.updateState?.logPath }}
+            </p>
+          </template>
+        </v-card-text>
+        <v-card-actions>
+          <v-spacer />
+          <v-btn
+            v-if="panelUpdateDialog.mode === 'confirm'"
+            variant="outlined"
+            @click="closePanelUpdateDialog">
+            {{ $t('actions.close') }}
+          </v-btn>
+          <v-btn
+            v-if="panelUpdateDialog.mode === 'confirm' && panelUpdateActionEnabled"
+            color="primary"
+            variant="tonal"
+            :loading="panelUpdateDialog.submitting"
+            @click="confirmPanelUpdate">
+            {{ panelUpdateActionLabel }}
+          </v-btn>
+          <v-btn
+            v-else-if="panelUpdateDialog.mode === 'progress'"
+            color="primary"
+            variant="tonal"
+            disabled>
+            {{ $t('main.updatePanel.progress') }}
+          </v-btn>
+        </v-card-actions>
+      </v-card>
+    </v-dialog>
 
     <v-container class="dashboard-shell" fluid>
       <v-row class="dashboard-shell__overview" density="comfortable">
@@ -20,7 +76,12 @@
               <span>{{ selectedPanelLabel }}</span>
             </div>
             <div class="overview-card__actions">
-              <v-btn color="primary" prepend-icon="mdi-refresh" variant="flat" @click="syncDashboard()">
+              <v-btn
+                color="primary"
+                prepend-icon="mdi-refresh"
+                variant="flat"
+                :loading="panelUpdateButtonLoading"
+                @click="openPanelUpdateDialog()">
                 {{ $t('actions.update') }}
               </v-btn>
               <v-btn prepend-icon="mdi-backup-restore" variant="tonal" @click="backupModal.visible = true">
@@ -183,6 +244,7 @@ import Gauge from '@/components/tiles/Gauge.vue'
 import History from '@/components/tiles/History.vue'
 import { computed, onActivated, onBeforeUnmount, onDeactivated, onMounted, ref } from 'vue'
 import { i18n } from '@/locales'
+import { push } from 'notivue'
 import LogVue from '@/layouts/modals/Logs.vue'
 import Backup from '@/layouts/modals/Backup.vue'
 import UsageStats from '@/layouts/modals/UsageStats.vue'
@@ -192,6 +254,29 @@ import { filterTileSectionsByData, formatAppVersion, formatCpuRingNote } from '@
 
 const loading = ref(false)
 type TileSectionKey = 'metric' | 'detail'
+type PanelUpdateDialogMode = 'confirm' | 'progress'
+type PanelUpdateComparison = 'older' | 'same' | 'newer' | 'unknown'
+
+interface PanelUpdateState {
+  phase: 'running' | 'completed' | 'failed'
+  targetVersion: string
+  force: boolean
+  startedAt: number
+  updatedAt: number
+  logPath?: string
+  message?: string
+}
+
+interface PanelUpdateInfo {
+  supported: boolean
+  unsupportedReason?: string
+  currentVersion: string
+  latestVersion?: string
+  comparison: PanelUpdateComparison
+  updateAvailable: boolean
+  forceRequired: boolean
+  updateState?: PanelUpdateState
+}
 
 const requestTileItems = [
   'g-cpu',
@@ -243,6 +328,15 @@ const liveActivity = ref({
   network: 0,
   packets: 0,
   disk: 0,
+})
+const panelUpdateDialog = ref({
+  visible: false,
+  loading: false,
+  submitting: false,
+  mode: 'confirm' as PanelUpdateDialogMode,
+  info: null as PanelUpdateInfo | null,
+  targetVersion: '',
+  force: false,
 })
 
 const dataStore = Data()
@@ -379,6 +473,47 @@ const tileCardClasses = (type: string) => ({
   'tile-card--chart': type.startsWith('h'),
 })
 
+const normalizeReleaseVersion = (value?: string) => (value ?? '').trim().replace(/^v/i, '')
+
+const panelUpdateActionEnabled = computed(() => {
+  return Boolean(panelUpdateDialog.value.info?.supported && panelUpdateDialog.value.targetVersion)
+})
+
+const panelUpdateActionLabel = computed(() => {
+  return panelUpdateDialog.value.force
+    ? i18n.global.t('actions.forceUpdate').toString()
+    : i18n.global.t('actions.update').toString()
+})
+
+const panelUpdateButtonLoading = computed(() => {
+  return panelUpdateDialog.value.loading || panelUpdateDialog.value.submitting
+})
+
+const panelUpdateBody = computed(() => {
+  const info = panelUpdateDialog.value.info
+  if (!info) return ''
+  if (!info.supported) {
+    return info.unsupportedReason || i18n.global.t('main.updatePanel.unsupported').toString()
+  }
+  if (info.updateState?.phase === 'failed') {
+    return i18n.global.t('main.updatePanel.failed').toString()
+  }
+  if (panelUpdateDialog.value.mode === 'progress') {
+    return i18n.global.t('main.updatePanel.running').toString()
+  }
+
+  switch (info.comparison) {
+    case 'older':
+      return i18n.global.t('main.updatePanel.confirmUpdate').toString()
+    case 'same':
+      return i18n.global.t('main.updatePanel.confirmForce').toString()
+    case 'newer':
+      return i18n.global.t('main.updatePanel.confirmDowngrade').toString()
+    default:
+      return i18n.global.t('main.updatePanel.confirmUnknown').toString()
+  }
+})
+
 const updateActivity = (nextData: any) => {
   const prev = previousTelemetry.value
 
@@ -429,11 +564,136 @@ const stopTimer = () => {
 const logModal = ref({ visible: false })
 const backupModal = ref({ visible: false })
 const usageStatsModal = ref({ visible: false })
+let panelUpdatePollId: ReturnType<typeof setInterval> | null = null
 
 const restartSingbox = async () => {
   loading.value = true
   await HttpUtils.post('api/restartSb', {})
   loading.value = false
+}
+
+const panelUpdateNeedsForce = (info: PanelUpdateInfo | null) => {
+  return info?.comparison !== 'older'
+}
+
+const applyPanelUpdateInfo = (info: PanelUpdateInfo) => {
+  panelUpdateDialog.value.info = info
+  panelUpdateDialog.value.targetVersion = info.latestVersion ?? panelUpdateDialog.value.targetVersion
+  panelUpdateDialog.value.force = panelUpdateNeedsForce(info)
+}
+
+const closePanelUpdateDialog = () => {
+  if (panelUpdateDialog.value.mode === 'progress') return
+  panelUpdateDialog.value.visible = false
+}
+
+const readPanelUpdateInfoQuietly = async (): Promise<PanelUpdateInfo | null> => {
+  try {
+    const response = await fetch('./api/panelUpdate', {
+      headers: { 'X-Requested-With': 'XMLHttpRequest' },
+      credentials: 'same-origin',
+    })
+    if (!response.ok) return null
+    const data = await response.json() as { success?: boolean, obj?: PanelUpdateInfo }
+    if (!data?.success || !data.obj) return null
+    return data.obj
+  } catch {
+    return null
+  }
+}
+
+const stopPanelUpdatePolling = () => {
+  if (panelUpdatePollId) {
+    clearInterval(panelUpdatePollId)
+    panelUpdatePollId = null
+  }
+}
+
+const handlePanelUpdateCompletion = async (info: PanelUpdateInfo, targetVersion: string) => {
+  if (info.updateState?.phase !== 'completed') return
+  if (normalizeReleaseVersion(info.currentVersion) !== normalizeReleaseVersion(targetVersion)) return
+
+  stopPanelUpdatePolling()
+  panelUpdateDialog.value.visible = false
+  panelUpdateDialog.value.mode = 'confirm'
+  await syncDashboard()
+  push.success({
+    message: i18n.global.t('main.updatePanel.completed').toString(),
+  })
+}
+
+const pollPanelUpdate = async (targetVersion: string) => {
+  const info = await readPanelUpdateInfoQuietly()
+  if (!info) return
+
+  applyPanelUpdateInfo(info)
+  if (info.updateState?.phase === 'failed') {
+    stopPanelUpdatePolling()
+    panelUpdateDialog.value.mode = 'confirm'
+    startTimer()
+    push.error({
+      title: i18n.global.t('failed').toString(),
+      message: i18n.global.t('main.updatePanel.failed').toString(),
+    })
+    return
+  }
+
+  await handlePanelUpdateCompletion(info, targetVersion)
+}
+
+const startPanelUpdatePolling = (targetVersion: string) => {
+  stopPanelUpdatePolling()
+  panelUpdatePollId = setInterval(() => {
+    void pollPanelUpdate(targetVersion)
+  }, 2000)
+}
+
+const openPanelUpdateDialog = async () => {
+  panelUpdateDialog.value.loading = true
+  const msg = await HttpUtils.get('api/panelUpdate')
+  panelUpdateDialog.value.loading = false
+  if (!msg.success || !msg.obj) return
+
+  const info = msg.obj as PanelUpdateInfo
+  applyPanelUpdateInfo(info)
+  panelUpdateDialog.value.mode = info.updateState?.phase === 'running' ? 'progress' : 'confirm'
+  panelUpdateDialog.value.visible = true
+
+  if (panelUpdateDialog.value.mode === 'progress' && panelUpdateDialog.value.targetVersion) {
+    stopTimer()
+    startPanelUpdatePolling(panelUpdateDialog.value.targetVersion)
+  }
+}
+
+const confirmPanelUpdate = async () => {
+  if (!panelUpdateActionEnabled.value) return
+
+  panelUpdateDialog.value.submitting = true
+  const msg = await HttpUtils.post('api/panelUpdate', {
+    targetVersion: panelUpdateDialog.value.targetVersion,
+    force: panelUpdateDialog.value.force ? 'true' : 'false',
+  })
+  panelUpdateDialog.value.submitting = false
+  if (!msg.success) return
+
+  const startedAt = Math.floor(Date.now() / 1000)
+  panelUpdateDialog.value.mode = 'progress'
+  panelUpdateDialog.value.info = panelUpdateDialog.value.info
+    ? {
+        ...panelUpdateDialog.value.info,
+        updateState: {
+          phase: 'running',
+          targetVersion: panelUpdateDialog.value.targetVersion,
+          force: panelUpdateDialog.value.force,
+          startedAt,
+          updatedAt: startedAt,
+          logPath: msg.obj?.logPath as string | undefined,
+        },
+      }
+    : panelUpdateDialog.value.info
+
+  stopTimer()
+  startPanelUpdatePolling(panelUpdateDialog.value.targetVersion)
 }
 
 const syncDashboard = async () => {
@@ -453,10 +713,12 @@ onActivated(() => {
 
 onDeactivated(() => {
   stopTimer()
+  stopPanelUpdatePolling()
 })
 
 onBeforeUnmount(() => {
   stopTimer()
+  stopPanelUpdatePolling()
 })
 </script>
 
@@ -594,6 +856,43 @@ onBeforeUnmount(() => {
 
 .overview-card__actions .v-btn {
   width: 100%;
+}
+
+.panel-update__status {
+  display: flex;
+  justify-content: center;
+  padding: 20px 0 8px;
+}
+
+.panel-update__versions {
+  border: 1px solid var(--app-border-1);
+  border-radius: 18px;
+  display: grid;
+  gap: 10px;
+  padding: 14px;
+}
+
+.panel-update__version-row {
+  align-items: center;
+  display: flex;
+  font-size: 13px;
+  gap: 12px;
+  justify-content: space-between;
+}
+
+.panel-update__version-row span {
+  color: var(--app-text-3);
+}
+
+.panel-update__copy {
+  color: var(--app-text-1);
+  font-size: 13px;
+  line-height: 1.6;
+  margin: 14px 0 0;
+}
+
+.panel-update__copy--muted {
+  color: var(--app-text-3);
 }
 
 .section-head {

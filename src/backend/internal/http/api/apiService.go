@@ -3,6 +3,7 @@ package api
 import (
 	"encoding/json"
 	"strconv"
+	"strings"
 	"time"
 
 	service "github.com/alireza0/s-ui/src/backend/internal/domain/services"
@@ -363,6 +364,18 @@ func (a *ApiService) Save(c *gin.Context, loginUser string) {
 func (a *ApiService) RestartApp(c *gin.Context) {
 	err := a.PanelService.RestartPanel(3)
 	jsonMsg(c, "restartApp", err)
+}
+
+func (a *ApiService) GetPanelUpdate(c *gin.Context) {
+	result, err := a.PanelService.GetUpdateInfo()
+	jsonObj(c, result, err)
+}
+
+func (a *ApiService) StartPanelUpdate(c *gin.Context) {
+	targetVersion := c.Request.FormValue("targetVersion")
+	force := c.Request.FormValue("force") == "1" || strings.EqualFold(c.Request.FormValue("force"), "true")
+	result, err := a.PanelService.StartUpdate(targetVersion, force)
+	jsonObj(c, result, err)
 }
 
 func (a *ApiService) RestartSb(c *gin.Context) {
