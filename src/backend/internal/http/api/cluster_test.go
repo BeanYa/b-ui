@@ -20,7 +20,7 @@ import (
 
 func TestClusterRegisterReturnsOperationStatus(t *testing.T) {
 	router, cluster := newTestClusterRouter()
-	registerBody := bytes.NewBufferString(`{"domain":"edge.example.com","token":"cluster-token"}`)
+	registerBody := bytes.NewBufferString(`{"domain":"edge.example.com","hubUrl":"https://hub.example.com","token":"cluster-token","baseUrl":"https://panel.example.com/app/"}`)
 	req := httptest.NewRequest(http.MethodPost, "/api/cluster/register", registerBody)
 	req.Header.Set("Content-Type", "application/json")
 	req.Header.Set("Cookie", loginCookie(t, router, "admin"))
@@ -38,6 +38,12 @@ func TestClusterRegisterReturnsOperationStatus(t *testing.T) {
 	}
 	if cluster.registerCalls != 1 {
 		t.Fatalf("expected one register call, got %d", cluster.registerCalls)
+	}
+	if cluster.registeredRequest.HubURL != "https://hub.example.com" {
+		t.Fatalf("expected forwarded hub URL, got %q", cluster.registeredRequest.HubURL)
+	}
+	if cluster.registeredRequest.BaseURL != "https://panel.example.com/app/" {
+		t.Fatalf("expected forwarded base URL, got %q", cluster.registeredRequest.BaseURL)
 	}
 }
 
@@ -206,21 +212,23 @@ func newTestClusterRouterWithUserService(userService apiUserService) (*gin.Engin
 }
 
 type stubClusterAPIService struct {
-	registerCalls    int
-	listDomainsCalls int
-	listMembersCalls int
-	manualSyncCalls  int
-	receiveCalls     int
-	deletedMemberID  uint
-	receivedToken    string
-	receivedEnvelope *service.ClusterEnvelope
-	receiveErr       error
-	domains          []service.ClusterDomainResponse
-	members          []service.ClusterMemberResponse
+	registerCalls     int
+	listDomainsCalls  int
+	listMembersCalls  int
+	manualSyncCalls   int
+	receiveCalls      int
+	deletedMemberID   uint
+	receivedToken     string
+	receivedEnvelope  *service.ClusterEnvelope
+	receiveErr        error
+	domains           []service.ClusterDomainResponse
+	members           []service.ClusterMemberResponse
+	registeredRequest service.ClusterRegisterRequest
 }
 
 func (s *stubClusterAPIService) Register(request service.ClusterRegisterRequest) (*service.ClusterOperationStatus, error) {
 	s.registerCalls++
+	s.registeredRequest = request
 	return &service.ClusterOperationStatus{ID: "op-register", State: "completed"}, nil
 }
 

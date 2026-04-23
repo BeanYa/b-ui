@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"sort"
+	"strings"
 	"sync"
 	"time"
 
@@ -13,11 +14,11 @@ import (
 )
 
 type ClusterRegisterRequest struct {
-	HubURL  string `json:"hubUrl"`
+	HubURL  string `json:"hubUrl" binding:"required"`
 	Name    string `json:"name"`
 	Domain  string `json:"domain" binding:"required"`
 	Token   string `json:"token" binding:"required"`
-	BaseURL string `json:"baseUrl"`
+	BaseURL string `json:"baseUrl" binding:"required"`
 }
 
 type ClusterOperationStatus struct {
@@ -77,7 +78,21 @@ var clusterOperations = struct {
 
 const maxClusterOperations = 128
 
+var errClusterHubURLRequired = errors.New("cluster hub URL is required")
+var errClusterBaseURLRequired = errors.New("cluster node base URL is required")
+
 func (s *ClusterService) Register(request ClusterRegisterRequest) (*ClusterOperationStatus, error) {
+	request.Domain = strings.TrimSpace(request.Domain)
+	request.HubURL = strings.TrimSpace(request.HubURL)
+	request.BaseURL = strings.TrimSpace(request.BaseURL)
+	request.Name = strings.TrimSpace(request.Name)
+	if request.HubURL == "" {
+		return nil, errClusterHubURLRequired
+	}
+	if request.BaseURL == "" {
+		return nil, errClusterBaseURLRequired
+	}
+
 	store := s.getStore()
 	identity, err := s.localIdentity.GetOrCreate()
 	if err != nil {
@@ -98,75 +113,66 @@ func (s *ClusterService) Register(request ClusterRegisterRequest) (*ClusterOpera
 	if domain == nil {
 		domain = &model.ClusterDomain{}
 	}
-	if request.HubURL != "" {
-		client := s.hubClient
-		if client == nil {
-			client = &ClusterHubClient{}
-		}
-		requestID, err := uuid.NewV4()
-		if err != nil {
-			return nil, err
-		}
-		_, err = client.RegisterNode(context.Background(), request.HubURL, ClusterHubRegisterNodeRequest{
-			RequestID:   requestID.String(),
-			DomainID:    request.Domain,
-			DomainToken: request.Token,
-			Member: ClusterHubMemberRegister{
-				MemberID:  identity.NodeID,
-				NodeID:    identity.NodeID,
-				Address:   request.BaseURL,
-				BaseURL:   request.BaseURL,
-				PublicKey: identity.PublicKey,
-				Name:      request.Name,
-			},
-		})
-		if err != nil {
-			return nil, err
-		}
-		domain.Domain = request.Domain
-		domain.HubURL = request.HubURL
-		domain.TokenEncrypted = encryptedToken
-		if err := store.SaveDomain(domain); err != nil {
-			return nil, err
-		}
-		snapshot, err := client.GetSnapshot(context.Background(), request.HubURL, request.Domain, request.Token)
-		if err != nil {
-			return nil, err
-		}
-		members := make([]model.ClusterMember, 0, len(snapshot.Members))
-		for _, item := range snapshot.Members {
-			peerTokenEncrypted := ""
-			peerToken := item.EffectivePeerToken()
-			if peerToken != "" {
-				peerTokenEncrypted, err = EncryptClusterDomainToken(secret, peerToken)
-				if err != nil {
-					return nil, err
-				}
+	client := s.hubClient
+	if client == nil {
+		client = &ClusterHubClient{}
+	}
+	requestID, err := uuid.NewV4()
+	if err != nil {
+		return nil, err
+	}
+	_, err = client.RegisterNode(context.Background(), request.HubURL, ClusterHubRegisterNodeRequest{
+		RequestID:   requestID.String(),
+		DomainID:    request.Domain,
+		DomainToken: request.Token,
+		Member: ClusterHubMemberRegister{
+			MemberID:  identity.NodeID,
+			NodeID:    identity.NodeID,
+			Address:   request.BaseURL,
+			BaseURL:   request.BaseURL,
+			PublicKey: identity.PublicKey,
+			Name:      request.Name,
+		},
+	})
+	if err != nil {
+		return nil, err
+	}
+	domain.Domain = request.Domain
+	domain.HubURL = request.HubURL
+	domain.TokenEncrypted = encryptedToken
+	if err := store.SaveDomain(domain); err != nil {
+		return nil, err
+	}
+	snapshot, err := client.GetSnapshot(context.Background(), request.HubURL, request.Domain, request.Token)
+	if err != nil {
+		return nil, err
+	}
+	members := make([]model.ClusterMember, 0, len(snapshot.Members))
+	for _, item := range snapshot.Members {
+		peerTokenEncrypted := ""
+		peerToken := item.EffectivePeerToken()
+		if peerToken != "" {
+			peerTokenEncrypted, err = EncryptClusterDomainToken(secret, peerToken)
+			if err != nil {
+				return nil, err
 			}
-			members = append(members, model.ClusterMember{
-				NodeID:             item.EffectiveNodeID(),
-				Name:               item.Name,
-				BaseURL:            item.EffectiveBaseURL(),
-				PublicKey:          item.EffectivePublicKey(),
-				PeerTokenEncrypted: peerTokenEncrypted,
-				DomainID:           domain.Id,
-				LastVersion:        snapshot.Version,
-			})
 		}
-		if err := store.ReplaceDomainMembers(domain.Id, members); err != nil {
-			return nil, err
-		}
-		domain.LastVersion = snapshot.Version
-		if err := store.SaveDomain(domain); err != nil {
-			return nil, err
-		}
-	} else {
-		domain.Domain = request.Domain
-		domain.HubURL = request.HubURL
-		domain.TokenEncrypted = encryptedToken
-		if err := store.SaveDomain(domain); err != nil {
-			return nil, err
-		}
+		members = append(members, model.ClusterMember{
+			NodeID:             item.EffectiveNodeID(),
+			Name:               item.Name,
+			BaseURL:            item.EffectiveBaseURL(),
+			PublicKey:          item.EffectivePublicKey(),
+			PeerTokenEncrypted: peerTokenEncrypted,
+			DomainID:           domain.Id,
+			LastVersion:        snapshot.Version,
+		})
+	}
+	if err := store.ReplaceDomainMembers(domain.Id, members); err != nil {
+		return nil, err
+	}
+	domain.LastVersion = snapshot.Version
+	if err := store.SaveDomain(domain); err != nil {
+		return nil, err
 	}
 	status, err := newClusterOperationStatus("completed", "registered")
 	if err != nil {

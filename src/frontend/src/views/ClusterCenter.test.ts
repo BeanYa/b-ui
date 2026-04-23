@@ -24,9 +24,13 @@ describe('ClusterCenter view source', () => {
     expect(source).toContain("$t('clusterCenter.actions.manualSync')")
     expect(source).toContain("$t('clusterCenter.actions.register')")
     expect(source).toContain('isUsableAbsoluteUrl')
+    expect(source).toContain('resolvePanelBaseUrl')
+    expect(source).toContain('window.location.origin')
     expect(source).toContain("i18n.global.t('clusterCenter.validation.required')")
     expect(source).toContain("i18n.global.t('clusterCenter.validation.hubUrl')")
-    expect(source).toContain("i18n.global.t('clusterCenter.validation.baseUrl')")
+    expect(source).toContain("i18n.global.t('clusterCenter.validation.panelUrl')")
+    expect(source).not.toContain('v-model="form.baseUrl"')
+    expect(source).not.toContain('v-model="form.name"')
   })
 
   it('uses the existing control-surface visual language instead of a generic table-only page', () => {

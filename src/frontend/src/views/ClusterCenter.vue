@@ -95,8 +95,6 @@
           <v-text-field v-model="form.domain" :label="$t('clusterCenter.fields.domain')" hide-details />
           <v-text-field v-model="form.hubUrl" :label="$t('clusterCenter.fields.hubUrl')" hide-details />
           <v-text-field v-model="form.token" :label="$t('clusterCenter.fields.token')" type="password" hide-details />
-          <v-text-field v-model="form.baseUrl" :label="$t('clusterCenter.fields.baseUrl')" hide-details />
-          <v-text-field v-model="form.name" :label="$t('clusterCenter.fields.name')" hide-details />
         </v-card-text>
         <v-card-actions>
           <v-spacer />
@@ -128,8 +126,6 @@ const form = ref({
   domain: '',
   hubUrl: '',
   token: '',
-  baseUrl: '',
-  name: '',
 })
 
 const selectedDomain = computed(() => domains.value.find((domain) => domain.id === selectedDomainId.value) ?? null)
@@ -143,6 +139,17 @@ const isUsableAbsoluteUrl = (value: string) => {
     return parsed.protocol === 'https:' || parsed.hostname === 'localhost' || parsed.hostname === '127.0.0.1' || parsed.hostname === '::1'
   } catch {
     return false
+  }
+}
+
+const resolvePanelBaseUrl = () => {
+  const rawBaseUrl = String((window as any).BASE_URL ?? '/')
+  const normalizedBaseUrl = rawBaseUrl.endsWith('/') ? rawBaseUrl : `${rawBaseUrl}/`
+
+  try {
+    return new URL(normalizedBaseUrl, window.location.origin).toString()
+  } catch {
+    return ''
   }
 }
 
@@ -183,25 +190,28 @@ const pollOperation = async (operationId: string) => {
 }
 
 const registerDomain = async () => {
-  if (!form.value.domain || !form.value.hubUrl || !form.value.token || !form.value.baseUrl) {
+  const domain = form.value.domain.trim()
+  const hubUrl = form.value.hubUrl.trim()
+  const panelBaseUrl = resolvePanelBaseUrl()
+
+  if (!domain || !hubUrl || !form.value.token) {
     push.error({ title: i18n.global.t('failed'), message: i18n.global.t('clusterCenter.validation.required') })
     return
   }
-  if (!isUsableAbsoluteUrl(form.value.hubUrl)) {
+  if (!isUsableAbsoluteUrl(hubUrl)) {
     push.error({ title: i18n.global.t('failed'), message: i18n.global.t('clusterCenter.validation.hubUrl') })
     return
   }
-  if (!isUsableAbsoluteUrl(form.value.baseUrl)) {
-    push.error({ title: i18n.global.t('failed'), message: i18n.global.t('clusterCenter.validation.baseUrl') })
+  if (!isUsableAbsoluteUrl(panelBaseUrl)) {
+    push.error({ title: i18n.global.t('failed'), message: i18n.global.t('clusterCenter.validation.panelUrl') })
     return
   }
   actionLoading.value = true
   const registerMsg = await HttpUtils.post('api/cluster/register', {
-    domain: form.value.domain,
-    hubUrl: form.value.hubUrl,
+    domain,
+    hubUrl,
     token: form.value.token,
-    baseUrl: form.value.baseUrl,
-    name: form.value.name,
+    baseUrl: panelBaseUrl,
   })
 
   if (registerMsg.success) {
@@ -211,7 +221,7 @@ const registerDomain = async () => {
     }
     await loadData()
     registerDialog.value = false
-    form.value = { domain: '', hubUrl: '', token: '', baseUrl: '', name: '' }
+    form.value = { domain: '', hubUrl: '', token: '' }
     push.success({
       title: i18n.global.t('success'),
       message: i18n.global.t('clusterCenter.successRegistered'),
