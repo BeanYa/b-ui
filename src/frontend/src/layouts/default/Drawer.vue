@@ -23,35 +23,37 @@
       />
     </div>
 
-    <div
-      v-for="group in menuGroups"
-      :key="group.label"
-      class="app-drawer__group"
-    >
-      <div class="app-drawer__section">{{ group.label }}</div>
-      <v-list class="app-drawer__list" density="comfortable" nav>
-        <v-list-item
-          v-for="item in group.items"
-          :key="item.title"
-          :class="['app-drawer__item', { 'app-drawer__item--rail': isItemRail }]"
-          link
-          :to="item.path"
-          :active="router.currentRoute.value.path === item.path"
-        >
-          <template #prepend>
-            <span class="app-drawer__icon-wrap">
-              <v-icon :icon="item.icon" />
-            </span>
-          </template>
-          <v-tooltip
-            v-if="isRail"
-            activator="parent"
-            location="end"
-            :text="$t(item.title)"
-          />
-          <v-list-item-title class="app-drawer__item-title" v-text="$t(item.title)" />
-        </v-list-item>
-      </v-list>
+    <div class="app-drawer__groups">
+      <div
+        v-for="group in menuGroups"
+        :key="group.label"
+        class="app-drawer__group"
+      >
+        <div class="app-drawer__section">{{ group.label }}</div>
+        <v-list class="app-drawer__list" density="comfortable" nav>
+          <v-list-item
+            v-for="item in group.items"
+            :key="item.title"
+            :class="['app-drawer__item', { 'app-drawer__item--rail': isItemRail }]"
+            link
+            :to="item.path"
+            :active="router.currentRoute.value.path === item.path"
+          >
+            <template #prepend>
+              <span class="app-drawer__icon-wrap">
+                <v-icon :icon="item.icon" />
+              </span>
+            </template>
+            <v-tooltip
+              v-if="isRail"
+              activator="parent"
+              location="end"
+              :text="$t(item.title)"
+            />
+            <v-list-item-title class="app-drawer__item-title" v-text="$t(item.title)" />
+          </v-list-item>
+        </v-list>
+      </div>
     </div>
 
     <template #append>
@@ -82,7 +84,7 @@
 </template>
 
 <script lang="ts" setup>
-import { computed, onBeforeUnmount, ref, watch } from 'vue'
+import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import router from '@/router'
 import { logout } from '@/plugins/httputil'
 import useAuthStore from '@/store/modules/auth'
@@ -158,6 +160,12 @@ onBeforeUnmount(() => {
   clearDrawerContentTimer()
 })
 
+onMounted(() => {
+  if (!auth.loaded) {
+    void auth.loadAuthState()
+  }
+})
+
 const drawerVisualState = computed(() => getDrawerVisualState({
   collapsed: props.collapsed,
   isMobile: props.isMobile,
@@ -172,6 +180,8 @@ const drawerClasses = computed(() => ({
   'app-drawer--expanding': drawerPhase.value === 'expanding',
   'app-drawer--rail-state': isRail.value,
 }))
+
+const canShowAdminTools = computed(() => auth.isAdmin || router.currentRoute.value.meta.requiresAdmin === true)
 
 const menuGroups = computed(() => [
   {
@@ -191,7 +201,7 @@ const menuGroups = computed(() => [
       { title: 'pages.tls', icon: 'mdi-certificate', path: '/tls' },
       { title: 'pages.rules', icon: 'mdi-routes', path: '/rules' },
       { title: 'pages.admins', icon: 'mdi-account-tie', path: '/admins' },
-      ...(auth.isAdmin
+      ...(canShowAdminTools.value
         ? [
             { title: 'pages.clusterCenter', icon: 'mdi-lan-connect', path: '/clusters' },
             { title: 'pages.webTerminal', icon: 'mdi-console', path: '/webterminal' },
@@ -290,6 +300,16 @@ const logoutUser = async () => {
   display: grid;
   gap: 6px;
   padding-top: 4px;
+}
+
+.app-drawer__groups {
+  display: grid;
+  flex: 1 1 auto;
+  gap: 4px;
+  min-height: 0;
+  overflow-x: hidden;
+  overflow-y: auto;
+  padding-bottom: 8px;
 }
 
 .app-drawer__section {

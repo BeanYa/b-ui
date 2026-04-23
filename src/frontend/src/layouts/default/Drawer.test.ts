@@ -14,7 +14,8 @@ describe('drawer admin-only terminal menu entry', () => {
 
     expect(source).toContain("@/store/modules/auth")
     expect(source).toMatch(/const auth = useAuthStore\(\)/)
-    expect(source).toMatch(/auth\.isAdmin\s*\?\s*\[[\s\S]*title:\s*['"]pages\.webTerminal['"][\s\S]*path:\s*['"]\/webterminal['"]/) 
+    expect(source).toContain('const canShowAdminTools = computed(() => auth.isAdmin || router.currentRoute.value.meta.requiresAdmin === true)')
+    expect(source).toMatch(/canShowAdminTools\.value\s*\?\s*\[[\s\S]*title:\s*['"]pages\.webTerminal['"][\s\S]*path:\s*['"]\/webterminal['"]/) 
   })
 
   it('provides a pages.webTerminal label in every locale', () => {
@@ -30,7 +31,7 @@ describe('drawer admin-only terminal menu entry', () => {
     const source = readFileSync(fileURLToPath(new URL('./Drawer.vue', import.meta.url)), 'utf8')
 
     expect(source).toContain("@/store/modules/auth")
-    expect(source).toMatch(/auth\.isAdmin\s*\?\s*\[[\s\S]*title:\s*['"]pages\.clusterCenter['"][\s\S]*path:\s*['"]\/clusters['"]/)
+    expect(source).toMatch(/canShowAdminTools\.value\s*\?\s*\[[\s\S]*title:\s*['"]pages\.clusterCenter['"][\s\S]*path:\s*['"]\/clusters['"]/)
   })
 
   it('provides a pages.clusterCenter label in every locale', () => {
@@ -40,5 +41,14 @@ describe('drawer admin-only terminal menu entry', () => {
     expect(vi.pages.clusterCenter).toBeTruthy()
     expect(zhcn.pages.clusterCenter).toBeTruthy()
     expect(zhtw.pages.clusterCenter).toBeTruthy()
+  })
+
+  it('uses a scrollable menu container and eagerly loads auth state', () => {
+    const source = readFileSync(fileURLToPath(new URL('./Drawer.vue', import.meta.url)), 'utf8')
+
+    expect(source).toContain('class="app-drawer__groups"')
+    expect(source).toContain('overflow-y: auto;')
+    expect(source).toContain('if (!auth.loaded) {')
+    expect(source).toContain('void auth.loadAuthState()')
   })
 })
