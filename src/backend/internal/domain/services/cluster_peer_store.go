@@ -3,11 +3,13 @@ package service
 import (
 	"encoding/json"
 	"errors"
+	"strings"
 	"sync"
 	"time"
 
 	database "github.com/alireza0/s-ui/src/backend/internal/infra/db"
 	"github.com/alireza0/s-ui/src/backend/internal/infra/db/model"
+	"gorm.io/gorm/clause"
 )
 
 const (
@@ -85,7 +87,7 @@ func (s *dbClusterPeerStore) RecordReceived(message *PeerMessage) (*PeerEventSta
 	}
 	if err := tx.Create(state).Error; err != nil {
 		tx.Rollback()
-		return nil, err
+		return s.resolveEventStateCreateConflict(err, message)
 	}
 
 	envelope, err := json.Marshal(message)
@@ -104,7 +106,7 @@ func (s *dbClusterPeerStore) RecordReceived(message *PeerMessage) (*PeerEventSta
 		Signature:   message.Signature,
 		CreatedAt:   createdAt,
 	}
-	if err := tx.Create(log).Error; err != nil {
+	if err := tx.Clauses(clause.OnConflict{DoNothing: true}).Create(log).Error; err != nil {
 		tx.Rollback()
 		return nil, err
 	}
@@ -113,6 +115,44 @@ func (s *dbClusterPeerStore) RecordReceived(message *PeerMessage) (*PeerEventSta
 		return nil, err
 	}
 	return peerEventStateFromModel(state), nil
+}
+
+func (s *dbClusterPeerStore) resolveEventStateCreateConflict(createErr error, message *PeerMessage) (*PeerEventState, error) {
+	state, _, err := resolvePeerEventStateCreateConflict(createErr, message, s.getEventStateByMessageID)
+	return state, err
+}
+
+func (s *dbClusterPeerStore) getEventStateByMessageID(messageID string) (*model.ClusterPeerEventState, error) {
+	event := &model.ClusterPeerEventState{}
+	err := database.GetDB().Where("message_id = ?", messageID).First(event).Error
+	if err != nil {
+		return nil, err
+	}
+	return event, nil
+}
+
+func resolvePeerEventStateCreateConflict(createErr error, message *PeerMessage, lookup func(messageID string) (*model.ClusterPeerEventState, error)) (*PeerEventState, bool, error) {
+	if !isUniqueConstraintError(createErr) {
+		return nil, false, createErr
+	}
+	existing, err := lookup(message.MessageID)
+	if err != nil {
+		return nil, true, err
+	}
+	if existing.PayloadHash != message.PayloadHash {
+		return nil, true, errors.New("payload_hash_mismatch")
+	}
+	return peerEventStateFromModel(existing), true, nil
+}
+
+func isUniqueConstraintError(err error) bool {
+	if err == nil {
+		return false
+	}
+	message := strings.ToLower(err.Error())
+	return strings.Contains(message, "unique constraint failed") ||
+		strings.Contains(message, "duplicate key") ||
+		strings.Contains(message, "duplicate entry")
 }
 
 func (s *dbClusterPeerStore) MarkEventState(messageID string, status string, errorMessage string) error {
