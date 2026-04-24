@@ -538,7 +538,11 @@ func (s *ClusterService) ReceivePeerMessage(message *PeerMessage, token string) 
 		return err
 	}
 	syncService := s.peerSyncService()
-	dispatcher := ClusterPeerDispatcher{syncService: &syncService}
+	dispatcher := ClusterPeerDispatcher{
+		syncService:    &syncService,
+		identity:       s.localIdentity,
+		secretProvider: s.getSecretProvider(),
+	}
 	return dispatcher.Dispatch(context.Background(), domain, member, message)
 }
 

@@ -98,6 +98,10 @@ func InitDB(dbPath string) error {
 		db.Create(&defaultOutbound)
 	}
 
+	if err := dedupeClusterPeerWorkflowState(); err != nil {
+		return err
+	}
+
 	err = db.AutoMigrate(
 		&model.Setting{},
 		&model.Tls{},
@@ -128,6 +132,28 @@ func InitDB(dbPath string) error {
 	}
 
 	return nil
+}
+
+func dedupeClusterPeerWorkflowState() error {
+	if !db.Migrator().HasTable(&model.ClusterPeerWorkflowState{}) {
+		return nil
+	}
+	return db.Exec(`
+		DELETE FROM cluster_peer_workflow_states
+		WHERE EXISTS (
+			SELECT 1
+			FROM cluster_peer_workflow_states AS newer
+			WHERE newer.workflow_id = cluster_peer_workflow_states.workflow_id
+				AND newer.step_id = cluster_peer_workflow_states.step_id
+				AND (
+					newer.updated_at > cluster_peer_workflow_states.updated_at
+					OR (
+						newer.updated_at = cluster_peer_workflow_states.updated_at
+						AND newer.id > cluster_peer_workflow_states.id
+					)
+				)
+		)
+	`).Error
 }
 
 func GetDB() *gorm.DB {

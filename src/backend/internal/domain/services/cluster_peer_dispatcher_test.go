@@ -2,6 +2,12 @@ package service
 
 import (
 	"context"
+	"crypto/ed25519"
+	"crypto/rand"
+	"encoding/base64"
+	"encoding/json"
+	"net/http"
+	"net/http/httptest"
 	"testing"
 
 	"github.com/alireza0/s-ui/src/backend/internal/infra/db/model"
@@ -53,6 +59,200 @@ func TestPeerDispatcherHandlesDomainClusterChanged(t *testing.T) {
 	}
 }
 
+func TestPeerDispatcherSavesSuccessfulChainStepAndSendsNextStep(t *testing.T) {
+	secret := []byte("panel-secret-for-cluster-tests")
+	local := newTestClusterLocalNode(t, "node-local")
+	peerToken, err := EncryptClusterDomainToken(secret, "peer-token-b")
+	if err != nil {
+		t.Fatalf("encrypt peer token: %v", err)
+	}
+
+	var forwarded PeerMessage
+	var gotToken string
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		gotToken = r.Header.Get("X-Cluster-Token")
+		if err := json.NewDecoder(r.Body).Decode(&forwarded); err != nil {
+			t.Errorf("decode forwarded message: %v", err)
+		}
+		_, _ = w.Write([]byte(`{"success":true}`))
+	}))
+	defer server.Close()
+
+	var saved []savedPeerWorkflowStep
+	dispatcher := ClusterPeerDispatcher{
+		eventStore: newMemoryPeerStore(),
+		syncService: &ClusterSyncService{
+			hubSyncer: &stubPeerSyncer{},
+			store: &stubPeerDispatcherSyncStore{
+				domain: &model.ClusterDomain{Id: 1, Domain: "edge.example.com"},
+				member: &model.ClusterMember{NodeID: "node-b", DomainID: 1, BaseURL: server.URL, PeerTokenEncrypted: peerToken},
+			},
+		},
+		identity:       ClusterLocalIdentityService{store: &stubClusterLocalNodeStore{node: local}},
+		secretProvider: stubClusterSecretProvider{secret: secret},
+		delivery:       &ClusterPeerDeliveryService{HTTPClient: server.Client()},
+		saveWorkflowStep: func(workflowID string, stepID string, domainID string, nodeID string, status string, resultHash string, errorMessage string) error {
+			saved = append(saved, savedPeerWorkflowStep{workflowID: workflowID, stepID: stepID, domainID: domainID, nodeID: nodeID, status: status, resultHash: resultHash, errorMessage: errorMessage})
+			return nil
+		},
+	}
+
+	message := &PeerMessage{
+		MessageID:     "msg-chain-success",
+		WorkflowID:    "workflow-1",
+		StepID:        "step-a",
+		DomainID:      "edge.example.com",
+		SourceNodeID:  "node-source",
+		SourceSeq:     41,
+		PayloadHash:   "hash-current",
+		Category:      PeerCategoryEvent,
+		Action:        PeerActionDomainClusterChanged,
+		CorrelationID: "corr-1",
+		CausationID:   "cause-1",
+		Payload:       map[string]interface{}{"version": float64(9)},
+		Route: RoutePlan{Mode: RouteModeChain, Chain: []RouteStep{
+			{StepID: "step-a", NodeID: "node-local"},
+			{StepID: "step-b", NodeID: "node-b", Action: "next.action", PayloadOverride: map[string]interface{}{"next": "payload"}},
+		}},
+	}
+
+	if err := dispatcher.Dispatch(context.Background(), &model.ClusterDomain{Id: 1, Domain: "edge.example.com"}, &model.ClusterMember{NodeID: "node-source"}, message); err != nil {
+		t.Fatalf("dispatch: %v", err)
+	}
+
+	if len(saved) != 1 {
+		t.Fatalf("expected one saved workflow step, got %d", len(saved))
+	}
+	if saved[0].workflowID != "workflow-1" || saved[0].stepID != "step-a" || saved[0].status != PeerEventStatusSucceeded {
+		t.Fatalf("unexpected saved workflow step: %#v", saved[0])
+	}
+	if saved[0].domainID != "edge.example.com" || saved[0].nodeID != "node-local" || saved[0].resultHash != "hash-current" {
+		t.Fatalf("unexpected saved workflow metadata: %#v", saved[0])
+	}
+
+	if gotToken != "peer-token-b" {
+		t.Fatalf("expected decrypted peer token, got %q", gotToken)
+	}
+	if forwarded.WorkflowID != "workflow-1" || forwarded.StepID != "step-b" {
+		t.Fatalf("unexpected forwarded workflow identifiers: %#v", forwarded)
+	}
+	if forwarded.SourceNodeID != "node-local" {
+		t.Fatalf("expected local source node, got %q", forwarded.SourceNodeID)
+	}
+	if forwarded.Action != "next.action" {
+		t.Fatalf("expected route step action override, got %q", forwarded.Action)
+	}
+	if forwarded.Payload["next"] != "payload" {
+		t.Fatalf("expected route step payload override, got %#v", forwarded.Payload)
+	}
+	if forwarded.CorrelationID != "corr-1" || forwarded.CausationID != "cause-1" {
+		t.Fatalf("expected correlation and causation to be preserved, got %q/%q", forwarded.CorrelationID, forwarded.CausationID)
+	}
+	if forwarded.Signature == "" || forwarded.PayloadHash == "" {
+		t.Fatalf("expected forwarded message to be signed, got signature=%q hash=%q", forwarded.Signature, forwarded.PayloadHash)
+	}
+}
+
+func TestPeerDispatcherChainFailureContinuationRequiresContinueOnFailure(t *testing.T) {
+	tests := []struct {
+		name              string
+		continueOnFailure bool
+		wantForwarded     bool
+	}{
+		{name: "stops by default"},
+		{name: "continues when allowed", continueOnFailure: true, wantForwarded: true},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			secret := []byte("panel-secret-for-cluster-tests")
+			local := newTestClusterLocalNode(t, "node-local")
+			peerToken, err := EncryptClusterDomainToken(secret, "peer-token-b")
+			if err != nil {
+				t.Fatalf("encrypt peer token: %v", err)
+			}
+
+			forwardedCount := 0
+			var forwarded PeerMessage
+			server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				forwardedCount++
+				if err := json.NewDecoder(r.Body).Decode(&forwarded); err != nil {
+					t.Errorf("decode forwarded message: %v", err)
+				}
+				_, _ = w.Write([]byte(`{"success":true}`))
+			}))
+			defer server.Close()
+
+			var saved []savedPeerWorkflowStep
+			dispatcher := ClusterPeerDispatcher{
+				eventStore: newMemoryPeerStore(),
+				syncService: &ClusterSyncService{
+					hubSyncer: &stubPeerSyncer{},
+					store: &stubPeerDispatcherSyncStore{
+						domain: &model.ClusterDomain{Id: 1, Domain: "edge.example.com"},
+						member: &model.ClusterMember{NodeID: "node-b", DomainID: 1, BaseURL: server.URL, PeerTokenEncrypted: peerToken},
+					},
+				},
+				identity:       ClusterLocalIdentityService{store: &stubClusterLocalNodeStore{node: local}},
+				secretProvider: stubClusterSecretProvider{secret: secret},
+				delivery:       &ClusterPeerDeliveryService{HTTPClient: server.Client()},
+				saveWorkflowStep: func(workflowID string, stepID string, domainID string, nodeID string, status string, resultHash string, errorMessage string) error {
+					saved = append(saved, savedPeerWorkflowStep{workflowID: workflowID, stepID: stepID, domainID: domainID, nodeID: nodeID, status: status, resultHash: resultHash, errorMessage: errorMessage})
+					return nil
+				},
+			}
+
+			message := &PeerMessage{
+				MessageID:    "msg-chain-failure-" + tt.name,
+				WorkflowID:   "workflow-1",
+				StepID:       "step-a",
+				DomainID:     "edge.example.com",
+				SourceNodeID: "node-source",
+				PayloadHash:  "hash-current",
+				Category:     PeerCategoryEvent,
+				Action:       PeerActionDomainClusterChanged,
+				Payload:      map[string]interface{}{"invalid": true},
+				Route: RoutePlan{Mode: RouteModeChain, Chain: []RouteStep{
+					{StepID: "step-a", NodeID: "node-local", ContinueOnFailure: tt.continueOnFailure},
+					{StepID: "step-b", NodeID: "node-b"},
+				}},
+			}
+
+			if err := dispatcher.Dispatch(context.Background(), &model.ClusterDomain{Id: 1, Domain: "edge.example.com"}, &model.ClusterMember{NodeID: "node-source"}, message); err == nil {
+				t.Fatal("expected dispatch to return the step failure")
+			}
+
+			if len(saved) != 1 || saved[0].status != PeerEventStatusFailed || saved[0].errorMessage == "" {
+				t.Fatalf("expected failed workflow step to be saved, got %#v", saved)
+			}
+			if tt.wantForwarded && forwardedCount != 1 {
+				t.Fatalf("expected next step to be forwarded once, got %d", forwardedCount)
+			}
+			if !tt.wantForwarded && forwardedCount != 0 {
+				t.Fatalf("expected no forwarded next step, got %d", forwardedCount)
+			}
+			if tt.wantForwarded {
+				if forwarded.Action != PeerActionDomainClusterChanged {
+					t.Fatalf("expected current action to be preserved, got %q", forwarded.Action)
+				}
+				if forwarded.Payload["invalid"] != true {
+					t.Fatalf("expected current payload to be preserved, got %#v", forwarded.Payload)
+				}
+			}
+		})
+	}
+}
+
+type savedPeerWorkflowStep struct {
+	workflowID   string
+	stepID       string
+	domainID     string
+	nodeID       string
+	status       string
+	resultHash   string
+	errorMessage string
+}
+
 type stubPeerSyncer struct{}
 
 func (s *stubPeerSyncer) LatestVersion(context.Context, *model.ClusterDomain) (int64, error) {
@@ -101,4 +301,17 @@ func (s *stubPeerDispatcherSyncStore) ListDomains() ([]model.ClusterDomain, erro
 		return nil, nil
 	}
 	return []model.ClusterDomain{*s.domain}, nil
+}
+
+func newTestClusterLocalNode(t *testing.T, nodeID string) *model.ClusterLocalNode {
+	t.Helper()
+	publicKey, privateKey, err := ed25519.GenerateKey(rand.Reader)
+	if err != nil {
+		t.Fatalf("generate local key: %v", err)
+	}
+	return &model.ClusterLocalNode{
+		NodeID:     nodeID,
+		PublicKey:  base64.StdEncoding.EncodeToString(publicKey),
+		PrivateKey: base64.StdEncoding.EncodeToString(privateKey),
+	}
 }

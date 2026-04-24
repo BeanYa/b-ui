@@ -150,3 +150,72 @@ func TestSaveClusterPeerWorkflowStepUpsertsByWorkflowStep(t *testing.T) {
 		t.Fatal("expected updated_at to be populated")
 	}
 }
+
+func TestInitDBDedupesClusterPeerWorkflowStateBeforeUniqueIndex(t *testing.T) {
+	dbPath := filepath.Join(t.TempDir(), "workflow-dedupe.db")
+	if err := database.OpenDB(dbPath); err != nil {
+		if strings.Contains(err.Error(), "go-sqlite3 requires cgo") || strings.Contains(err.Error(), "C compiler") {
+			t.Skipf("sqlite test database unavailable in this toolchain: %v", err)
+		}
+		t.Fatalf("open test db: %v", err)
+	}
+	if err := database.GetDB().Exec(`
+		CREATE TABLE cluster_peer_workflow_states (
+			id integer primary key autoincrement,
+			workflow_id text,
+			step_id text,
+			domain_id text,
+			node_id text,
+			status text,
+			result_hash text,
+			error text,
+			created_at integer,
+			updated_at integer
+		)
+	`).Error; err != nil {
+		t.Fatalf("create legacy workflow state table: %v", err)
+	}
+	if err := database.GetDB().Exec(`
+		INSERT INTO cluster_peer_workflow_states
+			(workflow_id, step_id, domain_id, node_id, status, result_hash, error, created_at, updated_at)
+		VALUES
+			('workflow-legacy', 'step-a', 'edge.example.com', 'node-a', 'processing', 'old-hash', '', 100, 100),
+			('workflow-legacy', 'step-a', 'edge.example.com', 'node-a', 'succeeded', 'new-hash', '', 101, 101),
+			('workflow-legacy', 'step-b', 'edge.example.com', 'node-b', 'succeeded', 'other-hash', '', 102, 102)
+	`).Error; err != nil {
+		t.Fatalf("seed duplicate legacy workflow states: %v", err)
+	}
+
+	if err := database.InitDB(dbPath); err != nil {
+		t.Fatalf("init db with duplicate legacy workflow states: %v", err)
+	}
+
+	var count int64
+	if err := database.GetDB().Model(&model.ClusterPeerWorkflowState{}).Where("workflow_id = ? AND step_id = ?", "workflow-legacy", "step-a").Count(&count).Error; err != nil {
+		t.Fatalf("count deduped workflow states: %v", err)
+	}
+	if count != 1 {
+		t.Fatalf("expected duplicate workflow step rows to be deduped, got %d", count)
+	}
+
+	var kept model.ClusterPeerWorkflowState
+	if err := database.GetDB().Where("workflow_id = ? AND step_id = ?", "workflow-legacy", "step-a").First(&kept).Error; err != nil {
+		t.Fatalf("load deduped workflow state: %v", err)
+	}
+	if kept.Status != PeerEventStatusSucceeded || kept.ResultHash != "new-hash" {
+		t.Fatalf("expected newest duplicate row to be kept, got %#v", kept)
+	}
+
+	err := database.GetDB().Create(&model.ClusterPeerWorkflowState{
+		WorkflowID: "workflow-legacy",
+		StepID:     "step-a",
+		DomainID:   "edge.example.com",
+		NodeID:     "node-c",
+		Status:     PeerEventStatusFailed,
+		CreatedAt:  200,
+		UpdatedAt:  200,
+	}).Error
+	if err == nil {
+		t.Fatal("expected unique workflow-step index to reject new duplicates after migration")
+	}
+}
