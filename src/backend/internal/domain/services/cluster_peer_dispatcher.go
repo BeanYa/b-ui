@@ -35,20 +35,26 @@ func (d *ClusterPeerDispatcher) Dispatch(ctx context.Context, domain *model.Clus
 	if isTerminalPeerEventState(state.Status) {
 		return nil
 	}
-	if err := store.MarkEventState(message.MessageID, PeerEventStatusProcessing, ""); err != nil {
+	claimed, err := store.ClaimProcessing(state.MessageID)
+	if err != nil {
 		return err
+	}
+	if !claimed {
+		return nil
 	}
 
 	if validTarget, reason, err := d.validateInboundRouteTarget(message); err != nil {
+		_ = store.MarkEventState(state.MessageID, PeerEventStatusFailed, err.Error())
 		return err
 	} else if !validTarget {
-		return store.MarkEventState(message.MessageID, PeerEventStatusIgnored, reason)
+		return store.MarkEventState(state.MessageID, PeerEventStatusIgnored, reason)
 	}
 
 	if message.Category == PeerCategoryEvent && message.Action == PeerActionDomainClusterChanged {
 		if err := d.handleDomainClusterChanged(ctx, domain, source, message); err != nil {
 			forwardedNextStep, chainErr := d.completeChainStep(ctx, domain, message, PeerEventStatusFailed, err.Error())
 			if chainErr != nil {
+				_ = store.MarkEventState(state.MessageID, PeerEventStatusFailed, chainErr.Error())
 				return chainErr
 			}
 			status := PeerEventStatusFailed
@@ -57,7 +63,7 @@ func (d *ClusterPeerDispatcher) Dispatch(ctx context.Context, domain *model.Clus
 				status = PeerEventStatusSucceeded
 				errorMessage = ""
 			}
-			if markErr := store.MarkEventState(message.MessageID, status, errorMessage); markErr != nil {
+			if markErr := store.MarkEventState(state.MessageID, status, errorMessage); markErr != nil {
 				return markErr
 			}
 			if forwardedNextStep {
@@ -66,21 +72,24 @@ func (d *ClusterPeerDispatcher) Dispatch(ctx context.Context, domain *model.Clus
 			return err
 		}
 		if _, err := d.completeChainStep(ctx, domain, message, PeerEventStatusSucceeded, ""); err != nil {
+			_ = store.MarkEventState(state.MessageID, PeerEventStatusFailed, err.Error())
 			return err
 		}
-		return store.MarkEventState(message.MessageID, PeerEventStatusSucceeded, "")
+		return store.MarkEventState(state.MessageID, PeerEventStatusSucceeded, "")
 	}
 
 	if message.Category == PeerCategoryEvent {
 		if _, err := d.completeChainStep(ctx, domain, message, PeerEventStatusUnsupported, ""); err != nil {
+			_ = store.MarkEventState(state.MessageID, PeerEventStatusFailed, err.Error())
 			return err
 		}
-		return store.MarkEventState(message.MessageID, PeerEventStatusUnsupported, "")
+		return store.MarkEventState(state.MessageID, PeerEventStatusUnsupported, "")
 	}
 
 	err = errors.New("unsupported_action")
 	forwardedNextStep, chainErr := d.completeChainStep(ctx, domain, message, PeerEventStatusFailed, err.Error())
 	if chainErr != nil {
+		_ = store.MarkEventState(state.MessageID, PeerEventStatusFailed, chainErr.Error())
 		return chainErr
 	}
 	status := PeerEventStatusFailed
@@ -89,7 +98,7 @@ func (d *ClusterPeerDispatcher) Dispatch(ctx context.Context, domain *model.Clus
 		status = PeerEventStatusSucceeded
 		errorMessage = ""
 	}
-	if markErr := store.MarkEventState(message.MessageID, status, errorMessage); markErr != nil {
+	if markErr := store.MarkEventState(state.MessageID, status, errorMessage); markErr != nil {
 		return markErr
 	}
 	if forwardedNextStep {
@@ -329,5 +338,6 @@ func clonePeerPayload(payload map[string]interface{}) map[string]interface{} {
 func isTerminalPeerEventState(status string) bool {
 	return status == PeerEventStatusSucceeded ||
 		status == PeerEventStatusUnsupported ||
-		status == PeerEventStatusIgnored
+		status == PeerEventStatusIgnored ||
+		status == PeerEventStatusDead
 }

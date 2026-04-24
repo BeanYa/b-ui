@@ -15,7 +15,15 @@ type ClusterPeerDeliveryService struct {
 }
 
 func (s *ClusterPeerDeliveryService) Send(ctx context.Context, message *PeerMessage, member model.ClusterMember, token string) error {
-	body, err := json.Marshal(message)
+	return s.sendJSON(ctx, message, member, token)
+}
+
+func (s *ClusterPeerDeliveryService) SendEnvelope(ctx context.Context, envelope *ClusterEnvelope, member model.ClusterMember, token string) error {
+	return s.sendJSON(ctx, envelope, member, token)
+}
+
+func (s *ClusterPeerDeliveryService) sendJSON(ctx context.Context, payload interface{}, member model.ClusterMember, token string) error {
+	body, err := json.Marshal(payload)
 	if err != nil {
 		return err
 	}

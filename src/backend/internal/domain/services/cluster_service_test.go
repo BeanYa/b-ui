@@ -6,9 +6,12 @@ import (
 	"crypto/rand"
 	"encoding/base64"
 	"fmt"
+	"path/filepath"
 	"reflect"
+	"strings"
 	"testing"
 
+	database "github.com/alireza0/s-ui/src/backend/internal/infra/db"
 	"github.com/alireza0/s-ui/src/backend/internal/infra/db/model"
 )
 
@@ -361,6 +364,116 @@ func TestClusterServiceReceivePeerMessageInitializesInjectedSyncDependencies(t *
 	}
 }
 
+func TestClusterServiceReceivePeerMessageRefreshesUnknownSourceBeforeRejecting(t *testing.T) {
+	if err := database.InitDB(filepath.Join(t.TempDir(), "receive-peer-refresh.db")); err != nil {
+		if strings.Contains(err.Error(), "go-sqlite3 requires cgo") || strings.Contains(err.Error(), "C compiler") {
+			t.Skipf("sqlite test database unavailable in this toolchain: %v", err)
+		}
+		t.Fatalf("init test db: %v", err)
+	}
+
+	secret := []byte("panel-secret-for-cluster-tests")
+	source := newTestClusterLocalNode(t, "node-source")
+	store := &stubClusterServiceStore{
+		domains: map[string]*model.ClusterDomain{
+			"edge.example.com": {Id: 1, Domain: "edge.example.com", HubURL: "https://hub.example.com", LastVersion: 1, TokenEncrypted: mustEncryptClusterToken(t, string(secret), "domain-token")},
+		},
+		members: map[string]*model.ClusterMember{
+			serviceMemberKey(1, "node-local"): {NodeID: "node-local", DomainID: 1, PeerTokenEncrypted: mustEncryptClusterToken(t, string(secret), "peer-token-local")},
+		},
+	}
+	hub := &stubClusterHubClient{
+		snapshotResponse: &ClusterHubSnapshotResponse{
+			Version: 9,
+			Members: []ClusterHubMemberResponse{
+				{NodeID: "node-local", BaseURL: "https://local.example.com", PeerToken: "peer-token-local"},
+				{NodeID: "node-source", BaseURL: "https://source.example.com", PublicKey: source.PublicKey},
+			},
+		},
+	}
+	service := &ClusterService{
+		secretProvider: stubClusterSecretProvider{secret: secret},
+		localIdentity:  ClusterLocalIdentityService{store: &stubClusterLocalNodeStore{node: &model.ClusterLocalNode{NodeID: "node-local"}}},
+		store:          store,
+		hubClient:      hub,
+	}
+	message, err := NewClusterPeerMessage("edge.example.com", 9, "node-source", 1, PeerCategoryEvent, "future.action", map[string]any{"version": float64(9)})
+	if err != nil {
+		t.Fatalf("new peer message: %v", err)
+	}
+	if err := SignClusterPeerMessage(source, message); err != nil {
+		t.Fatalf("sign peer message: %v", err)
+	}
+
+	if err := service.ReceivePeerMessage(message, "peer-token-local"); err != nil {
+		t.Fatalf("receive peer message after membership refresh: %v", err)
+	}
+	if hub.snapshotCalls != 1 {
+		t.Fatalf("expected one snapshot refresh, got %d", hub.snapshotCalls)
+	}
+	if _, err := store.GetMemberByDomainNodeID(1, "node-source"); err != nil {
+		t.Fatalf("expected source member to be loaded from snapshot: %v", err)
+	}
+}
+
+func TestClusterServiceReceivePeerMessageRefreshesNewerMembershipBeforeSignatureCheck(t *testing.T) {
+	if err := database.InitDB(filepath.Join(t.TempDir(), "receive-peer-newer-refresh.db")); err != nil {
+		if strings.Contains(err.Error(), "go-sqlite3 requires cgo") || strings.Contains(err.Error(), "C compiler") {
+			t.Skipf("sqlite test database unavailable in this toolchain: %v", err)
+		}
+		t.Fatalf("init test db: %v", err)
+	}
+
+	secret := []byte("panel-secret-for-cluster-tests")
+	staleSource := newTestClusterLocalNode(t, "node-source")
+	source := newTestClusterLocalNode(t, "node-source")
+	store := &stubClusterServiceStore{
+		domains: map[string]*model.ClusterDomain{
+			"edge.example.com": {Id: 1, Domain: "edge.example.com", HubURL: "https://hub.example.com", LastVersion: 1, TokenEncrypted: mustEncryptClusterToken(t, string(secret), "domain-token")},
+		},
+		members: map[string]*model.ClusterMember{
+			serviceMemberKey(1, "node-local"):  {NodeID: "node-local", DomainID: 1, PeerTokenEncrypted: mustEncryptClusterToken(t, string(secret), "peer-token-local")},
+			serviceMemberKey(1, "node-source"): {NodeID: "node-source", DomainID: 1, PublicKey: staleSource.PublicKey, LastVersion: 1},
+		},
+	}
+	hub := &stubClusterHubClient{
+		snapshotResponse: &ClusterHubSnapshotResponse{
+			Version: 9,
+			Members: []ClusterHubMemberResponse{
+				{NodeID: "node-local", BaseURL: "https://local.example.com", PeerToken: "peer-token-local"},
+				{NodeID: "node-source", BaseURL: "https://source.example.com", PublicKey: source.PublicKey},
+			},
+		},
+	}
+	service := &ClusterService{
+		secretProvider: stubClusterSecretProvider{secret: secret},
+		localIdentity:  ClusterLocalIdentityService{store: &stubClusterLocalNodeStore{node: &model.ClusterLocalNode{NodeID: "node-local"}}},
+		store:          store,
+		hubClient:      hub,
+	}
+	message, err := NewClusterPeerMessage("edge.example.com", 9, "node-source", 1, PeerCategoryEvent, "future.action", map[string]any{"version": float64(9)})
+	if err != nil {
+		t.Fatalf("new peer message: %v", err)
+	}
+	if err := SignClusterPeerMessage(source, message); err != nil {
+		t.Fatalf("sign peer message: %v", err)
+	}
+
+	if err := service.ReceivePeerMessage(message, "peer-token-local"); err != nil {
+		t.Fatalf("receive peer message after newer membership refresh: %v", err)
+	}
+	if hub.snapshotCalls != 1 {
+		t.Fatalf("expected one snapshot refresh, got %d", hub.snapshotCalls)
+	}
+	refreshed, err := store.GetMemberByDomainNodeID(1, "node-source")
+	if err != nil {
+		t.Fatalf("expected refreshed source member: %v", err)
+	}
+	if refreshed.PublicKey != source.PublicKey {
+		t.Fatal("expected refreshed source public key before signature verification")
+	}
+}
+
 type stubClusterServiceStore struct {
 	domains         map[string]*model.ClusterDomain
 	domainsList     []model.ClusterDomain
@@ -466,6 +579,13 @@ func (s *stubClusterServiceStore) ReplaceDomainMembers(_ uint, members []model.C
 	copyMembers := make([]model.ClusterMember, len(members))
 	copy(copyMembers, members)
 	s.replacedMembers = append(s.replacedMembers, copyMembers)
+	if s.members == nil {
+		s.members = map[string]*model.ClusterMember{}
+	}
+	for _, member := range copyMembers {
+		copy := member
+		s.members[serviceMemberKey(copy.DomainID, copy.NodeID)] = &copy
+	}
 	return nil
 }
 

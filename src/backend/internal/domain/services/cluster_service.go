@@ -533,6 +533,19 @@ func (s *ClusterService) ReceivePeerMessage(message *PeerMessage, token string) 
 	if err != nil {
 		return err
 	}
+	if member == nil || message.MembershipVersion > domain.LastVersion {
+		if err := s.refreshPeerMembership(context.Background(), domain, message.MembershipVersion); err != nil {
+			return err
+		}
+		domain, err = s.getStore().GetDomainByName(message.DomainID)
+		if err != nil {
+			return err
+		}
+		member, err = findClusterMemberByDomainNodeID(s.getStore(), domain.Id, message.SourceNodeID)
+		if err != nil {
+			return err
+		}
+	}
 	if member == nil {
 		return errClusterMemberNotFound
 	}
@@ -546,6 +559,13 @@ func (s *ClusterService) ReceivePeerMessage(message *PeerMessage, token string) 
 		secretProvider: s.getSecretProvider(),
 	}
 	return dispatcher.Dispatch(context.Background(), domain, member, message)
+}
+
+func (s *ClusterService) refreshPeerMembership(ctx context.Context, domain *model.ClusterDomain, version int64) error {
+	if domain.HubURL == "" {
+		return nil
+	}
+	return s.getHubSyncer().SyncDomain(ctx, domain, version)
 }
 
 func (s *ClusterService) peerSyncService() ClusterSyncService {

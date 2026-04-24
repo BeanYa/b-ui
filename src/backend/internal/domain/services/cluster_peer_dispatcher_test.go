@@ -59,6 +59,35 @@ func TestPeerDispatcherHandlesDomainClusterChanged(t *testing.T) {
 	}
 }
 
+func TestPeerDispatcherDoesNotRunSideEffectForInFlightDuplicate(t *testing.T) {
+	store := newMemoryPeerStore()
+	message := &PeerMessage{
+		MessageID:   "msg-in-flight",
+		DomainID:    "edge.example.com",
+		PayloadHash: "hash",
+		Category:    "event",
+		Action:      "domain.cluster.changed",
+		Payload:     map[string]interface{}{"version": float64(9)},
+	}
+	if _, err := store.RecordReceived(message); err != nil {
+		t.Fatalf("record: %v", err)
+	}
+	if claimed, err := store.ClaimProcessing(message.MessageID); err != nil {
+		t.Fatalf("claim processing: %v", err)
+	} else if !claimed {
+		t.Fatal("expected initial processing claim")
+	}
+	syncer := &stubPeerSyncer{}
+	dispatcher := ClusterPeerDispatcher{eventStore: store, syncService: &ClusterSyncService{hubSyncer: syncer, store: &stubPeerDispatcherSyncStore{domain: &model.ClusterDomain{Id: 1, Domain: "edge.example.com", HubURL: "https://hub.example.com"}}}}
+
+	if err := dispatcher.Dispatch(context.Background(), &model.ClusterDomain{Id: 1, Domain: "edge.example.com", HubURL: "https://hub.example.com"}, &model.ClusterMember{NodeID: "node-a", LastVersion: 1}, message); err != nil {
+		t.Fatalf("dispatch duplicate: %v", err)
+	}
+	if syncer.syncCalls != 0 {
+		t.Fatalf("expected in-flight duplicate not to run side effect, got %d calls", syncer.syncCalls)
+	}
+}
+
 func TestPeerDispatcherSavesSuccessfulChainStepAndSendsNextStep(t *testing.T) {
 	secret := []byte("panel-secret-for-cluster-tests")
 	local := newTestClusterLocalNode(t, "node-local")

@@ -119,10 +119,10 @@ type ClusterPeerEventLog struct {
 type ClusterPeerEventState struct {
 	Id             uint   `json:"id" gorm:"primaryKey;autoIncrement"`
 	MessageID      string `json:"messageId" gorm:"uniqueIndex"`
-	IdempotencyKey string `json:"idempotencyKey" gorm:"index"`
-	SourceNode     string `json:"sourceNode" gorm:"index"`
-	SourceSeq      int64  `json:"sourceSeq" gorm:"index"`
-	DomainID       string `json:"domainId" gorm:"index"`
+	IdempotencyKey string `json:"idempotencyKey" gorm:"index;uniqueIndex:idx_cluster_peer_domain_idempotency,where:idempotency_key <> ''"`
+	SourceNode     string `json:"sourceNode" gorm:"index;uniqueIndex:idx_cluster_peer_domain_source_seq,where:source_seq > 0 AND source_node <> ''"`
+	SourceSeq      int64  `json:"sourceSeq" gorm:"index;uniqueIndex:idx_cluster_peer_domain_source_seq,where:source_seq > 0 AND source_node <> ''"`
+	DomainID       string `json:"domainId" gorm:"index;uniqueIndex:idx_cluster_peer_domain_idempotency,where:idempotency_key <> '';uniqueIndex:idx_cluster_peer_domain_source_seq,where:source_seq > 0 AND source_node <> ''"`
 	Action         string `json:"action" gorm:"index"`
 	PayloadHash    string `json:"payloadHash"`
 	Status         string `json:"status" gorm:"index"`

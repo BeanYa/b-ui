@@ -141,6 +141,97 @@ func TestClusterHTTPBroadcasterUsesTargetMemberPeerTokenInsteadOfDomainToken(t *
 	if receivedMessage.Route.Mode != RouteModeBroadcast {
 		t.Fatalf("expected broadcast route, got %q", receivedMessage.Route.Mode)
 	}
+	if receivedMessage.Route.Delivery == nil || receivedMessage.Route.Delivery.Ack != DeliveryAckNode {
+		t.Fatalf("expected node ack delivery policy, got %#v", receivedMessage.Route.Delivery)
+	}
+}
+
+func TestClusterHTTPBroadcasterFallsBackToLegacyEnvelopeWhenPeerMessageRejected(t *testing.T) {
+	local := newTestClusterLocalNode(t, "node-local")
+	var receivedTypes []string
+	var legacyEnvelope ClusterEnvelope
+	var receivedTokens []string
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		receivedTokens = append(receivedTokens, r.Header.Get("X-Cluster-Token"))
+		var raw map[string]any
+		if err := json.NewDecoder(r.Body).Decode(&raw); err != nil {
+			t.Fatalf("decode request: %v", err)
+		}
+		if _, ok := raw["messageId"]; ok {
+			receivedTypes = append(receivedTypes, "peer")
+			w.Header().Set("Content-Type", "application/json")
+			_, _ = w.Write([]byte(`{"success":false,"msg":"unsupported peer message"}`))
+			return
+		}
+		receivedTypes = append(receivedTypes, "legacy")
+		body, err := json.Marshal(raw)
+		if err != nil {
+			t.Fatalf("marshal legacy raw body: %v", err)
+		}
+		if err := json.Unmarshal(body, &legacyEnvelope); err != nil {
+			t.Fatalf("decode legacy envelope: %v", err)
+		}
+		w.Header().Set("Content-Type", "application/json")
+		_, _ = w.Write([]byte(`{"success":true}`))
+	}))
+	defer server.Close()
+
+	broadcaster := &ClusterHTTPBroadcaster{
+		secretProvider: stubClusterSecretProvider{secret: []byte("panel-secret-for-cluster-tests")},
+		identity:       ClusterLocalIdentityService{store: &stubClusterLocalNodeStore{node: local}},
+		store: &stubClusterBroadcastStore{members: []model.ClusterMember{{
+			NodeID:             "node-a",
+			BaseURL:            server.URL + "/panel/",
+			PeerTokenEncrypted: mustEncryptClusterToken(t, "panel-secret-for-cluster-tests", "peer-token-a"),
+			Domain:             &model.ClusterDomain{Domain: "edge.example.com", TokenEncrypted: mustEncryptClusterToken(t, "panel-secret-for-cluster-tests", "domain-token")},
+		}}},
+		HTTPClient: server.Client(),
+	}
+
+	if err := broadcaster.BroadcastNotifyVersion(context.Background(), 9, ""); err != nil {
+		t.Fatalf("broadcast notify version: %v", err)
+	}
+	if len(receivedTypes) != 2 || receivedTypes[0] != "peer" || receivedTypes[1] != "legacy" {
+		t.Fatalf("expected peer then legacy fallback, got %#v", receivedTypes)
+	}
+	if len(receivedTokens) != 2 || receivedTokens[0] != "peer-token-a" || receivedTokens[1] != "peer-token-a" {
+		t.Fatalf("expected same peer token on fallback, got %#v", receivedTokens)
+	}
+	if legacyEnvelope.MessageType != "sync.notify_version" || legacyEnvelope.Version != 9 || legacyEnvelope.Domain != "edge.example.com" {
+		t.Fatalf("unexpected legacy envelope: %#v", legacyEnvelope)
+	}
+	if _, err := VerifyClusterEnvelope(&legacyEnvelope, local.PublicKey); err != nil {
+		t.Fatalf("expected signed legacy envelope: %v", err)
+	}
+}
+
+func TestClusterHTTPBroadcasterDoesNotFallbackWhenPeerMessageSucceeds(t *testing.T) {
+	var requests int32
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		atomic.AddInt32(&requests, 1)
+		w.Header().Set("Content-Type", "application/json")
+		_, _ = w.Write([]byte(`{"success":true}`))
+	}))
+	defer server.Close()
+
+	broadcaster := &ClusterHTTPBroadcaster{
+		secretProvider: stubClusterSecretProvider{secret: []byte("panel-secret-for-cluster-tests")},
+		identity:       ClusterLocalIdentityService{store: &stubClusterLocalNodeStore{}},
+		store: &stubClusterBroadcastStore{members: []model.ClusterMember{{
+			NodeID:             "node-a",
+			BaseURL:            server.URL + "/panel/",
+			PeerTokenEncrypted: mustEncryptClusterToken(t, "panel-secret-for-cluster-tests", "peer-token-a"),
+			Domain:             &model.ClusterDomain{Domain: "edge.example.com", TokenEncrypted: mustEncryptClusterToken(t, "panel-secret-for-cluster-tests", "domain-token")},
+		}}},
+		HTTPClient: server.Client(),
+	}
+
+	if err := broadcaster.BroadcastNotifyVersion(context.Background(), 9, ""); err != nil {
+		t.Fatalf("broadcast notify version: %v", err)
+	}
+	if got := atomic.LoadInt32(&requests); got != 1 {
+		t.Fatalf("expected no legacy fallback after peer success, got %d requests", got)
+	}
 }
 
 func TestClusterHTTPBroadcasterSkipsLocalIdentityNode(t *testing.T) {

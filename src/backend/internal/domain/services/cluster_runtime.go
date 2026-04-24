@@ -149,7 +149,7 @@ func (b *ClusterHTTPBroadcaster) BroadcastNotifyVersion(ctx context.Context, ver
 		message.Route = RoutePlan{
 			Mode: RouteModeBroadcast,
 			Delivery: &DeliveryPolicy{
-				Ack:       true,
+				Ack:       DeliveryAckNode,
 				TimeoutMs: 10000,
 				Retry: &RetryPolicy{
 					MaxAttempts: 3,
@@ -162,7 +162,13 @@ func (b *ClusterHTTPBroadcaster) BroadcastNotifyVersion(ctx context.Context, ver
 		}
 		delivery := &ClusterPeerDeliveryService{HTTPClient: b.httpClient()}
 		if err := delivery.Send(ctx, message, member, token); err != nil {
-			return err
+			envelope, legacyErr := SignClusterNotifyVersionEnvelope(identity, member.Domain.Domain, version, message.CreatedAt)
+			if legacyErr != nil {
+				return legacyErr
+			}
+			if fallbackErr := delivery.SendEnvelope(ctx, envelope, member, token); fallbackErr != nil {
+				return err
+			}
 		}
 	}
 	return nil

@@ -16,6 +16,17 @@ import (
 const ClusterPeerProtocolVersion = "v1"
 
 const (
+	ClusterPeerSchemaVersion = 1
+)
+
+const (
+	DeliveryAckNone   = "none"
+	DeliveryAckNode   = "node"
+	DeliveryAckQuorum = "quorum"
+	DeliveryAckAll    = "all"
+)
+
+const (
 	RouteModeDirect             = "direct"
 	RouteModeMulticast          = "multicast"
 	RouteModeBroadcast          = "broadcast"
@@ -70,7 +81,7 @@ type RouteStep struct {
 }
 
 type DeliveryPolicy struct {
-	Ack       bool         `json:"ack,omitempty"`
+	Ack       string       `json:"ack,omitempty"`
 	TimeoutMs int64        `json:"timeoutMs,omitempty"`
 	Retry     *RetryPolicy `json:"retry,omitempty"`
 	MaxHops   int          `json:"maxHops,omitempty"`
@@ -99,7 +110,7 @@ func NewClusterPeerMessage(domain string, membershipVersion int64, sourceNodeID 
 		MessageID:         messageID.String(),
 		DomainID:          domain,
 		ProtocolVersion:   ClusterPeerProtocolVersion,
-		SchemaVersion:     1,
+		SchemaVersion:     ClusterPeerSchemaVersion,
 		MembershipVersion: membershipVersion,
 		SourceNodeID:      sourceNodeID,
 		SourceSeq:         sourceSeq,
@@ -145,6 +156,9 @@ func SignClusterPeerMessage(local *model.ClusterLocalNode, message *PeerMessage)
 func VerifyClusterPeerMessage(message *PeerMessage, publicKey string, now int64) error {
 	if message.ProtocolVersion != ClusterPeerProtocolVersion {
 		return errors.New("unsupported_protocol_version")
+	}
+	if message.SchemaVersion != ClusterPeerSchemaVersion {
+		return errors.New("unsupported_schema_version")
 	}
 	if message.ExpiresAt > 0 && now > message.ExpiresAt {
 		return errors.New("message_expired")

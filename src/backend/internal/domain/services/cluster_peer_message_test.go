@@ -3,6 +3,7 @@ package service
 import (
 	"crypto/ed25519"
 	"encoding/base64"
+	"encoding/json"
 	"strings"
 	"testing"
 	"time"
@@ -78,6 +79,29 @@ func TestVerifyPeerMessageRejectsExpiredMessage(t *testing.T) {
 	}
 }
 
+func TestVerifyPeerMessageRejectsUnsupportedSchemaVersion(t *testing.T) {
+	publicKey, privateKey, err := ed25519.GenerateKey(nil)
+	if err != nil {
+		t.Fatalf("generate key: %v", err)
+	}
+	local := &model.ClusterLocalNode{
+		NodeID:     "node-a",
+		PublicKey:  base64.StdEncoding.EncodeToString(publicKey),
+		PrivateKey: base64.StdEncoding.EncodeToString(privateKey),
+	}
+	message, err := NewClusterPeerMessage("edge.example.com", 5, "node-a", 1, "event", "domain.cluster.changed", map[string]any{"version": float64(5)})
+	if err != nil {
+		t.Fatalf("new message: %v", err)
+	}
+	if err := SignClusterPeerMessage(local, message); err != nil {
+		t.Fatalf("sign: %v", err)
+	}
+	message.SchemaVersion = 2
+	if err := VerifyClusterPeerMessage(message, local.PublicKey, time.Now().Unix()); err == nil || err.Error() != "unsupported_schema_version" {
+		t.Fatalf("expected unsupported_schema_version, got %v", err)
+	}
+}
+
 func TestPeerMessageSigningOmitsUnsetRoutePolicies(t *testing.T) {
 	publicKey, privateKey, err := ed25519.GenerateKey(nil)
 	if err != nil {
@@ -106,5 +130,15 @@ func TestPeerMessageSigningOmitsUnsetRoutePolicies(t *testing.T) {
 		if strings.Contains(payload, field) {
 			t.Fatalf("expected signing payload to omit %s when unset: %s", field, payload)
 		}
+	}
+}
+
+func TestDeliveryPolicyAckSerializesAsExtensibleString(t *testing.T) {
+	body, err := json.Marshal(DeliveryPolicy{Ack: DeliveryAckNode})
+	if err != nil {
+		t.Fatalf("marshal delivery policy: %v", err)
+	}
+	if string(body) != `{"ack":"node"}` {
+		t.Fatalf("expected string ack JSON, got %s", body)
 	}
 }
