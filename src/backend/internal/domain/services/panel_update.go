@@ -302,7 +302,7 @@ func panelUpdateLogFilePath() string {
 }
 
 func resolvePanelUpdateLatestVersion(state *PanelUpdateState, fetchLatest func() (string, error)) (string, error) {
-	if state != nil && state.TargetVersion != "" {
+	if state != nil && state.Phase == "running" && state.TargetVersion != "" {
 		return canonicalizeReleaseTag(state.TargetVersion), nil
 	}
 	return fetchLatest()

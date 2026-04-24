@@ -73,3 +73,21 @@ func TestResolvePanelUpdateLatestVersionUsesRunningTargetWithoutGithubFetch(t *t
 		t.Fatalf("latest = %q, want v0.1.11", latest)
 	}
 }
+
+func TestResolvePanelUpdateLatestVersionIgnoresFailedTarget(t *testing.T) {
+	state := &PanelUpdateState{
+		Phase:         "failed",
+		TargetVersion: "v0.1.12",
+	}
+
+	latest, err := resolvePanelUpdateLatestVersion(state, func() (string, error) {
+		return "v0.1.14", nil
+	})
+
+	if err != nil {
+		t.Fatalf("resolvePanelUpdateLatestVersion returned error: %v", err)
+	}
+	if latest != "v0.1.14" {
+		t.Fatalf("latest = %q, want v0.1.14", latest)
+	}
+}

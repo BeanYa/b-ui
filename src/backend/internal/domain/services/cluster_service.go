@@ -16,12 +16,12 @@ import (
 )
 
 type ClusterRegisterRequest struct {
-	JoinURI string `json:"joinUri"`
-	HubURL  string `json:"hubUrl"`
-	Name    string `json:"name"`
-	Domain  string `json:"domain"`
-	Token   string `json:"token"`
-	BaseURL string `json:"baseUrl"`
+	JoinURI string `json:"joinUri" form:"joinUri"`
+	HubURL  string `json:"hubUrl" form:"hubUrl"`
+	Name    string `json:"name" form:"name"`
+	Domain  string `json:"domain" form:"domain"`
+	Token   string `json:"token" form:"token"`
+	BaseURL string `json:"baseUrl" form:"baseUrl"`
 }
 
 type ClusterOperationStatus struct {

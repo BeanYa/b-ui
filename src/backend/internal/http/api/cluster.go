@@ -40,7 +40,7 @@ func (a *APIHandler) registerCluster(c *gin.Context) {
 		return
 	}
 	var request service.ClusterRegisterRequest
-	if err := c.ShouldBindJSON(&request); err != nil {
+	if err := c.ShouldBind(&request); err != nil {
 		jsonMsg(c, "cluster register", err)
 		return
 	}

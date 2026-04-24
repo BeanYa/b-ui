@@ -77,6 +77,36 @@ func TestClusterRegisterAcceptsJoinURI(t *testing.T) {
 	}
 }
 
+func TestClusterRegisterAcceptsFormEncodedRequest(t *testing.T) {
+	router, cluster := newTestClusterRouter()
+	registerBody := bytes.NewBufferString("domain=edge.example.com&hubUrl=https%3A%2F%2Fhub.example.com&token=cluster-token&baseUrl=https%3A%2F%2Fpanel.example.com%2Fapp%2F")
+	req := httptest.NewRequest(http.MethodPost, "/api/cluster/register", registerBody)
+	req.Header.Set("Content-Type", "application/x-www-form-urlencoded; charset=UTF-8")
+	req.Header.Set("Cookie", loginCookie(t, router, "admin"))
+	recorder := httptest.NewRecorder()
+
+	router.ServeHTTP(recorder, req)
+
+	if recorder.Code != http.StatusOK {
+		t.Fatalf("expected status %d, got %d", http.StatusOK, recorder.Code)
+	}
+	if cluster.registerCalls != 1 {
+		t.Fatalf("expected one register call, got %d", cluster.registerCalls)
+	}
+	if cluster.registeredRequest.HubURL != "https://hub.example.com" {
+		t.Fatalf("expected parsed hub URL, got %q", cluster.registeredRequest.HubURL)
+	}
+	if cluster.registeredRequest.Domain != "edge.example.com" {
+		t.Fatalf("expected parsed domain, got %q", cluster.registeredRequest.Domain)
+	}
+	if cluster.registeredRequest.Token != "cluster-token" {
+		t.Fatalf("expected parsed token, got %q", cluster.registeredRequest.Token)
+	}
+	if cluster.registeredRequest.BaseURL != "https://panel.example.com/app/" {
+		t.Fatalf("expected parsed base URL, got %q", cluster.registeredRequest.BaseURL)
+	}
+}
+
 func TestClusterAdminRoutesRequireFirstUserAdmin(t *testing.T) {
 	router, cluster := newTestClusterRouterWithUserService(stubUserService{
 		isFirstUser: func(username string) (bool, error) {
