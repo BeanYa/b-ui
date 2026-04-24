@@ -162,8 +162,14 @@ func TestPeerDispatcherRetriesSuccessfulChainStepWhenNextStepDeliveryFails(t *te
 	}
 
 	attempts := 0
+	var forwarded []PeerMessage
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		attempts++
+		var message PeerMessage
+		if err := json.NewDecoder(r.Body).Decode(&message); err != nil {
+			t.Errorf("decode forwarded message: %v", err)
+		}
+		forwarded = append(forwarded, message)
 		if attempts == 1 {
 			http.Error(w, "temporarily unavailable", http.StatusServiceUnavailable)
 			return
@@ -205,6 +211,18 @@ func TestPeerDispatcherRetriesSuccessfulChainStepWhenNextStepDeliveryFails(t *te
 	}
 	if attempts != 2 {
 		t.Fatalf("expected retry to attempt delivery again, got %d attempts", attempts)
+	}
+	if len(forwarded) != 2 {
+		t.Fatalf("expected two forwarded messages, got %d", len(forwarded))
+	}
+	if forwarded[0].MessageID == "" || forwarded[1].MessageID == "" {
+		t.Fatalf("expected forwarded message IDs to be set: %#v", forwarded)
+	}
+	if forwarded[0].MessageID != forwarded[1].MessageID {
+		t.Fatalf("expected stable forwarded message ID across retry, got %q then %q", forwarded[0].MessageID, forwarded[1].MessageID)
+	}
+	if forwarded[0].IdempotencyKey == "" || forwarded[0].IdempotencyKey != forwarded[1].IdempotencyKey {
+		t.Fatalf("expected stable forwarded idempotency key across retry, got %q then %q", forwarded[0].IdempotencyKey, forwarded[1].IdempotencyKey)
 	}
 	if len(saved) != 2 {
 		t.Fatalf("expected workflow step to be saved on both attempts, got %d", len(saved))
@@ -283,7 +301,12 @@ func TestPeerDispatcherChainFailureContinuationRequiresContinueOnFailure(t *test
 				}},
 			}
 
-			if err := dispatcher.Dispatch(context.Background(), &model.ClusterDomain{Id: 1, Domain: "edge.example.com"}, &model.ClusterMember{NodeID: "node-source"}, message); err == nil {
+			err = dispatcher.Dispatch(context.Background(), &model.ClusterDomain{Id: 1, Domain: "edge.example.com"}, &model.ClusterMember{NodeID: "node-source"}, message)
+			if tt.wantForwarded {
+				if err != nil {
+					t.Fatalf("expected successful ack after continuation, got %v", err)
+				}
+			} else if err == nil {
 				t.Fatal("expected dispatch to return the step failure")
 			}
 
@@ -345,11 +368,14 @@ func TestPeerDispatcherDoesNotDuplicateFailureContinuationOnRetry(t *testing.T) 
 
 	message := failedContinueChainMessage("msg-chain-failure-idempotent")
 	err = dispatcher.Dispatch(context.Background(), &model.ClusterDomain{Id: 1, Domain: "edge.example.com"}, &model.ClusterMember{NodeID: "node-source"}, message)
-	if err == nil || err.Error() != "invalid_payload_version" {
-		t.Fatalf("expected original step failure, got %v", err)
+	if err != nil {
+		t.Fatalf("expected successful ack after continuation, got %v", err)
 	}
 	if forwardedCount != 1 {
 		t.Fatalf("expected next step to be forwarded once, got %d", forwardedCount)
+	}
+	if len(saved) != 1 || saved[0].status != PeerEventStatusFailed || saved[0].errorMessage != "invalid_payload_version" {
+		t.Fatalf("expected failed workflow step to be saved, got %#v", saved)
 	}
 
 	err = dispatcher.Dispatch(context.Background(), &model.ClusterDomain{Id: 1, Domain: "edge.example.com"}, &model.ClusterMember{NodeID: "node-source"}, message)

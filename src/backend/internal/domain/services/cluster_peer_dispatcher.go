@@ -5,6 +5,7 @@ import (
 	"errors"
 
 	"github.com/alireza0/s-ui/src/backend/internal/infra/db/model"
+	"github.com/gofrs/uuid/v5"
 )
 
 const (
@@ -53,6 +54,9 @@ func (d *ClusterPeerDispatcher) Dispatch(ctx context.Context, domain *model.Clus
 			if markErr := store.MarkEventState(message.MessageID, status, errorMessage); markErr != nil {
 				return markErr
 			}
+			if forwardedNextStep {
+				return nil
+			}
 			return err
 		}
 		if _, err := d.completeChainStep(ctx, domain, message, PeerEventStatusSucceeded, ""); err != nil {
@@ -81,6 +85,9 @@ func (d *ClusterPeerDispatcher) Dispatch(ctx context.Context, domain *model.Clus
 	}
 	if markErr := store.MarkEventState(message.MessageID, status, errorMessage); markErr != nil {
 		return markErr
+	}
+	if forwardedNextStep {
+		return nil
 	}
 	return err
 }
@@ -176,7 +183,9 @@ func (d *ClusterPeerDispatcher) dispatchNextChainStep(ctx context.Context, domai
 	next.WorkflowID = current.WorkflowID
 	next.StepID = nextStep.StepID
 	next.Route = current.Route
-	next.IdempotencyKey = current.IdempotencyKey
+	stableKey := clusterPeerChainStepStableKey(current.DomainID, current.WorkflowID, nextStep.StepID)
+	next.MessageID = uuid.NewV5(uuid.NamespaceURL, stableKey).String()
+	next.IdempotencyKey = stableKey
 	next.CausationID = current.CausationID
 	next.CorrelationID = current.CorrelationID
 	next.ExpiresAt = current.ExpiresAt
@@ -185,6 +194,10 @@ func (d *ClusterPeerDispatcher) dispatchNextChainStep(ctx context.Context, domai
 		return err
 	}
 	return d.getDelivery().Send(ctx, next, *member, token)
+}
+
+func clusterPeerChainStepStableKey(domainID string, workflowID string, stepID string) string {
+	return "cluster-peer-chain-step:" + domainID + ":" + workflowID + ":" + stepID
 }
 
 func (d *ClusterPeerDispatcher) getWorkflowStepSaver() func(workflowID string, stepID string, domainID string, nodeID string, status string, resultHash string, errorMessage string) error {
