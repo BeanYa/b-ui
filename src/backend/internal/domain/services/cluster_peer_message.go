@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"github.com/alireza0/s-ui/src/backend/internal/infra/db/model"
+	"github.com/gofrs/uuid/v5"
 )
 
 const ClusterPeerProtocolVersion = "v1"
@@ -23,43 +24,56 @@ const (
 )
 
 type PeerMessage struct {
-	ProtocolVersion   string                 `json:"protocolVersion"`
-	Domain            string                 `json:"domain"`
+	MessageID         string                 `json:"messageId"`
+	WorkflowID        string                 `json:"workflowId,omitempty"`
+	StepID            string                 `json:"stepId,omitempty"`
+	DomainID          string                 `json:"domainId"`
 	MembershipVersion int64                  `json:"membershipVersion"`
 	SourceNodeID      string                 `json:"sourceNodeId"`
 	SourceSeq         int64                  `json:"sourceSeq"`
 	Category          string                 `json:"category"`
 	Action            string                 `json:"action"`
-	Payload           map[string]interface{} `json:"payload"`
-	PayloadHash       string                 `json:"payloadHash"`
+	ProtocolVersion   string                 `json:"protocolVersion"`
+	SchemaVersion     int                    `json:"schemaVersion"`
 	Route             RoutePlan              `json:"route"`
+	IdempotencyKey    string                 `json:"idempotencyKey,omitempty"`
+	CausationID       string                 `json:"causationId,omitempty"`
+	CorrelationID     string                 `json:"correlationId,omitempty"`
 	CreatedAt         int64                  `json:"createdAt"`
 	ExpiresAt         int64                  `json:"expiresAt,omitempty"`
-	Signature         string                 `json:"signature,omitempty"`
+	PayloadHash       string                 `json:"payloadHash"`
+	Payload           map[string]interface{} `json:"payload"`
+	Signature         string                 `json:"signature"`
 }
 
 type RoutePlan struct {
-	Mode     string           `json:"mode"`
-	Targets  []TargetSelector `json:"targets,omitempty"`
-	Steps    []RouteStep      `json:"steps,omitempty"`
-	Delivery DeliveryPolicy   `json:"delivery,omitempty"`
-	Schedule SchedulePolicy   `json:"schedule,omitempty"`
+	Mode     string          `json:"mode"`
+	Targets  []string        `json:"targets,omitempty"`
+	Selector *TargetSelector `json:"selector,omitempty"`
+	Chain    []RouteStep     `json:"chain,omitempty"`
+	Delivery *DeliveryPolicy `json:"delivery,omitempty"`
+	Schedule *SchedulePolicy `json:"schedule,omitempty"`
 }
 
 type TargetSelector struct {
-	NodeID string `json:"nodeId,omitempty"`
-	Role   string `json:"role,omitempty"`
-	Domain string `json:"domain,omitempty"`
+	Include            []string `json:"include,omitempty"`
+	Exclude            []string `json:"exclude,omitempty"`
+	CapabilityRequired []string `json:"capabilityRequired,omitempty"`
 }
 
 type RouteStep struct {
-	NodeID string `json:"nodeId,omitempty"`
-	Action string `json:"action,omitempty"`
+	StepID            string                 `json:"stepId"`
+	NodeID            string                 `json:"nodeId"`
+	Action            string                 `json:"action,omitempty"`
+	PayloadOverride   map[string]interface{} `json:"payloadOverride,omitempty"`
+	ContinueOnFailure bool                   `json:"continueOnFailure,omitempty"`
 }
 
 type DeliveryPolicy struct {
-	RequireAck bool        `json:"requireAck,omitempty"`
-	Retry      RetryPolicy `json:"retry,omitempty"`
+	Ack       bool         `json:"ack,omitempty"`
+	TimeoutMs int64        `json:"timeoutMs,omitempty"`
+	Retry     *RetryPolicy `json:"retry,omitempty"`
+	MaxHops   int          `json:"maxHops,omitempty"`
 }
 
 type RetryPolicy struct {
@@ -68,14 +82,24 @@ type RetryPolicy struct {
 }
 
 type SchedulePolicy struct {
-	NotBefore int64 `json:"notBefore,omitempty"`
-	Deadline  int64 `json:"deadline,omitempty"`
+	Kind       string `json:"kind,omitempty"`
+	RunAt      int64  `json:"runAt,omitempty"`
+	IntervalMs int64  `json:"intervalMs,omitempty"`
+	Cron       string `json:"cron,omitempty"`
+	MaxRuns    int    `json:"maxRuns,omitempty"`
+	ExpiresAt  int64  `json:"expiresAt,omitempty"`
 }
 
-func NewClusterPeerMessage(domain string, membershipVersion int64, sourceNodeID string, sourceSeq int64, category string, action string, payload map[string]interface{}) *PeerMessage {
+func NewClusterPeerMessage(domain string, membershipVersion int64, sourceNodeID string, sourceSeq int64, category string, action string, payload map[string]interface{}) (*PeerMessage, error) {
+	messageID, err := uuid.NewV4()
+	if err != nil {
+		return nil, err
+	}
 	return &PeerMessage{
+		MessageID:         messageID.String(),
+		DomainID:          domain,
 		ProtocolVersion:   ClusterPeerProtocolVersion,
-		Domain:            domain,
+		SchemaVersion:     1,
 		MembershipVersion: membershipVersion,
 		SourceNodeID:      sourceNodeID,
 		SourceSeq:         sourceSeq,
@@ -83,7 +107,7 @@ func NewClusterPeerMessage(domain string, membershipVersion int64, sourceNodeID 
 		Action:            action,
 		Payload:           payload,
 		CreatedAt:         time.Now().Unix(),
-	}
+	}, nil
 }
 
 func ClusterPeerPayloadHash(payload map[string]interface{}) (string, error) {

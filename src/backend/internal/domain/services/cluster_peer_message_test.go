@@ -3,6 +3,7 @@ package service
 import (
 	"crypto/ed25519"
 	"encoding/base64"
+	"strings"
 	"testing"
 	"time"
 
@@ -36,7 +37,10 @@ func TestSignAndVerifyPeerMessage(t *testing.T) {
 		PublicKey:  base64.StdEncoding.EncodeToString(publicKey),
 		PrivateKey: base64.StdEncoding.EncodeToString(privateKey),
 	}
-	message := NewClusterPeerMessage("edge.example.com", 5, "node-a", 1, "event", "domain.cluster.changed", map[string]any{"version": float64(5)})
+	message, err := NewClusterPeerMessage("edge.example.com", 5, "node-a", 1, "event", "domain.cluster.changed", map[string]any{"version": float64(5)})
+	if err != nil {
+		t.Fatalf("new message: %v", err)
+	}
 	message.Route = RoutePlan{Mode: RouteModeBroadcast}
 
 	if err := SignClusterPeerMessage(local, message); err != nil {
@@ -61,12 +65,46 @@ func TestVerifyPeerMessageRejectsExpiredMessage(t *testing.T) {
 		PublicKey:  base64.StdEncoding.EncodeToString(publicKey),
 		PrivateKey: base64.StdEncoding.EncodeToString(privateKey),
 	}
-	message := NewClusterPeerMessage("edge.example.com", 5, "node-a", 1, "event", "domain.cluster.changed", map[string]any{"version": float64(5)})
+	message, err := NewClusterPeerMessage("edge.example.com", 5, "node-a", 1, "event", "domain.cluster.changed", map[string]any{"version": float64(5)})
+	if err != nil {
+		t.Fatalf("new message: %v", err)
+	}
 	message.ExpiresAt = 100
 	if err := SignClusterPeerMessage(local, message); err != nil {
 		t.Fatalf("sign: %v", err)
 	}
 	if err := VerifyClusterPeerMessage(message, local.PublicKey, 101); err == nil || err.Error() != "message_expired" {
 		t.Fatalf("expected message_expired, got %v", err)
+	}
+}
+
+func TestPeerMessageSigningOmitsUnsetRoutePolicies(t *testing.T) {
+	publicKey, privateKey, err := ed25519.GenerateKey(nil)
+	if err != nil {
+		t.Fatalf("generate key: %v", err)
+	}
+	local := &model.ClusterLocalNode{
+		NodeID:     "node-a",
+		PublicKey:  base64.StdEncoding.EncodeToString(publicKey),
+		PrivateKey: base64.StdEncoding.EncodeToString(privateKey),
+	}
+	message, err := NewClusterPeerMessage("edge.example.com", 5, "node-a", 1, "event", "domain.cluster.changed", map[string]any{"version": float64(5)})
+	if err != nil {
+		t.Fatalf("new message: %v", err)
+	}
+	message.Route = RoutePlan{Mode: RouteModeBroadcast}
+	if err := SignClusterPeerMessage(local, message); err != nil {
+		t.Fatalf("sign: %v", err)
+	}
+
+	signingPayload, err := clusterPeerSigningPayload(message)
+	if err != nil {
+		t.Fatalf("signing payload: %v", err)
+	}
+	payload := string(signingPayload)
+	for _, field := range []string{`"delivery"`, `"retry"`, `"schedule"`} {
+		if strings.Contains(payload, field) {
+			t.Fatalf("expected signing payload to omit %s when unset: %s", field, payload)
+		}
 	}
 }
