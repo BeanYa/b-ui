@@ -144,8 +144,8 @@ type ClusterPeerAckState struct {
 
 type ClusterPeerWorkflowState struct {
 	Id         uint   `json:"id" gorm:"primaryKey;autoIncrement"`
-	WorkflowID string `json:"workflowId" gorm:"index"`
-	StepID     string `json:"stepId" gorm:"index"`
+	WorkflowID string `json:"workflowId" gorm:"index;uniqueIndex:idx_cluster_peer_workflow_step"`
+	StepID     string `json:"stepId" gorm:"index;uniqueIndex:idx_cluster_peer_workflow_step"`
 	DomainID   string `json:"domainId" gorm:"index"`
 	NodeID     string `json:"nodeId" gorm:"index"`
 	Status     string `json:"status" gorm:"index"`

@@ -172,25 +172,32 @@ func SaveClusterPeerWorkflowStep(workflowID string, stepID string, domainID stri
 	db := database.GetDB()
 	now := time.Now().Unix()
 
-	state := &model.ClusterPeerWorkflowState{}
-	err := db.Where("workflow_id = ? AND step_id = ?", workflowID, stepID).First(state).Error
-	if err != nil {
-		if !database.IsNotFound(err) {
-			return err
-		}
-		state.WorkflowID = workflowID
-		state.StepID = stepID
-		state.CreatedAt = now
+	state := &model.ClusterPeerWorkflowState{
+		WorkflowID: workflowID,
+		StepID:     stepID,
+		DomainID:   domainID,
+		NodeID:     nodeID,
+		Status:     status,
+		ResultHash: resultHash,
+		Error:      errorMessage,
+		CreatedAt:  now,
+		UpdatedAt:  now,
 	}
 
-	state.DomainID = domainID
-	state.NodeID = nodeID
-	state.Status = status
-	state.ResultHash = resultHash
-	state.Error = errorMessage
-	state.UpdatedAt = now
-
-	return db.Save(state).Error
+	return db.Clauses(clause.OnConflict{
+		Columns: []clause.Column{
+			{Name: "workflow_id"},
+			{Name: "step_id"},
+		},
+		DoUpdates: clause.AssignmentColumns([]string{
+			"domain_id",
+			"node_id",
+			"status",
+			"result_hash",
+			"error",
+			"updated_at",
+		}),
+	}).Create(state).Error
 }
 
 func peerEventStateFromModel(event *model.ClusterPeerEventState) *PeerEventState {
