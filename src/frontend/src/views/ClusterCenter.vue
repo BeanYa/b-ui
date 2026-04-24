@@ -102,9 +102,9 @@
             <v-text-field
               v-model="form.joinUri"
               label="Join URI"
-              placeholder="buihub://hub.example.com/domain/example.com?token=..."
+              placeholder="buihub://hub.example.com/domain/example.com?domain_token=..."
               persistent-hint
-              hint="URI 以 buihub:// 开头，例如 buihub://hub.example.com/domain/example.com?token=xxx"
+              hint="URI 以 buihub:// 开头，例如 buihub://hub.example.com/domain/example.com?domain_token=xxx"
             />
           </template>
           <template v-else>
@@ -180,6 +180,7 @@ import { push } from 'notivue'
 
 import HttpUtils from '@/plugins/httputil'
 import { i18n } from '@/locales'
+import { parseClusterHubJoinUri } from '@/features/clusterHubUri'
 import type { ClusterDomain, ClusterMember, ClusterOperationStatus } from '@/types/clusters'
 
 const pageLoading = ref(false)
@@ -206,25 +207,6 @@ const confirmInfo = ref({
   token: '',
   baseUrl: '',
 })
-
-const parseJoinUri = (uri: string): { domain: string; host: string; protocol: string; token: string } | null => {
-  const trimmed = uri.trim()
-  if (!trimmed.startsWith('buihub://')) return null
-  try {
-    const normalized = trimmed.replace('buihub://', 'https://')
-    const url = new URL(normalized)
-    const pathMatch = url.pathname.match(/^\/domain\/(.+)$/i)
-    if (!pathMatch) return null
-    return {
-      domain: decodeURIComponent(pathMatch[1]),
-      host: url.host,
-      protocol: 'https',
-      token: url.searchParams.get('token') || '',
-    }
-  } catch {
-    return null
-  }
-}
 
 const selectedDomain = computed(() => domains.value.find((domain) => domain.id === selectedDomainId.value) ?? null)
 const selectedDomainMembers = computed(() => members.value.filter((member) => member.domainId === selectedDomainId.value))
@@ -254,7 +236,7 @@ const resolvePanelBaseUrl = () => {
 const prepareConfirm = () => {
   if (registerMode.value === 'uri') {
     const uri = form.value.joinUri.trim()
-    const parsed = parseJoinUri(uri)
+    const parsed = parseClusterHubJoinUri(uri)
     if (!parsed) {
       push.error({ title: i18n.global.t('failed'), message: 'URI 格式无效，请检查后重试' })
       return
@@ -504,11 +486,14 @@ onMounted(async () => {
 
 .cluster-center__hub-url-field:focus-within {
   border-color: var(--app-state-info);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--app-state-info) 15%, transparent);
 }
 
 .cluster-center__hub-url-protocol {
-  flex-shrink: 0;
-  width: 88px;
+  flex: 0 0 72px;
+  max-width: 72px;
+  min-width: 72px;
+  width: 72px;
 }
 
 .cluster-center__hub-url-protocol :deep(.v-field) {
@@ -522,7 +507,11 @@ onMounted(async () => {
   font-size: 14px;
   line-height: 1;
   min-height: unset;
-  padding: 6px 4px;
+  padding: 6px 2px 6px 0;
+}
+
+.cluster-center__hub-url-protocol :deep(.v-field__append-inner) {
+  padding-inline-start: 0;
 }
 
 .cluster-center__hub-url-protocol :deep(.v-field__outline),
@@ -545,7 +534,7 @@ onMounted(async () => {
 }
 
 .cluster-center__hub-url-host {
-  flex: 1;
+  flex: 1 1 auto;
   min-width: 0;
 }
 

@@ -22,9 +22,15 @@
               </div>
             </div>
             <p class="panel-update__copy">{{ panelUpdateBody }}</p>
-            <p v-if="panelUpdateDialog.mode === 'progress'" class="panel-update__copy panel-update__copy--muted">
-              {{ $t('main.updatePanel.progressHint') }}
-            </p>
+            <div v-if="panelUpdateDialog.mode === 'progress'" class="panel-update__progress">
+              <v-progress-linear indeterminate color="primary" rounded />
+              <p class="panel-update__copy panel-update__copy--muted">
+                {{ $t('main.updatePanel.progressHint') }}
+              </p>
+              <ul v-if="panelUpdateProgressLines.length" class="panel-update__details">
+                <li v-for="line in panelUpdateProgressLines" :key="line">{{ line }}</li>
+              </ul>
+            </div>
             <p
               v-if="panelUpdateDialog.info?.updateState?.logPath && panelUpdateDialog.info?.updateState?.phase === 'failed'"
               class="panel-update__copy panel-update__copy--muted"
@@ -55,6 +61,14 @@
             variant="tonal"
             disabled>
             {{ $t('main.updatePanel.progress') }}
+          </v-btn>
+          <v-btn
+            v-else-if="panelUpdateDialog.mode === 'completed'"
+            color="primary"
+            prepend-icon="mdi-refresh"
+            variant="tonal"
+            @click="refreshPanelPage">
+            {{ $t('actions.refresh') }}
           </v-btn>
         </v-card-actions>
       </v-card>
@@ -251,10 +265,11 @@ import UsageStats from '@/layouts/modals/UsageStats.vue'
 import { splitTileItemsByLayout } from '@/features/dashboard/layout'
 import { mergeTilesData } from '@/features/dashboard/persistence'
 import { filterTileSectionsByData, formatAppVersion, formatCpuRingNote } from '@/features/dashboard/probe'
+import { buildPanelUpdateProgressLines, panelUpdateCompletionMessage } from '@/features/panelUpdate/status'
 
 const loading = ref(false)
 type TileSectionKey = 'metric' | 'detail'
-type PanelUpdateDialogMode = 'confirm' | 'progress'
+type PanelUpdateDialogMode = 'confirm' | 'progress' | 'completed'
 type PanelUpdateComparison = 'older' | 'same' | 'newer' | 'unknown'
 
 interface PanelUpdateState {
@@ -473,8 +488,6 @@ const tileCardClasses = (type: string) => ({
   'tile-card--chart': type.startsWith('h'),
 })
 
-const normalizeReleaseVersion = (value?: string) => (value ?? '').trim().replace(/^v/i, '')
-
 const panelUpdateActionEnabled = computed(() => {
   return Boolean(panelUpdateDialog.value.info?.supported && panelUpdateDialog.value.targetVersion)
 })
@@ -489,6 +502,26 @@ const panelUpdateButtonLoading = computed(() => {
   return panelUpdateDialog.value.loading || panelUpdateDialog.value.submitting
 })
 
+const panelUpdateProgressLines = computed(() => buildPanelUpdateProgressLines(
+  {
+    targetVersion: panelUpdateDialog.value.info?.updateState?.targetVersion || panelUpdateDialog.value.targetVersion,
+    logPath: panelUpdateDialog.value.info?.updateState?.logPath,
+  },
+  {
+    targetVersion: i18n.global.t('main.updatePanel.targetVersion').toString(),
+    logPath: i18n.global.t('main.updatePanel.logFile').toString(),
+  },
+))
+
+const panelUpdateCompletedText = computed(() => {
+  const targetVersion = panelUpdateDialog.value.info?.updateState?.targetVersion || panelUpdateDialog.value.targetVersion
+  if (!targetVersion) {
+    return i18n.global.t('main.updatePanel.completed').toString()
+  }
+  return i18n.global.t('main.updatePanel.completedWithRefresh', { version: targetVersion }).toString()
+    || panelUpdateCompletionMessage(targetVersion)
+})
+
 const panelUpdateBody = computed(() => {
   const info = panelUpdateDialog.value.info
   if (!info) return ''
@@ -497,6 +530,9 @@ const panelUpdateBody = computed(() => {
   }
   if (info.updateState?.phase === 'failed') {
     return i18n.global.t('main.updatePanel.failed').toString()
+  }
+  if (panelUpdateDialog.value.mode === 'completed') {
+    return panelUpdateCompletedText.value
   }
   if (panelUpdateDialog.value.mode === 'progress') {
     return i18n.global.t('main.updatePanel.running').toString()
@@ -611,15 +647,18 @@ const stopPanelUpdatePolling = () => {
 
 const handlePanelUpdateCompletion = async (info: PanelUpdateInfo, targetVersion: string) => {
   if (info.updateState?.phase !== 'completed') return
-  if (normalizeReleaseVersion(info.currentVersion) !== normalizeReleaseVersion(targetVersion)) return
 
   stopPanelUpdatePolling()
-  panelUpdateDialog.value.visible = false
-  panelUpdateDialog.value.mode = 'confirm'
+  panelUpdateDialog.value.visible = true
+  panelUpdateDialog.value.mode = 'completed'
   await syncDashboard()
   push.success({
-    message: i18n.global.t('main.updatePanel.completed').toString(),
+    message: panelUpdateCompletedText.value,
   })
+}
+
+const refreshPanelPage = () => {
+  window.location.reload()
 }
 
 const pollPanelUpdate = async (targetVersion: string) => {
@@ -893,6 +932,27 @@ onBeforeUnmount(() => {
 
 .panel-update__copy--muted {
   color: var(--app-text-3);
+}
+
+.panel-update__progress {
+  display: grid;
+  gap: 10px;
+  margin-top: 14px;
+}
+
+.panel-update__progress .panel-update__copy {
+  margin-top: 0;
+}
+
+.panel-update__details {
+  color: var(--app-text-2);
+  display: grid;
+  font-size: 12px;
+  gap: 4px;
+  line-height: 1.5;
+  margin: 0;
+  padding-left: 18px;
+  word-break: break-all;
 }
 
 .section-head {

@@ -99,6 +99,7 @@ export default {
       title: "更新面板",
       currentVersion: "目前版本",
       latestVersion: "最新版本",
+      targetVersion: "目標版本",
       confirmUpdate: "偵測到新版本，確認後將自動更新面板到最新發佈版本。",
       confirmForce: "目前版本已與最新發佈版本相同。如需重新安裝目前版本，請執行強制更新。",
       confirmDowngrade: "目前版本高於最新發佈版本。繼續將執行強制更新並重新安裝最新發佈版本。",
@@ -108,8 +109,10 @@ export default {
       progressHint: "更新期間面板可能短暫不可用，完成後會自動恢復。",
       running: "正在啟動面板更新任務，請等待服務重新啟動並完成安裝。",
       completed: "面板已更新到目標版本。",
+      completedWithRefresh: "面板已更新到 {version}，請重新整理頁面以載入新版本。",
       failed: "面板更新失敗，請查看伺服器上的更新日誌。",
       logPath: "更新日誌：",
+      logFile: "更新日誌",
     },
   },
   objects: {

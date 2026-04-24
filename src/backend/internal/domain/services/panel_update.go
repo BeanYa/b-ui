@@ -21,6 +21,8 @@ const (
 	panelUpdateRepoOwner = "BeanYa"
 	panelUpdateRepoName  = "b-ui"
 	panelUpdateUnitName  = "b-ui-panel-update"
+
+	panelUpdateRunningGracePeriod = 30 * time.Second
 )
 
 type PanelUpdateInfo struct {
@@ -75,7 +77,7 @@ func (s *PanelService) GetUpdateInfo() (*PanelUpdateInfo, error) {
 		return info, nil
 	}
 
-	latestVersion, err := fetchLatestReleaseTag()
+	latestVersion, err := resolvePanelUpdateLatestVersion(state, fetchLatestReleaseTag)
 	if err != nil {
 		return nil, err
 	}
@@ -237,7 +239,46 @@ func loadPanelUpdateState() (*PanelUpdateState, error) {
 	if err := json.Unmarshal(content, state); err != nil {
 		return nil, err
 	}
+	if reconciledState, changed := reconcilePanelUpdateState(state, time.Now(), panelUpdateUnitActive); changed {
+		_ = savePanelUpdateState(reconciledState)
+		state = reconciledState
+	}
 	return state, nil
+}
+
+func reconcilePanelUpdateState(state *PanelUpdateState, now time.Time, isUnitActive func() (bool, error)) (*PanelUpdateState, bool) {
+	if state == nil || state.Phase != "running" {
+		return state, false
+	}
+
+	lastUpdate := state.UpdatedAt
+	if lastUpdate == 0 {
+		lastUpdate = state.StartedAt
+	}
+	if lastUpdate > 0 && now.Unix()-lastUpdate < int64(panelUpdateRunningGracePeriod/time.Second) {
+		return state, false
+	}
+
+	active, err := isUnitActive()
+	if err != nil || active {
+		return state, false
+	}
+
+	state.Phase = "failed"
+	state.Message = "update_task_stopped"
+	state.UpdatedAt = now.Unix()
+	return state, true
+}
+
+func panelUpdateUnitActive() (bool, error) {
+	err := exec.Command("systemctl", "is-active", "--quiet", panelUpdateUnitName).Run()
+	if err == nil {
+		return true, nil
+	}
+	if _, ok := err.(*exec.ExitError); ok {
+		return false, nil
+	}
+	return false, err
 }
 
 func savePanelUpdateState(state *PanelUpdateState) error {
@@ -258,6 +299,13 @@ func panelUpdateStateFilePath() string {
 
 func panelUpdateLogFilePath() string {
 	return filepath.Join(os.TempDir(), "b-ui-panel-update.log")
+}
+
+func resolvePanelUpdateLatestVersion(state *PanelUpdateState, fetchLatest func() (string, error)) (string, error) {
+	if state != nil && state.TargetVersion != "" {
+		return canonicalizeReleaseTag(state.TargetVersion), nil
+	}
+	return fetchLatest()
 }
 
 func fetchLatestReleaseTag() (string, error) {

@@ -1,6 +1,9 @@
 package service
 
-import "testing"
+import (
+	"testing"
+	"time"
+)
 
 func TestCompareReleaseTags(t *testing.T) {
 	tests := []struct {
@@ -24,5 +27,49 @@ func TestCompareReleaseTags(t *testing.T) {
 				t.Fatalf("compareReleaseTags(%q, %q) = %q, want %q", testCase.current, testCase.target, actual, testCase.expected)
 			}
 		})
+	}
+}
+
+func TestReconcilePanelUpdateStateMarksInactiveRunningTaskFailed(t *testing.T) {
+	startedAt := time.Now().Add(-2 * time.Minute).Unix()
+	state := &PanelUpdateState{
+		Phase:         "running",
+		TargetVersion: "v0.1.11",
+		StartedAt:     startedAt,
+		UpdatedAt:     startedAt,
+		LogPath:       "/tmp/b-ui-panel-update.log",
+	}
+
+	reconciled, changed := reconcilePanelUpdateState(state, time.Now(), func() (bool, error) {
+		return false, nil
+	})
+
+	if !changed {
+		t.Fatal("expected stale running update state to be changed")
+	}
+	if reconciled.Phase != "failed" {
+		t.Fatalf("phase = %q, want failed", reconciled.Phase)
+	}
+	if reconciled.Message != "update_task_stopped" {
+		t.Fatalf("message = %q, want update_task_stopped", reconciled.Message)
+	}
+}
+
+func TestResolvePanelUpdateLatestVersionUsesRunningTargetWithoutGithubFetch(t *testing.T) {
+	state := &PanelUpdateState{
+		Phase:         "running",
+		TargetVersion: "v0.1.11",
+	}
+
+	latest, err := resolvePanelUpdateLatestVersion(state, func() (string, error) {
+		t.Fatal("running update polling must not fetch GitHub release metadata")
+		return "", nil
+	})
+
+	if err != nil {
+		t.Fatalf("resolvePanelUpdateLatestVersion returned error: %v", err)
+	}
+	if latest != "v0.1.11" {
+		t.Fatalf("latest = %q, want v0.1.11", latest)
 	}
 }

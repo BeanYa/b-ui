@@ -42,4 +42,14 @@ describe('ClusterCenter view source', () => {
     expect(source).toContain('cluster-center__members')
     expect(source).not.toContain('v-data-table')
   })
+
+  it('keeps the hub URL protocol selector compact so the URI host input gets the remaining width', () => {
+    const source = readFileSync(fileURLToPath(new URL('./ClusterCenter.vue', import.meta.url)), 'utf8')
+
+    expect(source).toContain('flex: 0 0 72px;')
+    expect(source).toContain('max-width: 72px;')
+    expect(source).toContain('min-width: 72px;')
+    expect(source).toContain('flex: 1 1 auto;')
+    expect(source).toContain('box-shadow: 0 0 0 3px color-mix(in srgb, var(--app-state-info) 15%, transparent);')
+  })
 })

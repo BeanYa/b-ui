@@ -99,6 +99,7 @@ export default {
       title: "Update Panel",
       currentVersion: "Current version",
       latestVersion: "Latest version",
+      targetVersion: "Target version",
       confirmUpdate: "A newer release is available. Confirm to update the panel to the latest published version.",
       confirmForce: "The current version already matches the latest published version. Use force update to reinstall it anyway.",
       confirmDowngrade: "The current version is newer than the latest published release. Continuing will force reinstall the latest published version.",
@@ -108,8 +109,10 @@ export default {
       progressHint: "The panel may be temporarily unavailable while the service restarts.",
       running: "The panel update job has started. Wait for the service restart and installation to finish.",
       completed: "The panel has been updated to the target version.",
+      completedWithRefresh: "The panel has been updated to {version}. Refresh the page to load the new version.",
       failed: "The panel update failed. Check the server-side update log for details.",
       logPath: "Update log:",
+      logFile: "Log file",
     },
   },
   objects: {

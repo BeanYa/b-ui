@@ -99,6 +99,7 @@ export default {
       title: "Cập nhật bảng điều khiển",
       currentVersion: "Phiên bản hiện tại",
       latestVersion: "Phiên bản mới nhất",
+      targetVersion: "Phiên bản mục tiêu",
       confirmUpdate: "Đã phát hiện bản phát hành mới. Xác nhận để cập nhật bảng điều khiển lên phiên bản mới nhất.",
       confirmForce: "Phiên bản hiện tại đã trùng với bản phát hành mới nhất. Dùng cập nhật bắt buộc để cài lại.",
       confirmDowngrade: "Phiên bản hiện tại mới hơn bản phát hành mới nhất. Tiếp tục sẽ cài lại cưỡng bức bản phát hành mới nhất.",
@@ -108,8 +109,10 @@ export default {
       progressHint: "Bảng điều khiển có thể tạm thời không truy cập được khi dịch vụ khởi động lại.",
       running: "Tác vụ cập nhật đã được khởi chạy. Hãy chờ dịch vụ khởi động lại và hoàn tất cài đặt.",
       completed: "Bảng điều khiển đã được cập nhật lên phiên bản mục tiêu.",
+      completedWithRefresh: "Bảng điều khiển đã được cập nhật lên {version}. Hãy làm mới trang để tải phiên bản mới.",
       failed: "Cập nhật bảng điều khiển thất bại. Hãy kiểm tra nhật ký cập nhật trên máy chủ.",
       logPath: "Nhật ký cập nhật:",
+      logFile: "Nhật ký cập nhật",
     },
   },
   objects: {
