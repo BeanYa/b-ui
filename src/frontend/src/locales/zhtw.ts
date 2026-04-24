@@ -253,6 +253,7 @@ export default {
       cancel: "取消",
       submit: "確認",
       delete: "刪除",
+      leave: "退出域",
     },
     validation: {
       required: "Hub 位址、域Id 與域認證令牌為必填欄位。",

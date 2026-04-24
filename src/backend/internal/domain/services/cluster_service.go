@@ -68,6 +68,7 @@ type clusterServiceStore interface {
 	SaveMember(*model.ClusterMember) error
 	ListMembers() ([]model.ClusterMember, error)
 	DeleteMember(uint) error
+	DeleteDomain(uint) error
 	ReplaceDomainMembers(uint, []model.ClusterMember) error
 }
 
@@ -265,6 +266,37 @@ func (s *ClusterService) DeleteMember(id uint) error {
 		return err
 	}
 	return store.DeleteMember(id)
+}
+
+func (s *ClusterService) LeaveDomain(id uint) error {
+	store := s.getStore()
+	domain, err := store.GetDomain(id)
+	if err != nil {
+		return err
+	}
+	if domain.HubURL == "" {
+		return errors.New("cluster hub URL not set")
+	}
+	localIdentity, err := s.localIdentity.GetOrCreate()
+	if err != nil {
+		return err
+	}
+	secret, err := s.getSecretProvider().GetSecret()
+	if err != nil {
+		return err
+	}
+	domainToken, err := DecryptClusterDomainToken(secret, domain.TokenEncrypted)
+	if err != nil {
+		return err
+	}
+	client := s.hubClient
+	if client == nil {
+		client = &ClusterHubClient{}
+	}
+	if _, err := client.DeleteMember(context.Background(), domain.HubURL, domain.Domain, domainToken, localIdentity.NodeID); err != nil {
+		return err
+	}
+	return store.DeleteDomain(id)
 }
 
 func (s *ClusterService) ReceiveMessage(envelope *ClusterEnvelope, token string) error {
@@ -479,6 +511,19 @@ func (s *dbClusterStore) ListMembers() ([]model.ClusterMember, error) {
 
 func (s *dbClusterStore) DeleteMember(id uint) error {
 	return database.GetDB().Delete(&model.ClusterMember{}, id).Error
+}
+
+func (s *dbClusterStore) DeleteDomain(id uint) error {
+	tx := database.GetDB().Begin()
+	if err := tx.Where("domain_id = ?", id).Delete(&model.ClusterMember{}).Error; err != nil {
+		tx.Rollback()
+		return err
+	}
+	if err := tx.Delete(&model.ClusterDomain{}, id).Error; err != nil {
+		tx.Rollback()
+		return err
+	}
+	return tx.Commit().Error
 }
 
 func (s *dbClusterStore) ReplaceDomainMembers(domainID uint, members []model.ClusterMember) error {

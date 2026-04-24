@@ -124,6 +124,22 @@ func TestClusterManualSyncAndDeleteMemberUseService(t *testing.T) {
 	}
 }
 
+func TestClusterLeaveDomainUsesService(t *testing.T) {
+	router, cluster := newTestClusterRouter()
+	req := httptest.NewRequest(http.MethodDelete, "/api/cluster/domains/9", nil)
+	req.Header.Set("Cookie", loginCookie(t, router, "admin"))
+	recorder := httptest.NewRecorder()
+
+	router.ServeHTTP(recorder, req)
+
+	if recorder.Code != http.StatusOK {
+		t.Fatalf("expected status %d, got %d", http.StatusOK, recorder.Code)
+	}
+	if cluster.leftDomainID != 9 {
+		t.Fatalf("expected left domain id 9, got %d", cluster.leftDomainID)
+	}
+}
+
 func TestClusterMessageReceiveBypassesSessionAndForwardsToken(t *testing.T) {
 	router, cluster := newTestClusterRouter()
 	body, err := json.Marshal(service.ClusterEnvelope{SchemaVersion: 1, MessageType: "sync.notify_version", SourceNodeID: "node-a", Domain: "edge.example.com", Version: 9, SentAt: 1700000000, Signature: "sig"})
@@ -218,6 +234,7 @@ type stubClusterAPIService struct {
 	manualSyncCalls   int
 	receiveCalls      int
 	deletedMemberID   uint
+	leftDomainID      uint
 	receivedToken     string
 	receivedEnvelope  *service.ClusterEnvelope
 	receiveErr        error
@@ -253,6 +270,11 @@ func (s *stubClusterAPIService) ManualSync() (*service.ClusterOperationStatus, e
 
 func (s *stubClusterAPIService) DeleteMember(id uint) error {
 	s.deletedMemberID = id
+	return nil
+}
+
+func (s *stubClusterAPIService) LeaveDomain(id uint) error {
+	s.leftDomainID = id
 	return nil
 }
 

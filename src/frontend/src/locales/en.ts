@@ -253,6 +253,7 @@ export default {
       cancel: "Cancel",
       submit: "Confirm",
       delete: "Delete",
+      leave: "Leave Domain",
     },
     validation: {
       required: "Hub URL, Domain Id, and Domain Token are required.",

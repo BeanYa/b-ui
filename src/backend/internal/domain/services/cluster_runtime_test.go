@@ -136,6 +136,7 @@ func (s *stubClusterRuntimeStore) GetMemberByDomainNodeID(uint, string) (*model.
 func (s *stubClusterRuntimeStore) SaveMember(*model.ClusterMember) error { return nil }
 func (s *stubClusterRuntimeStore) ListMembers() ([]model.ClusterMember, error) { return nil, nil }
 func (s *stubClusterRuntimeStore) DeleteMember(uint) error { return nil }
+func (s *stubClusterRuntimeStore) DeleteDomain(uint) error { return nil }
 func (s *stubClusterRuntimeStore) ReplaceDomainMembers(domainID uint, members []model.ClusterMember) error {
 	copyMembers := make([]model.ClusterMember, len(members))
 	copy(copyMembers, members)

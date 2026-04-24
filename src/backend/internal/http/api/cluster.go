@@ -17,6 +17,7 @@ type clusterAPIService interface {
 	ListMembers() ([]service.ClusterMemberResponse, error)
 	ManualSync() (*service.ClusterOperationStatus, error)
 	DeleteMember(uint) error
+	LeaveDomain(uint) error
 	ReceiveMessage(*service.ClusterEnvelope, string) error
 }
 
@@ -89,6 +90,18 @@ func (a *APIHandler) deleteClusterMember(c *gin.Context) {
 		return
 	}
 	jsonMsg(c, "delete cluster member", a.clusterService.DeleteMember(uint(id)))
+}
+
+func (a *APIHandler) leaveClusterDomain(c *gin.Context) {
+	if !a.requireClusterAdmin(c) {
+		return
+	}
+	id, err := strconv.ParseUint(c.Param("id"), 10, 64)
+	if err != nil {
+		jsonMsg(c, "leave cluster domain", err)
+		return
+	}
+	jsonMsg(c, "leave cluster domain", a.clusterService.LeaveDomain(uint(id)))
 }
 
 func RegisterClusterMessageRoute(router gin.IRoutes, clusterService clusterAPIService) {

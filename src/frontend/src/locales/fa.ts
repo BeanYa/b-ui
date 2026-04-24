@@ -251,6 +251,7 @@ export default {
       cancel: "انصراف",
       submit: "تأیید",
       delete: "حذف",
+      leave: "ترک دامنه",
     },
     validation: {
       required: "آدرس Hub، شناسه دامنه و توکن دامنه الزامی هستند.",

@@ -10,7 +10,7 @@
         <div class="app-page__hero-meta">
           <span class="app-page__hero-meta-item">{{ domains.length }} {{ $t('clusterCenter.domainsTitle').toLowerCase() }}</span>
           <span class="app-page__hero-meta-item">{{ members.length }} {{ $t('clusterCenter.mirroredMembers') }}</span>
-          <span class="app-page__hero-meta-item">{{ selectedDomain ? `v${selectedDomain.lastVersion}` : $t('clusterCenter.metaNoDomain') }}</span>
+          <span class="app-page__hero-meta-item">{{ selectedDomain ? formatClusterVersionLabel(selectedDomain.lastVersion) : $t('clusterCenter.metaNoDomain') }}</span>
         </div>
       </div>
     </section>
@@ -20,6 +20,15 @@
         <div class="app-page__toolbar-actions cluster-center__actions">
           <v-btn color="primary" @click="registerDialog = true">{{ $t('clusterCenter.actions.register') }}</v-btn>
           <v-btn variant="outlined" color="warning" :loading="actionLoading" @click="manualSync">{{ $t('clusterCenter.actions.manualSync') }}</v-btn>
+          <v-btn
+            variant="outlined"
+            color="error"
+            :disabled="!selectedDomain"
+            :loading="selectedDomain ? leavingDomainId === selectedDomain.id : false"
+            @click="leaveDomain(selectedDomain)"
+          >
+            {{ $t('clusterCenter.actions.leave') }}
+          </v-btn>
           <v-btn variant="text" :loading="pageLoading" @click="loadData">{{ $t('clusterCenter.actions.refresh') }}</v-btn>
         </div>
       </v-col>
@@ -41,7 +50,7 @@
               >
                 <div class="cluster-center__domain-head">
                   <strong>{{ domain.domain }}</strong>
-                  <span class="cluster-center__version">v{{ domain.lastVersion }}</span>
+                  <span class="cluster-center__version">{{ formatClusterVersionLabel(domain.lastVersion) }}</span>
                 </div>
                 <div class="cluster-center__domain-url">{{ domain.hubUrl || $t('clusterCenter.fields.hubUrl') }}</div>
                 <div class="cluster-center__domain-meta">{{ domainMemberCount(domain.id) }} {{ $t('clusterCenter.mirroredMembers') }}</div>
@@ -53,7 +62,14 @@
 
       <v-col cols="12" xl="8" lg="7">
         <v-card class="app-card-shell cluster-center__members" :loading="pageLoading">
-          <v-card-title>{{ selectedDomain ? selectedDomain.domain : $t('clusterCenter.selectDomain') }}</v-card-title>
+          <v-card-title>
+            <div class="cluster-center__selected-head">
+              <span>{{ selectedDomain ? selectedDomain.domain : $t('clusterCenter.selectDomain') }}</span>
+              <span v-if="selectedDomain" class="cluster-center__version cluster-center__selected-version">
+                {{ formatClusterVersionLabel(selectedDomain.lastVersion) }}
+              </span>
+            </div>
+          </v-card-title>
           <v-card-text>
             <div v-if="!selectedDomain" class="cluster-center__empty">{{ $t('clusterCenter.inspectPrompt') }}</div>
             <div v-else-if="selectedDomainMembers.length === 0" class="cluster-center__empty">{{ $t('clusterCenter.noMembers') }}</div>
@@ -73,7 +89,7 @@
                     <td>{{ member.nodeId }}</td>
                     <td>{{ member.name || '-' }}</td>
                     <td>{{ member.baseUrl || '-' }}</td>
-                    <td>v{{ member.lastVersion }}</td>
+                    <td>{{ formatClusterVersionLabel(member.lastVersion) }}</td>
                     <td>
                       <v-btn size="small" color="warning" variant="outlined" :loading="deletingMemberId === member.id" @click="deleteMember(member)">
                         {{ $t('clusterCenter.actions.delete') }}
@@ -138,9 +154,9 @@
     </v-dialog>
 
     <v-dialog v-model="confirmDialog" class="app-dialog" max-width="520">
-      <v-card class="app-card-shell">
-        <v-card-title>{{ $t('clusterCenter.confirmTitle') }}</v-card-title>
-        <v-card-text>
+      <v-card class="app-card-shell cluster-center__confirm-card">
+        <v-card-title class="cluster-center__confirm-title">{{ $t('clusterCenter.confirmTitle') }}</v-card-title>
+        <v-card-text class="cluster-center__confirm-body">
           <div class="cluster-center__confirm-table-wrap">
             <table class="cluster-center__confirm-table">
               <tbody>
@@ -192,6 +208,7 @@ const domains = ref<ClusterDomain[]>([])
 const members = ref<ClusterMember[]>([])
 const selectedDomainId = ref<number | null>(null)
 const deletingMemberId = ref<number | null>(null)
+const leavingDomainId = ref<number | null>(null)
 
 const form = ref({
   joinUri: '',
@@ -212,6 +229,7 @@ const selectedDomain = computed(() => domains.value.find((domain) => domain.id =
 const selectedDomainMembers = computed(() => members.value.filter((member) => member.domainId === selectedDomainId.value))
 
 const domainMemberCount = (domainId: number) => members.value.filter((member) => member.domainId === domainId).length
+const formatClusterVersionLabel = (version: number) => `version-${version}`
 
 const isUsableAbsoluteUrl = (value: string) => {
   try {
@@ -365,6 +383,18 @@ const deleteMember = async (member: ClusterMember) => {
   deletingMemberId.value = null
 }
 
+const leaveDomain = async (domain: ClusterDomain | null) => {
+  if (!domain) return
+
+  leavingDomainId.value = domain.id
+  const msg = await HttpUtils.delete(`api/cluster/domains/${domain.id}`)
+  if (msg.success) {
+    selectedDomainId.value = null
+    await loadData()
+  }
+  leavingDomainId.value = null
+}
+
 onMounted(async () => {
   await loadData()
 })
@@ -427,6 +457,21 @@ onMounted(async () => {
 .cluster-center__domain-url {
   color: var(--app-text-3);
   font-size: 13px;
+}
+
+.cluster-center__selected-head {
+  align-items: center;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  min-width: 0;
+}
+
+.cluster-center__selected-version {
+  border: 1px solid var(--app-border-1);
+  border-radius: 999px;
+  line-height: 1;
+  padding: 6px 9px;
 }
 
 .cluster-center__member-table-wrap {
@@ -552,6 +597,15 @@ onMounted(async () => {
 
 .cluster-center__hub-url-host :deep(.v-field__outline) {
   display: none;
+}
+
+.cluster-center__confirm-title {
+  line-height: 1.3;
+  padding: 24px 24px 10px;
+}
+
+.cluster-center__confirm-body {
+  padding-top: 8px;
 }
 
 .cluster-center__confirm-table-wrap {

@@ -15,6 +15,14 @@ const protocolFromParams = (params: URLSearchParams, hostname: string): 'http' |
   return localHosts.has(hostname) ? 'http' : 'https'
 }
 
+const firstParam = (params: URLSearchParams, names: string[]) => {
+  for (const name of names) {
+    const value = params.get(name)
+    if (value) return value
+  }
+  return ''
+}
+
 export const parseClusterHubJoinUri = (uri: string): ClusterHubJoinUri | null => {
   const trimmed = uri.trim()
   if (!trimmed.startsWith('buihub://')) return null
@@ -23,12 +31,13 @@ export const parseClusterHubJoinUri = (uri: string): ClusterHubJoinUri | null =>
   try {
     const url = new URL(trimmed)
     const domainMatch = url.pathname.match(/^\/domain\/(.+)$/i) || url.pathname.match(/^\/([^/]+)$/i)
-    if (!domainMatch) return null
-    const token = url.searchParams.get('domain_token') || url.searchParams.get('token') || ''
+    const domain = domainMatch?.[1] || firstParam(url.searchParams, ['domain_id', 'domainId', 'domain'])
+    if (!domain) return null
+    const token = firstParam(url.searchParams, ['domain_token', 'domainToken', 'domain-token', 'token'])
     if (!token) return null
 
     return {
-      domain: decodeURIComponent(domainMatch[1]),
+      domain: decodeURIComponent(domain),
       host: url.host,
       protocol: protocolFromParams(url.searchParams, url.hostname),
       token,

@@ -252,6 +252,7 @@ export default {
       cancel: "Отмена",
       submit: "Подтвердить",
       delete: "Удалить",
+      leave: "Покинуть домен",
     },
     validation: {
       required: "URL Hub, ID домена и токен домена обязательны.",
@@ -697,5 +698,4 @@ export default {
   },
 }
  
-
 

@@ -251,6 +251,7 @@ export default {
       cancel: "Hủy",
       submit: "Xác nhận",
       delete: "Xóa",
+      leave: "Rời miền",
     },
     validation: {
       required: "URL Hub, ID miền và token miền là bắt buộc.",
