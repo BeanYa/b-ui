@@ -19,6 +19,10 @@ import (
 const ClusterCommunicationEndpointPath = "/_cluster"
 const ClusterCommunicationProtocolVersion = "v1"
 
+func ClusterCommunicationSupportedActions() []string {
+	return []string{"domain.cluster.changed", "events", "heartbeat", "ping"}
+}
+
 type ClusterHubSyncer struct {
 	client         clusterHubClient
 	store          clusterServiceStore
@@ -138,37 +142,28 @@ func (b *ClusterHTTPBroadcaster) BroadcastNotifyVersion(ctx context.Context, ver
 		if err != nil {
 			return err
 		}
-		envelope, err := SignClusterNotifyVersionEnvelope(identity, member.Domain.Domain, version, time.Now().Unix())
+		message, err := NewClusterPeerMessage(member.Domain.Domain, version, identity.NodeID, version, PeerCategoryEvent, PeerActionDomainClusterChanged, map[string]interface{}{"version": float64(version)})
 		if err != nil {
 			return err
 		}
-		body, err := json.Marshal(envelope)
-		if err != nil {
+		message.Route = RoutePlan{
+			Mode: RouteModeBroadcast,
+			Delivery: &DeliveryPolicy{
+				Ack:       true,
+				TimeoutMs: 10000,
+				Retry: &RetryPolicy{
+					MaxAttempts: 3,
+					BackoffMs:   1000,
+				},
+			},
+		}
+		if err := SignClusterPeerMessage(identity, message); err != nil {
 			return err
 		}
-		messageURL, err := clusterPeerMessageURL(member.BaseURL)
-		if err != nil {
+		delivery := &ClusterPeerDeliveryService{HTTPClient: b.httpClient()}
+		if err := delivery.Send(ctx, message, member, token); err != nil {
 			return err
 		}
-		request, err := http.NewRequestWithContext(ctx, http.MethodPost, messageURL, bytes.NewReader(body))
-		if err != nil {
-			return err
-		}
-		request.Header.Set("Content-Type", "application/json")
-		request.Header.Set("X-Cluster-Token", token)
-		response, err := b.httpClient().Do(request)
-		if err != nil {
-			return err
-		}
-		if err := requireHTTPSuccess(response, "cluster peer notify"); err != nil {
-			response.Body.Close()
-			return err
-		}
-		if err := requireClusterPeerSuccess(response); err != nil {
-			response.Body.Close()
-			return err
-		}
-		response.Body.Close()
 	}
 	return nil
 }

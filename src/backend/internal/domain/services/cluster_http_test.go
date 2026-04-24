@@ -102,11 +102,11 @@ func TestClusterHTTPBroadcasterRejectsFailureJSONBody(t *testing.T) {
 
 func TestClusterHTTPBroadcasterUsesTargetMemberPeerTokenInsteadOfDomainToken(t *testing.T) {
 	var receivedToken string
-	var receivedEnvelope ClusterEnvelope
+	var receivedMessage PeerMessage
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		receivedToken = r.Header.Get("X-Cluster-Token")
-		if err := json.NewDecoder(r.Body).Decode(&receivedEnvelope); err != nil {
-			t.Fatalf("decode envelope: %v", err)
+		if err := json.NewDecoder(r.Body).Decode(&receivedMessage); err != nil {
+			t.Fatalf("decode peer message: %v", err)
 		}
 		w.Header().Set("Content-Type", "application/json")
 		_, _ = w.Write([]byte(`{"success":true}`))
@@ -131,8 +131,14 @@ func TestClusterHTTPBroadcasterUsesTargetMemberPeerTokenInsteadOfDomainToken(t *
 	if receivedToken != "peer-token-a" {
 		t.Fatalf("expected peer token header, got %q", receivedToken)
 	}
-	if receivedEnvelope.Domain != "edge.example.com" {
-		t.Fatalf("expected domain context in envelope, got %q", receivedEnvelope.Domain)
+	if receivedMessage.DomainID != "edge.example.com" {
+		t.Fatalf("expected domain context in peer message, got %q", receivedMessage.DomainID)
+	}
+	if receivedMessage.Category != PeerCategoryEvent || receivedMessage.Action != PeerActionDomainClusterChanged {
+		t.Fatalf("expected domain cluster changed event, got %s/%s", receivedMessage.Category, receivedMessage.Action)
+	}
+	if receivedMessage.Route.Mode != RouteModeBroadcast {
+		t.Fatalf("expected broadcast route, got %q", receivedMessage.Route.Mode)
 	}
 }
 
