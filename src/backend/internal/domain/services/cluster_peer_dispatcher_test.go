@@ -227,6 +227,153 @@ func TestPeerDispatcherIgnoresChainStepTargetedToAnotherNode(t *testing.T) {
 	}
 }
 
+func TestPeerDispatcherIgnoresInvalidDirectRouteTargets(t *testing.T) {
+	tests := []struct {
+		name       string
+		targets    []string
+		wantReason string
+	}{
+		{name: "targeted to another node", targets: []string{"node-other"}, wantReason: "direct_route_target_mismatch"},
+		{name: "missing target", wantReason: "direct_route_malformed"},
+		{name: "multiple targets", targets: []string{"node-local", "node-other"}, wantReason: "direct_route_malformed"},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			store := newCapturingPeerStore()
+			syncer := &stubPeerSyncer{}
+			dispatcher := ClusterPeerDispatcher{
+				eventStore:  store,
+				syncService: &ClusterSyncService{hubSyncer: syncer, store: &stubPeerDispatcherSyncStore{domain: &model.ClusterDomain{Id: 1, Domain: "edge.example.com", HubURL: "https://hub.example.com"}}},
+				identity:    ClusterLocalIdentityService{store: &stubClusterLocalNodeStore{node: newTestClusterLocalNode(t, "node-local")}},
+			}
+			message := &PeerMessage{
+				MessageID:   "msg-direct-misdelivered-" + tt.name,
+				DomainID:    "edge.example.com",
+				PayloadHash: "hash-direct",
+				Category:    PeerCategoryEvent,
+				Action:      PeerActionDomainClusterChanged,
+				Payload:     map[string]interface{}{"version": float64(9)},
+				Route:       RoutePlan{Mode: RouteModeDirect, Targets: tt.targets},
+			}
+
+			if err := dispatcher.Dispatch(context.Background(), &model.ClusterDomain{Id: 1, Domain: "edge.example.com", HubURL: "https://hub.example.com"}, &model.ClusterMember{NodeID: "node-source"}, message); err != nil {
+				t.Fatalf("dispatch: %v", err)
+			}
+			assertInboundRouteIgnored(t, store, message, syncer, tt.wantReason)
+		})
+	}
+}
+
+func TestPeerDispatcherIgnoresMulticastRouteExcludingLocalNode(t *testing.T) {
+	store := newCapturingPeerStore()
+	syncer := &stubPeerSyncer{}
+	dispatcher := ClusterPeerDispatcher{
+		eventStore:  store,
+		syncService: &ClusterSyncService{hubSyncer: syncer, store: &stubPeerDispatcherSyncStore{domain: &model.ClusterDomain{Id: 1, Domain: "edge.example.com", HubURL: "https://hub.example.com"}}},
+		identity:    ClusterLocalIdentityService{store: &stubClusterLocalNodeStore{node: newTestClusterLocalNode(t, "node-local")}},
+	}
+	message := &PeerMessage{
+		MessageID:   "msg-multicast-misdelivered",
+		DomainID:    "edge.example.com",
+		PayloadHash: "hash-multicast",
+		Category:    PeerCategoryEvent,
+		Action:      PeerActionDomainClusterChanged,
+		Payload:     map[string]interface{}{"version": float64(9)},
+		Route:       RoutePlan{Mode: RouteModeMulticast, Targets: []string{"node-a", "node-b"}},
+	}
+
+	if err := dispatcher.Dispatch(context.Background(), &model.ClusterDomain{Id: 1, Domain: "edge.example.com", HubURL: "https://hub.example.com"}, &model.ClusterMember{NodeID: "node-source"}, message); err != nil {
+		t.Fatalf("dispatch: %v", err)
+	}
+	assertInboundRouteIgnored(t, store, message, syncer, "multicast_route_target_mismatch")
+}
+
+func TestPeerDispatcherIgnoresChainRouteMissingWorkflowOrStep(t *testing.T) {
+	tests := []struct {
+		name       string
+		workflowID string
+		stepID     string
+		wantReason string
+	}{
+		{name: "missing workflow", stepID: "step-a", wantReason: "chain_workflow_id_required"},
+		{name: "missing step", workflowID: "workflow-1", wantReason: "chain_step_id_required"},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			store := newCapturingPeerStore()
+			syncer := &stubPeerSyncer{}
+			dispatcher := ClusterPeerDispatcher{
+				eventStore:  store,
+				syncService: &ClusterSyncService{hubSyncer: syncer, store: &stubPeerDispatcherSyncStore{domain: &model.ClusterDomain{Id: 1, Domain: "edge.example.com", HubURL: "https://hub.example.com"}}},
+				identity:    ClusterLocalIdentityService{store: &stubClusterLocalNodeStore{node: newTestClusterLocalNode(t, "node-local")}},
+				saveWorkflowStep: func(workflowID string, stepID string, domainID string, nodeID string, status string, resultHash string, errorMessage string) error {
+					t.Fatalf("expected no workflow progress to be saved")
+					return nil
+				},
+			}
+			message := &PeerMessage{
+				MessageID:    "msg-chain-malformed-" + tt.name,
+				WorkflowID:   tt.workflowID,
+				StepID:       tt.stepID,
+				DomainID:     "edge.example.com",
+				SourceNodeID: "node-source",
+				PayloadHash:  "hash-chain",
+				Category:     PeerCategoryEvent,
+				Action:       PeerActionDomainClusterChanged,
+				Payload:      map[string]interface{}{"version": float64(9)},
+				Route: RoutePlan{Mode: RouteModeChain, Chain: []RouteStep{
+					{StepID: "step-a", NodeID: "node-local"},
+				}},
+			}
+
+			if err := dispatcher.Dispatch(context.Background(), &model.ClusterDomain{Id: 1, Domain: "edge.example.com", HubURL: "https://hub.example.com"}, &model.ClusterMember{NodeID: "node-source"}, message); err != nil {
+				t.Fatalf("dispatch: %v", err)
+			}
+			assertInboundRouteIgnored(t, store, message, syncer, tt.wantReason)
+		})
+	}
+}
+
+func TestPeerDispatcherIgnoresBroadcastSelectorExcludingLocalNode(t *testing.T) {
+	tests := []struct {
+		name       string
+		selector   *TargetSelector
+		wantReason string
+	}{
+		{name: "include omits local", selector: &TargetSelector{Include: []string{"node-other"}}, wantReason: "broadcast_route_target_mismatch"},
+		{name: "exclude contains local", selector: &TargetSelector{Exclude: []string{"node-local"}}, wantReason: "broadcast_route_target_excluded"},
+		{name: "capability required", selector: &TargetSelector{CapabilityRequired: []string{"sync-v2"}}, wantReason: "broadcast_route_capability_unvalidated"},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			store := newCapturingPeerStore()
+			syncer := &stubPeerSyncer{}
+			dispatcher := ClusterPeerDispatcher{
+				eventStore:  store,
+				syncService: &ClusterSyncService{hubSyncer: syncer, store: &stubPeerDispatcherSyncStore{domain: &model.ClusterDomain{Id: 1, Domain: "edge.example.com", HubURL: "https://hub.example.com"}}},
+				identity:    ClusterLocalIdentityService{store: &stubClusterLocalNodeStore{node: newTestClusterLocalNode(t, "node-local")}},
+			}
+			message := &PeerMessage{
+				MessageID:   "msg-broadcast-misdelivered-" + tt.name,
+				DomainID:    "edge.example.com",
+				PayloadHash: "hash-broadcast",
+				Category:    PeerCategoryEvent,
+				Action:      PeerActionDomainClusterChanged,
+				Payload:     map[string]interface{}{"version": float64(9)},
+				Route:       RoutePlan{Mode: RouteModeBroadcast, Selector: tt.selector},
+			}
+
+			if err := dispatcher.Dispatch(context.Background(), &model.ClusterDomain{Id: 1, Domain: "edge.example.com", HubURL: "https://hub.example.com"}, &model.ClusterMember{NodeID: "node-source"}, message); err != nil {
+				t.Fatalf("dispatch: %v", err)
+			}
+			assertInboundRouteIgnored(t, store, message, syncer, tt.wantReason)
+		})
+	}
+}
+
 func TestPeerDispatcherRetriesSuccessfulChainStepWhenNextStepDeliveryFails(t *testing.T) {
 	secret := []byte("panel-secret-for-cluster-tests")
 	local := newTestClusterLocalNode(t, "node-local")
@@ -479,6 +626,37 @@ type savedPeerWorkflowStep struct {
 	status       string
 	resultHash   string
 	errorMessage string
+}
+
+type capturingPeerStore struct {
+	*memoryPeerStore
+	lastError string
+}
+
+func newCapturingPeerStore() *capturingPeerStore {
+	return &capturingPeerStore{memoryPeerStore: newMemoryPeerStore()}
+}
+
+func (s *capturingPeerStore) MarkEventState(messageID string, status string, errorMessage string) error {
+	s.lastError = errorMessage
+	return s.memoryPeerStore.MarkEventState(messageID, status, errorMessage)
+}
+
+func assertInboundRouteIgnored(t *testing.T, store *capturingPeerStore, message *PeerMessage, syncer *stubPeerSyncer, wantReason string) {
+	t.Helper()
+	if syncer.syncCalls != 0 {
+		t.Fatalf("expected sync side effect not to run, got %d calls", syncer.syncCalls)
+	}
+	state, err := store.RecordReceived(message)
+	if err != nil {
+		t.Fatalf("state: %v", err)
+	}
+	if state.Status != PeerEventStatusIgnored {
+		t.Fatalf("expected ignored state, got %q", state.Status)
+	}
+	if store.lastError != wantReason {
+		t.Fatalf("expected ignored reason %q, got %q", wantReason, store.lastError)
+	}
 }
 
 func successfulChainMessage(messageID string) *PeerMessage {

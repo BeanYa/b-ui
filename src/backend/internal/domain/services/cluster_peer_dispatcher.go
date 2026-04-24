@@ -39,7 +39,7 @@ func (d *ClusterPeerDispatcher) Dispatch(ctx context.Context, domain *model.Clus
 		return err
 	}
 
-	if validTarget, reason, err := d.validateCurrentChainStepTarget(message); err != nil {
+	if validTarget, reason, err := d.validateInboundRouteTarget(message); err != nil {
 		return err
 	} else if !validTarget {
 		return store.MarkEventState(message.MessageID, PeerEventStatusIgnored, reason)
@@ -108,22 +108,73 @@ func (d *ClusterPeerDispatcher) handleDomainClusterChanged(ctx context.Context, 
 	return err
 }
 
-func (d *ClusterPeerDispatcher) validateCurrentChainStepTarget(message *PeerMessage) (bool, string, error) {
-	if message.Route.Mode != RouteModeChain || message.WorkflowID == "" || message.StepID == "" {
+func (d *ClusterPeerDispatcher) validateInboundRouteTarget(message *PeerMessage) (bool, string, error) {
+	switch message.Route.Mode {
+	case "":
+		return true, "", nil
+	case RouteModeDirect:
+		local, err := d.identity.GetOrCreate()
+		if err != nil {
+			return false, "", err
+		}
+		if len(message.Route.Targets) != 1 {
+			return false, "direct_route_malformed", nil
+		}
+		if message.Route.Targets[0] != local.NodeID {
+			return false, "direct_route_target_mismatch", nil
+		}
+		return validateInboundRouteSelector(message.Route.Selector, local.NodeID, "direct_route")
+	case RouteModeMulticast:
+		local, err := d.identity.GetOrCreate()
+		if err != nil {
+			return false, "", err
+		}
+		if !containsClusterNodeID(message.Route.Targets, local.NodeID) {
+			return false, "multicast_route_target_mismatch", nil
+		}
+		return validateInboundRouteSelector(message.Route.Selector, local.NodeID, "multicast_route")
+	case RouteModeBroadcast, RouteModeScheduledBroadcast:
+		local, err := d.identity.GetOrCreate()
+		if err != nil {
+			return false, "", err
+		}
+		return validateInboundRouteSelector(message.Route.Selector, local.NodeID, "broadcast_route")
+	case RouteModeChain:
+		if message.WorkflowID == "" {
+			return false, "chain_workflow_id_required", nil
+		}
+		if message.StepID == "" {
+			return false, "chain_step_id_required", nil
+		}
+		step, ok := clusterPeerChainRouteStep(message.Route, message.StepID)
+		if !ok {
+			return false, "chain_step_not_found", nil
+		}
+		local, err := d.identity.GetOrCreate()
+		if err != nil {
+			return false, "", err
+		}
+		if step.NodeID != local.NodeID {
+			return false, "chain_step_target_mismatch", nil
+		}
+		return true, "", nil
+	default:
 		return true, "", nil
 	}
+}
 
-	step, ok := clusterPeerChainRouteStep(message.Route, message.StepID)
-	if !ok {
-		return false, "chain_step_not_found", nil
+func validateInboundRouteSelector(selector *TargetSelector, localNodeID string, reasonPrefix string) (bool, string, error) {
+	if selector == nil {
+		return true, "", nil
 	}
-
-	local, err := d.identity.GetOrCreate()
-	if err != nil {
-		return false, "", err
+	if len(selector.CapabilityRequired) > 0 {
+		return false, reasonPrefix + "_capability_unvalidated", nil
 	}
-	if step.NodeID != local.NodeID {
-		return false, "chain_step_target_mismatch", nil
+	if len(selector.Include) > 0 && !containsClusterNodeID(selector.Include, localNodeID) {
+		return false, reasonPrefix + "_target_mismatch", nil
+	}
+	if containsClusterNodeID(selector.Exclude, localNodeID) {
+		return false, reasonPrefix + "_target_excluded", nil
 	}
 	return true, "", nil
 }
