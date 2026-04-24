@@ -223,6 +223,7 @@ export default {
     heroKicker: "叢集工作區",
     heroCopy: "在統一控制台中加入既有 Hub 域、查看鏡像成員，並手動觸發同步。",
     metaNoDomain: "尚未選擇域",
+    confirmTitle: "確認註冊資訊",
     domainsTitle: "域列表",
     noDomains: "目前還沒有已加入域。",
     selectDomain: "選擇一個域",

@@ -91,32 +91,83 @@
     <v-dialog v-model="registerDialog" class="app-dialog app-dialog--compact" max-width="520">
       <v-card class="app-card-shell">
         <v-card-title>{{ $t('clusterCenter.dialogTitle') }}</v-card-title>
+
+        <v-tabs v-model="registerMode" class="cluster-center__register-tabs" color="primary" grow>
+          <v-tab value="uri">URI</v-tab>
+          <v-tab value="manual">{{ $t('clusterCenter.domainsTitle') }}</v-tab>
+        </v-tabs>
+
         <v-card-text class="cluster-center__dialog-body">
-          <v-text-field v-model="form.joinUri" label="Join URI" placeholder="buihub://..." hide-details />
-          <v-text-field v-model="form.domain" :label="$t('clusterCenter.fields.domain')" hide-details />
-          <div class="cluster-center__hub-url-field">
-            <v-select
-              v-model="form.hubUrlProtocol"
-              :items="['https', 'http']"
-              variant="plain"
-              hide-details
-              density="compact"
-              class="cluster-center__hub-url-protocol"
-            />
-            <span class="cluster-center__hub-url-sep">://</span>
+          <template v-if="registerMode === 'uri'">
             <v-text-field
-              v-model="form.hubUrlHost"
-              :label="$t('clusterCenter.fields.hubUrl')"
-              hide-details
-              class="cluster-center__hub-url-host"
+              v-model="form.joinUri"
+              label="Join URI"
+              placeholder="buihub://hub.example.com/domain/example.com?token=..."
+              persistent-hint
+              hint="URI 以 buihub:// 开头，例如 buihub://hub.example.com/domain/example.com?token=xxx"
             />
-          </div>
-          <v-text-field v-model="form.token" :label="$t('clusterCenter.fields.token')" type="password" hide-details />
+          </template>
+          <template v-else>
+            <v-text-field v-model="form.domain" :label="$t('clusterCenter.fields.domain')" hide-details />
+            <div class="cluster-center__hub-url-field">
+              <v-select
+                v-model="form.hubUrlProtocol"
+                :items="['https', 'http']"
+                variant="plain"
+                hide-details
+                density="compact"
+                class="cluster-center__hub-url-protocol"
+              />
+              <span class="cluster-center__hub-url-sep">://</span>
+              <v-text-field
+                v-model="form.hubUrlHost"
+                :label="$t('clusterCenter.fields.hubUrl')"
+                hide-details
+                class="cluster-center__hub-url-host"
+              />
+            </div>
+            <v-text-field v-model="form.token" :label="$t('clusterCenter.fields.token')" type="password" hide-details />
+          </template>
         </v-card-text>
         <v-card-actions>
           <v-spacer />
           <v-btn variant="text" @click="registerDialog = false">{{ $t('clusterCenter.actions.cancel') }}</v-btn>
-          <v-btn color="primary" :loading="actionLoading" @click="registerDomain">{{ $t('clusterCenter.actions.submit') }}</v-btn>
+          <v-btn color="primary" :loading="actionLoading" @click="prepareConfirm">{{ $t('clusterCenter.actions.submit') }}</v-btn>
+        </v-card-actions>
+      </v-card>
+    </v-dialog>
+
+    <v-dialog v-model="confirmDialog" class="app-dialog" max-width="520">
+      <v-card class="app-card-shell">
+        <v-card-title>{{ $t('clusterCenter.confirmTitle') }}</v-card-title>
+        <v-card-text>
+          <div class="cluster-center__confirm-table-wrap">
+            <table class="cluster-center__confirm-table">
+              <tbody>
+                <tr>
+                  <td class="cluster-center__confirm-label">Hub 地址</td>
+                  <td class="cluster-center__confirm-value">{{ confirmInfo.hubUrl }}</td>
+                </tr>
+                <tr>
+                  <td class="cluster-center__confirm-label">{{ $t('clusterCenter.fields.domain') }}</td>
+                  <td class="cluster-center__confirm-value">{{ confirmInfo.domain }}</td>
+                </tr>
+                <tr>
+                  <td class="cluster-center__confirm-label">{{ $t('clusterCenter.fields.token') }}</td>
+                  <td class="cluster-center__confirm-value cluster-center__confirm-token">{{ confirmInfo.token }}</td>
+                </tr>
+                <tr>
+                  <td class="cluster-center__confirm-label">本机地址</td>
+                  <td class="cluster-center__confirm-value">{{ confirmInfo.baseUrl }}</td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+        </v-card-text>
+        <v-card-actions>
+          <v-spacer />
+          <v-btn variant="text" @click="confirmDialog = false">{{ $t('clusterCenter.actions.cancel') }}</v-btn>
+          <v-btn color="primary" :loading="actionLoading" @click="confirmAndSubmit">确认注册</v-btn>
         </v-card-actions>
       </v-card>
     </v-dialog>
@@ -134,6 +185,8 @@ import type { ClusterDomain, ClusterMember, ClusterOperationStatus } from '@/typ
 const pageLoading = ref(false)
 const actionLoading = ref(false)
 const registerDialog = ref(false)
+const confirmDialog = ref(false)
+const registerMode = ref<'uri' | 'manual'>('uri')
 const domains = ref<ClusterDomain[]>([])
 const members = ref<ClusterMember[]>([])
 const selectedDomainId = ref<number | null>(null)
@@ -145,6 +198,13 @@ const form = ref({
   hubUrlProtocol: 'https',
   hubUrlHost: '',
   token: '',
+})
+
+const confirmInfo = ref({
+  hubUrl: '',
+  domain: '',
+  token: '',
+  baseUrl: '',
 })
 
 const parseJoinUri = (uri: string): { domain: string; host: string; protocol: string; token: string } | null => {
@@ -165,18 +225,6 @@ const parseJoinUri = (uri: string): { domain: string; host: string; protocol: st
     return null
   }
 }
-
-watch(() => form.value.joinUri, (newVal) => {
-  if (!newVal) return
-  const parsed = parseJoinUri(newVal)
-  if (parsed) {
-    form.value.domain = parsed.domain
-    form.value.hubUrlHost = parsed.host
-    form.value.hubUrlProtocol = parsed.protocol
-    form.value.token = parsed.token
-    form.value.joinUri = ''
-  }
-})
 
 const selectedDomain = computed(() => domains.value.find((domain) => domain.id === selectedDomainId.value) ?? null)
 const selectedDomainMembers = computed(() => members.value.filter((member) => member.domainId === selectedDomainId.value))
@@ -201,6 +249,84 @@ const resolvePanelBaseUrl = () => {
   } catch {
     return ''
   }
+}
+
+const prepareConfirm = () => {
+  if (registerMode.value === 'uri') {
+    const uri = form.value.joinUri.trim()
+    const parsed = parseJoinUri(uri)
+    if (!parsed) {
+      push.error({ title: i18n.global.t('failed'), message: 'URI 格式无效，请检查后重试' })
+      return
+    }
+    confirmInfo.value = {
+      hubUrl: `${parsed.protocol}://${parsed.host}`,
+      domain: parsed.domain,
+      token: parsed.token,
+      baseUrl: resolvePanelBaseUrl(),
+    }
+  } else {
+    const domain = form.value.domain.trim()
+    const hubUrlHost = form.value.hubUrlHost.trim()
+    const hubUrl = `${form.value.hubUrlProtocol}://${hubUrlHost}`
+
+    if (!domain || !hubUrlHost || !form.value.token) {
+      push.error({ title: i18n.global.t('failed'), message: i18n.global.t('clusterCenter.validation.required') })
+      return
+    }
+    if (!isUsableAbsoluteUrl(hubUrl)) {
+      push.error({ title: i18n.global.t('failed'), message: i18n.global.t('clusterCenter.validation.hubUrl') })
+      return
+    }
+    if (!isUsableAbsoluteUrl(resolvePanelBaseUrl())) {
+      push.error({ title: i18n.global.t('failed'), message: i18n.global.t('clusterCenter.validation.panelUrl') })
+      return
+    }
+
+    confirmInfo.value = {
+      hubUrl,
+      domain,
+      token: form.value.token,
+      baseUrl: resolvePanelBaseUrl(),
+    }
+  }
+
+  confirmDialog.value = true
+}
+
+const confirmAndSubmit = async () => {
+  confirmDialog.value = false
+
+  const panelBaseUrl = resolvePanelBaseUrl()
+  if (!isUsableAbsoluteUrl(panelBaseUrl)) {
+    push.error({ title: i18n.global.t('failed'), message: i18n.global.t('clusterCenter.validation.panelUrl') })
+    return
+  }
+
+  actionLoading.value = true
+  const registerMsg = await HttpUtils.post('api/cluster/register', {
+    domain: confirmInfo.value.domain,
+    hubUrl: confirmInfo.value.hubUrl,
+    token: confirmInfo.value.token,
+    baseUrl: panelBaseUrl,
+  })
+
+  if (registerMsg.success) {
+    const operation = registerMsg.obj as ClusterOperationStatus
+    if (operation?.id) {
+      await pollOperation(operation.id)
+    }
+    await loadData()
+    registerDialog.value = false
+    form.value = { joinUri: '', domain: '', hubUrlProtocol: 'https', hubUrlHost: '', token: '' }
+    push.success({
+      title: i18n.global.t('success'),
+      message: i18n.global.t('clusterCenter.successRegistered'),
+      duration: 5000,
+    })
+  }
+
+  actionLoading.value = false
 }
 
 const loadData = async () => {
@@ -237,50 +363,6 @@ const pollOperation = async (operationId: string) => {
     }
   }
   return current
-}
-
-const registerDomain = async () => {
-  const domain = form.value.domain.trim()
-  const hubUrlHost = form.value.hubUrlHost.trim()
-  const hubUrl = `${form.value.hubUrlProtocol}://${hubUrlHost}`
-  const panelBaseUrl = resolvePanelBaseUrl()
-
-  if (!domain || !hubUrlHost || !form.value.token) {
-    push.error({ title: i18n.global.t('failed'), message: i18n.global.t('clusterCenter.validation.required') })
-    return
-  }
-  if (!isUsableAbsoluteUrl(hubUrl)) {
-    push.error({ title: i18n.global.t('failed'), message: i18n.global.t('clusterCenter.validation.hubUrl') })
-    return
-  }
-  if (!isUsableAbsoluteUrl(panelBaseUrl)) {
-    push.error({ title: i18n.global.t('failed'), message: i18n.global.t('clusterCenter.validation.panelUrl') })
-    return
-  }
-  actionLoading.value = true
-  const registerMsg = await HttpUtils.post('api/cluster/register', {
-    domain,
-    hubUrl,
-    token: form.value.token,
-    baseUrl: panelBaseUrl,
-  })
-
-  if (registerMsg.success) {
-    const operation = registerMsg.obj as ClusterOperationStatus
-    if (operation?.id) {
-      await pollOperation(operation.id)
-    }
-    await loadData()
-    registerDialog.value = false
-    form.value = { joinUri: '', domain: '', hubUrlProtocol: 'https', hubUrlHost: '', token: '' }
-    push.success({
-      title: i18n.global.t('success'),
-      message: i18n.global.t('clusterCenter.successRegistered'),
-      duration: 5000,
-    })
-  }
-
-  actionLoading.value = false
 }
 
 const manualSync = async () => {
@@ -399,6 +481,16 @@ onMounted(async () => {
   gap: 12px;
 }
 
+.cluster-center__register-tabs {
+  margin: 0 16px;
+}
+
+.cluster-center__register-tabs :deep(.v-tab) {
+  font-size: 14px;
+  letter-spacing: 0.04em;
+  text-transform: none;
+}
+
 .cluster-center__hub-url-field {
   align-items: center;
   background: color-mix(in srgb, var(--app-surface-2) 86%, transparent);
@@ -416,13 +508,37 @@ onMounted(async () => {
 
 .cluster-center__hub-url-protocol {
   flex-shrink: 0;
-  max-width: 72px;
+  width: 88px;
+}
+
+.cluster-center__hub-url-protocol :deep(.v-field) {
+  min-height: unset;
+  padding: 0;
+}
+
+.cluster-center__hub-url-protocol :deep(.v-field__input) {
+  align-items: center;
+  display: flex;
+  font-size: 14px;
+  line-height: 1;
+  min-height: unset;
+  padding: 6px 4px;
+}
+
+.cluster-center__hub-url-protocol :deep(.v-field__outline),
+.cluster-center__hub-url-protocol :deep(.v-field__overlay) {
+  display: none;
+}
+
+.cluster-center__hub-url-protocol :deep(.v-select__selection) {
+  text-overflow: clip;
 }
 
 .cluster-center__hub-url-sep {
   color: var(--app-text-3);
   flex-shrink: 0;
   font-size: 14px;
+  line-height: 1;
   margin-right: 4px;
   pointer-events: none;
   user-select: none;
@@ -433,9 +549,60 @@ onMounted(async () => {
   min-width: 0;
 }
 
-.cluster-center__hub-url-host :deep(.v-field__outline),
-.cluster-center__hub-url-protocol :deep(.v-field__outline) {
+.cluster-center__hub-url-host :deep(.v-field) {
+  min-height: unset;
+  padding: 0;
+}
+
+.cluster-center__hub-url-host :deep(.v-field__input) {
+  align-items: center;
+  display: flex;
+  min-height: unset;
+  padding: 6px 0;
+}
+
+.cluster-center__hub-url-host :deep(.v-field__outline) {
   display: none;
+}
+
+.cluster-center__confirm-table-wrap {
+  border: 1px solid var(--app-border-1);
+  border-radius: 18px;
+  overflow: hidden;
+}
+
+.cluster-center__confirm-table {
+  border-collapse: collapse;
+  width: 100%;
+}
+
+.cluster-center__confirm-table tr {
+  border-bottom: 1px solid var(--app-border-1);
+}
+
+.cluster-center__confirm-table tbody tr:last-child {
+  border-bottom: none;
+}
+
+.cluster-center__confirm-table td {
+  padding: 14px 16px;
+}
+
+.cluster-center__confirm-label {
+  color: var(--app-text-3);
+  font-size: 13px;
+  white-space: nowrap;
+  width: 1px;
+}
+
+.cluster-center__confirm-value {
+  font-size: 14px;
+  word-break: break-all;
+}
+
+.cluster-center__confirm-token {
+  font-family: var(--app-font-mono, ui-monospace, monospace);
+  letter-spacing: 0.06em;
 }
 
 @media (max-width: 960px) {

@@ -221,6 +221,7 @@ export default {
     heroKicker: "Không gian cụm",
     heroCopy: "Tham gia các miền Hub hiện có, xem các nút được đồng bộ và kích hoạt đồng bộ thủ công từ một bảng điều khiển duy nhất.",
     metaNoDomain: "Chưa chọn miền",
+    confirmTitle: "Xác nhận đăng ký",
     domainsTitle: "Miền",
     noDomains: "Chưa có miền nào được tham gia.",
     selectDomain: "Chọn một miền",

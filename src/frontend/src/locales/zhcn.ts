@@ -223,6 +223,7 @@ export default {
     heroKicker: "集群工作区",
     heroCopy: "在统一控制台中加入已有 Hub 域、查看镜像成员，并显式触发同步。",
     metaNoDomain: "未选择域",
+    confirmTitle: "确认注册信息",
     domainsTitle: "域列表",
     noDomains: "当前还没有已加入域。",
     selectDomain: "选择一个域",

@@ -223,6 +223,7 @@ export default {
     heroKicker: "Cluster Workspace",
     heroCopy: "Join existing Hub domains, inspect mirrored membership, and trigger explicit sync cycles from one segmented control surface.",
     metaNoDomain: "No domain selected",
+    confirmTitle: "Confirm Registration",
     domainsTitle: "Domains",
     noDomains: "No domains joined yet.",
     selectDomain: "Select a domain",
