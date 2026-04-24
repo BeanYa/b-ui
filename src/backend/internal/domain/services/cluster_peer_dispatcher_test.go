@@ -265,6 +265,29 @@ func TestPeerDispatcherIgnoresInvalidDirectRouteTargets(t *testing.T) {
 	}
 }
 
+func TestPeerDispatcherIgnoresUnknownRouteMode(t *testing.T) {
+	store := newCapturingPeerStore()
+	syncer := &stubPeerSyncer{}
+	dispatcher := ClusterPeerDispatcher{
+		eventStore:  store,
+		syncService: &ClusterSyncService{hubSyncer: syncer, store: &stubPeerDispatcherSyncStore{domain: &model.ClusterDomain{Id: 1, Domain: "edge.example.com", HubURL: "https://hub.example.com"}}},
+	}
+	message := &PeerMessage{
+		MessageID:   "msg-unknown-route-mode",
+		DomainID:    "edge.example.com",
+		PayloadHash: "hash-unknown-route",
+		Category:    PeerCategoryEvent,
+		Action:      PeerActionDomainClusterChanged,
+		Payload:     map[string]interface{}{"version": float64(9)},
+		Route:       RoutePlan{Mode: "typo"},
+	}
+
+	if err := dispatcher.Dispatch(context.Background(), &model.ClusterDomain{Id: 1, Domain: "edge.example.com", HubURL: "https://hub.example.com"}, &model.ClusterMember{NodeID: "node-source"}, message); err != nil {
+		t.Fatalf("dispatch: %v", err)
+	}
+	assertInboundRouteIgnored(t, store, message, syncer, "route_mode_unknown")
+}
+
 func TestPeerDispatcherIgnoresMulticastRouteExcludingLocalNode(t *testing.T) {
 	store := newCapturingPeerStore()
 	syncer := &stubPeerSyncer{}

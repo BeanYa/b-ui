@@ -159,7 +159,7 @@ func (d *ClusterPeerDispatcher) validateInboundRouteTarget(message *PeerMessage)
 		}
 		return true, "", nil
 	default:
-		return true, "", nil
+		return false, "route_mode_unknown", nil
 	}
 }
 
