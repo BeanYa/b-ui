@@ -32,12 +32,13 @@ type ClusterOperationStatus struct {
 }
 
 type ClusterDomainResponse struct {
-	ID                           uint   `json:"id"`
-	Domain                       string `json:"domain"`
-	HubURL                       string `json:"hubUrl"`
-	CommunicationEndpointPath    string `json:"communicationEndpointPath"`
-	CommunicationProtocolVersion string `json:"communicationProtocolVersion"`
-	LastVersion                  int64  `json:"lastVersion"`
+	ID                           uint     `json:"id"`
+	Domain                       string   `json:"domain"`
+	HubURL                       string   `json:"hubUrl"`
+	CommunicationEndpointPath    string   `json:"communicationEndpointPath"`
+	CommunicationProtocolVersion string   `json:"communicationProtocolVersion"`
+	LastVersion                  int64    `json:"lastVersion"`
+	SupportedActions             []string `json:"supportedActions"`
 }
 
 type ClusterMemberResponse struct {
@@ -357,6 +358,7 @@ func (s *ClusterService) ListDomains() ([]ClusterDomainResponse, error) {
 			CommunicationEndpointPath:    effectiveClusterCommunicationEndpointPath(domain.CommunicationEndpointPath),
 			CommunicationProtocolVersion: effectiveClusterCommunicationProtocolVersion(domain.CommunicationProtocolVersion),
 			LastVersion:                  domain.LastVersion,
+			SupportedActions:             append([]string(nil), ClusterCommunicationSupportedActions()...),
 		})
 	}
 	return response, nil

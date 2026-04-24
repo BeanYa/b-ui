@@ -130,7 +130,7 @@ func TestClusterAdminRoutesRequireFirstUserAdmin(t *testing.T) {
 
 func TestClusterListsDomainsAndMembers(t *testing.T) {
 	router, cluster := newTestClusterRouter()
-	cluster.domains = []service.ClusterDomainResponse{{ID: 1, Domain: "edge.example.com", LastVersion: 4}}
+	cluster.domains = []service.ClusterDomainResponse{{ID: 1, Domain: "edge.example.com", LastVersion: 4, SupportedActions: service.ClusterCommunicationSupportedActions()}}
 	cluster.domains[0].HubURL = "https://hub.example.com"
 	cluster.members = []service.ClusterMemberResponse{{ID: 2, NodeID: "node-a", Name: "alpha", BaseURL: "https://node-a.example.com", LastVersion: 4}}
 	cookie := loginCookie(t, router, "admin")
@@ -156,6 +156,9 @@ func TestClusterListsDomainsAndMembers(t *testing.T) {
 	}
 	if !bytes.Contains(domainsJSON, []byte(`"hubUrl":"https://hub.example.com"`)) {
 		t.Fatalf("expected hub URL in domains response, got %s", domainsJSON)
+	}
+	if !bytes.Contains(domainsJSON, []byte(`"supportedActions":["domain.cluster.changed","events","heartbeat","ping"]`)) {
+		t.Fatalf("expected supported actions in domains response, got %s", domainsJSON)
 	}
 	if cluster.listMembersCalls != 1 {
 		t.Fatalf("expected one members call, got %d", cluster.listMembersCalls)

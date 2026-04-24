@@ -6,6 +6,7 @@ import (
 	"crypto/rand"
 	"encoding/base64"
 	"fmt"
+	"reflect"
 	"testing"
 
 	"github.com/alireza0/s-ui/src/backend/internal/infra/db/model"
@@ -222,6 +223,30 @@ func TestClusterServiceLeaveDomainDeletesLocalNodeFromHubAndRemovesDomainMirror(
 	}
 }
 
+func TestClusterServiceListDomainsIncludesSupportedActions(t *testing.T) {
+	store := &stubClusterServiceStore{
+		domainsList: []model.ClusterDomain{{
+			Id:          1,
+			Domain:      "edge.example.com",
+			HubURL:      "https://hub.example.com",
+			LastVersion: 7,
+		}},
+	}
+	service := &ClusterService{store: store}
+
+	domains, err := service.ListDomains()
+	if err != nil {
+		t.Fatalf("list domains: %v", err)
+	}
+	if len(domains) != 1 {
+		t.Fatalf("expected one domain, got %d", len(domains))
+	}
+	expectedActions := []string{"domain.cluster.changed", "events", "heartbeat", "ping"}
+	if !reflect.DeepEqual(domains[0].SupportedActions, expectedActions) {
+		t.Fatalf("expected supported actions %#v, got %#v", expectedActions, domains[0].SupportedActions)
+	}
+}
+
 func TestClusterServiceReceiveMessageRejectsWrongPeerTokenEvenWhenDomainTokenMatches(t *testing.T) {
 	secret := []byte("panel-secret-for-cluster-tests")
 	sourcePublicKey, sourcePrivateKey, err := ed25519.GenerateKey(rand.Reader)
@@ -338,6 +363,7 @@ func TestClusterServiceReceivePeerMessageInitializesInjectedSyncDependencies(t *
 
 type stubClusterServiceStore struct {
 	domains         map[string]*model.ClusterDomain
+	domainsList     []model.ClusterDomain
 	savedDomains    []*model.ClusterDomain
 	members         map[string]*model.ClusterMember
 	savedMembers    []*model.ClusterMember
@@ -368,7 +394,11 @@ func (s *stubClusterServiceStore) SaveDomain(domain *model.ClusterDomain) error 
 	return nil
 }
 
-func (s *stubClusterServiceStore) ListDomains() ([]model.ClusterDomain, error) { return nil, nil }
+func (s *stubClusterServiceStore) ListDomains() ([]model.ClusterDomain, error) {
+	domains := make([]model.ClusterDomain, len(s.domainsList))
+	copy(domains, s.domainsList)
+	return domains, nil
+}
 func (s *stubClusterServiceStore) GetDomain(id uint) (*model.ClusterDomain, error) {
 	for _, domain := range s.domains {
 		if domain.Id == id {
