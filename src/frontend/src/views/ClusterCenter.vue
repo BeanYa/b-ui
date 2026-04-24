@@ -93,7 +93,23 @@
         <v-card-title>{{ $t('clusterCenter.dialogTitle') }}</v-card-title>
         <v-card-text class="cluster-center__dialog-body">
           <v-text-field v-model="form.domain" :label="$t('clusterCenter.fields.domain')" hide-details />
-          <v-text-field v-model="form.hubUrl" :label="$t('clusterCenter.fields.hubUrl')" hide-details />
+          <div class="cluster-center__hub-url-field">
+            <v-select
+              v-model="form.hubUrlProtocol"
+              :items="['https', 'http']"
+              variant="plain"
+              hide-details
+              density="compact"
+              class="cluster-center__hub-url-protocol"
+            />
+            <span class="cluster-center__hub-url-sep">://</span>
+            <v-text-field
+              v-model="form.hubUrlHost"
+              :label="$t('clusterCenter.fields.hubUrl')"
+              hide-details
+              class="cluster-center__hub-url-host"
+            />
+          </div>
           <v-text-field v-model="form.token" :label="$t('clusterCenter.fields.token')" type="password" hide-details />
         </v-card-text>
         <v-card-actions>
@@ -124,7 +140,8 @@ const deletingMemberId = ref<number | null>(null)
 
 const form = ref({
   domain: '',
-  hubUrl: '',
+  hubUrlProtocol: 'https',
+  hubUrlHost: '',
   token: '',
 })
 
@@ -135,8 +152,8 @@ const domainMemberCount = (domainId: number) => members.value.filter((member) =>
 
 const isUsableAbsoluteUrl = (value: string) => {
   try {
-    const parsed = new URL(value)
-    return parsed.protocol === 'https:' || parsed.hostname === 'localhost' || parsed.hostname === '127.0.0.1' || parsed.hostname === '::1'
+    new URL(value)
+    return true
   } catch {
     return false
   }
@@ -191,10 +208,11 @@ const pollOperation = async (operationId: string) => {
 
 const registerDomain = async () => {
   const domain = form.value.domain.trim()
-  const hubUrl = form.value.hubUrl.trim()
+  const hubUrlHost = form.value.hubUrlHost.trim()
+  const hubUrl = `${form.value.hubUrlProtocol}://${hubUrlHost}`
   const panelBaseUrl = resolvePanelBaseUrl()
 
-  if (!domain || !hubUrl || !form.value.token) {
+  if (!domain || !hubUrlHost || !form.value.token) {
     push.error({ title: i18n.global.t('failed'), message: i18n.global.t('clusterCenter.validation.required') })
     return
   }
@@ -221,7 +239,7 @@ const registerDomain = async () => {
     }
     await loadData()
     registerDialog.value = false
-    form.value = { domain: '', hubUrl: '', token: '' }
+    form.value = { domain: '', hubUrlProtocol: 'https', hubUrlHost: '', token: '' }
     push.success({
       title: i18n.global.t('success'),
       message: i18n.global.t('clusterCenter.successRegistered'),
@@ -346,6 +364,45 @@ onMounted(async () => {
 .cluster-center__dialog-body {
   display: grid;
   gap: 12px;
+}
+
+.cluster-center__hub-url-field {
+  align-items: center;
+  background: color-mix(in srgb, var(--app-surface-2) 86%, transparent);
+  border: 1px solid var(--app-border-1);
+  border-radius: 8px;
+  display: flex;
+  gap: 0;
+  padding: 0 12px;
+  transition: border-color var(--app-motion-fast) var(--app-ease-standard);
+}
+
+.cluster-center__hub-url-field:focus-within {
+  border-color: var(--app-state-info);
+}
+
+.cluster-center__hub-url-protocol {
+  flex-shrink: 0;
+  max-width: 72px;
+}
+
+.cluster-center__hub-url-sep {
+  color: var(--app-text-3);
+  flex-shrink: 0;
+  font-size: 14px;
+  margin-right: 4px;
+  pointer-events: none;
+  user-select: none;
+}
+
+.cluster-center__hub-url-host {
+  flex: 1;
+  min-width: 0;
+}
+
+.cluster-center__hub-url-host :deep(.v-field__outline),
+.cluster-center__hub-url-protocol :deep(.v-field__outline) {
+  display: none;
 }
 
 @media (max-width: 960px) {
