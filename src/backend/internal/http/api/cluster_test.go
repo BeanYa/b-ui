@@ -6,6 +6,7 @@ import (
 	"errors"
 	"net/http"
 	"net/http/httptest"
+	"strings"
 	"testing"
 
 	service "github.com/alireza0/s-ui/src/backend/internal/domain/services"
@@ -262,6 +263,40 @@ func TestClusterMessageRouteAcceptsPeerMessage(t *testing.T) {
 	}
 	if cluster.receiveCalls != 0 {
 		t.Fatalf("expected legacy receive not to be called, got %d calls", cluster.receiveCalls)
+	}
+}
+
+func TestClusterMessageRouteRejectsOversizedBody(t *testing.T) {
+	router, cluster := newTestClusterRouter()
+	body := bytes.NewBufferString(`{
+		"messageId":"msg-oversized",
+		"domainId":"edge.example.com",
+		"membershipVersion":3,
+		"sourceNodeId":"node-a",
+		"sourceSeq":1,
+		"category":"event",
+		"action":"domain.cluster.changed",
+		"protocolVersion":"v1",
+		"schemaVersion":1,
+		"route":{"mode":"broadcast"},
+		"payloadHash":"hash",
+		"payload":{"data":"` + strings.Repeat("x", maxClusterMessageBytes+1) + `"},
+		"signature":"sig"
+	}`)
+	req := httptest.NewRequest(http.MethodPost, "/_cluster/v1/events", body)
+	req.Header.Set("Content-Type", "application/json")
+	recorder := httptest.NewRecorder()
+
+	router.ServeHTTP(recorder, req)
+
+	if recorder.Code != http.StatusBadRequest {
+		t.Fatalf("expected status %d, got %d: %s", http.StatusBadRequest, recorder.Code, recorder.Body.String())
+	}
+	if cluster.receiveCalls != 0 {
+		t.Fatalf("expected legacy receive not to be called, got %d calls", cluster.receiveCalls)
+	}
+	if cluster.receivedPeerMessage != nil {
+		t.Fatalf("expected peer receive not to be called, got %#v", cluster.receivedPeerMessage)
 	}
 }
 

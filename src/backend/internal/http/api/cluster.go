@@ -110,8 +110,11 @@ func (a *APIHandler) leaveClusterDomain(c *gin.Context) {
 	jsonMsg(c, "leave cluster domain", a.clusterService.LeaveDomain(uint(id)))
 }
 
+const maxClusterMessageBytes = 1 << 20
+
 func RegisterClusterMessageRoute(router gin.IRoutes, clusterService clusterAPIService) {
 	router.POST(ClusterMessagePath("/"), func(c *gin.Context) {
+		c.Request.Body = http.MaxBytesReader(c.Writer, c.Request.Body, maxClusterMessageBytes)
 		body, err := c.GetRawData()
 		if err != nil {
 			c.JSON(http.StatusBadRequest, Msg{Success: false, Msg: "cluster message: " + err.Error()})
