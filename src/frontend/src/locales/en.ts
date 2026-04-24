@@ -233,6 +233,7 @@ export default {
     inspectPrompt: "Choose a domain to inspect its mirrored members.",
     noMembers: "No mirrored members for this domain yet.",
     mirroredMembers: "mirrored members",
+    registeredServers: "Registered Cluster Servers",
     dialogTitle: "Join Domain",
     fields: {
       domain: "Domain Id",
@@ -254,6 +255,7 @@ export default {
       submit: "Confirm",
       delete: "Delete",
       leave: "Leave Domain",
+      back: "Back",
     },
     validation: {
       required: "Hub URL, Domain Id, and Domain Token are required.",

@@ -233,6 +233,7 @@ export default {
     inspectPrompt: "選擇一個域以查看其鏡像成員。",
     noMembers: "此域目前沒有鏡像成員。",
     mirroredMembers: "鏡像成員",
+    registeredServers: "已註冊的集群伺服器",
     dialogTitle: "加入域",
     fields: {
       domain: "域Id",
@@ -254,6 +255,7 @@ export default {
       submit: "確認",
       delete: "刪除",
       leave: "退出域",
+      back: "後退",
     },
     validation: {
       required: "Hub 位址、域Id 與域認證令牌為必填欄位。",

@@ -232,6 +232,7 @@ export default {
     inspectPrompt: "Выберите домен, чтобы посмотреть его зеркалированные узлы.",
     noMembers: "Для этого домена пока нет зеркалированных узлов.",
     mirroredMembers: "зеркалированных узлов",
+    registeredServers: "Зарегистрированные серверы кластера",
     dialogTitle: "Присоединить домен",
     fields: {
       domain: "ID домена",
@@ -253,6 +254,7 @@ export default {
       submit: "Подтвердить",
       delete: "Удалить",
       leave: "Покинуть домен",
+      back: "Назад",
     },
     validation: {
       required: "URL Hub, ID домена и токен домена обязательны.",
@@ -698,4 +700,3 @@ export default {
   },
 }
  
-

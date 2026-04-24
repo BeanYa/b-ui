@@ -233,6 +233,7 @@ export default {
     inspectPrompt: "选择一个域以查看它的镜像成员。",
     noMembers: "当前域还没有镜像成员。",
     mirroredMembers: "镜像成员",
+    registeredServers: "已注册的集群服务器",
     dialogTitle: "加入域",
     fields: {
       domain: "域Id",
@@ -254,6 +255,7 @@ export default {
       submit: "确认",
       delete: "删除",
       leave: "退出域",
+      back: "后退",
     },
     validation: {
       required: "Hub 地址、域Id 和域认证令牌为必填项。",

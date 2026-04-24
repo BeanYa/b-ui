@@ -68,4 +68,39 @@ describe('ClusterCenter view source', () => {
     expect(source).toContain('padding: 24px 24px 10px;')
     expect(source).toContain('padding-top: 8px;')
   })
+
+  it('shows a single domain-list card on the center page and opens domain details explicitly', () => {
+    const source = readFileSync(fileURLToPath(new URL('./ClusterCenter.vue', import.meta.url)), 'utf8')
+
+    expect(source).toContain('v-if="!selectedDomain"')
+    expect(source).toContain('class="cluster-center__domains app-card-shell"')
+    expect(source).toContain('class="cluster-center__domain-prompt"')
+    expect(source).toContain('@click="openDomainDetail(domain)"')
+    expect(source).toContain('const openDomainDetail = (domain: ClusterDomain) => {')
+    expect(source).not.toContain("selectedDomainId.value = domains.value[0]?.id ?? null")
+  })
+
+  it('renders a detail state with back navigation, domain information, and registered cluster servers', () => {
+    const source = readFileSync(fileURLToPath(new URL('./ClusterCenter.vue', import.meta.url)), 'utf8')
+
+    expect(source).toContain('v-else class="cluster-center__detail"')
+    expect(source).toContain('@click="backToClusterCenter"')
+    expect(source).toContain("{{ $t('clusterCenter.actions.back') }}")
+    expect(source).toContain('cluster-center__domain-info')
+    expect(source).toContain("{{ $t('clusterCenter.registeredServers') }}")
+    expect(source).toContain('const backToClusterCenter = () => {')
+  })
+
+  it('places the leave-domain action inside domain details instead of the global toolbar', () => {
+    const source = readFileSync(fileURLToPath(new URL('./ClusterCenter.vue', import.meta.url)), 'utf8')
+
+    const toolbarStart = source.indexOf('<div class="app-page__toolbar-actions cluster-center__actions">')
+    const toolbarEnd = source.indexOf('</div>', toolbarStart)
+    const toolbarSource = source.slice(toolbarStart, toolbarEnd)
+
+    expect(toolbarSource).not.toContain("{{ $t('clusterCenter.actions.leave') }}")
+    expect(source).toContain('cluster-center__detail-actions')
+    expect(source).toContain('@click="leaveDomain(selectedDomain)"')
+    expect(source).toContain(':loading="leavingDomainId === selectedDomain.id"')
+  })
 })

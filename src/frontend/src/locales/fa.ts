@@ -231,6 +231,7 @@ export default {
     inspectPrompt: "برای دیدن اعضای آینه‌شده، یک دامنه را انتخاب کنید.",
     noMembers: "برای این دامنه هنوز عضوی آینه نشده است.",
     mirroredMembers: "عضو آینه‌شده",
+    registeredServers: "سرورهای خوشه ثبت‌شده",
     dialogTitle: "پیوستن به دامنه",
     fields: {
       domain: "شناسه دامنه",
@@ -252,6 +253,7 @@ export default {
       submit: "تأیید",
       delete: "حذف",
       leave: "ترک دامنه",
+      back: "بازگشت",
     },
     validation: {
       required: "آدرس Hub، شناسه دامنه و توکن دامنه الزامی هستند.",

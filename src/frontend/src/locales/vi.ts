@@ -231,6 +231,7 @@ export default {
     inspectPrompt: "Chọn một miền để xem các nút được phản chiếu.",
     noMembers: "Miền này chưa có nút được phản chiếu.",
     mirroredMembers: "nút phản chiếu",
+    registeredServers: "Máy chủ cụm đã đăng ký",
     dialogTitle: "Tham gia miền",
     fields: {
       domain: "ID miền",
@@ -252,6 +253,7 @@ export default {
       submit: "Xác nhận",
       delete: "Xóa",
       leave: "Rời miền",
+      back: "Quay lại",
     },
     validation: {
       required: "URL Hub, ID miền và token miền là bắt buộc.",

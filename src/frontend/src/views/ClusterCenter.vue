@@ -20,89 +20,120 @@
         <div class="app-page__toolbar-actions cluster-center__actions">
           <v-btn color="primary" @click="registerDialog = true">{{ $t('clusterCenter.actions.register') }}</v-btn>
           <v-btn variant="outlined" color="warning" :loading="actionLoading" @click="manualSync">{{ $t('clusterCenter.actions.manualSync') }}</v-btn>
-          <v-btn
-            variant="outlined"
-            color="error"
-            :disabled="!selectedDomain"
-            :loading="selectedDomain ? leavingDomainId === selectedDomain.id : false"
-            @click="leaveDomain(selectedDomain)"
-          >
-            {{ $t('clusterCenter.actions.leave') }}
-          </v-btn>
           <v-btn variant="text" :loading="pageLoading" @click="loadData">{{ $t('clusterCenter.actions.refresh') }}</v-btn>
         </div>
       </v-col>
     </v-row>
 
-    <v-row class="cluster-center__grid">
-      <v-col cols="12" xl="4" lg="5">
-        <v-card class="app-card-shell cluster-center__domains" :loading="pageLoading">
-          <v-card-title>{{ $t('clusterCenter.domainsTitle') }}</v-card-title>
-          <v-card-text>
-            <div v-if="domains.length === 0" class="cluster-center__empty">{{ $t('clusterCenter.noDomains') }}</div>
-            <div v-else class="cluster-center__domain-list">
-              <button
-                v-for="domain in domains"
-                :key="domain.id"
-                type="button"
-                :class="['cluster-center__domain-card', { 'cluster-center__domain-card--active': selectedDomainId === domain.id }]"
-                @click="selectedDomainId = domain.id"
-              >
-                <div class="cluster-center__domain-head">
-                  <strong>{{ domain.domain }}</strong>
-                  <span class="cluster-center__version">{{ formatClusterVersionLabel(domain.lastVersion) }}</span>
-                </div>
-                <div class="cluster-center__domain-url">{{ domain.hubUrl || $t('clusterCenter.fields.hubUrl') }}</div>
-                <div class="cluster-center__domain-meta">{{ domainMemberCount(domain.id) }} {{ $t('clusterCenter.mirroredMembers') }}</div>
-              </button>
-            </div>
-          </v-card-text>
-        </v-card>
-      </v-col>
+    <template v-if="!selectedDomain">
+      <v-card class="cluster-center__domains app-card-shell" :loading="pageLoading">
+        <v-card-title>
+          <div class="cluster-center__card-title">
+            <span>{{ $t('clusterCenter.domainsTitle') }}</span>
+            <span class="cluster-center__domain-prompt">{{ $t('clusterCenter.inspectPrompt') }}</span>
+          </div>
+        </v-card-title>
+        <v-card-text>
+          <div v-if="domains.length === 0" class="cluster-center__empty">{{ $t('clusterCenter.noDomains') }}</div>
+          <div v-else class="cluster-center__domain-list">
+            <button
+              v-for="domain in domains"
+              :key="domain.id"
+              type="button"
+              class="cluster-center__domain-card"
+              @click="openDomainDetail(domain)"
+            >
+              <div class="cluster-center__domain-head">
+                <strong>{{ domain.domain }}</strong>
+                <span class="cluster-center__version">{{ formatClusterVersionLabel(domain.lastVersion) }}</span>
+              </div>
+              <div class="cluster-center__domain-url">{{ domain.hubUrl || $t('clusterCenter.fields.hubUrl') }}</div>
+              <div class="cluster-center__domain-meta">{{ domainMemberCount(domain.id) }} {{ $t('clusterCenter.mirroredMembers') }}</div>
+            </button>
+          </div>
+        </v-card-text>
+      </v-card>
+    </template>
 
-      <v-col cols="12" xl="8" lg="7">
-        <v-card class="app-card-shell cluster-center__members" :loading="pageLoading">
-          <v-card-title>
-            <div class="cluster-center__selected-head">
-              <span>{{ selectedDomain ? selectedDomain.domain : $t('clusterCenter.selectDomain') }}</span>
-              <span v-if="selectedDomain" class="cluster-center__version cluster-center__selected-version">
-                {{ formatClusterVersionLabel(selectedDomain.lastVersion) }}
-              </span>
+    <section v-else class="cluster-center__detail">
+      <div class="cluster-center__detail-actions">
+        <v-btn variant="outlined" prepend-icon="mdi-arrow-left" @click="backToClusterCenter">
+          {{ $t('clusterCenter.actions.back') }}
+        </v-btn>
+        <v-btn
+          variant="outlined"
+          color="error"
+          :loading="leavingDomainId === selectedDomain.id"
+          @click="leaveDomain(selectedDomain)"
+        >
+          {{ $t('clusterCenter.actions.leave') }}
+        </v-btn>
+      </div>
+
+      <v-card class="app-card-shell cluster-center__domain-info" :loading="pageLoading">
+        <v-card-title>
+          <div class="cluster-center__selected-head">
+            <span>{{ selectedDomain.domain }}</span>
+            <span class="cluster-center__version cluster-center__selected-version">
+              {{ formatClusterVersionLabel(selectedDomain.lastVersion) }}
+            </span>
+          </div>
+        </v-card-title>
+        <v-card-text>
+          <div class="cluster-center__info-grid">
+            <div class="cluster-center__info-item">
+              <span>{{ $t('clusterCenter.fields.domain') }}</span>
+              <strong>{{ selectedDomain.domain }}</strong>
             </div>
-          </v-card-title>
-          <v-card-text>
-            <div v-if="!selectedDomain" class="cluster-center__empty">{{ $t('clusterCenter.inspectPrompt') }}</div>
-            <div v-else-if="selectedDomainMembers.length === 0" class="cluster-center__empty">{{ $t('clusterCenter.noMembers') }}</div>
-            <div v-else class="cluster-center__member-table-wrap">
-              <table class="cluster-center__member-table">
-                <thead>
-                  <tr>
-                    <th>{{ $t('clusterCenter.table.node') }}</th>
-                    <th>{{ $t('clusterCenter.table.name') }}</th>
-                    <th>{{ $t('clusterCenter.table.baseUrl') }}</th>
-                    <th>{{ $t('clusterCenter.table.version') }}</th>
-                    <th>{{ $t('clusterCenter.table.action') }}</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  <tr v-for="member in selectedDomainMembers" :key="member.id">
-                    <td>{{ member.nodeId }}</td>
-                    <td>{{ member.name || '-' }}</td>
-                    <td>{{ member.baseUrl || '-' }}</td>
-                    <td>{{ formatClusterVersionLabel(member.lastVersion) }}</td>
-                    <td>
-                      <v-btn size="small" color="warning" variant="outlined" :loading="deletingMemberId === member.id" @click="deleteMember(member)">
-                        {{ $t('clusterCenter.actions.delete') }}
-                      </v-btn>
-                    </td>
-                  </tr>
-                </tbody>
-              </table>
+            <div class="cluster-center__info-item">
+              <span>{{ $t('clusterCenter.fields.hubUrl') }}</span>
+              <strong>{{ selectedDomain.hubUrl || '-' }}</strong>
             </div>
-          </v-card-text>
-        </v-card>
-      </v-col>
-    </v-row>
+            <div class="cluster-center__info-item">
+              <span>{{ $t('clusterCenter.table.version') }}</span>
+              <strong>{{ formatClusterVersionLabel(selectedDomain.lastVersion) }}</strong>
+            </div>
+            <div class="cluster-center__info-item">
+              <span>{{ $t('clusterCenter.mirroredMembers') }}</span>
+              <strong>{{ selectedDomainMembers.length }}</strong>
+            </div>
+          </div>
+        </v-card-text>
+      </v-card>
+
+      <v-card class="app-card-shell cluster-center__members" :loading="pageLoading">
+        <v-card-title>{{ $t('clusterCenter.registeredServers') }}</v-card-title>
+        <v-card-text>
+          <div v-if="selectedDomainMembers.length === 0" class="cluster-center__empty">{{ $t('clusterCenter.noMembers') }}</div>
+          <div v-else class="cluster-center__member-table-wrap">
+            <table class="cluster-center__member-table">
+              <thead>
+                <tr>
+                  <th>{{ $t('clusterCenter.table.node') }}</th>
+                  <th>{{ $t('clusterCenter.table.name') }}</th>
+                  <th>{{ $t('clusterCenter.table.baseUrl') }}</th>
+                  <th>{{ $t('clusterCenter.table.version') }}</th>
+                  <th>{{ $t('clusterCenter.table.action') }}</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr v-for="member in selectedDomainMembers" :key="member.id">
+                  <td>{{ member.nodeId }}</td>
+                  <td>{{ member.name || '-' }}</td>
+                  <td>{{ member.baseUrl || '-' }}</td>
+                  <td>{{ formatClusterVersionLabel(member.lastVersion) }}</td>
+                  <td>
+                    <v-btn size="small" color="warning" variant="outlined" :loading="deletingMemberId === member.id" @click="deleteMember(member)">
+                      {{ $t('clusterCenter.actions.delete') }}
+                    </v-btn>
+                  </td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+        </v-card-text>
+      </v-card>
+    </section>
 
     <v-dialog v-model="registerDialog" class="app-dialog app-dialog--compact" max-width="520">
       <v-card class="app-card-shell">
@@ -191,7 +222,7 @@
 </template>
 
 <script lang="ts" setup>
-import { computed, onMounted, ref, watch } from 'vue'
+import { computed, onMounted, ref } from 'vue'
 import { push } from 'notivue'
 
 import HttpUtils from '@/plugins/httputil'
@@ -230,6 +261,14 @@ const selectedDomainMembers = computed(() => members.value.filter((member) => me
 
 const domainMemberCount = (domainId: number) => members.value.filter((member) => member.domainId === domainId).length
 const formatClusterVersionLabel = (version: number) => `version-${version}`
+
+const openDomainDetail = (domain: ClusterDomain) => {
+  selectedDomainId.value = domain.id
+}
+
+const backToClusterCenter = () => {
+  selectedDomainId.value = null
+}
 
 const isUsableAbsoluteUrl = (value: string) => {
   try {
@@ -337,8 +376,8 @@ const loadData = async () => {
   ])
   if (domainsMsg.success) {
     domains.value = Array.isArray(domainsMsg.obj) ? domainsMsg.obj : []
-    if (!selectedDomainId.value || !domains.value.some((domain) => domain.id === selectedDomainId.value)) {
-      selectedDomainId.value = domains.value[0]?.id ?? null
+    if (selectedDomainId.value && !domains.value.some((domain) => domain.id === selectedDomainId.value)) {
+      selectedDomainId.value = null
     }
   }
   if (membersMsg.success) {
@@ -411,6 +450,35 @@ onMounted(async () => {
   align-items: stretch;
 }
 
+.cluster-center__card-title {
+  align-items: baseline;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px 14px;
+  justify-content: space-between;
+  width: 100%;
+}
+
+.cluster-center__domain-prompt {
+  color: var(--app-text-3);
+  font-size: 13px;
+  font-weight: 500;
+  line-height: 1.5;
+}
+
+.cluster-center__detail {
+  display: grid;
+  gap: 16px;
+}
+
+.cluster-center__detail-actions {
+  align-items: center;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+  justify-content: flex-start;
+}
+
 .cluster-center__domains,
 .cluster-center__members {
   height: 100%;
@@ -472,6 +540,32 @@ onMounted(async () => {
   border-radius: 999px;
   line-height: 1;
   padding: 6px 9px;
+}
+
+.cluster-center__info-grid {
+  display: grid;
+  gap: 12px;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+}
+
+.cluster-center__info-item {
+  background: color-mix(in srgb, var(--app-surface-2) 82%, transparent);
+  border: 1px solid var(--app-border-1);
+  border-radius: 16px;
+  display: grid;
+  gap: 8px;
+  min-width: 0;
+  padding: 14px 16px;
+}
+
+.cluster-center__info-item span {
+  color: var(--app-text-3);
+  font-size: 12px;
+}
+
+.cluster-center__info-item strong {
+  font-size: 14px;
+  overflow-wrap: anywhere;
 }
 
 .cluster-center__member-table-wrap {
@@ -653,6 +747,10 @@ onMounted(async () => {
     flex-direction: column;
   }
 
+  .cluster-center__info-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
   .cluster-center__member-table,
   .cluster-center__member-table thead,
   .cluster-center__member-table tbody,
@@ -672,6 +770,12 @@ onMounted(async () => {
 
   .cluster-center__member-table tbody tr:last-child {
     border-bottom: none;
+  }
+}
+
+@media (max-width: 640px) {
+  .cluster-center__info-grid {
+    grid-template-columns: 1fr;
   }
 }
 </style>
