@@ -39,6 +39,12 @@ func (d *ClusterPeerDispatcher) Dispatch(ctx context.Context, domain *model.Clus
 		return err
 	}
 
+	if validTarget, reason, err := d.validateCurrentChainStepTarget(message); err != nil {
+		return err
+	} else if !validTarget {
+		return store.MarkEventState(message.MessageID, PeerEventStatusIgnored, reason)
+	}
+
 	if message.Category == PeerCategoryEvent && message.Action == PeerActionDomainClusterChanged {
 		if err := d.handleDomainClusterChanged(ctx, domain, source, message); err != nil {
 			forwardedNextStep, chainErr := d.completeChainStep(ctx, domain, message, PeerEventStatusFailed, err.Error())
@@ -100,6 +106,26 @@ func (d *ClusterPeerDispatcher) handleDomainClusterChanged(ctx context.Context, 
 	syncService := d.getSyncService()
 	_, err := syncService.HandleIncomingNotifyVersion(ctx, domain.Id, source.NodeID, int64(versionValue))
 	return err
+}
+
+func (d *ClusterPeerDispatcher) validateCurrentChainStepTarget(message *PeerMessage) (bool, string, error) {
+	if message.Route.Mode != RouteModeChain || message.WorkflowID == "" || message.StepID == "" {
+		return true, "", nil
+	}
+
+	step, ok := clusterPeerChainRouteStep(message.Route, message.StepID)
+	if !ok {
+		return false, "chain_step_not_found", nil
+	}
+
+	local, err := d.identity.GetOrCreate()
+	if err != nil {
+		return false, "", err
+	}
+	if step.NodeID != local.NodeID {
+		return false, "chain_step_target_mismatch", nil
+	}
+	return true, "", nil
 }
 
 func (d *ClusterPeerDispatcher) getStore() clusterPeerStore {
@@ -222,12 +248,20 @@ func (d *ClusterPeerDispatcher) getDelivery() *ClusterPeerDeliveryService {
 }
 
 func clusterPeerChainStepNodeID(route RoutePlan, stepID string) string {
+	step, ok := clusterPeerChainRouteStep(route, stepID)
+	if !ok {
+		return ""
+	}
+	return step.NodeID
+}
+
+func clusterPeerChainRouteStep(route RoutePlan, stepID string) (RouteStep, bool) {
 	for _, step := range route.Chain {
 		if step.StepID == stepID {
-			return step.NodeID
+			return step, true
 		}
 	}
-	return ""
+	return RouteStep{}, false
 }
 
 func clonePeerPayload(payload map[string]interface{}) map[string]interface{} {
