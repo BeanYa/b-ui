@@ -54,6 +54,37 @@ func TestClusterServiceRegisterPersistsHubURLOnDomain(t *testing.T) {
 	}
 }
 
+func TestClusterServiceRegisterParsesJoinURI(t *testing.T) {
+	store := &stubClusterServiceStore{}
+	hub := &stubClusterHubClient{
+		registerResponse: &ClusterHubOperationResponse{OperationID: "op-register", Status: "completed"},
+		snapshotResponse: &ClusterHubSnapshotResponse{Version: 4, Members: []ClusterHubMemberResponse{{NodeID: "node-a", BaseURL: "https://node-a.example.com", PeerToken: "peer-token-a"}}},
+	}
+	service := &ClusterService{
+		secretProvider: stubClusterSecretProvider{secret: []byte("panel-secret-for-cluster-tests")},
+		localIdentity:  ClusterLocalIdentityService{store: &stubClusterLocalNodeStore{}},
+		store:          store,
+		hubClient:      hub,
+	}
+
+	_, err := service.Register(ClusterRegisterRequest{
+		JoinURI: "buihub://hub.example.com/domain/edge.example.com?domain_token=cluster-token&hub_protocol=https",
+		BaseURL: "https://panel.example.com/app/",
+	})
+	if err != nil {
+		t.Fatalf("register cluster domain from join URI: %v", err)
+	}
+	if hub.lastHubURL != "https://hub.example.com" {
+		t.Fatalf("expected parsed hub URL, got %q", hub.lastHubURL)
+	}
+	if hub.lastRegisterRequest.DomainID != "edge.example.com" {
+		t.Fatalf("expected parsed domain, got %q", hub.lastRegisterRequest.DomainID)
+	}
+	if hub.lastRegisterRequest.DomainToken != "cluster-token" {
+		t.Fatalf("expected parsed token, got %q", hub.lastRegisterRequest.DomainToken)
+	}
+}
+
 func TestClusterServiceRegisterDoesNotPersistDomainWhenHubRegistrationFails(t *testing.T) {
 	store := &stubClusterServiceStore{}
 	hub := &stubClusterHubClient{registerErr: errTestClusterHubFailure}
@@ -356,12 +387,14 @@ type stubClusterHubClient struct {
 	registerErr         error
 	deleteErr           error
 	registerCalls       int
+	lastHubURL          string
 	lastRegisterRequest ClusterHubRegisterNodeRequest
 	lastDeleteMemberID  string
 }
 
-func (s *stubClusterHubClient) RegisterNode(_ context.Context, _ string, request ClusterHubRegisterNodeRequest) (*ClusterHubOperationResponse, error) {
+func (s *stubClusterHubClient) RegisterNode(_ context.Context, hubURL string, request ClusterHubRegisterNodeRequest) (*ClusterHubOperationResponse, error) {
 	s.registerCalls++
+	s.lastHubURL = hubURL
 	s.lastRegisterRequest = request
 	if s.registerErr != nil {
 		return nil, s.registerErr

@@ -5,7 +5,7 @@ set -euo pipefail
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 COMPOSE_TEMPLATE="${SCRIPT_DIR}/templates/docker-compose.bootstrap.yml.tpl"
 DEPLOY_DIR="${DEPLOY_DIR:-${PWD}/deploy}"
-IMAGE_REF="${IMAGE_REF:-}"
+IMAGE_REF="${IMAGE_REF:-ghcr.io/beanya/b-ui:latest}"
 CONTAINER_NAME="${CONTAINER_NAME:-b-ui}"
 PANEL_PORT="${PANEL_PORT:-}"
 PANEL_PATH="${PANEL_PATH:-}"

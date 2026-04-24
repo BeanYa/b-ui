@@ -3,6 +3,8 @@ package service
 import (
 	"context"
 	"errors"
+	"net"
+	"net/url"
 	"sort"
 	"strings"
 	"sync"
@@ -14,11 +16,12 @@ import (
 )
 
 type ClusterRegisterRequest struct {
-	HubURL  string `json:"hubUrl" binding:"required"`
+	JoinURI string `json:"joinUri"`
+	HubURL  string `json:"hubUrl"`
 	Name    string `json:"name"`
-	Domain  string `json:"domain" binding:"required"`
-	Token   string `json:"token" binding:"required"`
-	BaseURL string `json:"baseUrl" binding:"required"`
+	Domain  string `json:"domain"`
+	Token   string `json:"token"`
+	BaseURL string `json:"baseUrl"`
 }
 
 type ClusterOperationStatus struct {
@@ -80,15 +83,27 @@ var clusterOperations = struct {
 const maxClusterOperations = 128
 
 var errClusterHubURLRequired = errors.New("cluster hub URL is required")
+var errClusterDomainRequired = errors.New("cluster domain is required")
+var errClusterTokenRequired = errors.New("cluster domain token is required")
 var errClusterBaseURLRequired = errors.New("cluster node base URL is required")
+var errClusterJoinURIInvalid = errors.New("cluster join URI is invalid")
 
 func (s *ClusterService) Register(request ClusterRegisterRequest) (*ClusterOperationStatus, error) {
+	if err := NormalizeClusterRegisterRequest(&request); err != nil {
+		return nil, err
+	}
 	request.Domain = strings.TrimSpace(request.Domain)
 	request.HubURL = strings.TrimSpace(request.HubURL)
 	request.BaseURL = strings.TrimSpace(request.BaseURL)
 	request.Name = strings.TrimSpace(request.Name)
 	if request.HubURL == "" {
 		return nil, errClusterHubURLRequired
+	}
+	if request.Domain == "" {
+		return nil, errClusterDomainRequired
+	}
+	if request.Token == "" {
+		return nil, errClusterTokenRequired
 	}
 	if request.BaseURL == "" {
 		return nil, errClusterBaseURLRequired
@@ -180,6 +195,124 @@ func (s *ClusterService) Register(request ClusterRegisterRequest) (*ClusterOpera
 		return nil, err
 	}
 	return status, nil
+}
+
+func NormalizeClusterRegisterRequest(request *ClusterRegisterRequest) error {
+	request.JoinURI = strings.TrimSpace(request.JoinURI)
+	if request.JoinURI == "" {
+		return nil
+	}
+	parsed, err := parseClusterHubJoinURI(request.JoinURI)
+	if err != nil {
+		return err
+	}
+	request.HubURL = parsed.HubURL
+	request.Domain = parsed.Domain
+	request.Token = parsed.Token
+	return nil
+}
+
+type clusterHubJoinURI struct {
+	HubURL string
+	Domain string
+	Token  string
+}
+
+func parseClusterHubJoinURI(raw string) (*clusterHubJoinURI, error) {
+	if !strings.HasPrefix(strings.ToLower(raw), "buihub://") {
+		return nil, errClusterJoinURIInvalid
+	}
+	withoutScheme := raw[len("buihub://"):]
+	if strings.HasPrefix(strings.ToLower(withoutScheme), "http://") || strings.HasPrefix(strings.ToLower(withoutScheme), "https://") {
+		return nil, errClusterJoinURIInvalid
+	}
+
+	parsed, err := url.Parse(raw)
+	if err != nil {
+		return nil, errClusterJoinURIInvalid
+	}
+	if parsed.Scheme != "buihub" || parsed.Host == "" || parsed.User != nil {
+		return nil, errClusterJoinURIInvalid
+	}
+
+	domain, err := clusterJoinURIDomain(parsed)
+	if err != nil {
+		return nil, err
+	}
+	token := firstQueryValue(parsed.Query(), "domain_token", "domainToken", "domain-token", "token")
+	if token == "" {
+		return nil, errClusterTokenRequired
+	}
+	protocol, err := clusterJoinURIProtocol(parsed)
+	if err != nil {
+		return nil, err
+	}
+	return &clusterHubJoinURI{
+		HubURL: protocol + "://" + parsed.Host,
+		Domain: domain,
+		Token:  token,
+	}, nil
+}
+
+func clusterJoinURIDomain(parsed *url.URL) (string, error) {
+	path := strings.Trim(parsed.EscapedPath(), "/")
+	domainValue := ""
+	if path != "" {
+		parts := strings.Split(path, "/")
+		if len(parts) >= 2 && strings.EqualFold(parts[0], "domain") {
+			domainValue = strings.Join(parts[1:], "/")
+		} else if len(parts) == 1 {
+			domainValue = parts[0]
+		}
+	}
+	if domainValue == "" {
+		domainValue = firstQueryValue(parsed.Query(), "domain_id", "domainId", "domain")
+		if domainValue == "" {
+			return "", errClusterDomainRequired
+		}
+		return strings.TrimSpace(domainValue), nil
+	}
+	domain, err := url.PathUnescape(domainValue)
+	if err != nil {
+		return "", errClusterJoinURIInvalid
+	}
+	domain = strings.TrimSpace(domain)
+	if domain == "" {
+		return "", errClusterDomainRequired
+	}
+	return domain, nil
+}
+
+func clusterJoinURIProtocol(parsed *url.URL) (string, error) {
+	protocol := firstQueryValue(parsed.Query(), "hub_protocol", "protocol")
+	if protocol == "" {
+		host := parsed.Hostname()
+		if isClusterLocalHost(host) {
+			return "http", nil
+		}
+		return "https", nil
+	}
+	if protocol != "http" && protocol != "https" {
+		return "", errClusterJoinURIInvalid
+	}
+	return protocol, nil
+}
+
+func firstQueryValue(values url.Values, names ...string) string {
+	for _, name := range names {
+		if value := strings.TrimSpace(values.Get(name)); value != "" {
+			return value
+		}
+	}
+	return ""
+}
+
+func isClusterLocalHost(host string) bool {
+	if host == "localhost" || host == "127.0.0.1" || host == "::1" {
+		return true
+	}
+	ip := net.ParseIP(host)
+	return ip != nil && ip.IsLoopback()
 }
 
 func (s *ClusterService) GetOperation(id string) (*ClusterOperationStatus, error) {

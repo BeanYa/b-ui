@@ -719,7 +719,7 @@ run_validate_bootstrap_inputs_check() {
     set +e
     output="$(bash -lc '
         source "'"${INSTALL_SCRIPT}"'"
-        IMAGE_REF=""
+        printf "IMAGE_REF=%s\n" "${IMAGE_REF}"
         PANEL_PORT=""
         validate_bootstrap_inputs
     ' 2>&1)"
@@ -912,11 +912,12 @@ test_collect_inputs_hysteria2_uses_udp_port_mapping() {
     assert_contains "${RUN_OUTPUT}" "PORT:8443:8443/udp" "collect_inputs should publish the hysteria2 inbound port as UDP"
 }
 
-test_validate_bootstrap_inputs_requires_image_and_panel_port() {
+test_validate_bootstrap_inputs_uses_default_image_and_requires_panel_port() {
     run_validate_bootstrap_inputs_check
 
-    assert_eq "${RUN_STATUS}" "1" "validate_bootstrap_inputs should fail when required inputs are missing"
-    assert_contains "${RUN_OUTPUT}" "IMAGE_REF" "validate_bootstrap_inputs should require the image reference"
+    assert_eq "${RUN_STATUS}" "1" "validate_bootstrap_inputs should fail when panel port is missing"
+    assert_contains "${RUN_OUTPUT}" "IMAGE_REF=ghcr.io/beanya/b-ui:latest" "install-docker.sh should provide the default GHCR image reference"
+    assert_not_contains "${RUN_OUTPUT}" "Missing required bootstrap input: IMAGE_REF" "validate_bootstrap_inputs should not require IMAGE_REF when the default is available"
     assert_contains "${RUN_OUTPUT}" "PANEL_PORT" "validate_bootstrap_inputs should require the panel port"
 }
 
@@ -1109,7 +1110,7 @@ test_build_setting_args_includes_only_populated_values
 test_collect_inputs_prompts_and_builds_standard_defaults
 test_collect_inputs_skip_mode_clears_bootstrap_listener_state
 test_collect_inputs_hysteria2_uses_udp_port_mapping
-test_validate_bootstrap_inputs_requires_image_and_panel_port
+test_validate_bootstrap_inputs_uses_default_image_and_requires_panel_port
 test_validate_bootstrap_inputs_rejects_port_collisions
 test_validate_bootstrap_inputs_rejects_invalid_port_values
 test_validate_bootstrap_inputs_rejects_noninteractive_default_secrets

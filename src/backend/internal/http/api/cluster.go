@@ -44,6 +44,10 @@ func (a *APIHandler) registerCluster(c *gin.Context) {
 		jsonMsg(c, "cluster register", err)
 		return
 	}
+	if err := service.NormalizeClusterRegisterRequest(&request); err != nil {
+		jsonMsg(c, "cluster register", err)
+		return
+	}
 	status, err := a.clusterService.Register(request)
 	jsonObj(c, status, err)
 }

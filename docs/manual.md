@@ -43,19 +43,30 @@ bash <(curl -Ls https://raw.githubusercontent.com/BeanYa/b-ui/main/install.sh) v
 
 ### Docker 部署引导
 
-Docker 模式面向已经能提供 `b-ui` 镜像的环境。入口脚本是仓库内的 `scripts/release/install-docker.sh`。
+Docker 模式默认使用官方 GHCR 镜像 `ghcr.io/beanya/b-ui:latest`。入口脚本是仓库内的 `scripts/release/install-docker.sh`。
 
 最小示例：
 
 ```sh
-IMAGE_REF=<your-image-ref> bash ./scripts/release/install-docker.sh
+bash ./scripts/release/install-docker.sh
 ```
 
 运行前要求：
 
 - 宿主机已安装 `docker` 和 `docker compose`
 - 当前 shell 能执行 `curl`
-- 你已经准备好要部署的镜像引用，并通过 `IMAGE_REF` 传入脚本
+
+如果你需要使用指定版本、fork 镜像、私有 registry，或通过 digest 固定部署内容，可以用 `IMAGE_REF` 覆盖默认镜像：
+
+```sh
+IMAGE_REF=ghcr.io/beanya/b-ui:v0.1.14 bash ./scripts/release/install-docker.sh
+```
+
+也可以替换为你自己的镜像引用，例如：
+
+```sh
+IMAGE_REF=registry.example.com/ops/b-ui@sha256:<digest> bash ./scripts/release/install-docker.sh
+```
 
 交互式流程会按顺序收集：
 

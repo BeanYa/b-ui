@@ -25,10 +25,16 @@ bash <(curl -Ls https://raw.githubusercontent.com/BeanYa/b-ui/main/install.sh) v
 
 ### Docker 引导入口
 
-Docker 模式使用 `scripts/release/install-docker.sh`，会交互式收集面板端口、路径、管理员凭据，以及可选的协议引导信息，然后在当前目录下生成 `deploy/docker-compose.yml`、`deploy/db/`、`deploy/cert/` 并启动容器。
+Docker 模式使用 `scripts/release/install-docker.sh`，默认拉取 `ghcr.io/beanya/b-ui:latest`。脚本会交互式收集面板端口、路径、管理员凭据，以及可选的协议引导信息，然后在当前目录下生成 `deploy/docker-compose.yml`、`deploy/db/`、`deploy/cert/` 并启动容器。
 
 ```sh
-IMAGE_REF=<your-image-ref> bash ./scripts/release/install-docker.sh
+bash ./scripts/release/install-docker.sh
+```
+
+- 如需使用指定版本、fork 镜像、私有 registry 或 digest 固定镜像，可通过 `IMAGE_REF` 覆盖默认值：
+
+```sh
+IMAGE_REF=ghcr.io/beanya/b-ui:v0.1.14 bash ./scripts/release/install-docker.sh
 ```
 
 - 默认面板访问方式是直接 `http://<server-ip>:<panel-port><panel-path>`，不依赖宿主机 Nginx
