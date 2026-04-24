@@ -168,6 +168,31 @@ func (s *dbClusterPeerStore) MarkEventState(messageID string, status string, err
 	return db.Save(event).Error
 }
 
+func SaveClusterPeerWorkflowStep(workflowID string, stepID string, domainID string, nodeID string, status string, resultHash string, errorMessage string) error {
+	db := database.GetDB()
+	now := time.Now().Unix()
+
+	state := &model.ClusterPeerWorkflowState{}
+	err := db.Where("workflow_id = ? AND step_id = ?", workflowID, stepID).First(state).Error
+	if err != nil {
+		if !database.IsNotFound(err) {
+			return err
+		}
+		state.WorkflowID = workflowID
+		state.StepID = stepID
+		state.CreatedAt = now
+	}
+
+	state.DomainID = domainID
+	state.NodeID = nodeID
+	state.Status = status
+	state.ResultHash = resultHash
+	state.Error = errorMessage
+	state.UpdatedAt = now
+
+	return db.Save(state).Error
+}
+
 func peerEventStateFromModel(event *model.ClusterPeerEventState) *PeerEventState {
 	return &PeerEventState{
 		MessageID:   event.MessageID,
