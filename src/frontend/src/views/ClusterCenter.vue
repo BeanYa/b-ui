@@ -92,6 +92,7 @@
       <v-card class="app-card-shell">
         <v-card-title>{{ $t('clusterCenter.dialogTitle') }}</v-card-title>
         <v-card-text class="cluster-center__dialog-body">
+          <v-text-field v-model="form.joinUri" label="Join URI" placeholder="buihub://..." hide-details />
           <v-text-field v-model="form.domain" :label="$t('clusterCenter.fields.domain')" hide-details />
           <div class="cluster-center__hub-url-field">
             <v-select
@@ -123,7 +124,7 @@
 </template>
 
 <script lang="ts" setup>
-import { computed, onMounted, ref } from 'vue'
+import { computed, onMounted, ref, watch } from 'vue'
 import { push } from 'notivue'
 
 import HttpUtils from '@/plugins/httputil'
@@ -139,10 +140,42 @@ const selectedDomainId = ref<number | null>(null)
 const deletingMemberId = ref<number | null>(null)
 
 const form = ref({
+  joinUri: '',
   domain: '',
   hubUrlProtocol: 'https',
   hubUrlHost: '',
   token: '',
+})
+
+const parseJoinUri = (uri: string): { domain: string; host: string; protocol: string; token: string } | null => {
+  const trimmed = uri.trim()
+  if (!trimmed.startsWith('buihub://')) return null
+  try {
+    const normalized = trimmed.replace('buihub://', 'https://')
+    const url = new URL(normalized)
+    const pathMatch = url.pathname.match(/^\/domain\/(.+)$/i)
+    if (!pathMatch) return null
+    return {
+      domain: decodeURIComponent(pathMatch[1]),
+      host: url.host,
+      protocol: 'https',
+      token: url.searchParams.get('token') || '',
+    }
+  } catch {
+    return null
+  }
+}
+
+watch(() => form.value.joinUri, (newVal) => {
+  if (!newVal) return
+  const parsed = parseJoinUri(newVal)
+  if (parsed) {
+    form.value.domain = parsed.domain
+    form.value.hubUrlHost = parsed.host
+    form.value.hubUrlProtocol = parsed.protocol
+    form.value.token = parsed.token
+    form.value.joinUri = ''
+  }
 })
 
 const selectedDomain = computed(() => domains.value.find((domain) => domain.id === selectedDomainId.value) ?? null)
@@ -239,7 +272,7 @@ const registerDomain = async () => {
     }
     await loadData()
     registerDialog.value = false
-    form.value = { domain: '', hubUrlProtocol: 'https', hubUrlHost: '', token: '' }
+    form.value = { joinUri: '', domain: '', hubUrlProtocol: 'https', hubUrlHost: '', token: '' }
     push.success({
       title: i18n.global.t('success'),
       message: i18n.global.t('clusterCenter.successRegistered'),
