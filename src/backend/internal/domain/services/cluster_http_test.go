@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
+	"sync/atomic"
 	"testing"
 
 	"github.com/alireza0/s-ui/src/backend/internal/infra/db/model"
@@ -139,6 +140,58 @@ func TestClusterHTTPBroadcasterUsesTargetMemberPeerTokenInsteadOfDomainToken(t *
 	}
 	if receivedMessage.Route.Mode != RouteModeBroadcast {
 		t.Fatalf("expected broadcast route, got %q", receivedMessage.Route.Mode)
+	}
+}
+
+func TestClusterHTTPBroadcasterSkipsLocalIdentityNode(t *testing.T) {
+	var localRequests int32
+	localServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		atomic.AddInt32(&localRequests, 1)
+		w.Header().Set("Content-Type", "application/json")
+		_, _ = w.Write([]byte(`{"success":true}`))
+	}))
+	defer localServer.Close()
+
+	var remoteRequests int32
+	remoteServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		atomic.AddInt32(&remoteRequests, 1)
+		w.Header().Set("Content-Type", "application/json")
+		_, _ = w.Write([]byte(`{"success":true}`))
+	}))
+	defer remoteServer.Close()
+
+	localStore := &stubClusterLocalNodeStore{}
+	identity := ClusterLocalIdentityService{store: localStore}
+	localNode, err := identity.GetOrCreate()
+	if err != nil {
+		t.Fatalf("create local identity: %v", err)
+	}
+	domain := &model.ClusterDomain{Domain: "edge.example.com", TokenEncrypted: mustEncryptClusterToken(t, "panel-secret-for-cluster-tests", "domain-token")}
+	broadcaster := &ClusterHTTPBroadcaster{
+		secretProvider: stubClusterSecretProvider{secret: []byte("panel-secret-for-cluster-tests")},
+		identity:       identity,
+		store: &stubClusterBroadcastStore{members: []model.ClusterMember{{
+			NodeID:             localNode.NodeID,
+			BaseURL:            localServer.URL + "/panel/",
+			PeerTokenEncrypted: mustEncryptClusterToken(t, "panel-secret-for-cluster-tests", "peer-token-local"),
+			Domain:             domain,
+		}, {
+			NodeID:             "node-remote",
+			BaseURL:            remoteServer.URL + "/panel/",
+			PeerTokenEncrypted: mustEncryptClusterToken(t, "panel-secret-for-cluster-tests", "peer-token-remote"),
+			Domain:             domain,
+		}}},
+		HTTPClient: remoteServer.Client(),
+	}
+
+	if err := broadcaster.BroadcastNotifyVersion(context.Background(), 9, "node-unrelated"); err != nil {
+		t.Fatalf("broadcast notify version: %v", err)
+	}
+	if got := atomic.LoadInt32(&localRequests); got != 0 {
+		t.Fatalf("expected local node to receive no requests, got %d", got)
+	}
+	if got := atomic.LoadInt32(&remoteRequests); got != 1 {
+		t.Fatalf("expected one remote request, got %d", got)
 	}
 }
 

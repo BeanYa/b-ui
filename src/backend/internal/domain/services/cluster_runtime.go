@@ -135,7 +135,7 @@ func (b *ClusterHTTPBroadcaster) BroadcastNotifyVersion(ctx context.Context, ver
 		return err
 	}
 	for _, member := range members {
-		if member.NodeID == excludeNodeID || member.BaseURL == "" || member.Domain == nil {
+		if member.NodeID == excludeNodeID || member.NodeID == identity.NodeID || member.BaseURL == "" || member.Domain == nil {
 			continue
 		}
 		token, err := DecryptClusterDomainToken(secret, member.PeerTokenEncrypted)
