@@ -508,6 +508,39 @@ func (s *ClusterService) ReceiveMessage(envelope *ClusterEnvelope, token string)
 	return s.getStore().SaveDomain(domain)
 }
 
+func (s *ClusterService) ReceivePeerMessage(message *PeerMessage, token string) error {
+	domain, err := s.getStore().GetDomainByName(message.DomainID)
+	if err != nil {
+		return err
+	}
+	localIdentity, err := s.localIdentity.GetOrCreate()
+	if err != nil {
+		return err
+	}
+	localMember, err := findClusterMemberByDomainNodeID(s.getStore(), domain.Id, localIdentity.NodeID)
+	if err != nil {
+		return err
+	}
+	if localMember == nil {
+		return errClusterMemberNotFound
+	}
+	if err := s.validateClusterPeerToken(localMember, token); err != nil {
+		return err
+	}
+	member, err := findClusterMemberByDomainNodeID(s.getStore(), domain.Id, message.SourceNodeID)
+	if err != nil {
+		return err
+	}
+	if member == nil {
+		return errClusterMemberNotFound
+	}
+	if err := VerifyClusterPeerMessage(message, member.PublicKey, time.Now().Unix()); err != nil {
+		return err
+	}
+	dispatcher := ClusterPeerDispatcher{syncService: &s.syncService}
+	return dispatcher.Dispatch(context.Background(), domain, member, message)
+}
+
 func (s *ClusterService) validateClusterPeerToken(member *model.ClusterMember, token string) error {
 	secret, err := s.getSecretProvider().GetSecret()
 	if err != nil {
