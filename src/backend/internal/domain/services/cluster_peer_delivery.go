@@ -57,11 +57,18 @@ func ExpandClusterPeerRoute(route RoutePlan, members []model.ClusterMember, sour
 			}
 		}
 		return targets
-	case RouteModeDirect, RouteModeMulticast:
-		membersByNodeID := make(map[string]model.ClusterMember, len(members))
-		for _, member := range members {
-			membersByNodeID[member.NodeID] = member
+	case RouteModeDirect:
+		if len(route.Targets) != 1 {
+			return nil
 		}
+		membersByNodeID := clusterPeerMembersByNodeID(members)
+		member, ok := membersByNodeID[route.Targets[0]]
+		if !ok || !isEligibleClusterPeerMember(member, route.Selector, sourceNodeID) {
+			return nil
+		}
+		return []model.ClusterMember{member}
+	case RouteModeMulticast:
+		membersByNodeID := clusterPeerMembersByNodeID(members)
 		targets := make([]model.ClusterMember, 0, len(route.Targets))
 		for _, nodeID := range route.Targets {
 			member, ok := membersByNodeID[nodeID]
@@ -75,12 +82,23 @@ func ExpandClusterPeerRoute(route RoutePlan, members []model.ClusterMember, sour
 	}
 }
 
+func clusterPeerMembersByNodeID(members []model.ClusterMember) map[string]model.ClusterMember {
+	membersByNodeID := make(map[string]model.ClusterMember, len(members))
+	for _, member := range members {
+		membersByNodeID[member.NodeID] = member
+	}
+	return membersByNodeID
+}
+
 func isEligibleClusterPeerMember(member model.ClusterMember, selector *TargetSelector, sourceNodeID string) bool {
 	if member.NodeID == "" || member.BaseURL == "" || member.NodeID == sourceNodeID {
 		return false
 	}
 	if selector == nil {
 		return true
+	}
+	if len(selector.CapabilityRequired) > 0 {
+		return false
 	}
 	if len(selector.Include) > 0 && !containsClusterNodeID(selector.Include, member.NodeID) {
 		return false
