@@ -537,8 +537,23 @@ func (s *ClusterService) ReceivePeerMessage(message *PeerMessage, token string) 
 	if err := VerifyClusterPeerMessage(message, member.PublicKey, time.Now().Unix()); err != nil {
 		return err
 	}
-	dispatcher := ClusterPeerDispatcher{syncService: &s.syncService}
+	syncService := s.peerSyncService()
+	dispatcher := ClusterPeerDispatcher{syncService: &syncService}
 	return dispatcher.Dispatch(context.Background(), domain, member, message)
+}
+
+func (s *ClusterService) peerSyncService() ClusterSyncService {
+	syncService := s.syncService
+	if syncService.store == nil {
+		syncService.store = &dbClusterSyncStore{}
+		if s.store != nil {
+			syncService.store = &clusterSyncStoreAdapter{store: s.store}
+		}
+	}
+	if syncService.hubSyncer == nil {
+		syncService.hubSyncer = s.getHubSyncer()
+	}
+	return syncService
 }
 
 func (s *ClusterService) validateClusterPeerToken(member *model.ClusterMember, token string) error {
