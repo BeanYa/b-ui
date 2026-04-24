@@ -113,6 +113,11 @@ func InitDB(dbPath string) error {
 		&model.ClusterLocalNode{},
 		&model.ClusterDomain{},
 		&model.ClusterMember{},
+		&model.ClusterPeerEventLog{},
+		&model.ClusterPeerEventState{},
+		&model.ClusterPeerAckState{},
+		&model.ClusterPeerWorkflowState{},
+		&model.ClusterPeerSchedule{},
 	)
 	if err != nil {
 		return err
