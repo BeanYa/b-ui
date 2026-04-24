@@ -1,6 +1,7 @@
 package api
 
 import (
+	"encoding/json"
 	"net/http"
 	"strconv"
 	"strings"
@@ -18,6 +19,7 @@ type clusterAPIService interface {
 	ManualSync() (*service.ClusterOperationStatus, error)
 	DeleteMember(uint) error
 	LeaveDomain(uint) error
+	ReceivePeerMessage(*service.PeerMessage, string) error
 	ReceiveMessage(*service.ClusterEnvelope, string) error
 }
 
@@ -110,12 +112,32 @@ func (a *APIHandler) leaveClusterDomain(c *gin.Context) {
 
 func RegisterClusterMessageRoute(router gin.IRoutes, clusterService clusterAPIService) {
 	router.POST(ClusterMessagePath("/"), func(c *gin.Context) {
-		var envelope service.ClusterEnvelope
-		if err := c.ShouldBindJSON(&envelope); err != nil {
+		body, err := c.GetRawData()
+		if err != nil {
 			c.JSON(http.StatusBadRequest, Msg{Success: false, Msg: "cluster message: " + err.Error()})
 			return
 		}
-		err := clusterService.ReceiveMessage(&envelope, c.GetHeader("X-Cluster-Token"))
+		var fields map[string]json.RawMessage
+		if err := json.Unmarshal(body, &fields); err != nil {
+			c.JSON(http.StatusBadRequest, Msg{Success: false, Msg: "cluster message: " + err.Error()})
+			return
+		}
+		token := c.GetHeader("X-Cluster-Token")
+		if _, ok := fields["protocolVersion"]; ok {
+			var message service.PeerMessage
+			if err := json.Unmarshal(body, &message); err != nil {
+				c.JSON(http.StatusBadRequest, Msg{Success: false, Msg: "cluster message: " + err.Error()})
+				return
+			}
+			err = clusterService.ReceivePeerMessage(&message, token)
+		} else {
+			var envelope service.ClusterEnvelope
+			if err := json.Unmarshal(body, &envelope); err != nil {
+				c.JSON(http.StatusBadRequest, Msg{Success: false, Msg: "cluster message: " + err.Error()})
+				return
+			}
+			err = clusterService.ReceiveMessage(&envelope, token)
+		}
 		if err != nil {
 			c.JSON(http.StatusUnauthorized, Msg{Success: false, Msg: clusterMessage(err)})
 			return
