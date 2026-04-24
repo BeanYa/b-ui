@@ -7,9 +7,12 @@ describe('buildPanelUpdateProgressLines', () => {
     expect(buildPanelUpdateProgressLines({
       targetVersion: 'v0.2.0',
       logPath: '/tmp/b-ui-panel-update.log',
+      logText: '准备更新面板\n下载安装脚本',
     })).toEqual([
       'Target version: v0.2.0',
       'Log file: /tmp/b-ui-panel-update.log',
+      '准备更新面板',
+      '下载安装脚本',
     ])
   })
 })

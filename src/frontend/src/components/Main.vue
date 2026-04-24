@@ -3,7 +3,12 @@
     <LogVue v-model="logModal.visible" :control="logModal" :visible="logModal.visible" />
     <Backup v-model="backupModal.visible" :control="backupModal" :visible="backupModal.visible" />
     <UsageStats v-model:visible="usageStatsModal.visible" />
-    <v-dialog v-model="panelUpdateDialog.visible" max-width="560" :persistent="panelUpdateDialog.mode === 'progress'">
+    <v-dialog
+      v-model="panelUpdateDialog.visible"
+      max-width="720"
+      :persistent="panelUpdateDialog.mode === 'progress'"
+      :scrim="panelUpdateDialog.mode === 'progress' ? 'rgba(7, 12, 20, 0.72)' : true"
+    >
       <v-card class="rounded-lg">
         <v-card-title>{{ $t('main.updatePanel.title') }}</v-card-title>
         <v-card-text>
@@ -27,9 +32,10 @@
               <p class="panel-update__copy panel-update__copy--muted">
                 {{ $t('main.updatePanel.progressHint') }}
               </p>
-              <ul v-if="panelUpdateProgressLines.length" class="panel-update__details">
-                <li v-for="line in panelUpdateProgressLines" :key="line">{{ line }}</li>
-              </ul>
+              <div class="panel-update__log-shell">
+                <div class="panel-update__log-title">{{ $t('main.updatePanel.logFile') }}</div>
+                <pre class="panel-update__log">{{ panelUpdateLogOutput }}</pre>
+              </div>
             </div>
             <p
               v-if="panelUpdateDialog.info?.updateState?.logPath && panelUpdateDialog.info?.updateState?.phase === 'failed'"
@@ -37,6 +43,13 @@
             >
               {{ $t('main.updatePanel.logPath') }} {{ panelUpdateDialog.info?.updateState?.logPath }}
             </p>
+            <div
+              v-if="panelUpdateDialog.mode !== 'progress' && panelUpdateDialog.info?.updateState"
+              class="panel-update__log-shell"
+            >
+              <div class="panel-update__log-title">{{ $t('main.updatePanel.logFile') }}</div>
+              <pre class="panel-update__log">{{ panelUpdateLogOutput }}</pre>
+            </div>
           </template>
         </v-card-text>
         <v-card-actions>
@@ -279,6 +292,7 @@ interface PanelUpdateState {
   startedAt: number
   updatedAt: number
   logPath?: string
+  logText?: string
   message?: string
 }
 
@@ -506,12 +520,20 @@ const panelUpdateProgressLines = computed(() => buildPanelUpdateProgressLines(
   {
     targetVersion: panelUpdateDialog.value.info?.updateState?.targetVersion || panelUpdateDialog.value.targetVersion,
     logPath: panelUpdateDialog.value.info?.updateState?.logPath,
+    logText: panelUpdateDialog.value.info?.updateState?.logText,
   },
   {
     targetVersion: i18n.global.t('main.updatePanel.targetVersion').toString(),
     logPath: i18n.global.t('main.updatePanel.logFile').toString(),
   },
 ))
+
+const panelUpdateLogOutput = computed(() => {
+  if (panelUpdateProgressLines.value.length > 0) {
+    return panelUpdateProgressLines.value.join('\n')
+  }
+  return i18n.global.t('main.updatePanel.logPending').toString()
+})
 
 const panelUpdateCompletedText = computed(() => {
   const targetVersion = panelUpdateDialog.value.info?.updateState?.targetVersion || panelUpdateDialog.value.targetVersion
@@ -682,6 +704,7 @@ const pollPanelUpdate = async (targetVersion: string) => {
 
 const startPanelUpdatePolling = (targetVersion: string) => {
   stopPanelUpdatePolling()
+  void pollPanelUpdate(targetVersion)
   panelUpdatePollId = setInterval(() => {
     void pollPanelUpdate(targetVersion)
   }, 2000)
@@ -727,12 +750,26 @@ const confirmPanelUpdate = async () => {
           startedAt,
           updatedAt: startedAt,
           logPath: msg.obj?.logPath as string | undefined,
+          logText: msg.obj?.logText as string | undefined,
         },
       }
     : panelUpdateDialog.value.info
 
   stopTimer()
   startPanelUpdatePolling(panelUpdateDialog.value.targetVersion)
+}
+
+const resumePanelUpdateIfRunning = async () => {
+  const info = await readPanelUpdateInfoQuietly()
+  if (info?.updateState?.phase !== 'running') return
+
+  applyPanelUpdateInfo(info)
+  panelUpdateDialog.value.mode = 'progress'
+  panelUpdateDialog.value.visible = true
+  if (panelUpdateDialog.value.targetVersion) {
+    stopTimer()
+    startPanelUpdatePolling(panelUpdateDialog.value.targetVersion)
+  }
 }
 
 const syncDashboard = async () => {
@@ -743,11 +780,15 @@ const syncDashboard = async () => {
 onMounted(async () => {
   loading.value = true
   await syncDashboard()
+  await resumePanelUpdateIfRunning()
   loading.value = false
 })
 
 onActivated(() => {
-  if (!loading.value) void syncDashboard()
+  if (!loading.value) {
+    void syncDashboard()
+    void resumePanelUpdateIfRunning()
+  }
 })
 
 onDeactivated(() => {
@@ -953,6 +994,40 @@ onBeforeUnmount(() => {
   margin: 0;
   padding-left: 18px;
   word-break: break-all;
+}
+
+.panel-update__log-shell {
+  background: color-mix(in srgb, #05070c 92%, var(--app-surface-3));
+  border: 1px solid color-mix(in srgb, var(--app-border-1) 72%, #ffffff 12%);
+  border-radius: 14px;
+  color: #d8e4f0;
+  margin-top: 10px;
+  overflow: hidden;
+}
+
+.panel-update__log-title {
+  align-items: center;
+  border-bottom: 1px solid color-mix(in srgb, #ffffff 9%, transparent);
+  color: #8fb0c9;
+  display: flex;
+  font-size: 11px;
+  font-weight: 700;
+  justify-content: space-between;
+  letter-spacing: 0;
+  min-height: 32px;
+  padding: 0 12px;
+}
+
+.panel-update__log {
+  font-family: 'Geist Mono Variable', monospace;
+  font-size: 12px;
+  line-height: 1.55;
+  margin: 0;
+  max-height: 260px;
+  overflow: auto;
+  padding: 12px;
+  white-space: pre-wrap;
+  word-break: break-word;
 }
 
 .section-head {

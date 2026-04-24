@@ -23,6 +23,7 @@ const (
 	panelUpdateUnitName  = "b-ui-panel-update"
 
 	panelUpdateRunningGracePeriod = 30 * time.Second
+	panelUpdateMaxLogBytes        = 128 * 1024
 )
 
 type PanelUpdateInfo struct {
@@ -43,6 +44,7 @@ type PanelUpdateState struct {
 	StartedAt     int64  `json:"startedAt"`
 	UpdatedAt     int64  `json:"updatedAt"`
 	LogPath       string `json:"logPath,omitempty"`
+	LogText       string `json:"logText,omitempty"`
 	Message       string `json:"message,omitempty"`
 }
 
@@ -123,6 +125,10 @@ func (s *PanelService) StartUpdate(targetVersion string, force bool) (*PanelUpda
 
 	logPath := panelUpdateLogFilePath()
 	startedAt := time.Now().Unix()
+	if err := initializePanelUpdateLog(logPath, resolvedVersion, force, startedAt); err != nil {
+		return nil, err
+	}
+
 	state := &PanelUpdateState{
 		Phase:         "running",
 		TargetVersion: resolvedVersion,
@@ -168,6 +174,20 @@ func panelUpdateCapability() (bool, string) {
 }
 
 func launchDetachedPanelUpdate(targetVersion string, force bool, startedAt int64, logPath string) error {
+	cmd := buildPanelUpdateCommand(targetVersion, force, startedAt, logPath)
+	output, err := cmd.CombinedOutput()
+	if err != nil {
+		message := strings.TrimSpace(string(output))
+		if message != "" {
+			return fmt.Errorf("start panel update: %w: %s", err, message)
+		}
+		return fmt.Errorf("start panel update: %w", err)
+	}
+
+	return nil
+}
+
+func buildPanelUpdateCommand(targetVersion string, force bool, startedAt int64, logPath string) *exec.Cmd {
 	installMode := "--update"
 	if force {
 		installMode = "--force-update"
@@ -175,7 +195,11 @@ func launchDetachedPanelUpdate(targetVersion string, force bool, startedAt int64
 
 	updateScript := `set -eu
 mkdir -p "$(dirname "$UPDATE_STATE_FILE")"
-: >"$UPDATE_LOG_FILE"
+mkdir -p "$(dirname "$UPDATE_LOG_FILE")"
+touch "$UPDATE_LOG_FILE"
+log() {
+  printf '[%s] %s\n' "$(date '+%Y-%m-%d %H:%M:%S')" "$*" >>"$UPDATE_LOG_FILE"
+}
 write_state() {
   local phase="$1"
   local message="${2:-}"
@@ -187,11 +211,31 @@ write_state() {
   fi
   printf '{"phase":"%s","targetVersion":"%s","force":%s,"startedAt":%s,"updatedAt":%s,"logPath":"%s"}\n' "$phase" "$TARGET_VERSION" "$UPDATE_FORCE_JSON" "$UPDATE_STARTED_AT" "$now" "$UPDATE_LOG_FILE" > "$UPDATE_STATE_FILE"
 }
-if bash <(curl -Ls "$INSTALL_SCRIPT_URL") "$INSTALL_MODE" "$TARGET_VERSION" >>"$UPDATE_LOG_FILE" 2>&1; then
-  write_state completed
-else
-  write_state failed install_failed
+tmp_script="$(mktemp)"
+cleanup() {
+  rm -f "$tmp_script"
+}
+trap cleanup EXIT
+log "准备更新面板，目标版本：$TARGET_VERSION"
+log "更新模式：$INSTALL_MODE"
+write_state running download_install_script
+log "下载安装脚本：$INSTALL_SCRIPT_URL"
+if ! curl -fsSL "$INSTALL_SCRIPT_URL" -o "$tmp_script" >>"$UPDATE_LOG_FILE" 2>&1; then
+  log "下载安装脚本失败"
+  write_state failed download_failed
   exit 1
+fi
+chmod +x "$tmp_script"
+write_state running execute_install_script
+log "执行安装脚本"
+if bash "$tmp_script" "$INSTALL_MODE" "$TARGET_VERSION" >>"$UPDATE_LOG_FILE" 2>&1; then
+  log "面板更新完成"
+  write_state completed install_completed
+else
+  exit_code=$?
+  log "安装脚本失败，退出码：$exit_code"
+  write_state failed install_failed
+  exit "$exit_code"
 fi`
 
 	cmd := exec.Command(
@@ -199,31 +243,19 @@ fi`
 		"--unit="+panelUpdateUnitName,
 		"--collect",
 		"--quiet",
+		"--setenv=INSTALL_SCRIPT_URL="+panelInstallScriptURL(),
+		"--setenv=INSTALL_MODE="+installMode,
+		"--setenv=TARGET_VERSION="+targetVersion,
+		"--setenv=UPDATE_FORCE_JSON="+strconv.FormatBool(force),
+		"--setenv=UPDATE_STARTED_AT="+strconv.FormatInt(startedAt, 10),
+		"--setenv=UPDATE_STATE_FILE="+panelUpdateStateFilePath(),
+		"--setenv=UPDATE_LOG_FILE="+logPath,
 		"/usr/bin/env",
 		"bash",
 		"-lc",
 		updateScript,
 	)
-	cmd.Env = append(os.Environ(),
-		"INSTALL_SCRIPT_URL="+panelInstallScriptURL(),
-		"INSTALL_MODE="+installMode,
-		"TARGET_VERSION="+targetVersion,
-		"UPDATE_FORCE_JSON="+strconv.FormatBool(force),
-		"UPDATE_STARTED_AT="+strconv.FormatInt(startedAt, 10),
-		"UPDATE_STATE_FILE="+panelUpdateStateFilePath(),
-		"UPDATE_LOG_FILE="+logPath,
-	)
-
-	output, err := cmd.CombinedOutput()
-	if err != nil {
-		message := strings.TrimSpace(string(output))
-		if message != "" {
-			return fmt.Errorf("start panel update: %w: %s", err, message)
-		}
-		return fmt.Errorf("start panel update: %w", err)
-	}
-
-	return nil
+	return cmd
 }
 
 func loadPanelUpdateState() (*PanelUpdateState, error) {
@@ -243,7 +275,55 @@ func loadPanelUpdateState() (*PanelUpdateState, error) {
 		_ = savePanelUpdateState(reconciledState)
 		state = reconciledState
 	}
+	hydratePanelUpdateStateLog(state)
 	return state, nil
+}
+
+func hydratePanelUpdateStateLog(state *PanelUpdateState) {
+	if state == nil || state.LogPath == "" {
+		return
+	}
+
+	logText, err := readPanelUpdateLogTail(state.LogPath, panelUpdateMaxLogBytes)
+	if err != nil {
+		if errors.Is(err, os.ErrNotExist) {
+			state.LogText = "更新日志文件尚未创建：" + state.LogPath
+			return
+		}
+		state.LogText = "读取更新日志失败：" + err.Error()
+		return
+	}
+	state.LogText = logText
+}
+
+func readPanelUpdateLogTail(path string, maxBytes int64) (string, error) {
+	file, err := os.Open(path)
+	if err != nil {
+		return "", err
+	}
+	defer file.Close()
+
+	stat, err := file.Stat()
+	if err != nil {
+		return "", err
+	}
+
+	offset := int64(0)
+	if stat.Size() > maxBytes {
+		offset = stat.Size() - maxBytes
+	}
+	if _, err := file.Seek(offset, io.SeekStart); err != nil {
+		return "", err
+	}
+
+	content, err := io.ReadAll(file)
+	if err != nil {
+		return "", err
+	}
+	if offset > 0 {
+		return "...日志较长，仅显示最近内容...\n" + string(content), nil
+	}
+	return string(content), nil
 }
 
 func reconcilePanelUpdateState(state *PanelUpdateState, now time.Time, isUnitActive func() (bool, error)) (*PanelUpdateState, bool) {
@@ -299,6 +379,24 @@ func panelUpdateStateFilePath() string {
 
 func panelUpdateLogFilePath() string {
 	return filepath.Join(os.TempDir(), "b-ui-panel-update.log")
+}
+
+func initializePanelUpdateLog(logPath string, targetVersion string, force bool, startedAt int64) error {
+	if err := os.MkdirAll(filepath.Dir(logPath), 0o755); err != nil {
+		return err
+	}
+
+	mode := "update"
+	if force {
+		mode = "force-update"
+	}
+	content := fmt.Sprintf(
+		"[%s] 已确认面板更新\n目标版本：%s\n更新模式：%s\n",
+		time.Unix(startedAt, 0).Format("2006-01-02 15:04:05"),
+		targetVersion,
+		mode,
+	)
+	return os.WriteFile(logPath, []byte(content), 0o644)
 }
 
 func resolvePanelUpdateLatestVersion(state *PanelUpdateState, fetchLatest func() (string, error)) (string, error) {

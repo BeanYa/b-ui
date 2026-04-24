@@ -1,6 +1,8 @@
 package service
 
 import (
+	"os"
+	"strings"
 	"testing"
 	"time"
 )
@@ -89,5 +91,49 @@ func TestResolvePanelUpdateLatestVersionIgnoresFailedTarget(t *testing.T) {
 	}
 	if latest != "v0.1.14" {
 		t.Fatalf("latest = %q, want v0.1.14", latest)
+	}
+}
+
+func TestBuildPanelUpdateCommandPassesEnvironmentToSystemdUnit(t *testing.T) {
+	cmd := buildPanelUpdateCommand("v0.1.15", true, 1713950000, "/tmp/b-ui-panel-update.log")
+	args := strings.Join(cmd.Args, "\n")
+
+	expected := []string{
+		"--setenv=INSTALL_SCRIPT_URL=https://raw.githubusercontent.com/BeanYa/b-ui/main/install.sh",
+		"--setenv=INSTALL_MODE=--force-update",
+		"--setenv=TARGET_VERSION=v0.1.15",
+		"--setenv=UPDATE_FORCE_JSON=true",
+		"--setenv=UPDATE_STARTED_AT=1713950000",
+		"--setenv=UPDATE_LOG_FILE=/tmp/b-ui-panel-update.log",
+	}
+	for _, arg := range expected {
+		if !strings.Contains(args, arg) {
+			t.Fatalf("systemd-run args did not contain %q; args:\n%s", arg, args)
+		}
+	}
+}
+
+func TestHydratePanelUpdateStateReadsLogText(t *testing.T) {
+	logFile, err := os.CreateTemp(t.TempDir(), "panel-update-*.log")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := logFile.WriteString("准备更新面板\n下载安装脚本\n执行安装脚本\n"); err != nil {
+		t.Fatal(err)
+	}
+	if err := logFile.Close(); err != nil {
+		t.Fatal(err)
+	}
+
+	state := &PanelUpdateState{
+		Phase:         "running",
+		TargetVersion: "v0.1.15",
+		LogPath:       logFile.Name(),
+	}
+
+	hydratePanelUpdateStateLog(state)
+
+	if !strings.Contains(state.LogText, "下载安装脚本") {
+		t.Fatalf("LogText = %q, want hydrated log content", state.LogText)
 	}
 }

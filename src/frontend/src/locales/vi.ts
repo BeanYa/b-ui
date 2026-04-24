@@ -113,6 +113,7 @@ export default {
       failed: "Cập nhật bảng điều khiển thất bại. Hãy kiểm tra nhật ký cập nhật trên máy chủ.",
       logPath: "Nhật ký cập nhật:",
       logFile: "Nhật ký cập nhật",
+      logPending: "Đang chờ nhật ký cập nhật...",
     },
   },
   objects: {

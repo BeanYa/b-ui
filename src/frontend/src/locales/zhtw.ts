@@ -110,9 +110,10 @@ export default {
       running: "正在啟動面板更新任務，請等待服務重新啟動並完成安裝。",
       completed: "面板已更新到目標版本。",
       completedWithRefresh: "面板已更新到 {version}，請重新整理頁面以載入新版本。",
-      failed: "面板更新失敗，請查看伺服器上的更新日誌。",
+      failed: "面板更新失敗，請查看下方更新日誌。",
       logPath: "更新日誌：",
       logFile: "更新日誌",
+      logPending: "正在等待更新日誌輸出...",
     },
   },
   objects: {

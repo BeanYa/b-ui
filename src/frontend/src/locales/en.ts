@@ -110,9 +110,10 @@ export default {
       running: "The panel update job has started. Wait for the service restart and installation to finish.",
       completed: "The panel has been updated to the target version.",
       completedWithRefresh: "The panel has been updated to {version}. Refresh the page to load the new version.",
-      failed: "The panel update failed. Check the server-side update log for details.",
+      failed: "The panel update failed. Check the update log below for details.",
       logPath: "Update log:",
       logFile: "Log file",
+      logPending: "Waiting for update log output...",
     },
   },
   objects: {

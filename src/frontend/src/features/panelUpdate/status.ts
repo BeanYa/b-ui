@@ -1,6 +1,7 @@
 interface PanelUpdateProgressDetails {
   targetVersion?: string
   logPath?: string
+  logText?: string
 }
 
 interface PanelUpdateProgressLabels {
@@ -24,6 +25,11 @@ export const buildPanelUpdateProgressLines = (
   if (details.logPath) {
     lines.push(`${labels.logPath}: ${details.logPath}`)
   }
+  const logLines = details.logText
+    ?.split(/\r?\n/)
+    .map(line => line.trimEnd())
+    .filter(line => line.length > 0) ?? []
+  lines.push(...logLines)
   return lines
 }
 
