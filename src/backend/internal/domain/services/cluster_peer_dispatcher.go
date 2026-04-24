@@ -40,34 +40,47 @@ func (d *ClusterPeerDispatcher) Dispatch(ctx context.Context, domain *model.Clus
 
 	if message.Category == PeerCategoryEvent && message.Action == PeerActionDomainClusterChanged {
 		if err := d.handleDomainClusterChanged(ctx, domain, source, message); err != nil {
-			markErr := store.MarkEventState(message.MessageID, PeerEventStatusFailed, err.Error())
-			if markErr != nil {
-				return markErr
-			}
-			if chainErr := d.completeChainStep(ctx, domain, message, PeerEventStatusFailed, err.Error()); chainErr != nil {
+			forwardedNextStep, chainErr := d.completeChainStep(ctx, domain, message, PeerEventStatusFailed, err.Error())
+			if chainErr != nil {
 				return chainErr
 			}
+			status := PeerEventStatusFailed
+			errorMessage := err.Error()
+			if forwardedNextStep {
+				status = PeerEventStatusSucceeded
+				errorMessage = ""
+			}
+			if markErr := store.MarkEventState(message.MessageID, status, errorMessage); markErr != nil {
+				return markErr
+			}
 			return err
 		}
-		if err := store.MarkEventState(message.MessageID, PeerEventStatusSucceeded, ""); err != nil {
+		if _, err := d.completeChainStep(ctx, domain, message, PeerEventStatusSucceeded, ""); err != nil {
 			return err
 		}
-		return d.completeChainStep(ctx, domain, message, PeerEventStatusSucceeded, "")
+		return store.MarkEventState(message.MessageID, PeerEventStatusSucceeded, "")
 	}
 
 	if message.Category == PeerCategoryEvent {
-		if err := store.MarkEventState(message.MessageID, PeerEventStatusUnsupported, ""); err != nil {
+		if _, err := d.completeChainStep(ctx, domain, message, PeerEventStatusUnsupported, ""); err != nil {
 			return err
 		}
-		return d.completeChainStep(ctx, domain, message, PeerEventStatusUnsupported, "")
+		return store.MarkEventState(message.MessageID, PeerEventStatusUnsupported, "")
 	}
 
 	err = errors.New("unsupported_action")
-	if markErr := store.MarkEventState(message.MessageID, PeerEventStatusFailed, err.Error()); markErr != nil {
-		return markErr
-	}
-	if chainErr := d.completeChainStep(ctx, domain, message, PeerEventStatusFailed, err.Error()); chainErr != nil {
+	forwardedNextStep, chainErr := d.completeChainStep(ctx, domain, message, PeerEventStatusFailed, err.Error())
+	if chainErr != nil {
 		return chainErr
+	}
+	status := PeerEventStatusFailed
+	errorMessage := err.Error()
+	if forwardedNextStep {
+		status = PeerEventStatusSucceeded
+		errorMessage = ""
+	}
+	if markErr := store.MarkEventState(message.MessageID, status, errorMessage); markErr != nil {
+		return markErr
 	}
 	return err
 }
@@ -103,9 +116,9 @@ func (d *ClusterPeerDispatcher) getSyncService() *ClusterSyncService {
 	return d.syncService
 }
 
-func (d *ClusterPeerDispatcher) completeChainStep(ctx context.Context, domain *model.ClusterDomain, message *PeerMessage, status string, errorMessage string) error {
+func (d *ClusterPeerDispatcher) completeChainStep(ctx context.Context, domain *model.ClusterDomain, message *PeerMessage, status string, errorMessage string) (bool, error) {
 	if message.Route.Mode != RouteModeChain || message.WorkflowID == "" || message.StepID == "" {
-		return nil
+		return false, nil
 	}
 
 	nodeID := clusterPeerChainStepNodeID(message.Route, message.StepID)
@@ -113,14 +126,17 @@ func (d *ClusterPeerDispatcher) completeChainStep(ctx context.Context, domain *m
 		nodeID = message.SourceNodeID
 	}
 	if err := d.getWorkflowStepSaver()(message.WorkflowID, message.StepID, message.DomainID, nodeID, status, message.PayloadHash, errorMessage); err != nil {
-		return err
+		return false, err
 	}
 
 	nextStep, ok := NextClusterPeerChainStep(message.Route, message.StepID, status == PeerEventStatusSucceeded)
 	if !ok {
-		return nil
+		return false, nil
 	}
-	return d.dispatchNextChainStep(ctx, domain, message, nextStep)
+	if err := d.dispatchNextChainStep(ctx, domain, message, nextStep); err != nil {
+		return false, err
+	}
+	return true, nil
 }
 
 func (d *ClusterPeerDispatcher) dispatchNextChainStep(ctx context.Context, domain *model.ClusterDomain, current *PeerMessage, nextStep RouteStep) error {
