@@ -37,8 +37,8 @@ func TestClusterHubClientRejectsNonHttpsRemoteHubURL(t *testing.T) {
 
 func TestClusterHTTPBroadcasterUsesBasePathAndRejectsNon2xxResponses(t *testing.T) {
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		if r.URL.Path != "/panel/cluster/message" {
-			t.Fatalf("expected path /panel/cluster/message, got %s", r.URL.Path)
+		if r.URL.Path != "/panel/_cluster/v1/events" {
+			t.Fatalf("expected path /panel/_cluster/v1/events, got %s", r.URL.Path)
 		}
 		w.WriteHeader(http.StatusBadGateway)
 	}))

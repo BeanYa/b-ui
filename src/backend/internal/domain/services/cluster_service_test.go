@@ -46,6 +46,12 @@ func TestClusterServiceRegisterPersistsHubURLOnDomain(t *testing.T) {
 	if lastDomain.HubURL != "https://hub.example.com" {
 		t.Fatalf("expected persisted hub URL, got %q", lastDomain.HubURL)
 	}
+	if lastDomain.CommunicationEndpointPath != "/_cluster" {
+		t.Fatalf("expected fixed communication endpoint path, got %q", lastDomain.CommunicationEndpointPath)
+	}
+	if lastDomain.CommunicationProtocolVersion != "v1" {
+		t.Fatalf("expected fixed communication protocol version, got %q", lastDomain.CommunicationProtocolVersion)
+	}
 	if len(store.replacedMembers) != 1 || len(store.replacedMembers[0]) != 1 {
 		t.Fatalf("expected one replaced member, got %#v", store.replacedMembers)
 	}

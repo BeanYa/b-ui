@@ -32,10 +32,12 @@ type ClusterOperationStatus struct {
 }
 
 type ClusterDomainResponse struct {
-	ID          uint   `json:"id"`
-	Domain      string `json:"domain"`
-	HubURL      string `json:"hubUrl"`
-	LastVersion int64  `json:"lastVersion"`
+	ID                           uint   `json:"id"`
+	Domain                       string `json:"domain"`
+	HubURL                       string `json:"hubUrl"`
+	CommunicationEndpointPath    string `json:"communicationEndpointPath"`
+	CommunicationProtocolVersion string `json:"communicationProtocolVersion"`
+	LastVersion                  int64  `json:"lastVersion"`
 }
 
 type ClusterMemberResponse struct {
@@ -156,11 +158,13 @@ func (s *ClusterService) Register(request ClusterRegisterRequest) (*ClusterOpera
 	domain.Domain = request.Domain
 	domain.HubURL = request.HubURL
 	domain.TokenEncrypted = encryptedToken
-	if err := store.SaveDomain(domain); err != nil {
-		return nil, err
-	}
 	snapshot, err := client.GetSnapshot(context.Background(), request.HubURL, request.Domain, request.Token)
 	if err != nil {
+		return nil, err
+	}
+	domain.CommunicationEndpointPath = snapshot.EffectiveCommunicationEndpointPath()
+	domain.CommunicationProtocolVersion = snapshot.EffectiveCommunicationProtocolVersion()
+	if err := store.SaveDomain(domain); err != nil {
 		return nil, err
 	}
 	members := make([]model.ClusterMember, 0, len(snapshot.Members))
@@ -315,6 +319,20 @@ func isClusterLocalHost(host string) bool {
 	return ip != nil && ip.IsLoopback()
 }
 
+func effectiveClusterCommunicationEndpointPath(value string) string {
+	if strings.TrimSpace(value) == "" {
+		return ClusterCommunicationEndpointPath
+	}
+	return value
+}
+
+func effectiveClusterCommunicationProtocolVersion(value string) string {
+	if strings.TrimSpace(value) == "" {
+		return ClusterCommunicationProtocolVersion
+	}
+	return value
+}
+
 func (s *ClusterService) GetOperation(id string) (*ClusterOperationStatus, error) {
 	clusterOperations.mu.RLock()
 	status, ok := clusterOperations.items[id]
@@ -332,7 +350,14 @@ func (s *ClusterService) ListDomains() ([]ClusterDomainResponse, error) {
 	}
 	response := make([]ClusterDomainResponse, 0, len(domains))
 	for _, domain := range domains {
-		response = append(response, ClusterDomainResponse{ID: domain.Id, Domain: domain.Domain, HubURL: domain.HubURL, LastVersion: domain.LastVersion})
+		response = append(response, ClusterDomainResponse{
+			ID:                           domain.Id,
+			Domain:                       domain.Domain,
+			HubURL:                       domain.HubURL,
+			CommunicationEndpointPath:    effectiveClusterCommunicationEndpointPath(domain.CommunicationEndpointPath),
+			CommunicationProtocolVersion: effectiveClusterCommunicationProtocolVersion(domain.CommunicationProtocolVersion),
+			LastVersion:                  domain.LastVersion,
+		})
 	}
 	return response, nil
 }

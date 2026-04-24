@@ -37,17 +37,17 @@ type ClusterHubMemberRegister struct {
 }
 
 type ClusterHubMemberResponse struct {
-	MemberID  string `json:"member_id"`
-	NodeID    string `json:"nodeId"`
-	NodeIDAlt string `json:"node_id"`
-	Name      string `json:"name"`
-	BaseURL   string `json:"baseUrl"`
-	BaseURLAlt string `json:"base_url"`
-	PublicKey string `json:"publicKey"`
+	MemberID     string `json:"member_id"`
+	NodeID       string `json:"nodeId"`
+	NodeIDAlt    string `json:"node_id"`
+	Name         string `json:"name"`
+	BaseURL      string `json:"baseUrl"`
+	BaseURLAlt   string `json:"base_url"`
+	PublicKey    string `json:"publicKey"`
 	PublicKeyAlt string `json:"public_key"`
-	PeerToken string `json:"peerToken"`
+	PeerToken    string `json:"peerToken"`
 	PeerTokenAlt string `json:"peer_token"`
-	Address   string `json:"address"`
+	Address      string `json:"address"`
 }
 
 type ClusterHubOperationResponse struct {
@@ -62,10 +62,30 @@ type ClusterHubVersionResponse struct {
 	Version int64 `json:"version"`
 }
 
+type ClusterHubCommunicationResponse struct {
+	EndpointPath    string `json:"endpoint_path"`
+	ProtocolVersion string `json:"protocol_version"`
+}
+
 type ClusterHubSnapshotResponse struct {
-	DomainID string                     `json:"domain_id"`
-	Version int64                      `json:"version"`
-	Members []ClusterHubMemberResponse `json:"members"`
+	DomainID      string                          `json:"domain_id"`
+	Version       int64                           `json:"version"`
+	Communication ClusterHubCommunicationResponse `json:"communication"`
+	Members       []ClusterHubMemberResponse      `json:"members"`
+}
+
+func (s ClusterHubSnapshotResponse) EffectiveCommunicationEndpointPath() string {
+	if s.Communication.EndpointPath != "" {
+		return s.Communication.EndpointPath
+	}
+	return ClusterCommunicationEndpointPath
+}
+
+func (s ClusterHubSnapshotResponse) EffectiveCommunicationProtocolVersion() string {
+	if s.Communication.ProtocolVersion != "" {
+		return s.Communication.ProtocolVersion
+	}
+	return ClusterCommunicationProtocolVersion
 }
 
 func (m ClusterHubMemberResponse) EffectiveNodeID() string {

@@ -6,9 +6,9 @@ import (
 	"encoding/json"
 	"errors"
 	"io"
+	"net"
 	"net/http"
 	"net/url"
-	"net"
 	"strings"
 	"time"
 
@@ -16,9 +16,12 @@ import (
 	"github.com/alireza0/s-ui/src/backend/internal/infra/db/model"
 )
 
+const ClusterCommunicationEndpointPath = "/_cluster"
+const ClusterCommunicationProtocolVersion = "v1"
+
 type ClusterHubSyncer struct {
-	client clusterHubClient
-	store  clusterServiceStore
+	client         clusterHubClient
+	store          clusterServiceStore
 	secretProvider clusterSecretProvider
 }
 
@@ -74,18 +77,20 @@ func (s *ClusterHubSyncer) SyncDomain(ctx context.Context, domain *model.Cluster
 			}
 		}
 		members = append(members, model.ClusterMember{
-			NodeID:      item.EffectiveNodeID(),
-			Name:        item.Name,
-			BaseURL:     item.EffectiveBaseURL(),
-			PublicKey:   item.EffectivePublicKey(),
+			NodeID:             item.EffectiveNodeID(),
+			Name:               item.Name,
+			BaseURL:            item.EffectiveBaseURL(),
+			PublicKey:          item.EffectivePublicKey(),
 			PeerTokenEncrypted: peerTokenEncrypted,
-			DomainID:    domain.Id,
-			LastVersion: snapshot.Version,
+			DomainID:           domain.Id,
+			LastVersion:        snapshot.Version,
 		})
 	}
 	if err := store.ReplaceDomainMembers(domain.Id, members); err != nil {
 		return err
 	}
+	domain.CommunicationEndpointPath = snapshot.EffectiveCommunicationEndpointPath()
+	domain.CommunicationProtocolVersion = snapshot.EffectiveCommunicationProtocolVersion()
 	domain.LastVersion = snapshot.Version
 	if domain.LastVersion == 0 {
 		domain.LastVersion = version
@@ -197,7 +202,7 @@ func clusterPeerMessageURL(baseURL string) (string, error) {
 	if err := validateClusterPeerScheme(parsed); err != nil {
 		return "", err
 	}
-	parsed.Path = strings.TrimSuffix(parsed.Path, "/") + "/cluster/message"
+	parsed.Path = strings.TrimSuffix(parsed.Path, "/") + ClusterCommunicationEndpointPath + "/" + ClusterCommunicationProtocolVersion + "/events"
 	parsed.RawPath = ""
 	return parsed.String(), nil
 }

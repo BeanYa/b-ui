@@ -206,7 +206,7 @@ func TestClusterMessageReceiveBypassesSessionAndForwardsToken(t *testing.T) {
 	if err != nil {
 		t.Fatalf("marshal envelope: %v", err)
 	}
-	req := httptest.NewRequest(http.MethodPost, "/cluster/message", bytes.NewReader(body))
+	req := httptest.NewRequest(http.MethodPost, "/_cluster/v1/events", bytes.NewReader(body))
 	req.Header.Set("Content-Type", "application/json")
 	req.Header.Set("X-Cluster-Token", "cluster-token")
 	recorder := httptest.NewRecorder()
@@ -229,7 +229,7 @@ func TestClusterMessageReceiveBypassesSessionAndForwardsToken(t *testing.T) {
 
 func TestClusterMessageReceiveReturnsNon200OnBindFailure(t *testing.T) {
 	router, _ := newTestClusterRouter()
-	req := httptest.NewRequest(http.MethodPost, "/cluster/message", bytes.NewBufferString(`{"schemaVersion":`))
+	req := httptest.NewRequest(http.MethodPost, "/_cluster/v1/events", bytes.NewBufferString(`{"schemaVersion":`))
 	req.Header.Set("Content-Type", "application/json")
 	recorder := httptest.NewRecorder()
 
@@ -247,7 +247,7 @@ func TestClusterMessageReceiveReturnsNon200OnServiceFailure(t *testing.T) {
 	if err != nil {
 		t.Fatalf("marshal envelope: %v", err)
 	}
-	req := httptest.NewRequest(http.MethodPost, "/cluster/message", bytes.NewReader(body))
+	req := httptest.NewRequest(http.MethodPost, "/_cluster/v1/events", bytes.NewReader(body))
 	req.Header.Set("Content-Type", "application/json")
 	req.Header.Set("X-Cluster-Token", "cluster-token")
 	recorder := httptest.NewRecorder()

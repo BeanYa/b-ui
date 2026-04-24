@@ -122,14 +122,38 @@ func RegisterClusterMessageRoute(router gin.IRoutes, clusterService clusterAPISe
 		}
 		c.JSON(http.StatusOK, Msg{Success: true, Msg: clusterMessage(nil)})
 	})
+	router.GET(ClusterHeartbeatPath("/"), func(c *gin.Context) {
+		c.JSON(http.StatusOK, gin.H{
+			"success": true,
+			"status":  "ok",
+		})
+	})
+	router.GET(ClusterPingPath("/"), func(c *gin.Context) {
+		c.JSON(http.StatusOK, gin.H{
+			"success": true,
+			"pong":    true,
+		})
+	})
 }
 
 func ClusterMessagePath(basePath string) string {
+	return clusterProtocolPath(basePath, "events")
+}
+
+func ClusterHeartbeatPath(basePath string) string {
+	return clusterProtocolPath(basePath, "heartbeat")
+}
+
+func ClusterPingPath(basePath string) string {
+	return clusterProtocolPath(basePath, "ping")
+}
+
+func clusterProtocolPath(basePath string, action string) string {
 	trimmed := strings.TrimSuffix(basePath, "/")
 	if trimmed == "" {
-		return "/cluster/message"
+		return service.ClusterCommunicationEndpointPath + "/" + service.ClusterCommunicationProtocolVersion + "/" + action
 	}
-	return trimmed + "/cluster/message"
+	return trimmed + service.ClusterCommunicationEndpointPath + "/" + service.ClusterCommunicationProtocolVersion + "/" + action
 }
 
 func clusterMessage(err error) string {
