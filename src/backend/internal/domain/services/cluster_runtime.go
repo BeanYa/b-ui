@@ -115,6 +115,7 @@ type ClusterHTTPBroadcaster struct {
 	secretProvider clusterSecretProvider
 	store          clusterBroadcastStore
 	HTTPClient     *http.Client
+	saveAckAttempt func(messageID string, targetNode string, status string, errorMessage string) error
 }
 
 type clusterBroadcastStore interface {
@@ -160,7 +161,7 @@ func (b *ClusterHTTPBroadcaster) BroadcastNotifyVersion(ctx context.Context, ver
 		if err := SignClusterPeerMessage(identity, message); err != nil {
 			return err
 		}
-		delivery := &ClusterPeerDeliveryService{HTTPClient: b.httpClient()}
+		delivery := &ClusterPeerDeliveryService{HTTPClient: b.httpClient(), saveAckAttempt: b.getAckAttemptSaver()}
 		if err := delivery.Send(ctx, message, member, token); err != nil {
 			envelope, legacyErr := SignClusterNotifyVersionEnvelope(identity, member.Domain.Domain, version, message.CreatedAt)
 			if legacyErr != nil {
@@ -168,6 +169,9 @@ func (b *ClusterHTTPBroadcaster) BroadcastNotifyVersion(ctx context.Context, ver
 			}
 			if fallbackErr := delivery.SendEnvelope(ctx, envelope, member, token); fallbackErr != nil {
 				return err
+			}
+			if ackErr := b.getAckAttemptSaver()(message.MessageID, member.NodeID, PeerAckStatusSucceeded, ""); ackErr != nil {
+				return ackErr
 			}
 		}
 	}
@@ -179,6 +183,13 @@ func (b *ClusterHTTPBroadcaster) httpClient() *http.Client {
 		return b.HTTPClient
 	}
 	return &http.Client{Timeout: 10 * time.Second}
+}
+
+func (b *ClusterHTTPBroadcaster) getAckAttemptSaver() func(messageID string, targetNode string, status string, errorMessage string) error {
+	if b.saveAckAttempt != nil {
+		return b.saveAckAttempt
+	}
+	return SaveClusterPeerAckAttempt
 }
 
 func (b *ClusterHTTPBroadcaster) getSecretProvider() clusterSecretProvider {

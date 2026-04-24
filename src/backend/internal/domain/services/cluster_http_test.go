@@ -71,6 +71,7 @@ func TestClusterHTTPBroadcasterRejectsNonHttpsPeerTargets(t *testing.T) {
 			PeerTokenEncrypted: mustEncryptClusterToken(t, "panel-secret-for-cluster-tests", "peer-token-a"),
 			Domain:             &model.ClusterDomain{Domain: "edge.example.com", TokenEncrypted: mustEncryptClusterToken(t, "panel-secret-for-cluster-tests", "domain-token")},
 		}}},
+		saveAckAttempt: noopPeerAckAttempt,
 	}
 
 	if err := broadcaster.BroadcastNotifyVersion(context.Background(), 9, ""); err == nil {
@@ -150,7 +151,9 @@ func TestClusterHTTPBroadcasterFallsBackToLegacyEnvelopeWhenPeerMessageRejected(
 	local := newTestClusterLocalNode(t, "node-local")
 	var receivedTypes []string
 	var legacyEnvelope ClusterEnvelope
+	var peerMessage PeerMessage
 	var receivedTokens []string
+	var ackAttempts []model.ClusterPeerAckState
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		receivedTokens = append(receivedTokens, r.Header.Get("X-Cluster-Token"))
 		var raw map[string]any
@@ -159,6 +162,13 @@ func TestClusterHTTPBroadcasterFallsBackToLegacyEnvelopeWhenPeerMessageRejected(
 		}
 		if _, ok := raw["messageId"]; ok {
 			receivedTypes = append(receivedTypes, "peer")
+			body, err := json.Marshal(raw)
+			if err != nil {
+				t.Fatalf("marshal peer raw body: %v", err)
+			}
+			if err := json.Unmarshal(body, &peerMessage); err != nil {
+				t.Fatalf("decode peer message: %v", err)
+			}
 			w.Header().Set("Content-Type", "application/json")
 			_, _ = w.Write([]byte(`{"success":false,"msg":"unsupported peer message"}`))
 			return
@@ -186,6 +196,10 @@ func TestClusterHTTPBroadcasterFallsBackToLegacyEnvelopeWhenPeerMessageRejected(
 			Domain:             &model.ClusterDomain{Domain: "edge.example.com", TokenEncrypted: mustEncryptClusterToken(t, "panel-secret-for-cluster-tests", "domain-token")},
 		}}},
 		HTTPClient: server.Client(),
+		saveAckAttempt: func(messageID string, targetNode string, status string, errorMessage string) error {
+			ackAttempts = append(ackAttempts, model.ClusterPeerAckState{MessageID: messageID, TargetNode: targetNode, Status: status, Error: errorMessage})
+			return nil
+		},
 	}
 
 	if err := broadcaster.BroadcastNotifyVersion(context.Background(), 9, ""); err != nil {
@@ -202,6 +216,15 @@ func TestClusterHTTPBroadcasterFallsBackToLegacyEnvelopeWhenPeerMessageRejected(
 	}
 	if _, err := VerifyClusterEnvelope(&legacyEnvelope, local.PublicKey); err != nil {
 		t.Fatalf("expected signed legacy envelope: %v", err)
+	}
+	if len(ackAttempts) != 2 {
+		t.Fatalf("expected failed peer ack then successful fallback ack, got %#v", ackAttempts)
+	}
+	if ackAttempts[0].MessageID != peerMessage.MessageID || ackAttempts[0].TargetNode != "node-a" || ackAttempts[0].Status != PeerAckStatusFailed || ackAttempts[0].Error == "" {
+		t.Fatalf("unexpected failed peer ack attempt: %#v", ackAttempts[0])
+	}
+	if ackAttempts[1].MessageID != peerMessage.MessageID || ackAttempts[1].TargetNode != "node-a" || ackAttempts[1].Status != PeerAckStatusSucceeded || ackAttempts[1].Error != "" {
+		t.Fatalf("unexpected successful fallback ack attempt: %#v", ackAttempts[1])
 	}
 }
 
@@ -223,7 +246,8 @@ func TestClusterHTTPBroadcasterDoesNotFallbackWhenPeerMessageSucceeds(t *testing
 			PeerTokenEncrypted: mustEncryptClusterToken(t, "panel-secret-for-cluster-tests", "peer-token-a"),
 			Domain:             &model.ClusterDomain{Domain: "edge.example.com", TokenEncrypted: mustEncryptClusterToken(t, "panel-secret-for-cluster-tests", "domain-token")},
 		}}},
-		HTTPClient: server.Client(),
+		HTTPClient:     server.Client(),
+		saveAckAttempt: noopPeerAckAttempt,
 	}
 
 	if err := broadcaster.BroadcastNotifyVersion(context.Background(), 9, ""); err != nil {
@@ -272,7 +296,8 @@ func TestClusterHTTPBroadcasterSkipsLocalIdentityNode(t *testing.T) {
 			PeerTokenEncrypted: mustEncryptClusterToken(t, "panel-secret-for-cluster-tests", "peer-token-remote"),
 			Domain:             domain,
 		}}},
-		HTTPClient: remoteServer.Client(),
+		HTTPClient:     remoteServer.Client(),
+		saveAckAttempt: noopPeerAckAttempt,
 	}
 
 	if err := broadcaster.BroadcastNotifyVersion(context.Background(), 9, "node-unrelated"); err != nil {
@@ -290,6 +315,10 @@ type stubClusterBroadcastStore struct{ members []model.ClusterMember }
 
 func (s *stubClusterBroadcastStore) ListMembersWithDomain() ([]model.ClusterMember, error) {
 	return s.members, nil
+}
+
+func noopPeerAckAttempt(string, string, string, string) error {
+	return nil
 }
 
 func mustEncryptClusterToken(t *testing.T, secret string, token string) string {

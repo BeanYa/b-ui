@@ -24,6 +24,11 @@ const (
 	PeerEventStatusDead        = "dead"
 )
 
+const (
+	PeerAckStatusSucceeded = "succeeded"
+	PeerAckStatusFailed    = "failed"
+)
+
 type PeerEventState struct {
 	MessageID   string
 	PayloadHash string
@@ -226,6 +231,37 @@ func SaveClusterPeerWorkflowStep(workflowID string, stepID string, domainID stri
 			"result_hash",
 			"error",
 			"updated_at",
+		}),
+	}).Create(state).Error
+}
+
+func SaveClusterPeerAckAttempt(messageID string, targetNode string, status string, errorMessage string) error {
+	if messageID == "" || targetNode == "" {
+		return nil
+	}
+	db := database.GetDB()
+	if db == nil || db.Config == nil {
+		return nil
+	}
+	now := time.Now().Unix()
+	state := &model.ClusterPeerAckState{
+		MessageID:  messageID,
+		TargetNode: targetNode,
+		Status:     status,
+		Attempts:   1,
+		Error:      errorMessage,
+		UpdatedAt:  now,
+	}
+	return db.Clauses(clause.OnConflict{
+		Columns: []clause.Column{
+			{Name: "message_id"},
+			{Name: "target_node"},
+		},
+		DoUpdates: clause.Assignments(map[string]interface{}{
+			"status":     status,
+			"attempts":   gorm.Expr("cluster_peer_ack_states.attempts + 1"),
+			"error":      errorMessage,
+			"updated_at": now,
 		}),
 	}).Create(state).Error
 }

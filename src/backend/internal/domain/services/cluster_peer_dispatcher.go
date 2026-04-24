@@ -86,6 +86,10 @@ func (d *ClusterPeerDispatcher) Dispatch(ctx context.Context, domain *model.Clus
 		return store.MarkEventState(state.MessageID, PeerEventStatusUnsupported, "")
 	}
 
+	if message.Category == PeerCategoryResponse {
+		return store.MarkEventState(state.MessageID, PeerEventStatusIgnored, "response_unhandled")
+	}
+
 	err = errors.New("unsupported_action")
 	forwardedNextStep, chainErr := d.completeChainStep(ctx, domain, message, PeerEventStatusFailed, err.Error())
 	if chainErr != nil {

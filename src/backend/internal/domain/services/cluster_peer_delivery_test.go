@@ -1,8 +1,14 @@
 package service
 
 import (
+	"context"
+	"net/http"
+	"net/http/httptest"
+	"path/filepath"
+	"strings"
 	"testing"
 
+	database "github.com/alireza0/s-ui/src/backend/internal/infra/db"
 	"github.com/alireza0/s-ui/src/backend/internal/infra/db/model"
 )
 
@@ -80,4 +86,59 @@ func TestExpandPeerRouteBroadcastWithCapabilityRequiredFailsClosed(t *testing.T)
 	if len(targets) != 0 {
 		t.Fatalf("expected capability selector to fail closed, got %#v", targets)
 	}
+}
+
+func TestPeerDeliveryRecordsAckAttempts(t *testing.T) {
+	if err := database.InitDB(filepath.Join(t.TempDir(), "peer-delivery-ack.db")); err != nil {
+		if strings.Contains(err.Error(), "go-sqlite3 requires cgo") || strings.Contains(err.Error(), "C compiler") {
+			t.Skipf("sqlite test database unavailable in this toolchain: %v", err)
+		}
+		t.Fatalf("init test db: %v", err)
+	}
+
+	failingServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		http.Error(w, "temporary failure", http.StatusBadGateway)
+	}))
+	defer failingServer.Close()
+
+	message := &PeerMessage{
+		MessageID: "msg-ack",
+		Route: RoutePlan{Delivery: &DeliveryPolicy{
+			Ack: DeliveryAckNode,
+		}},
+	}
+	member := model.ClusterMember{NodeID: "node-b", BaseURL: failingServer.URL}
+	delivery := &ClusterPeerDeliveryService{HTTPClient: failingServer.Client()}
+
+	if err := delivery.Send(context.Background(), message, member, "peer-token"); err == nil {
+		t.Fatal("expected failed delivery")
+	}
+	ack := loadPeerAckState(t, message.MessageID, member.NodeID)
+	if ack.Status != PeerAckStatusFailed || ack.Attempts != 1 || ack.Error == "" {
+		t.Fatalf("expected failed first ack attempt, got %#v", ack)
+	}
+
+	successServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		_, _ = w.Write([]byte(`{"success":true}`))
+	}))
+	defer successServer.Close()
+
+	member.BaseURL = successServer.URL
+	delivery.HTTPClient = successServer.Client()
+	if err := delivery.Send(context.Background(), message, member, "peer-token"); err != nil {
+		t.Fatalf("send success: %v", err)
+	}
+	ack = loadPeerAckState(t, message.MessageID, member.NodeID)
+	if ack.Status != PeerAckStatusSucceeded || ack.Attempts != 2 || ack.Error != "" {
+		t.Fatalf("expected succeeded second ack attempt, got %#v", ack)
+	}
+}
+
+func loadPeerAckState(t *testing.T, messageID string, targetNode string) model.ClusterPeerAckState {
+	t.Helper()
+	var ack model.ClusterPeerAckState
+	if err := database.GetDB().Where("message_id = ? AND target_node = ?", messageID, targetNode).First(&ack).Error; err != nil {
+		t.Fatalf("load ack state: %v", err)
+	}
+	return ack
 }

@@ -35,6 +35,28 @@ func TestPeerDispatcherMarksUnsupportedEventWithoutError(t *testing.T) {
 	}
 }
 
+func TestPeerDispatcherIgnoresUnknownResponseWithoutError(t *testing.T) {
+	store := newMemoryPeerStore()
+	dispatcher := ClusterPeerDispatcher{eventStore: store}
+	message := &PeerMessage{
+		MessageID:   "msg-response",
+		DomainID:    "edge.example.com",
+		PayloadHash: "hash",
+		Category:    PeerCategoryResponse,
+		Action:      "future.response",
+	}
+	if err := dispatcher.Dispatch(context.Background(), &model.ClusterDomain{Id: 1, Domain: "edge.example.com"}, &model.ClusterMember{NodeID: "node-a"}, message); err != nil {
+		t.Fatalf("dispatch: %v", err)
+	}
+	state, err := store.RecordReceived(message)
+	if err != nil {
+		t.Fatalf("state: %v", err)
+	}
+	if state.Status != PeerEventStatusIgnored {
+		t.Fatalf("expected ignored, got %q", state.Status)
+	}
+}
+
 func TestPeerDispatcherHandlesDomainClusterChanged(t *testing.T) {
 	store := newMemoryPeerStore()
 	syncer := &stubPeerSyncer{}

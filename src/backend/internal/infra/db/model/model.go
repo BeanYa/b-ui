@@ -133,8 +133,8 @@ type ClusterPeerEventState struct {
 
 type ClusterPeerAckState struct {
 	Id          uint   `json:"id" gorm:"primaryKey;autoIncrement"`
-	MessageID   string `json:"messageId" gorm:"index"`
-	TargetNode  string `json:"targetNode" gorm:"index"`
+	MessageID   string `json:"messageId" gorm:"index;uniqueIndex:idx_cluster_peer_ack_target"`
+	TargetNode  string `json:"targetNode" gorm:"index;uniqueIndex:idx_cluster_peer_ack_target"`
 	Status      string `json:"status" gorm:"index"`
 	Attempts    int    `json:"attempts"`
 	NextRetryAt int64  `json:"nextRetryAt" gorm:"index"`
