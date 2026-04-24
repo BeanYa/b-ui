@@ -66,6 +66,11 @@ func (s *PanelService) GetUpdateInfo() (*PanelUpdateInfo, error) {
 	}
 
 	currentVersion := canonicalizeReleaseTag(config.GetVersion())
+	if reconciledState, changed := reconcilePanelUpdateStateWithCurrentVersion(state, currentVersion, time.Now()); changed {
+		state = reconciledState
+		_ = saveOrClearPanelUpdateState(state)
+	}
+
 	supported, reason := panelUpdateCapability()
 	info := &PanelUpdateInfo{
 		Supported:         supported,
@@ -350,6 +355,28 @@ func reconcilePanelUpdateState(state *PanelUpdateState, now time.Time, isUnitAct
 	return state, true
 }
 
+func reconcilePanelUpdateStateWithCurrentVersion(state *PanelUpdateState, currentVersion string, now time.Time) (*PanelUpdateState, bool) {
+	if state == nil || state.TargetVersion == "" || currentVersion == "" {
+		return state, false
+	}
+
+	if compareReleaseTags(currentVersion, state.TargetVersion) == "older" {
+		return state, false
+	}
+
+	switch state.Phase {
+	case "failed":
+		return nil, true
+	case "running":
+		state.Phase = "completed"
+		state.Message = "current_version_reached"
+		state.UpdatedAt = now.Unix()
+		return state, true
+	default:
+		return state, false
+	}
+}
+
 func panelUpdateUnitActive() (bool, error) {
 	err := exec.Command("systemctl", "is-active", "--quiet", panelUpdateUnitName).Run()
 	if err == nil {
@@ -371,6 +398,17 @@ func savePanelUpdateState(state *PanelUpdateState) error {
 		return err
 	}
 	return os.WriteFile(panelUpdateStateFilePath(), content, 0o644)
+}
+
+func saveOrClearPanelUpdateState(state *PanelUpdateState) error {
+	if state == nil {
+		err := os.Remove(panelUpdateStateFilePath())
+		if errors.Is(err, os.ErrNotExist) {
+			return nil
+		}
+		return err
+	}
+	return savePanelUpdateState(state)
 }
 
 func panelUpdateStateFilePath() string {

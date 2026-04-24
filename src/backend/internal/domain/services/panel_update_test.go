@@ -57,6 +57,49 @@ func TestReconcilePanelUpdateStateMarksInactiveRunningTaskFailed(t *testing.T) {
 	}
 }
 
+func TestReconcilePanelUpdateStateClearsFailedStateCoveredByCurrentVersion(t *testing.T) {
+	state := &PanelUpdateState{
+		Phase:         "failed",
+		TargetVersion: "v0.1.17",
+		StartedAt:     time.Now().Add(-10 * time.Minute).Unix(),
+		UpdatedAt:     time.Now().Add(-9 * time.Minute).Unix(),
+		LogPath:       "/tmp/b-ui-panel-update.log",
+		Message:       "update_task_stopped",
+	}
+
+	reconciled, changed := reconcilePanelUpdateStateWithCurrentVersion(state, "v0.1.18", time.Now())
+
+	if !changed {
+		t.Fatal("expected stale failed update state to be cleared")
+	}
+	if reconciled != nil {
+		t.Fatalf("reconciled state = %#v, want nil", reconciled)
+	}
+}
+
+func TestReconcilePanelUpdateStateCompletesRunningStateCoveredByCurrentVersion(t *testing.T) {
+	now := time.Now()
+	state := &PanelUpdateState{
+		Phase:         "running",
+		TargetVersion: "v0.1.18",
+		StartedAt:     now.Add(-2 * time.Minute).Unix(),
+		UpdatedAt:     now.Add(-2 * time.Minute).Unix(),
+		LogPath:       "/tmp/b-ui-panel-update.log",
+	}
+
+	reconciled, changed := reconcilePanelUpdateStateWithCurrentVersion(state, "v0.1.18", now)
+
+	if !changed {
+		t.Fatal("expected running update state to be completed")
+	}
+	if reconciled == nil || reconciled.Phase != "completed" {
+		t.Fatalf("phase = %#v, want completed state", reconciled)
+	}
+	if reconciled.Message != "current_version_reached" {
+		t.Fatalf("message = %q, want current_version_reached", reconciled.Message)
+	}
+}
+
 func TestResolvePanelUpdateLatestVersionUsesRunningTargetWithoutGithubFetch(t *testing.T) {
 	state := &PanelUpdateState{
 		Phase:         "running",
