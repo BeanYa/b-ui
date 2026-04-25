@@ -21,6 +21,8 @@ type clusterAPIService interface {
 	ReceiveMessage(*service.ClusterEnvelope, string) error
 	Heartbeat(string) (*service.ClusterPeerStatus, error)
 	Ping(string) (*service.ClusterPeerStatus, error)
+	HandleAction(c *gin.Context)
+	Info(c *gin.Context)
 }
 
 func (a *APIHandler) requireClusterAdmin(c *gin.Context) bool {
@@ -139,6 +141,12 @@ func RegisterClusterMessageRoute(router gin.IRoutes, clusterService clusterAPISe
 			return
 		}
 		c.JSON(http.StatusOK, status)
+	})
+	router.GET(ClusterInfoPath("/"), func(c *gin.Context) {
+		clusterService.Info(c)
+	})
+	router.POST(ClusterActionPath("/"), func(c *gin.Context) {
+		clusterService.HandleAction(c)
 	})
 }
 

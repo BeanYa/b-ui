@@ -20,7 +20,7 @@ const ClusterCommunicationEndpointPath = "/_cluster"
 const ClusterCommunicationProtocolVersion = "v1"
 
 func ClusterCommunicationSupportedActions() []string {
-	return []string{"events", "heartbeat", "ping"}
+	return []string{"events", "heartbeat", "ping", "info", "action"}
 }
 
 type ClusterHubSyncer struct {

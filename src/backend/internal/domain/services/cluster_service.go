@@ -4,14 +4,19 @@ import (
 	"context"
 	"errors"
 	"net"
+	"net/http"
 	"net/url"
 	"sort"
 	"strings"
 	"sync"
 	"time"
 
+	"github.com/gin-gonic/gin"
+
 	database "github.com/alireza0/s-ui/src/backend/internal/infra/db"
 	"github.com/alireza0/s-ui/src/backend/internal/infra/db/model"
+	"github.com/alireza0/s-ui/src/backend/internal/domain/services/cluster/router"
+	clustertypes "github.com/alireza0/s-ui/src/backend/internal/domain/services/cluster/types"
 	"github.com/gofrs/uuid/v5"
 )
 
@@ -66,6 +71,7 @@ type ClusterService struct {
 	hubClient      clusterHubClient
 	store          clusterServiceStore
 	secretProvider clusterSecretProvider
+	actionRouter   *router.ActionRouter
 }
 
 type clusterSecretProvider interface {
@@ -577,6 +583,31 @@ func (s *ClusterService) Ping(string) (*ClusterPeerStatus, error) {
 			"observedAt": time.Now().Unix(),
 		},
 	}, nil
+}
+
+func (s *ClusterService) Info(c *gin.Context) {
+	if s.actionRouter == nil {
+		s.actionRouter = router.NewActionRouter()
+	}
+	c.JSON(http.StatusOK, clustertypes.InfoResponse{
+		Actions: s.actionRouter.Actions(),
+	})
+}
+
+func (s *ClusterService) HandleAction(c *gin.Context) {
+	var req clustertypes.ActionRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, clustertypes.ActionResponse{
+			Status:       "error",
+			ErrorMessage: "invalid request: " + err.Error(),
+		})
+		return
+	}
+	if s.actionRouter == nil {
+		s.actionRouter = router.NewActionRouter()
+	}
+	resp := s.actionRouter.Handle(req)
+	c.JSON(http.StatusOK, resp)
 }
 
 func (s *ClusterService) validateClusterPeerToken(member *model.ClusterMember, token string) error {

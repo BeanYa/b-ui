@@ -288,7 +288,7 @@ func TestClusterServiceListDomainsIncludesCommunicationActions(t *testing.T) {
 	if domains[0].CommunicationProtocolVersion != "v1" {
 		t.Fatalf("expected protocol version, got %q", domains[0].CommunicationProtocolVersion)
 	}
-	expectedActions := []string{"events", "heartbeat", "ping"}
+	expectedActions := []string{"events", "heartbeat", "ping", "info", "action"}
 	if fmt.Sprint(domains[0].SupportedActions) != fmt.Sprint(expectedActions) {
 		t.Fatalf("expected supported actions %#v, got %#v", expectedActions, domains[0].SupportedActions)
 	}

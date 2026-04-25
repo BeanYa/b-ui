@@ -417,4 +417,12 @@ func (s *stubClusterAPIService) Ping(string) (*service.ClusterPeerStatus, error)
 	return &service.ClusterPeerStatus{Status: "processed", Code: "ok", NodeID: "node-local"}, nil
 }
 
+func (s *stubClusterAPIService) HandleAction(c *gin.Context) {
+	c.JSON(http.StatusOK, gin.H{"status": "stub", "action": "handle_action"})
+}
+
+func (s *stubClusterAPIService) Info(c *gin.Context) {
+	c.JSON(http.StatusOK, gin.H{"actions": []string{}})
+}
+
 var _ = model.ClusterMember{}
