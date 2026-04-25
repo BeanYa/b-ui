@@ -49,6 +49,14 @@ type ClusterMemberResponse struct {
 	LastVersion int64  `json:"lastVersion"`
 }
 
+type ClusterPeerStatus struct {
+	Status  string         `json:"status"`
+	Code    string         `json:"code"`
+	NodeID  string         `json:"nodeId,omitempty"`
+	Message string         `json:"message,omitempty"`
+	Details map[string]any `json:"details,omitempty"`
+}
+
 type ClusterService struct {
 	SettingService
 	localIdentity  ClusterLocalIdentityService
@@ -508,6 +516,62 @@ func (s *ClusterService) ReceiveMessage(envelope *ClusterEnvelope, token string)
 	return s.getStore().SaveDomain(domain)
 }
 
+func (s *ClusterService) Heartbeat(token string) (*ClusterPeerStatus, error) {
+	localIdentity, err := s.localIdentity.GetOrCreate()
+	if err != nil {
+		return nil, err
+	}
+	now := time.Now().Unix()
+	if token == "" {
+		return &ClusterPeerStatus{
+			Status: "processed",
+			Code:   "ok",
+			NodeID: localIdentity.NodeID,
+			Details: map[string]any{
+				"observedAt": now,
+			},
+		}, nil
+	}
+
+	member, domain, err := s.findLocalMemberByPeerToken(token)
+	if err != nil {
+		return nil, err
+	}
+	if member == nil || domain == nil {
+		return &ClusterPeerStatus{
+			Status:  "rejected",
+			Code:    "invalid_token",
+			Message: "cluster peer token not found",
+		}, nil
+	}
+	return &ClusterPeerStatus{
+		Status: "processed",
+		Code:   "ok",
+		NodeID: localIdentity.NodeID,
+		Details: map[string]any{
+			"domainId":          domain.Domain,
+			"membershipVersion": domain.LastVersion,
+			"observedAt":        now,
+			"memberId":          member.Id,
+		},
+	}, nil
+}
+
+func (s *ClusterService) Ping(string) (*ClusterPeerStatus, error) {
+	localIdentity, err := s.localIdentity.GetOrCreate()
+	if err != nil {
+		return nil, err
+	}
+	return &ClusterPeerStatus{
+		Status: "processed",
+		Code:   "ok",
+		NodeID: localIdentity.NodeID,
+		Details: map[string]any{
+			"observedAt": time.Now().Unix(),
+		},
+	}, nil
+}
+
 func (s *ClusterService) validateClusterPeerToken(member *model.ClusterMember, token string) error {
 	secret, err := s.getSecretProvider().GetSecret()
 	if err != nil {
@@ -521,6 +585,40 @@ func (s *ClusterService) validateClusterPeerToken(member *model.ClusterMember, t
 		return errors.New("cluster peer token not found")
 	}
 	return nil
+}
+
+func (s *ClusterService) findLocalMemberByPeerToken(token string) (*model.ClusterMember, *model.ClusterDomain, error) {
+	localIdentity, err := s.localIdentity.GetOrCreate()
+	if err != nil {
+		return nil, nil, err
+	}
+	members, err := s.getStore().ListMembers()
+	if err != nil {
+		return nil, nil, err
+	}
+	secret, err := s.getSecretProvider().GetSecret()
+	if err != nil {
+		return nil, nil, err
+	}
+	for _, member := range members {
+		if member.NodeID != localIdentity.NodeID || member.PeerTokenEncrypted == "" {
+			continue
+		}
+		decrypted, err := DecryptClusterDomainToken(secret, member.PeerTokenEncrypted)
+		if err != nil {
+			return nil, nil, err
+		}
+		if decrypted != token {
+			continue
+		}
+		domain, err := s.getStore().GetDomain(member.DomainID)
+		if err != nil {
+			return nil, nil, err
+		}
+		copy := member
+		return &copy, domain, nil
+	}
+	return nil, nil, nil
 }
 
 func newClusterOperationStatus(state string, message string) (*ClusterOperationStatus, error) {

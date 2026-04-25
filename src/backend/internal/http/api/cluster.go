@@ -19,6 +19,8 @@ type clusterAPIService interface {
 	DeleteMember(uint) error
 	LeaveDomain(uint) error
 	ReceiveMessage(*service.ClusterEnvelope, string) error
+	Heartbeat(string) (*service.ClusterPeerStatus, error)
+	Ping(string) (*service.ClusterPeerStatus, error)
 }
 
 func (a *APIHandler) requireClusterAdmin(c *gin.Context) bool {
@@ -123,16 +125,20 @@ func RegisterClusterMessageRoute(router gin.IRoutes, clusterService clusterAPISe
 		c.JSON(http.StatusOK, Msg{Success: true, Msg: clusterMessage(nil)})
 	})
 	router.GET(ClusterHeartbeatPath("/"), func(c *gin.Context) {
-		c.JSON(http.StatusOK, gin.H{
-			"success": true,
-			"status":  "ok",
-		})
+		status, err := clusterService.Heartbeat(c.GetHeader("X-Cluster-Token"))
+		if err != nil {
+			c.JSON(http.StatusInternalServerError, gin.H{"status": "failed", "code": "internal_error", "message": err.Error()})
+			return
+		}
+		c.JSON(http.StatusOK, status)
 	})
 	router.GET(ClusterPingPath("/"), func(c *gin.Context) {
-		c.JSON(http.StatusOK, gin.H{
-			"success": true,
-			"pong":    true,
-		})
+		status, err := clusterService.Ping(c.GetHeader("X-Cluster-Token"))
+		if err != nil {
+			c.JSON(http.StatusInternalServerError, gin.H{"status": "failed", "code": "internal_error", "message": err.Error()})
+			return
+		}
+		c.JSON(http.StatusOK, status)
 	})
 }
 

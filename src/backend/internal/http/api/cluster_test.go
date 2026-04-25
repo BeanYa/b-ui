@@ -259,6 +259,58 @@ func TestClusterMessageReceiveReturnsNon200OnServiceFailure(t *testing.T) {
 	}
 }
 
+func TestClusterHeartbeatReturnsProtocolPayloadWithDomainContext(t *testing.T) {
+	router, cluster := newTestClusterRouter()
+	cluster.heartbeatResponse = &service.ClusterPeerStatus{
+		Status: "processed",
+		Code:   "ok",
+		NodeID: "node-local",
+		Details: map[string]any{
+			"domainId":          "edge.example.com",
+			"membershipVersion": float64(9),
+			"observedAt":        float64(1700000000),
+		},
+	}
+
+	req := httptest.NewRequest(http.MethodGet, "/_cluster/v1/heartbeat", nil)
+	req.Header.Set("X-Cluster-Token", "peer-token")
+	recorder := httptest.NewRecorder()
+
+	router.ServeHTTP(recorder, req)
+
+	if recorder.Code != http.StatusOK {
+		t.Fatalf("expected heartbeat status %d, got %d", http.StatusOK, recorder.Code)
+	}
+	var response map[string]any
+	decodeResponse(t, recorder, &response)
+	if response["status"] != "processed" || response["code"] != "ok" {
+		t.Fatalf("expected processed/ok heartbeat, got %#v", response)
+	}
+}
+
+func TestClusterHeartbeatReturnsRejectedCodeForUnknownToken(t *testing.T) {
+	router, cluster := newTestClusterRouter()
+	cluster.heartbeatResponse = &service.ClusterPeerStatus{
+		Status: "rejected",
+		Code:   "invalid_token",
+	}
+
+	req := httptest.NewRequest(http.MethodGet, "/_cluster/v1/heartbeat", nil)
+	req.Header.Set("X-Cluster-Token", "wrong-token")
+	recorder := httptest.NewRecorder()
+
+	router.ServeHTTP(recorder, req)
+
+	if recorder.Code != http.StatusOK {
+		t.Fatalf("expected heartbeat status %d, got %d", http.StatusOK, recorder.Code)
+	}
+	var response map[string]any
+	decodeResponse(t, recorder, &response)
+	if response["code"] != "invalid_token" {
+		t.Fatalf("expected invalid_token code, got %#v", response)
+	}
+}
+
 func newTestClusterRouter() (*gin.Engine, *stubClusterAPIService) {
 	return newTestClusterRouterWithUserService(stubUserService{
 		isFirstUser: func(username string) (bool, error) {
@@ -301,6 +353,8 @@ type stubClusterAPIService struct {
 	domains           []service.ClusterDomainResponse
 	members           []service.ClusterMemberResponse
 	registeredRequest service.ClusterRegisterRequest
+	heartbeatResponse *service.ClusterPeerStatus
+	pingResponse      *service.ClusterPeerStatus
 }
 
 func (s *stubClusterAPIService) Register(request service.ClusterRegisterRequest) (*service.ClusterOperationStatus, error) {
@@ -347,6 +401,20 @@ func (s *stubClusterAPIService) ReceiveMessage(envelope *service.ClusterEnvelope
 	copy := *envelope
 	s.receivedEnvelope = &copy
 	return nil
+}
+
+func (s *stubClusterAPIService) Heartbeat(string) (*service.ClusterPeerStatus, error) {
+	if s.heartbeatResponse != nil {
+		return s.heartbeatResponse, nil
+	}
+	return &service.ClusterPeerStatus{Status: "processed", Code: "ok", NodeID: "node-local"}, nil
+}
+
+func (s *stubClusterAPIService) Ping(string) (*service.ClusterPeerStatus, error) {
+	if s.pingResponse != nil {
+		return s.pingResponse, nil
+	}
+	return &service.ClusterPeerStatus{Status: "processed", Code: "ok", NodeID: "node-local"}, nil
 }
 
 var _ = model.ClusterMember{}
