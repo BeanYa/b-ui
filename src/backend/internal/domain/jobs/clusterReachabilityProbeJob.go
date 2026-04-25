@@ -4,6 +4,7 @@ import (
 	"context"
 
 	service "github.com/alireza0/s-ui/src/backend/internal/domain/services"
+	logger "github.com/alireza0/s-ui/src/backend/internal/infra/logging"
 )
 
 type ClusterReachabilityProbeJob struct {
@@ -17,5 +18,7 @@ func NewClusterReachabilityProbeJob() *ClusterReachabilityProbeJob {
 }
 
 func (j *ClusterReachabilityProbeJob) Run() {
-	_ = j.prober.ProbeIdlePeers(context.Background())
+	if err := j.prober.ProbeIdlePeers(context.Background()); err != nil {
+		logger.Warning("Cluster reachability probe failed: ", err)
+	}
 }

@@ -89,7 +89,11 @@ func (s *ClusterPeerProbeService) ProbeIdlePeers(ctx context.Context) error {
 				rememberErr(err)
 				continue
 			}
-			if !s.getReachability().ShouldProbe(entry) {
+			shouldProbe, err := s.getReachability().shouldProbeWithError(entry)
+			if err != nil {
+				rememberErr(err)
+			}
+			if !shouldProbe {
 				continue
 			}
 			if err := s.probeMember(ctx, member); err != nil {
