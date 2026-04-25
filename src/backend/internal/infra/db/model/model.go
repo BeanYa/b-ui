@@ -102,3 +102,16 @@ type ClusterMember struct {
 	LastNotifiedValue  int64          `json:"lastNotifiedValue" gorm:"default:0"`
 	Domain             *ClusterDomain `json:"domain,omitempty" gorm:"foreignKey:DomainID;references:Id"`
 }
+
+type ClusterPeerReachability struct {
+	Id                    uint   `json:"id" gorm:"primaryKey;autoIncrement"`
+	DomainID              uint   `json:"domainId" gorm:"uniqueIndex:idx_cluster_reachability_domain_target"`
+	TargetNodeID          string `json:"targetNodeId" gorm:"uniqueIndex:idx_cluster_reachability_domain_target"`
+	State                 string `json:"state" gorm:"default:unknown"`
+	LastObservedAt        int64  `json:"lastObservedAt" gorm:"default:0"`
+	LastSuccessAt         int64  `json:"lastSuccessAt" gorm:"default:0"`
+	LastFailureAt         int64  `json:"lastFailureAt" gorm:"default:0"`
+	ConsecutiveFailures   int64  `json:"consecutiveFailures" gorm:"default:0"`
+	NextProbeAt           int64  `json:"nextProbeAt" gorm:"default:0"`
+	LastObservationSource string `json:"lastObservationSource" gorm:"default:''"`
+}

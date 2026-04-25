@@ -22,6 +22,7 @@ func TestClusterHubSyncerSyncDomainPersistsEncryptedPeerTokenPerMember(t *testin
 		}},
 		store:          store,
 		secretProvider: stubClusterSecretProvider{secret: []byte("panel-secret-for-cluster-tests")},
+		reachability:   newTestClusterRuntimeReachabilityService(10),
 	}
 	domain := &model.ClusterDomain{Id: 1, Domain: "edge.example.com", HubURL: "https://hub.example.com", TokenEncrypted: mustEncryptClusterToken(t, "panel-secret-for-cluster-tests", "domain-token")}
 
@@ -50,9 +51,10 @@ func TestClusterHubSyncerSyncDomainPersistsEncryptedPeerTokenPerMember(t *testin
 func TestClusterHubSyncerSyncDomainKeepsDistinctPeerTokensForSameNodeAcrossDomains(t *testing.T) {
 	store := &stubClusterRuntimeStore{}
 	syncer := &ClusterHubSyncer{
-		client: &stubClusterRuntimeHubClient{},
-		store:  store,
+		client:         &stubClusterRuntimeHubClient{},
+		store:          store,
 		secretProvider: stubClusterSecretProvider{secret: []byte("panel-secret-for-cluster-tests")},
+		reachability:   newTestClusterRuntimeReachabilityService(10),
 	}
 	domainA := &model.ClusterDomain{Id: 1, Domain: "edge-a.example.com", HubURL: "https://hub.example.com", TokenEncrypted: mustEncryptClusterToken(t, "panel-secret-for-cluster-tests", "domain-token-a")}
 	domainB := &model.ClusterDomain{Id: 2, Domain: "edge-b.example.com", HubURL: "https://hub.example.com", TokenEncrypted: mustEncryptClusterToken(t, "panel-secret-for-cluster-tests", "domain-token-b")}
@@ -83,6 +85,48 @@ func TestClusterHubSyncerSyncDomainKeepsDistinctPeerTokensForSameNodeAcrossDomai
 	}
 }
 
+func TestClusterHubSyncerSyncDomainClearsReachabilityForRemovedMembers(t *testing.T) {
+	reachabilityStore := newStubClusterReachabilityStore()
+	if err := reachabilityStore.SaveReachability(&model.ClusterPeerReachability{
+		DomainID:     1,
+		TargetNodeID: "node-old",
+		State:        ClusterReachabilityUnreachable,
+	}); err != nil {
+		t.Fatalf("seed removed member reachability: %v", err)
+	}
+
+	store := &stubClusterRuntimeStore{reachabilityStore: reachabilityStore}
+	syncer := &ClusterHubSyncer{
+		client: &stubClusterRuntimeHubClient{
+			snapshot: &ClusterHubSnapshotResponse{
+				Version: 7,
+				Members: []ClusterHubMemberResponse{{NodeID: "node-local"}, {NodeID: "node-new"}},
+			},
+		},
+		store:          store,
+		secretProvider: stubClusterSecretProvider{secret: []byte("panel-secret-for-cluster-tests")},
+		reachability: &ClusterReachabilityService{
+			store:  reachabilityStore,
+			policy: DefaultClusterReachabilityPolicy(),
+			now: func() int64 {
+				return 10
+			},
+		},
+	}
+	domain := &model.ClusterDomain{Id: 1, Domain: "edge.example.com", HubURL: "https://hub.example.com", TokenEncrypted: mustEncryptClusterToken(t, "panel-secret-for-cluster-tests", "domain-token")}
+
+	if err := syncer.SyncDomain(context.Background(), domain, 7); err != nil {
+		t.Fatalf("sync domain: %v", err)
+	}
+	entry, err := reachabilityStore.GetReachability(1, "node-old")
+	if err != nil {
+		t.Fatalf("load removed member reachability: %v", err)
+	}
+	if entry != nil {
+		t.Fatalf("expected removed member reachability to be cleared, got %#v", entry)
+	}
+}
+
 type stubClusterRuntimeHubClient struct {
 	snapshot  *ClusterHubSnapshotResponse
 	snapshots map[string]*ClusterHubSnapshotResponse
@@ -108,9 +152,20 @@ func (s *stubClusterRuntimeHubClient) DeleteMember(context.Context, string, stri
 }
 
 type stubClusterRuntimeStore struct {
-	replaceCalls     []stubClusterRuntimeReplaceCall
-	membersByDomain  map[uint][]model.ClusterMember
-	savedDomainState []*model.ClusterDomain
+	replaceCalls      []stubClusterRuntimeReplaceCall
+	membersByDomain   map[uint][]model.ClusterMember
+	savedDomainState  []*model.ClusterDomain
+	reachabilityStore *stubClusterReachabilityStore
+}
+
+func newTestClusterRuntimeReachabilityService(now int64) *ClusterReachabilityService {
+	return &ClusterReachabilityService{
+		store:  newStubClusterReachabilityStore(),
+		policy: DefaultClusterReachabilityPolicy(),
+		now: func() int64 {
+			return now
+		},
+	}
 }
 
 type stubClusterRuntimeReplaceCall struct {
@@ -118,25 +173,29 @@ type stubClusterRuntimeReplaceCall struct {
 	members  []model.ClusterMember
 }
 
-func (s *stubClusterRuntimeStore) GetDomainByName(string) (*model.ClusterDomain, error) { return nil, nil }
+func (s *stubClusterRuntimeStore) GetDomainByName(string) (*model.ClusterDomain, error) {
+	return nil, nil
+}
 func (s *stubClusterRuntimeStore) SaveDomain(domain *model.ClusterDomain) error {
 	copy := *domain
 	s.savedDomainState = append(s.savedDomainState, &copy)
 	return nil
 }
-func (s *stubClusterRuntimeStore) ListDomains() ([]model.ClusterDomain, error) { return nil, nil }
+func (s *stubClusterRuntimeStore) ListDomains() ([]model.ClusterDomain, error)  { return nil, nil }
 func (s *stubClusterRuntimeStore) GetDomain(uint) (*model.ClusterDomain, error) { return nil, nil }
-func (s *stubClusterRuntimeStore) GetMember(uint) (*model.ClusterMember, error) { return nil, errClusterMemberNotFound }
+func (s *stubClusterRuntimeStore) GetMember(uint) (*model.ClusterMember, error) {
+	return nil, errClusterMemberNotFound
+}
 func (s *stubClusterRuntimeStore) GetMemberByNodeID(string) (*model.ClusterMember, error) {
 	return nil, errClusterMemberNotFound
 }
 func (s *stubClusterRuntimeStore) GetMemberByDomainNodeID(uint, string) (*model.ClusterMember, error) {
 	return nil, errClusterMemberNotFound
 }
-func (s *stubClusterRuntimeStore) SaveMember(*model.ClusterMember) error { return nil }
+func (s *stubClusterRuntimeStore) SaveMember(*model.ClusterMember) error       { return nil }
 func (s *stubClusterRuntimeStore) ListMembers() ([]model.ClusterMember, error) { return nil, nil }
-func (s *stubClusterRuntimeStore) DeleteMember(uint) error { return nil }
-func (s *stubClusterRuntimeStore) DeleteDomain(uint) error { return nil }
+func (s *stubClusterRuntimeStore) DeleteMember(uint) error                     { return nil }
+func (s *stubClusterRuntimeStore) DeleteDomain(uint) error                     { return nil }
 func (s *stubClusterRuntimeStore) ReplaceDomainMembers(domainID uint, members []model.ClusterMember) error {
 	copyMembers := make([]model.ClusterMember, len(members))
 	copy(copyMembers, members)
