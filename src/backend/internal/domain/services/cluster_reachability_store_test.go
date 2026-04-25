@@ -2,12 +2,15 @@ package service
 
 import (
 	"fmt"
+	"sync"
 	"testing"
+	"time"
 
 	"github.com/alireza0/s-ui/src/backend/internal/infra/db/model"
 )
 
 type stubClusterReachabilityStore struct {
+	mu      sync.Mutex
 	entries map[string]*model.ClusterPeerReachability
 }
 
@@ -16,6 +19,9 @@ func newStubClusterReachabilityStore() *stubClusterReachabilityStore {
 }
 
 func (s *stubClusterReachabilityStore) GetReachability(domainID uint, targetNodeID string) (*model.ClusterPeerReachability, error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
 	entry := s.entries[s.key(domainID, targetNodeID)]
 	if entry == nil {
 		return nil, nil
@@ -25,12 +31,18 @@ func (s *stubClusterReachabilityStore) GetReachability(domainID uint, targetNode
 }
 
 func (s *stubClusterReachabilityStore) SaveReachability(entry *model.ClusterPeerReachability) error {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
 	copy := *entry
 	s.entries[s.key(entry.DomainID, entry.TargetNodeID)] = &copy
 	return nil
 }
 
 func (s *stubClusterReachabilityStore) DeleteReachabilityByDomain(domainID uint) error {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
 	for key, entry := range s.entries {
 		if entry.DomainID == domainID {
 			delete(s.entries, key)
@@ -40,6 +52,9 @@ func (s *stubClusterReachabilityStore) DeleteReachabilityByDomain(domainID uint)
 }
 
 func (s *stubClusterReachabilityStore) DeleteReachabilityNotInTargets(domainID uint, targetNodeIDs []string) error {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
 	allowed := map[string]struct{}{}
 	for _, targetNodeID := range targetNodeIDs {
 		allowed[targetNodeID] = struct{}{}
@@ -57,6 +72,16 @@ func (s *stubClusterReachabilityStore) DeleteReachabilityNotInTargets(domainID u
 
 func (s *stubClusterReachabilityStore) key(domainID uint, targetNodeID string) string {
 	return fmt.Sprintf("%d/%s", domainID, targetNodeID)
+}
+
+type delayedClusterReachabilityStore struct {
+	*stubClusterReachabilityStore
+	saveDelay time.Duration
+}
+
+func (s *delayedClusterReachabilityStore) SaveReachability(entry *model.ClusterPeerReachability) error {
+	time.Sleep(s.saveDelay)
+	return s.stubClusterReachabilityStore.SaveReachability(entry)
 }
 
 func TestClusterReachabilityUpsertClauseTargetsDomainAndNode(t *testing.T) {
@@ -86,5 +111,58 @@ func TestClusterReachabilityUpsertClauseTargetsDomainAndNode(t *testing.T) {
 		if assignments[index].Column.Name != name {
 			t.Fatalf("expected assignment %d to target %q, got %q", index, name, assignments[index].Column.Name)
 		}
+	}
+}
+
+func TestClusterReachabilitySerializesConcurrentFailureMutations(t *testing.T) {
+	store := &delayedClusterReachabilityStore{
+		stubClusterReachabilityStore: newStubClusterReachabilityStore(),
+		saveDelay:                    2 * time.Millisecond,
+	}
+	service := &ClusterReachabilityService{
+		store:  store,
+		policy: DefaultClusterReachabilityPolicy(),
+		now: func() int64 {
+			return time.Unix(1_700_000_000, 0).Unix()
+		},
+	}
+
+	const failures = 16
+	start := make(chan struct{})
+	errs := make(chan error, failures)
+	var wg sync.WaitGroup
+
+	for index := 0; index < failures; index++ {
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			<-start
+			_, err := service.RecordTransportFailure(21, "node-b", "runtime")
+			errs <- err
+		}()
+	}
+
+	close(start)
+	wg.Wait()
+	close(errs)
+
+	for err := range errs {
+		if err != nil {
+			t.Fatalf("record concurrent failure: %v", err)
+		}
+	}
+
+	entry, err := store.GetReachability(21, "node-b")
+	if err != nil {
+		t.Fatalf("load concurrent reachability: %v", err)
+	}
+	if entry == nil {
+		t.Fatal("expected persisted reachability after concurrent failures")
+	}
+	if entry.ConsecutiveFailures != failures {
+		t.Fatalf("expected %d consecutive failures after concurrent updates, got %d", failures, entry.ConsecutiveFailures)
+	}
+	if entry.State != ClusterReachabilityUnreachable {
+		t.Fatalf("expected unreachable state after concurrent failures, got %q", entry.State)
 	}
 }

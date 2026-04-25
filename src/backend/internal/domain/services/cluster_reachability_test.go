@@ -99,7 +99,7 @@ func TestClusterReachabilitySchedulesIdleProbeOnlyAfterSilenceWindow(t *testing.
 		t.Fatalf("expected persisted reachable state, got %q", loaded.State)
 	}
 
-	shouldProbe, err := service.ShouldProbe(entry)
+	shouldProbe, err := service.ShouldProbeWithError(entry)
 	if err != nil {
 		t.Fatalf("should probe for recent observation: %v", err)
 	}
@@ -108,7 +108,7 @@ func TestClusterReachabilitySchedulesIdleProbeOnlyAfterSilenceWindow(t *testing.
 	}
 
 	current = current.Add(service.policy.IdleProbeAfter - time.Second)
-	shouldProbe, err = service.ShouldProbe(entry)
+	shouldProbe, err = service.ShouldProbeWithError(entry)
 	if err != nil {
 		t.Fatalf("should probe before silence window: %v", err)
 	}
@@ -117,7 +117,7 @@ func TestClusterReachabilitySchedulesIdleProbeOnlyAfterSilenceWindow(t *testing.
 	}
 
 	current = current.Add(2 * time.Second)
-	shouldProbe, err = service.ShouldProbe(entry)
+	shouldProbe, err = service.ShouldProbeWithError(entry)
 	if err != nil {
 		t.Fatalf("should probe after silence window: %v", err)
 	}
@@ -129,7 +129,7 @@ func TestClusterReachabilitySchedulesIdleProbeOnlyAfterSilenceWindow(t *testing.
 	}
 
 	current = current.Add(service.policy.UnknownAfterSilence)
-	shouldProbe, err = service.ShouldProbe(entry)
+	shouldProbe, err = service.ShouldProbeWithError(entry)
 	if err != nil {
 		t.Fatalf("should probe after stale silence: %v", err)
 	}
@@ -168,10 +168,10 @@ func TestClusterReachabilityClearsPeerRowsForSingleNodeDomains(t *testing.T) {
 		t.Fatalf("expected two reachability rows before reconcile, got %d", len(store.entries))
 	}
 
-	if err := service.ReconcilePeerTargets(11, []string{}); err != nil {
-		t.Fatalf("reconcile domain with no peer targets: %v", err)
+	if err := service.ReconcileMembers(11, []string{"node-self"}); err != nil {
+		t.Fatalf("reconcile single-node domain: %v", err)
 	}
 	if len(store.entries) != 0 {
-		t.Fatalf("expected peer rows to be cleared when only the local node remains, got %d", len(store.entries))
+		t.Fatalf("expected peer rows to be cleared for single-node domain, got %d", len(store.entries))
 	}
 }

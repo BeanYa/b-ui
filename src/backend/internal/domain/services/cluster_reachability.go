@@ -1,6 +1,7 @@
 package service
 
 import (
+	"sync"
 	"time"
 
 	database "github.com/alireza0/s-ui/src/backend/internal/infra/db"
@@ -12,6 +13,10 @@ const ClusterReachabilityUnknown = "unknown"
 const ClusterReachabilityReachable = "reachable"
 const ClusterReachabilitySuspect = "suspect"
 const ClusterReachabilityUnreachable = "unreachable"
+
+// Reachability state is persisted by a single local runtime process.
+// Serializing mutations here avoids lost updates across concurrent goroutines.
+var clusterReachabilityMutationMu sync.Mutex
 
 type ClusterReachabilityPolicy struct {
 	IdleProbeAfter           time.Duration
@@ -54,6 +59,9 @@ type ClusterReachabilityService struct {
 }
 
 func (s *ClusterReachabilityService) RecordTransportSuccess(domainID uint, targetNodeID string, source string) (*model.ClusterPeerReachability, error) {
+	clusterReachabilityMutationMu.Lock()
+	defer clusterReachabilityMutationMu.Unlock()
+
 	entry, err := s.load(domainID, targetNodeID)
 	if err != nil {
 		return nil, err
@@ -72,6 +80,9 @@ func (s *ClusterReachabilityService) RecordTransportSuccess(domainID uint, targe
 }
 
 func (s *ClusterReachabilityService) RecordTransportFailure(domainID uint, targetNodeID string, source string) (*model.ClusterPeerReachability, error) {
+	clusterReachabilityMutationMu.Lock()
+	defer clusterReachabilityMutationMu.Unlock()
+
 	entry, err := s.load(domainID, targetNodeID)
 	if err != nil {
 		return nil, err
@@ -93,7 +104,17 @@ func (s *ClusterReachabilityService) RecordTransportFailure(domainID uint, targe
 	return entry, nil
 }
 
-func (s *ClusterReachabilityService) ShouldProbe(entry *model.ClusterPeerReachability) (bool, error) {
+// ShouldProbe preserves the original Task 1 API.
+// Callers that need persistence errors can use ShouldProbeWithError.
+func (s *ClusterReachabilityService) ShouldProbe(entry *model.ClusterPeerReachability) bool {
+	shouldProbe, err := s.ShouldProbeWithError(entry)
+	return err == nil && shouldProbe
+}
+
+func (s *ClusterReachabilityService) ShouldProbeWithError(entry *model.ClusterPeerReachability) (bool, error) {
+	clusterReachabilityMutationMu.Lock()
+	defer clusterReachabilityMutationMu.Unlock()
+
 	if entry == nil {
 		return false, nil
 	}
@@ -115,9 +136,24 @@ func (s *ClusterReachabilityService) ShouldProbe(entry *model.ClusterPeerReachab
 	return true, nil
 }
 
+// ReconcileMembers preserves the original Task 1 contract where targetNodeIDs
+// includes the local node alongside any remote peers.
+func (s *ClusterReachabilityService) ReconcileMembers(domainID uint, targetNodeIDs []string) error {
+	clusterReachabilityMutationMu.Lock()
+	defer clusterReachabilityMutationMu.Unlock()
+
+	if len(targetNodeIDs) <= 1 {
+		return s.getStore().DeleteReachabilityByDomain(domainID)
+	}
+	return s.getStore().DeleteReachabilityNotInTargets(domainID, targetNodeIDs)
+}
+
 // ReconcilePeerTargets keeps persisted rows aligned to remote peer targets only.
 // peerTargetNodeIDs excludes the local node; when no peer targets remain, all rows for the domain are cleared.
 func (s *ClusterReachabilityService) ReconcilePeerTargets(domainID uint, peerTargetNodeIDs []string) error {
+	clusterReachabilityMutationMu.Lock()
+	defer clusterReachabilityMutationMu.Unlock()
+
 	if len(peerTargetNodeIDs) == 0 {
 		return s.getStore().DeleteReachabilityByDomain(domainID)
 	}
