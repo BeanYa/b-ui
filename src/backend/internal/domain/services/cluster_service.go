@@ -15,6 +15,7 @@ import (
 
 	database "github.com/alireza0/s-ui/src/backend/internal/infra/db"
 	"github.com/alireza0/s-ui/src/backend/internal/infra/db/model"
+	"github.com/alireza0/s-ui/src/backend/internal/domain/services/cluster"
 	"github.com/alireza0/s-ui/src/backend/internal/domain/services/cluster/router"
 	clustertypes "github.com/alireza0/s-ui/src/backend/internal/domain/services/cluster/types"
 	"github.com/gofrs/uuid/v5"
@@ -72,6 +73,7 @@ type ClusterService struct {
 	store          clusterServiceStore
 	secretProvider clusterSecretProvider
 	actionRouter   *router.ActionRouter
+	runtime        *cluster.Runtime
 }
 
 type clusterSecretProvider interface {
@@ -586,11 +588,9 @@ func (s *ClusterService) Ping(string) (*ClusterPeerStatus, error) {
 }
 
 func (s *ClusterService) Info(c *gin.Context) {
-	if s.actionRouter == nil {
-		s.actionRouter = router.NewActionRouter()
-	}
+	r := s.resolvedRouter()
 	c.JSON(http.StatusOK, clustertypes.InfoResponse{
-		Actions: s.actionRouter.Actions(),
+		Actions: r.Actions(),
 	})
 }
 
@@ -603,11 +603,27 @@ func (s *ClusterService) HandleAction(c *gin.Context) {
 		})
 		return
 	}
+	r := s.resolvedRouter()
+	resp := r.Handle(req)
+	c.JSON(http.StatusOK, resp)
+}
+
+// SetRuntime sets the runtime with wired handlers. When set, Info and HandleAction
+// will use the runtime's router instead of the bare actionRouter.
+func (s *ClusterService) SetRuntime(rt *cluster.Runtime) {
+	s.runtime = rt
+}
+
+// resolvedRouter returns the runtime's router if available, otherwise falls back
+// to the bare actionRouter (lazily initialized for backward compatibility).
+func (s *ClusterService) resolvedRouter() *router.ActionRouter {
+	if s.runtime != nil {
+		return s.runtime.Router
+	}
 	if s.actionRouter == nil {
 		s.actionRouter = router.NewActionRouter()
 	}
-	resp := s.actionRouter.Handle(req)
-	c.JSON(http.StatusOK, resp)
+	return s.actionRouter
 }
 
 func (s *ClusterService) validateClusterPeerToken(member *model.ClusterMember, token string) error {
