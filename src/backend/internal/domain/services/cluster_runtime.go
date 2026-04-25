@@ -23,6 +23,7 @@ type ClusterHubSyncer struct {
 	client         clusterHubClient
 	store          clusterServiceStore
 	secretProvider clusterSecretProvider
+	reachability   *ClusterReachabilityService
 }
 
 func (s *ClusterHubSyncer) LatestVersion(ctx context.Context, domain *model.ClusterDomain) (int64, error) {
@@ -89,6 +90,13 @@ func (s *ClusterHubSyncer) SyncDomain(ctx context.Context, domain *model.Cluster
 	if err := store.ReplaceDomainMembers(domain.Id, members); err != nil {
 		return err
 	}
+	targetNodeIDs := make([]string, 0, len(members))
+	for _, member := range members {
+		targetNodeIDs = append(targetNodeIDs, member.NodeID)
+	}
+	if err := s.getReachability().ReconcileMembers(domain.Id, targetNodeIDs); err != nil {
+		return err
+	}
 	domain.CommunicationEndpointPath = snapshot.EffectiveCommunicationEndpointPath()
 	domain.CommunicationProtocolVersion = snapshot.EffectiveCommunicationProtocolVersion()
 	domain.LastVersion = snapshot.Version
@@ -105,11 +113,22 @@ func (s *ClusterHubSyncer) getSecretProvider() clusterSecretProvider {
 	return &SettingService{}
 }
 
+func (s *ClusterHubSyncer) getReachability() *ClusterReachabilityService {
+	if s.reachability != nil {
+		return s.reachability
+	}
+	return &ClusterReachabilityService{
+		store:  &dbClusterReachabilityStore{},
+		policy: DefaultClusterReachabilityPolicy(),
+	}
+}
+
 type ClusterHTTPBroadcaster struct {
 	SettingService
 	identity       ClusterLocalIdentityService
 	secretProvider clusterSecretProvider
 	store          clusterBroadcastStore
+	reachability   *ClusterReachabilityService
 	HTTPClient     *http.Client
 }
 
@@ -130,13 +149,32 @@ func (b *ClusterHTTPBroadcaster) BroadcastNotifyVersion(ctx context.Context, ver
 	if err != nil {
 		return err
 	}
+	reachability := b.getReachability()
+	var failures []string
+	appendFailure := func(err error) {
+		if err != nil {
+			failures = append(failures, err.Error())
+		}
+	}
 	for _, member := range members {
 		if member.NodeID == excludeNodeID || member.BaseURL == "" || member.Domain == nil {
 			continue
 		}
+		entry, err := reachability.load(member.DomainID, member.NodeID)
+		if err != nil {
+			appendFailure(err)
+			continue
+		}
+		if entry.State == ClusterReachabilityUnreachable {
+			continue
+		}
 		token, err := DecryptClusterDomainToken(secret, member.PeerTokenEncrypted)
 		if err != nil {
-			return err
+			appendFailure(err)
+			if _, recordErr := reachability.RecordTransportFailure(member.DomainID, member.NodeID, "business"); recordErr != nil {
+				appendFailure(recordErr)
+			}
+			continue
 		}
 		envelope, err := SignClusterNotifyVersionEnvelope(identity, member.Domain.Domain, version, time.Now().Unix())
 		if err != nil {
@@ -146,9 +184,13 @@ func (b *ClusterHTTPBroadcaster) BroadcastNotifyVersion(ctx context.Context, ver
 		if err != nil {
 			return err
 		}
-		messageURL, err := clusterPeerMessageURL(member.BaseURL)
+		messageURL, err := clusterPeerMessageURL(member)
 		if err != nil {
-			return err
+			appendFailure(err)
+			if _, recordErr := reachability.RecordTransportFailure(member.DomainID, member.NodeID, "business"); recordErr != nil {
+				appendFailure(recordErr)
+			}
+			continue
 		}
 		request, err := http.NewRequestWithContext(ctx, http.MethodPost, messageURL, bytes.NewReader(body))
 		if err != nil {
@@ -158,17 +200,35 @@ func (b *ClusterHTTPBroadcaster) BroadcastNotifyVersion(ctx context.Context, ver
 		request.Header.Set("X-Cluster-Token", token)
 		response, err := b.httpClient().Do(request)
 		if err != nil {
-			return err
+			appendFailure(err)
+			if _, recordErr := reachability.RecordTransportFailure(member.DomainID, member.NodeID, "business"); recordErr != nil {
+				appendFailure(recordErr)
+			}
+			continue
 		}
 		if err := requireHTTPSuccess(response, "cluster peer notify"); err != nil {
 			response.Body.Close()
-			return err
+			appendFailure(err)
+			if _, recordErr := reachability.RecordTransportFailure(member.DomainID, member.NodeID, "business"); recordErr != nil {
+				appendFailure(recordErr)
+			}
+			continue
 		}
 		if err := requireClusterPeerSuccess(response); err != nil {
 			response.Body.Close()
-			return err
+			appendFailure(err)
+			if _, recordErr := reachability.RecordTransportFailure(member.DomainID, member.NodeID, "business"); recordErr != nil {
+				appendFailure(recordErr)
+			}
+			continue
 		}
 		response.Body.Close()
+		if _, err := reachability.RecordTransportSuccess(member.DomainID, member.NodeID, "business"); err != nil {
+			appendFailure(err)
+		}
+	}
+	if len(failures) > 0 {
+		return errors.New(strings.Join(failures, "; "))
 	}
 	return nil
 }
@@ -194,17 +254,23 @@ func (b *ClusterHTTPBroadcaster) getStore() clusterBroadcastStore {
 	return &dbClusterBroadcastStore{}
 }
 
-func clusterPeerMessageURL(baseURL string) (string, error) {
-	parsed, err := url.Parse(baseURL)
-	if err != nil {
-		return "", err
+func (b *ClusterHTTPBroadcaster) getReachability() *ClusterReachabilityService {
+	if b.reachability != nil {
+		return b.reachability
 	}
-	if err := validateClusterPeerScheme(parsed); err != nil {
-		return "", err
+	return &ClusterReachabilityService{
+		store:  &dbClusterReachabilityStore{},
+		policy: DefaultClusterReachabilityPolicy(),
 	}
-	parsed.Path = strings.TrimSuffix(parsed.Path, "/") + ClusterCommunicationEndpointPath + "/" + ClusterCommunicationProtocolVersion + "/events"
-	parsed.RawPath = ""
-	return parsed.String(), nil
+}
+
+func clusterPeerMessageURL(member model.ClusterMember) (string, error) {
+	return clusterPeerActionURL(
+		member.BaseURL,
+		effectiveClusterCommunicationEndpointPath(member.Domain.CommunicationEndpointPath),
+		effectiveClusterCommunicationProtocolVersion(member.Domain.CommunicationProtocolVersion),
+		"events",
+	)
 }
 
 func validateClusterPeerScheme(parsed *url.URL) error {

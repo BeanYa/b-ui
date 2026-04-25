@@ -47,6 +47,7 @@ func TestClusterHTTPBroadcasterUsesBasePathAndRejectsNon2xxResponses(t *testing.
 	broadcaster := &ClusterHTTPBroadcaster{
 		secretProvider: stubClusterSecretProvider{secret: []byte("panel-secret-for-cluster-tests")},
 		identity:       ClusterLocalIdentityService{store: &stubClusterLocalNodeStore{}},
+		reachability:   newTestClusterReachabilityService(20),
 		store: &stubClusterBroadcastStore{members: []model.ClusterMember{{
 			NodeID:  "node-a",
 			BaseURL: server.URL + "/panel/",
@@ -64,6 +65,7 @@ func TestClusterHTTPBroadcasterRejectsNonHttpsPeerTargets(t *testing.T) {
 	broadcaster := &ClusterHTTPBroadcaster{
 		secretProvider: stubClusterSecretProvider{secret: []byte("panel-secret-for-cluster-tests")},
 		identity:       ClusterLocalIdentityService{store: &stubClusterLocalNodeStore{}},
+		reachability:   newTestClusterReachabilityService(20),
 		store: &stubClusterBroadcastStore{members: []model.ClusterMember{{
 			NodeID:             "node-a",
 			BaseURL:            "http://example.com/panel/",
@@ -87,6 +89,7 @@ func TestClusterHTTPBroadcasterRejectsFailureJSONBody(t *testing.T) {
 	broadcaster := &ClusterHTTPBroadcaster{
 		secretProvider: stubClusterSecretProvider{secret: []byte("panel-secret-for-cluster-tests")},
 		identity:       ClusterLocalIdentityService{store: &stubClusterLocalNodeStore{}},
+		reachability:   newTestClusterReachabilityService(20),
 		store: &stubClusterBroadcastStore{members: []model.ClusterMember{{
 			NodeID:  "node-a",
 			BaseURL: server.URL + "/panel/",
@@ -116,6 +119,7 @@ func TestClusterHTTPBroadcasterUsesTargetMemberPeerTokenInsteadOfDomainToken(t *
 	broadcaster := &ClusterHTTPBroadcaster{
 		secretProvider: stubClusterSecretProvider{secret: []byte("panel-secret-for-cluster-tests")},
 		identity:       ClusterLocalIdentityService{store: &stubClusterLocalNodeStore{}},
+		reachability:   newTestClusterReachabilityService(20),
 		store: &stubClusterBroadcastStore{members: []model.ClusterMember{{
 			NodeID:             "node-a",
 			BaseURL:            server.URL + "/panel/",
@@ -133,6 +137,71 @@ func TestClusterHTTPBroadcasterUsesTargetMemberPeerTokenInsteadOfDomainToken(t *
 	}
 	if receivedEnvelope.Domain != "edge.example.com" {
 		t.Fatalf("expected domain context in envelope, got %q", receivedEnvelope.Domain)
+	}
+}
+
+func TestClusterHTTPBroadcasterSkipsRoutineFanoutToKnownUnreachablePeersAndContinuesOthers(t *testing.T) {
+	var hits int
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		hits++
+		w.Header().Set("Content-Type", "application/json")
+		_, _ = w.Write([]byte(`{"success":true}`))
+	}))
+	defer server.Close()
+
+	reachabilityStore := newStubClusterReachabilityStore()
+	if err := reachabilityStore.SaveReachability(&model.ClusterPeerReachability{
+		DomainID:     1,
+		TargetNodeID: "node-skip",
+		State:        ClusterReachabilityUnreachable,
+	}); err != nil {
+		t.Fatalf("seed unreachable reachability: %v", err)
+	}
+
+	broadcaster := &ClusterHTTPBroadcaster{
+		secretProvider: stubClusterSecretProvider{secret: []byte("panel-secret-for-cluster-tests")},
+		identity:       ClusterLocalIdentityService{store: &stubClusterLocalNodeStore{}},
+		reachability: &ClusterReachabilityService{
+			store:  reachabilityStore,
+			policy: DefaultClusterReachabilityPolicy(),
+			now: func() int64 {
+				return 20
+			},
+		},
+		store: &stubClusterBroadcastStore{members: []model.ClusterMember{
+			{
+				NodeID:             "node-skip",
+				BaseURL:            "http://example.com/panel/",
+				DomainID:           1,
+				PeerTokenEncrypted: mustEncryptClusterToken(t, "panel-secret-for-cluster-tests", "peer-token-skip"),
+				Domain:             &model.ClusterDomain{Id: 1, Domain: "edge.example.com", CommunicationEndpointPath: "/_cluster", CommunicationProtocolVersion: "v1"},
+			},
+			{
+				NodeID:             "node-hit",
+				BaseURL:            server.URL + "/panel/",
+				DomainID:           1,
+				PeerTokenEncrypted: mustEncryptClusterToken(t, "panel-secret-for-cluster-tests", "peer-token-hit"),
+				Domain:             &model.ClusterDomain{Id: 1, Domain: "edge.example.com", CommunicationEndpointPath: "/_cluster", CommunicationProtocolVersion: "v1"},
+			},
+		}},
+		HTTPClient: server.Client(),
+	}
+
+	if err := broadcaster.BroadcastNotifyVersion(context.Background(), 9, ""); err != nil {
+		t.Fatalf("broadcast notify version: %v", err)
+	}
+	if hits != 1 {
+		t.Fatalf("expected exactly one outbound hit, got %d", hits)
+	}
+}
+
+func newTestClusterReachabilityService(now int64) *ClusterReachabilityService {
+	return &ClusterReachabilityService{
+		store:  newStubClusterReachabilityStore(),
+		policy: DefaultClusterReachabilityPolicy(),
+		now: func() int64 {
+			return now
+		},
 	}
 }
 
