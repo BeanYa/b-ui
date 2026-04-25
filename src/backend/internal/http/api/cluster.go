@@ -154,6 +154,14 @@ func ClusterPingPath(basePath string) string {
 	return clusterProtocolPath(basePath, "ping")
 }
 
+func ClusterInfoPath(basePath string) string {
+	return clusterProtocolPath(basePath, "info")
+}
+
+func ClusterActionPath(basePath string) string {
+	return clusterProtocolPath(basePath, "action")
+}
+
 func clusterProtocolPath(basePath string, action string) string {
 	trimmed := strings.TrimSuffix(basePath, "/")
 	if trimmed == "" {
