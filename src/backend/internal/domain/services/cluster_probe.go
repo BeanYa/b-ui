@@ -27,9 +27,10 @@ type ClusterPeerProbeService struct {
 var errInvalidPeerProtocolResponse = errors.New("invalid peer protocol response")
 
 type clusterProbeResponse struct {
-	Status string `json:"status"`
-	Code   string `json:"code"`
-	NodeID string `json:"nodeId"`
+	Success bool   `json:"success"`
+	Status  string `json:"status"`
+	Code    string `json:"code"`
+	NodeID  string `json:"nodeId"`
 }
 
 type DBClusterProbeStore struct{}
@@ -57,14 +58,26 @@ func (s *ClusterPeerProbeService) ProbeIdlePeers(ctx context.Context) error {
 		byDomain[member.DomainID] = append(byDomain[member.DomainID], member)
 	}
 
+	var firstErr error
+	rememberErr := func(err error) {
+		if err != nil && firstErr == nil {
+			firstErr = err
+		}
+	}
+
 	for domainID, domainMembers := range byDomain {
 		if !clusterProbeDomainHasLocalMember(domainMembers, localNodeID) {
 			continue
 		}
+		targetNodeIDs := make([]string, 0, len(domainMembers))
+		for _, member := range domainMembers {
+			targetNodeIDs = append(targetNodeIDs, member.NodeID)
+		}
+		if err := s.getReachability().ReconcileMembers(domainID, targetNodeIDs); err != nil {
+			rememberErr(err)
+			continue
+		}
 		if len(domainMembers) <= 1 {
-			if err := s.getReachability().ReconcileMembers(domainID, []string{localNodeID}); err != nil {
-				return err
-			}
 			continue
 		}
 		for _, member := range domainMembers {
@@ -73,27 +86,24 @@ func (s *ClusterPeerProbeService) ProbeIdlePeers(ctx context.Context) error {
 			}
 			entry, err := s.getReachability().load(member.DomainID, member.NodeID)
 			if err != nil {
-				return err
+				rememberErr(err)
+				continue
 			}
-			shouldProbe, err := s.getReachability().shouldProbeWithError(entry)
-			if err != nil {
-				return err
-			}
-			if !shouldProbe {
+			if !s.getReachability().ShouldProbe(entry) {
 				continue
 			}
 			if err := s.probeMember(ctx, member); err != nil {
 				if _, recordErr := s.getReachability().RecordTransportFailure(member.DomainID, member.NodeID, "probe"); recordErr != nil {
-					return recordErr
+					rememberErr(recordErr)
 				}
 				continue
 			}
 			if _, err := s.getReachability().RecordTransportSuccess(member.DomainID, member.NodeID, "probe"); err != nil {
-				return err
+				rememberErr(err)
 			}
 		}
 	}
-	return nil
+	return firstErr
 }
 
 func (s *ClusterPeerProbeService) probeMember(ctx context.Context, member model.ClusterMember) error {
@@ -136,6 +146,9 @@ func (s *ClusterPeerProbeService) probeMember(ctx context.Context, member model.
 	var payload clusterProbeResponse
 	if err := json.NewDecoder(response.Body).Decode(&payload); err != nil {
 		return err
+	}
+	if payload.Success {
+		return nil
 	}
 	if strings.TrimSpace(payload.Status) == "" || strings.TrimSpace(payload.Code) == "" {
 		return errInvalidPeerProtocolResponse

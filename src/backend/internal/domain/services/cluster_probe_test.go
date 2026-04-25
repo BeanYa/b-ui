@@ -30,7 +30,7 @@ func TestClusterPeerProbeServiceMarksIdlePeerReachableOnHeartbeatSuccess(t *test
 		receivedPath = r.URL.Path
 		receivedToken = r.Header.Get("X-Cluster-Token")
 		w.Header().Set("Content-Type", "application/json")
-		_, _ = w.Write([]byte(`{"status":"processed","code":"ok","nodeId":"node-b","details":{"observedAt":1700000000}}`))
+		_, _ = w.Write([]byte(`{"success":true,"status":"ok"}`))
 	}))
 	defer server.Close()
 
@@ -191,5 +191,54 @@ func TestClusterPeerProbeServiceSkipsSingleNodeDomains(t *testing.T) {
 	}
 	if entry != nil {
 		t.Fatalf("expected no peer reachability rows after single-node probe pass, got %#v", entry)
+	}
+}
+
+func TestClusterPeerProbeServiceReconcilesRemovedPeersInMultiNodeDomain(t *testing.T) {
+	reachabilityStore := newStubClusterReachabilityStore()
+	if err := reachabilityStore.SaveReachability(&model.ClusterPeerReachability{
+		DomainID:       1,
+		TargetNodeID:   "node-old",
+		State:          ClusterReachabilityUnreachable,
+		LastObservedAt: time.Unix(1_700_000_000, 0).Add(-11 * time.Minute).Unix(),
+	}); err != nil {
+		t.Fatalf("seed removed peer reachability: %v", err)
+	}
+	if err := reachabilityStore.SaveReachability(&model.ClusterPeerReachability{
+		DomainID:       1,
+		TargetNodeID:   "node-b",
+		State:          ClusterReachabilityReachable,
+		LastObservedAt: time.Unix(1_700_000_000, 0).Unix(),
+	}); err != nil {
+		t.Fatalf("seed active peer reachability: %v", err)
+	}
+
+	prober := &ClusterPeerProbeService{
+		store: &stubClusterProbeStore{
+			localNodeID: "node-a",
+			members: []model.ClusterMember{
+				{NodeID: "node-a", DomainID: 1, Domain: &model.ClusterDomain{Id: 1, Domain: "edge.example.com"}},
+				{NodeID: "node-b", DomainID: 1, Domain: &model.ClusterDomain{Id: 1, Domain: "edge.example.com"}},
+			},
+		},
+		reachability: &ClusterReachabilityService{
+			store:  reachabilityStore,
+			policy: DefaultClusterReachabilityPolicy(),
+			now: func() int64 {
+				return time.Unix(1_700_000_000, 0).Unix()
+			},
+		},
+	}
+
+	if err := prober.ProbeIdlePeers(context.Background()); err != nil {
+		t.Fatalf("probe multi-node domain: %v", err)
+	}
+
+	removed, err := reachabilityStore.GetReachability(1, "node-old")
+	if err != nil {
+		t.Fatalf("load removed peer reachability: %v", err)
+	}
+	if removed != nil {
+		t.Fatalf("expected removed peer reachability to be cleared, got %#v", removed)
 	}
 }
