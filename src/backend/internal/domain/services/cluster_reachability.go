@@ -105,13 +105,12 @@ func (s *ClusterReachabilityService) RecordTransportFailure(domainID uint, targe
 }
 
 // ShouldProbe preserves the original Task 1 API.
-// Callers that need persistence errors can use ShouldProbeWithError.
 func (s *ClusterReachabilityService) ShouldProbe(entry *model.ClusterPeerReachability) bool {
-	shouldProbe, err := s.ShouldProbeWithError(entry)
+	shouldProbe, err := s.shouldProbeWithError(entry)
 	return err == nil && shouldProbe
 }
 
-func (s *ClusterReachabilityService) ShouldProbeWithError(entry *model.ClusterPeerReachability) (bool, error) {
+func (s *ClusterReachabilityService) shouldProbeWithError(entry *model.ClusterPeerReachability) (bool, error) {
 	clusterReachabilityMutationMu.Lock()
 	defer clusterReachabilityMutationMu.Unlock()
 
@@ -146,18 +145,6 @@ func (s *ClusterReachabilityService) ReconcileMembers(domainID uint, targetNodeI
 		return s.getStore().DeleteReachabilityByDomain(domainID)
 	}
 	return s.getStore().DeleteReachabilityNotInTargets(domainID, targetNodeIDs)
-}
-
-// ReconcilePeerTargets keeps persisted rows aligned to remote peer targets only.
-// peerTargetNodeIDs excludes the local node; when no peer targets remain, all rows for the domain are cleared.
-func (s *ClusterReachabilityService) ReconcilePeerTargets(domainID uint, peerTargetNodeIDs []string) error {
-	clusterReachabilityMutationMu.Lock()
-	defer clusterReachabilityMutationMu.Unlock()
-
-	if len(peerTargetNodeIDs) == 0 {
-		return s.getStore().DeleteReachabilityByDomain(domainID)
-	}
-	return s.getStore().DeleteReachabilityNotInTargets(domainID, peerTargetNodeIDs)
 }
 
 func (s *ClusterReachabilityService) load(domainID uint, targetNodeID string) (*model.ClusterPeerReachability, error) {
