@@ -235,11 +235,15 @@ export default {
     noMembers: "此域目前沒有鏡像成員。",
     mirroredMembers: "鏡像成員",
     registeredServers: "已註冊的集群伺服器",
+    localNode: "本機",
     dialogTitle: "加入域",
     fields: {
       domain: "域Id",
       hubUrl: "Hub 位址",
       token: "域認證令牌",
+      communicationProtocol: "通信協議",
+      communicationEndpoint: "域內 Endpoint",
+      supportedActions: "支援動作",
     },
     table: {
       node: "節點",

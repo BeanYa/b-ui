@@ -32,12 +32,13 @@ type ClusterOperationStatus struct {
 }
 
 type ClusterDomainResponse struct {
-	ID                           uint   `json:"id"`
-	Domain                       string `json:"domain"`
-	HubURL                       string `json:"hubUrl"`
-	CommunicationEndpointPath    string `json:"communicationEndpointPath"`
-	CommunicationProtocolVersion string `json:"communicationProtocolVersion"`
-	LastVersion                  int64  `json:"lastVersion"`
+	ID                           uint     `json:"id"`
+	Domain                       string   `json:"domain"`
+	HubURL                       string   `json:"hubUrl"`
+	CommunicationEndpointPath    string   `json:"communicationEndpointPath"`
+	CommunicationProtocolVersion string   `json:"communicationProtocolVersion"`
+	LastVersion                  int64    `json:"lastVersion"`
+	SupportedActions             []string `json:"supportedActions"`
 }
 
 type ClusterMemberResponse struct {
@@ -47,6 +48,7 @@ type ClusterMemberResponse struct {
 	Name        string `json:"name"`
 	BaseURL     string `json:"baseUrl"`
 	LastVersion int64  `json:"lastVersion"`
+	IsLocal     bool   `json:"isLocal"`
 }
 
 type ClusterService struct {
@@ -357,6 +359,7 @@ func (s *ClusterService) ListDomains() ([]ClusterDomainResponse, error) {
 			CommunicationEndpointPath:    effectiveClusterCommunicationEndpointPath(domain.CommunicationEndpointPath),
 			CommunicationProtocolVersion: effectiveClusterCommunicationProtocolVersion(domain.CommunicationProtocolVersion),
 			LastVersion:                  domain.LastVersion,
+			SupportedActions:             ClusterCommunicationSupportedActions(),
 		})
 	}
 	return response, nil
@@ -367,9 +370,13 @@ func (s *ClusterService) ListMembers() ([]ClusterMemberResponse, error) {
 	if err != nil {
 		return nil, err
 	}
+	localIdentity, err := s.localIdentity.GetOrCreate()
+	if err != nil {
+		return nil, err
+	}
 	response := make([]ClusterMemberResponse, 0, len(members))
 	for _, member := range members {
-		response = append(response, ClusterMemberResponse{ID: member.Id, DomainID: member.DomainID, NodeID: member.NodeID, Name: member.Name, BaseURL: member.BaseURL, LastVersion: member.LastVersion})
+		response = append(response, ClusterMemberResponse{ID: member.Id, DomainID: member.DomainID, NodeID: member.NodeID, Name: member.Name, BaseURL: member.BaseURL, LastVersion: member.LastVersion, IsLocal: member.NodeID == localIdentity.NodeID})
 	}
 	return response, nil
 }

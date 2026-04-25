@@ -235,11 +235,15 @@ export default {
     noMembers: "No mirrored members for this domain yet.",
     mirroredMembers: "mirrored members",
     registeredServers: "Registered Cluster Servers",
+    localNode: "Local",
     dialogTitle: "Join Domain",
     fields: {
       domain: "Domain Id",
       hubUrl: "Hub URL",
       token: "Domain Token",
+      communicationProtocol: "Communication Protocol",
+      communicationEndpoint: "Domain Endpoint",
+      supportedActions: "Supported Actions",
     },
     table: {
       node: "Node",

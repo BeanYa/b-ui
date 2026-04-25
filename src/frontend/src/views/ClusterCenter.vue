@@ -94,6 +94,18 @@
               <strong>{{ formatClusterVersionLabel(selectedDomain.lastVersion) }}</strong>
             </div>
             <div class="cluster-center__info-item">
+              <span>{{ $t('clusterCenter.fields.communicationProtocol') }}</span>
+              <strong>{{ selectedDomain.communicationProtocolVersion || '-' }}</strong>
+            </div>
+            <div class="cluster-center__info-item">
+              <span>{{ $t('clusterCenter.fields.communicationEndpoint') }}</span>
+              <strong>{{ selectedDomain.communicationEndpointPath || '-' }}</strong>
+            </div>
+            <div class="cluster-center__info-item cluster-center__info-item--wide">
+              <span>{{ $t('clusterCenter.fields.supportedActions') }}</span>
+              <strong>{{ formatSupportedActions(selectedDomain.supportedActions) }}</strong>
+            </div>
+            <div class="cluster-center__info-item">
               <span>{{ $t('clusterCenter.mirroredMembers') }}</span>
               <strong>{{ selectedDomainMembers.length }}</strong>
             </div>
@@ -118,13 +130,24 @@
               </thead>
               <tbody>
                 <tr v-for="member in selectedDomainMembers" :key="member.id">
-                  <td>{{ member.nodeId }}</td>
+                  <td>
+                    <div class="cluster-center__member-node">
+                      <span>{{ member.nodeId }}</span>
+                      <span v-if="member.isLocal" class="cluster-center__local-badge">{{ $t('clusterCenter.localNode') }}</span>
+                    </div>
+                  </td>
                   <td>{{ member.name || '-' }}</td>
                   <td>{{ member.baseUrl || '-' }}</td>
                   <td>{{ formatClusterVersionLabel(member.lastVersion) }}</td>
                   <td>
-                    <v-btn size="small" color="warning" variant="outlined" :loading="deletingMemberId === member.id" @click="deleteMember(member)">
-                      {{ $t('clusterCenter.actions.delete') }}
+                    <v-btn
+                      size="small"
+                      :color="member.isLocal ? 'error' : 'warning'"
+                      variant="outlined"
+                      :loading="member.isLocal ? leavingDomainId === selectedDomain?.id : deletingMemberId === member.id"
+                      @click="member.isLocal ? leaveDomain(selectedDomain) : deleteMember(member)"
+                    >
+                      {{ member.isLocal ? $t('clusterCenter.actions.leave') : $t('clusterCenter.actions.delete') }}
                     </v-btn>
                   </td>
                 </tr>
@@ -261,6 +284,7 @@ const selectedDomainMembers = computed(() => members.value.filter((member) => me
 
 const domainMemberCount = (domainId: number) => members.value.filter((member) => member.domainId === domainId).length
 const formatClusterVersionLabel = (version: number) => `version-${version}`
+const formatSupportedActions = (actions?: string[]) => Array.isArray(actions) && actions.length > 0 ? actions.join(', ') : '-'
 
 const openDomainDetail = (domain: ClusterDomain) => {
   selectedDomainId.value = domain.id
@@ -568,6 +592,10 @@ onMounted(async () => {
   overflow-wrap: anywhere;
 }
 
+.cluster-center__info-item--wide {
+  grid-column: span 2;
+}
+
 .cluster-center__member-table-wrap {
   border: 1px solid var(--app-border-1);
   border-radius: 18px;
@@ -595,6 +623,23 @@ onMounted(async () => {
   font-size: 12px;
   letter-spacing: 0.12em;
   text-transform: uppercase;
+}
+
+.cluster-center__member-node {
+  align-items: center;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.cluster-center__local-badge {
+  border: 1px solid color-mix(in srgb, var(--app-state-info) 40%, var(--app-border-1));
+  border-radius: 999px;
+  color: var(--app-state-info);
+  font-size: 12px;
+  font-weight: 700;
+  line-height: 1;
+  padding: 5px 8px;
 }
 
 .cluster-center__dialog-body {
@@ -776,6 +821,10 @@ onMounted(async () => {
 @media (max-width: 640px) {
   .cluster-center__info-grid {
     grid-template-columns: 1fr;
+  }
+
+  .cluster-center__info-item--wide {
+    grid-column: auto;
   }
 }
 </style>

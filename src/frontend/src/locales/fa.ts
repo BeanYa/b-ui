@@ -233,11 +233,15 @@ export default {
     noMembers: "برای این دامنه هنوز عضوی آینه نشده است.",
     mirroredMembers: "عضو آینه‌شده",
     registeredServers: "سرورهای خوشه ثبت‌شده",
+    localNode: "محلی",
     dialogTitle: "پیوستن به دامنه",
     fields: {
       domain: "شناسه دامنه",
       hubUrl: "آدرس Hub",
       token: "توکن دامنه",
+      communicationProtocol: "پروتکل ارتباطی",
+      communicationEndpoint: "Endpoint دامنه",
+      supportedActions: "عملیات پشتیبانی‌شده",
     },
     table: {
       node: "نود",

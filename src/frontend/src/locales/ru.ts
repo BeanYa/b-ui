@@ -234,11 +234,15 @@ export default {
     noMembers: "Для этого домена пока нет зеркалированных узлов.",
     mirroredMembers: "зеркалированных узлов",
     registeredServers: "Зарегистрированные серверы кластера",
+    localNode: "Локальный",
     dialogTitle: "Присоединить домен",
     fields: {
       domain: "ID домена",
       hubUrl: "URL Hub",
       token: "Токен домена",
+      communicationProtocol: "Протокол связи",
+      communicationEndpoint: "Endpoint домена",
+      supportedActions: "Поддерживаемые действия",
     },
     table: {
       node: "Узел",

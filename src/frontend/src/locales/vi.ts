@@ -233,11 +233,15 @@ export default {
     noMembers: "Miền này chưa có nút được phản chiếu.",
     mirroredMembers: "nút phản chiếu",
     registeredServers: "Máy chủ cụm đã đăng ký",
+    localNode: "Cục bộ",
     dialogTitle: "Tham gia miền",
     fields: {
       domain: "ID miền",
       hubUrl: "URL Hub",
       token: "Token miền",
+      communicationProtocol: "Giao thức liên lạc",
+      communicationEndpoint: "Endpoint miền",
+      supportedActions: "Hành động hỗ trợ",
     },
     table: {
       node: "Nút",

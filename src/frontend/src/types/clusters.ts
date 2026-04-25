@@ -2,7 +2,10 @@ export interface ClusterDomain {
   id: number
   domain: string
   hubUrl: string
+  communicationEndpointPath: string
+  communicationProtocolVersion: string
   lastVersion: number
+  supportedActions: string[]
 }
 
 export interface ClusterMember {
@@ -12,6 +15,7 @@ export interface ClusterMember {
   name: string
   baseUrl: string
   lastVersion: number
+  isLocal: boolean
 }
 
 export interface ClusterOperationStatus {

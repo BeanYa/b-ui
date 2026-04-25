@@ -222,6 +222,78 @@ func TestClusterServiceLeaveDomainDeletesLocalNodeFromHubAndRemovesDomainMirror(
 	}
 }
 
+func TestClusterServiceListMembersMarksLocalNode(t *testing.T) {
+	store := &stubClusterServiceStore{
+		members: map[string]*model.ClusterMember{
+			serviceMemberKey(1, "node-local"): {Id: 7, NodeID: "node-local", DomainID: 1},
+			serviceMemberKey(1, "node-peer"):  {Id: 8, NodeID: "node-peer", DomainID: 1},
+		},
+	}
+	service := &ClusterService{
+		localIdentity: ClusterLocalIdentityService{store: &stubClusterLocalNodeStore{node: &model.ClusterLocalNode{NodeID: "node-local"}}},
+		store:         store,
+	}
+
+	members, err := service.ListMembers()
+	if err != nil {
+		t.Fatalf("list cluster members: %v", err)
+	}
+
+	var localSeen bool
+	var peerSeen bool
+	for _, member := range members {
+		switch member.NodeID {
+		case "node-local":
+			localSeen = true
+			if !member.IsLocal {
+				t.Fatalf("expected local member to be marked isLocal")
+			}
+		case "node-peer":
+			peerSeen = true
+			if member.IsLocal {
+				t.Fatalf("expected peer member not to be marked isLocal")
+			}
+		}
+	}
+	if !localSeen || !peerSeen {
+		t.Fatalf("expected both local and peer members, got %#v", members)
+	}
+}
+
+func TestClusterServiceListDomainsIncludesCommunicationActions(t *testing.T) {
+	store := &stubClusterServiceStore{
+		domains: map[string]*model.ClusterDomain{
+			"edge.example.com": {
+				Id:                           1,
+				Domain:                       "edge.example.com",
+				HubURL:                       "https://hub.example.com",
+				CommunicationEndpointPath:    "/_cluster",
+				CommunicationProtocolVersion: "v1",
+				LastVersion:                  4,
+			},
+		},
+	}
+	service := &ClusterService{store: store}
+
+	domains, err := service.ListDomains()
+	if err != nil {
+		t.Fatalf("list cluster domains: %v", err)
+	}
+	if len(domains) != 1 {
+		t.Fatalf("expected one domain, got %#v", domains)
+	}
+	if domains[0].CommunicationEndpointPath != "/_cluster" {
+		t.Fatalf("expected endpoint path, got %q", domains[0].CommunicationEndpointPath)
+	}
+	if domains[0].CommunicationProtocolVersion != "v1" {
+		t.Fatalf("expected protocol version, got %q", domains[0].CommunicationProtocolVersion)
+	}
+	expectedActions := []string{"events", "heartbeat", "ping"}
+	if fmt.Sprint(domains[0].SupportedActions) != fmt.Sprint(expectedActions) {
+		t.Fatalf("expected supported actions %#v, got %#v", expectedActions, domains[0].SupportedActions)
+	}
+}
+
 func TestClusterServiceReceiveMessageRejectsWrongPeerTokenEvenWhenDomainTokenMatches(t *testing.T) {
 	secret := []byte("panel-secret-for-cluster-tests")
 	sourcePublicKey, sourcePrivateKey, err := ed25519.GenerateKey(rand.Reader)
@@ -315,7 +387,13 @@ func (s *stubClusterServiceStore) SaveDomain(domain *model.ClusterDomain) error 
 	return nil
 }
 
-func (s *stubClusterServiceStore) ListDomains() ([]model.ClusterDomain, error) { return nil, nil }
+func (s *stubClusterServiceStore) ListDomains() ([]model.ClusterDomain, error) {
+	domains := make([]model.ClusterDomain, 0, len(s.domains))
+	for _, domain := range s.domains {
+		domains = append(domains, *domain)
+	}
+	return domains, nil
+}
 func (s *stubClusterServiceStore) GetDomain(id uint) (*model.ClusterDomain, error) {
 	for _, domain := range s.domains {
 		if domain.Id == id {

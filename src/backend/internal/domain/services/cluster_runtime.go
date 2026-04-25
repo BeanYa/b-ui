@@ -19,6 +19,10 @@ import (
 const ClusterCommunicationEndpointPath = "/_cluster"
 const ClusterCommunicationProtocolVersion = "v1"
 
+func ClusterCommunicationSupportedActions() []string {
+	return []string{"events", "heartbeat", "ping"}
+}
+
 type ClusterHubSyncer struct {
 	client         clusterHubClient
 	store          clusterServiceStore

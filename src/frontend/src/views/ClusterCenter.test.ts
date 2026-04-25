@@ -103,4 +103,25 @@ describe('ClusterCenter view source', () => {
     expect(source).toContain('@click="leaveDomain(selectedDomain)"')
     expect(source).toContain(':loading="leavingDomainId === selectedDomain.id"')
   })
+
+  it('shows domain communication endpoint and supported protocol actions', () => {
+    const source = readFileSync(fileURLToPath(new URL('./ClusterCenter.vue', import.meta.url)), 'utf8')
+
+    expect(source).toContain("{{ $t('clusterCenter.fields.communicationEndpoint') }}")
+    expect(source).toContain('selectedDomain.communicationEndpointPath')
+    expect(source).toContain("{{ $t('clusterCenter.fields.supportedActions') }}")
+    expect(source).toContain('formatSupportedActions(selectedDomain.supportedActions)')
+    expect(source).toContain("{{ $t('clusterCenter.fields.communicationProtocol') }}")
+    expect(source).toContain('selectedDomain.communicationProtocolVersion')
+  })
+
+  it('marks the local member and uses leave-domain semantics for its row action', () => {
+    const source = readFileSync(fileURLToPath(new URL('./ClusterCenter.vue', import.meta.url)), 'utf8')
+
+    expect(source).toContain('member.isLocal')
+    expect(source).toContain("{{ $t('clusterCenter.localNode') }}")
+    expect(source).toContain("member.isLocal ? leaveDomain(selectedDomain) : deleteMember(member)")
+    expect(source).toContain("member.isLocal ? $t('clusterCenter.actions.leave') : $t('clusterCenter.actions.delete')")
+    expect(source).toContain('member.isLocal ? leavingDomainId === selectedDomain?.id : deletingMemberId === member.id')
+  })
 })
