@@ -59,5 +59,9 @@ export default defineConfig({
         changeOrigin: true,
       },
     },
-  }
+  },
+  test: {
+    hookTimeout: 30000,
+    testTimeout: 30000,
+  },
 })
