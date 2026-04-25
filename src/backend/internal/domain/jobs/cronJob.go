@@ -35,6 +35,8 @@ func (c *CronJob) Start(loc *time.Location, trafficAge int) error {
 		c.cron.AddJob("@every 10m", NewWALCheckpointJob())
 		// cluster version polling
 		c.cron.AddJob("@every 30m", NewClusterVersionPollJob())
+		// low-frequency local-only peer reachability probing
+		c.cron.AddJob("@every 30s", NewClusterReachabilityProbeJob())
 	}()
 	go NewDomainHintJob().Run()
 
