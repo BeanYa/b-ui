@@ -107,7 +107,10 @@ func (s *ClusterReachabilityService) RecordTransportFailure(domainID uint, targe
 // ShouldProbe preserves the original Task 1 API.
 func (s *ClusterReachabilityService) ShouldProbe(entry *model.ClusterPeerReachability) bool {
 	shouldProbe, err := s.shouldProbeWithError(entry)
-	return err == nil && shouldProbe
+	if err != nil {
+		return shouldProbe
+	}
+	return shouldProbe
 }
 
 func (s *ClusterReachabilityService) shouldProbeWithError(entry *model.ClusterPeerReachability) (bool, error) {
@@ -122,17 +125,11 @@ func (s *ClusterReachabilityService) shouldProbeWithError(entry *model.ClusterPe
 		if entry.State != ClusterReachabilityUnknown {
 			entry.State = ClusterReachabilityUnknown
 			if err := s.getStore().SaveReachability(entry); err != nil {
-				return false, err
+				return s.isProbeEligible(entry, now), err
 			}
 		}
 	}
-	if s.policy.IdleProbeAfter > 0 && entry.LastObservedAt > 0 && now-entry.LastObservedAt < int64(s.policy.IdleProbeAfter/time.Second) {
-		return false, nil
-	}
-	if entry.NextProbeAt > now {
-		return false, nil
-	}
-	return true, nil
+	return s.isProbeEligible(entry, now), nil
 }
 
 // ReconcileMembers preserves the original Task 1 contract where targetNodeIDs
@@ -188,6 +185,16 @@ func (s *ClusterReachabilityService) backoffForFailures(failures int64) time.Dur
 		index = len(s.policy.Backoff) - 1
 	}
 	return s.policy.Backoff[index]
+}
+
+func (s *ClusterReachabilityService) isProbeEligible(entry *model.ClusterPeerReachability, now int64) bool {
+	if s.policy.IdleProbeAfter > 0 && entry.LastObservedAt > 0 && now-entry.LastObservedAt < int64(s.policy.IdleProbeAfter/time.Second) {
+		return false
+	}
+	if entry.NextProbeAt > now {
+		return false
+	}
+	return true
 }
 
 type dbClusterReachabilityStore struct{}

@@ -1,6 +1,7 @@
 package service
 
 import (
+	"errors"
 	"fmt"
 	"sync"
 	"testing"
@@ -103,28 +104,19 @@ func TestClusterReachabilitySchedulesIdleProbeOnlyAfterSilenceWindow(t *testing.
 		t.Fatalf("expected persisted reachable state, got %q", loaded.State)
 	}
 
-	shouldProbe, err := service.shouldProbeWithError(entry)
-	if err != nil {
-		t.Fatalf("should probe for recent observation: %v", err)
-	}
+	shouldProbe := service.ShouldProbe(entry)
 	if shouldProbe {
 		t.Fatal("expected recent observation not to be probe eligible")
 	}
 
 	current = current.Add(service.policy.IdleProbeAfter - time.Second)
-	shouldProbe, err = service.shouldProbeWithError(entry)
-	if err != nil {
-		t.Fatalf("should probe before silence window: %v", err)
-	}
+	shouldProbe = service.ShouldProbe(entry)
 	if shouldProbe {
 		t.Fatal("expected peer to remain ineligible before silence window expires")
 	}
 
 	current = current.Add(2 * time.Second)
-	shouldProbe, err = service.shouldProbeWithError(entry)
-	if err != nil {
-		t.Fatalf("should probe after silence window: %v", err)
-	}
+	shouldProbe = service.ShouldProbe(entry)
 	if !shouldProbe {
 		t.Fatal("expected peer to become probe eligible after silence window")
 	}
@@ -133,10 +125,7 @@ func TestClusterReachabilitySchedulesIdleProbeOnlyAfterSilenceWindow(t *testing.
 	}
 
 	current = current.Add(service.policy.UnknownAfterSilence)
-	shouldProbe, err = service.shouldProbeWithError(entry)
-	if err != nil {
-		t.Fatalf("should probe after stale silence: %v", err)
-	}
+	shouldProbe = service.ShouldProbe(entry)
 	if !shouldProbe {
 		t.Fatal("expected stale peer to stay probe eligible")
 	}
@@ -335,5 +324,39 @@ func TestClusterReachabilitySerializesConcurrentFailureMutations(t *testing.T) {
 	}
 	if entry.State != ClusterReachabilityUnreachable {
 		t.Fatalf("expected unreachable state after concurrent failures, got %q", entry.State)
+	}
+}
+
+type failingSaveClusterReachabilityStore struct {
+	*stubClusterReachabilityStore
+	err error
+}
+
+func (s *failingSaveClusterReachabilityStore) SaveReachability(entry *model.ClusterPeerReachability) error {
+	return s.err
+}
+
+func TestClusterReachabilityShouldProbeOnPersistenceFailureWhenPeerIsStale(t *testing.T) {
+	current := time.Unix(1_700_000_000, 0)
+	service := &ClusterReachabilityService{
+		store: &failingSaveClusterReachabilityStore{
+			stubClusterReachabilityStore: newStubClusterReachabilityStore(),
+			err:                          errors.New("persist failed"),
+		},
+		policy: DefaultClusterReachabilityPolicy(),
+		now: func() int64 {
+			return current.Unix()
+		},
+	}
+
+	entry := &model.ClusterPeerReachability{
+		DomainID:       13,
+		TargetNodeID:   "node-d",
+		State:          ClusterReachabilityReachable,
+		LastObservedAt: current.Add(-service.policy.UnknownAfterSilence).Unix(),
+	}
+
+	if !service.ShouldProbe(entry) {
+		t.Fatal("expected stale peer to remain probe eligible even if persisting unknown state fails")
 	}
 }
