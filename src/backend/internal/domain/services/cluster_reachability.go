@@ -1,12 +1,11 @@
 package service
 
 import (
-	"errors"
-	"fmt"
 	"time"
 
 	database "github.com/alireza0/s-ui/src/backend/internal/infra/db"
 	"github.com/alireza0/s-ui/src/backend/internal/infra/db/model"
+	"gorm.io/gorm/clause"
 )
 
 const ClusterReachabilityUnknown = "unknown"
@@ -94,28 +93,35 @@ func (s *ClusterReachabilityService) RecordTransportFailure(domainID uint, targe
 	return entry, nil
 }
 
-func (s *ClusterReachabilityService) ShouldProbe(entry *model.ClusterPeerReachability) bool {
+func (s *ClusterReachabilityService) ShouldProbe(entry *model.ClusterPeerReachability) (bool, error) {
 	if entry == nil {
-		return false
+		return false, nil
 	}
 	now := s.currentUnix()
 	if s.policy.UnknownAfterSilence > 0 && entry.LastObservedAt > 0 && now-entry.LastObservedAt >= int64(s.policy.UnknownAfterSilence/time.Second) {
-		entry.State = ClusterReachabilityUnknown
+		if entry.State != ClusterReachabilityUnknown {
+			entry.State = ClusterReachabilityUnknown
+			if err := s.getStore().SaveReachability(entry); err != nil {
+				return false, err
+			}
+		}
 	}
 	if s.policy.IdleProbeAfter > 0 && entry.LastObservedAt > 0 && now-entry.LastObservedAt < int64(s.policy.IdleProbeAfter/time.Second) {
-		return false
+		return false, nil
 	}
 	if entry.NextProbeAt > now {
-		return false
+		return false, nil
 	}
-	return true
+	return true, nil
 }
 
-func (s *ClusterReachabilityService) ReconcileMembers(domainID uint, targetNodeIDs []string) error {
-	if len(targetNodeIDs) <= 1 {
+// ReconcilePeerTargets keeps persisted rows aligned to remote peer targets only.
+// peerTargetNodeIDs excludes the local node; when no peer targets remain, all rows for the domain are cleared.
+func (s *ClusterReachabilityService) ReconcilePeerTargets(domainID uint, peerTargetNodeIDs []string) error {
+	if len(peerTargetNodeIDs) == 0 {
 		return s.getStore().DeleteReachabilityByDomain(domainID)
 	}
-	return s.getStore().DeleteReachabilityNotInTargets(domainID, targetNodeIDs)
+	return s.getStore().DeleteReachabilityNotInTargets(domainID, peerTargetNodeIDs)
 }
 
 func (s *ClusterReachabilityService) load(domainID uint, targetNodeID string) (*model.ClusterPeerReachability, error) {
@@ -176,7 +182,35 @@ func (s *dbClusterReachabilityStore) GetReachability(domainID uint, targetNodeID
 }
 
 func (s *dbClusterReachabilityStore) SaveReachability(entry *model.ClusterPeerReachability) error {
-	return database.GetDB().Save(entry).Error
+	if err := database.GetDB().Clauses(clusterReachabilityUpsertClause()).Create(entry).Error; err != nil {
+		return err
+	}
+	loaded, err := s.GetReachability(entry.DomainID, entry.TargetNodeID)
+	if err != nil {
+		return err
+	}
+	if loaded != nil {
+		*entry = *loaded
+	}
+	return nil
+}
+
+func clusterReachabilityUpsertClause() clause.OnConflict {
+	return clause.OnConflict{
+		Columns: []clause.Column{
+			{Name: "domain_id"},
+			{Name: "target_node_id"},
+		},
+		DoUpdates: clause.AssignmentColumns([]string{
+			"state",
+			"last_observed_at",
+			"last_success_at",
+			"last_failure_at",
+			"consecutive_failures",
+			"next_probe_at",
+			"last_observation_source",
+		}),
+	}
 }
 
 func (s *dbClusterReachabilityStore) DeleteReachabilityByDomain(domainID uint) error {
@@ -188,59 +222,4 @@ func (s *dbClusterReachabilityStore) DeleteReachabilityNotInTargets(domainID uin
 		return s.DeleteReachabilityByDomain(domainID)
 	}
 	return database.GetDB().Where("domain_id = ? AND target_node_id NOT IN ?", domainID, targetNodeIDs).Delete(&model.ClusterPeerReachability{}).Error
-}
-
-type stubClusterReachabilityStore struct {
-	entries map[string]*model.ClusterPeerReachability
-}
-
-func newStubClusterReachabilityStore() *stubClusterReachabilityStore {
-	return &stubClusterReachabilityStore{entries: map[string]*model.ClusterPeerReachability{}}
-}
-
-func (s *stubClusterReachabilityStore) GetReachability(domainID uint, targetNodeID string) (*model.ClusterPeerReachability, error) {
-	entry := s.entries[s.key(domainID, targetNodeID)]
-	if entry == nil {
-		return nil, nil
-	}
-	copy := *entry
-	return &copy, nil
-}
-
-func (s *stubClusterReachabilityStore) SaveReachability(entry *model.ClusterPeerReachability) error {
-	if entry == nil {
-		return errors.New("cluster reachability entry is nil")
-	}
-	copy := *entry
-	s.entries[s.key(entry.DomainID, entry.TargetNodeID)] = &copy
-	return nil
-}
-
-func (s *stubClusterReachabilityStore) DeleteReachabilityByDomain(domainID uint) error {
-	for key, entry := range s.entries {
-		if entry.DomainID == domainID {
-			delete(s.entries, key)
-		}
-	}
-	return nil
-}
-
-func (s *stubClusterReachabilityStore) DeleteReachabilityNotInTargets(domainID uint, targetNodeIDs []string) error {
-	allowed := map[string]struct{}{}
-	for _, targetNodeID := range targetNodeIDs {
-		allowed[targetNodeID] = struct{}{}
-	}
-	for key, entry := range s.entries {
-		if entry.DomainID != domainID {
-			continue
-		}
-		if _, ok := allowed[entry.TargetNodeID]; !ok {
-			delete(s.entries, key)
-		}
-	}
-	return nil
-}
-
-func (s *stubClusterReachabilityStore) key(domainID uint, targetNodeID string) string {
-	return fmt.Sprintf("%d/%s", domainID, targetNodeID)
 }

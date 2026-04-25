@@ -78,8 +78,9 @@ func TestClusterReachabilityTransitionsAcrossFailuresAndRecovery(t *testing.T) {
 
 func TestClusterReachabilitySchedulesIdleProbeOnlyAfterSilenceWindow(t *testing.T) {
 	current := time.Unix(1_700_000_000, 0)
+	store := newStubClusterReachabilityStore()
 	service := &ClusterReachabilityService{
-		store:  newStubClusterReachabilityStore(),
+		store:  store,
 		policy: DefaultClusterReachabilityPolicy(),
 		now: func() int64 {
 			return current.Unix()
@@ -90,17 +91,37 @@ func TestClusterReachabilitySchedulesIdleProbeOnlyAfterSilenceWindow(t *testing.
 	if err != nil {
 		t.Fatalf("seed reachability success: %v", err)
 	}
-	if service.ShouldProbe(entry) {
+	loaded, err := store.GetReachability(9, "node-c")
+	if err != nil {
+		t.Fatalf("load stored reachability: %v", err)
+	}
+	if loaded.State != ClusterReachabilityReachable {
+		t.Fatalf("expected persisted reachable state, got %q", loaded.State)
+	}
+
+	shouldProbe, err := service.ShouldProbe(entry)
+	if err != nil {
+		t.Fatalf("should probe for recent observation: %v", err)
+	}
+	if shouldProbe {
 		t.Fatal("expected recent observation not to be probe eligible")
 	}
 
 	current = current.Add(service.policy.IdleProbeAfter - time.Second)
-	if service.ShouldProbe(entry) {
+	shouldProbe, err = service.ShouldProbe(entry)
+	if err != nil {
+		t.Fatalf("should probe before silence window: %v", err)
+	}
+	if shouldProbe {
 		t.Fatal("expected peer to remain ineligible before silence window expires")
 	}
 
 	current = current.Add(2 * time.Second)
-	if !service.ShouldProbe(entry) {
+	shouldProbe, err = service.ShouldProbe(entry)
+	if err != nil {
+		t.Fatalf("should probe after silence window: %v", err)
+	}
+	if !shouldProbe {
 		t.Fatal("expected peer to become probe eligible after silence window")
 	}
 	if entry.State != ClusterReachabilityReachable {
@@ -108,11 +129,22 @@ func TestClusterReachabilitySchedulesIdleProbeOnlyAfterSilenceWindow(t *testing.
 	}
 
 	current = current.Add(service.policy.UnknownAfterSilence)
-	if !service.ShouldProbe(entry) {
+	shouldProbe, err = service.ShouldProbe(entry)
+	if err != nil {
+		t.Fatalf("should probe after stale silence: %v", err)
+	}
+	if !shouldProbe {
 		t.Fatal("expected stale peer to stay probe eligible")
 	}
 	if entry.State != ClusterReachabilityUnknown {
 		t.Fatalf("expected stale peer to downgrade to unknown, got %q", entry.State)
+	}
+	persisted, err := store.GetReachability(9, "node-c")
+	if err != nil {
+		t.Fatalf("load stale persisted reachability: %v", err)
+	}
+	if persisted.State != ClusterReachabilityUnknown {
+		t.Fatalf("expected persisted state to downgrade to unknown, got %q", persisted.State)
 	}
 }
 
@@ -136,10 +168,10 @@ func TestClusterReachabilityClearsPeerRowsForSingleNodeDomains(t *testing.T) {
 		t.Fatalf("expected two reachability rows before reconcile, got %d", len(store.entries))
 	}
 
-	if err := service.ReconcileMembers(11, []string{"node-self"}); err != nil {
-		t.Fatalf("reconcile single-node domain: %v", err)
+	if err := service.ReconcilePeerTargets(11, []string{}); err != nil {
+		t.Fatalf("reconcile domain with no peer targets: %v", err)
 	}
 	if len(store.entries) != 0 {
-		t.Fatalf("expected peer rows to be cleared for single-node domain, got %d", len(store.entries))
+		t.Fatalf("expected peer rows to be cleared when only the local node remains, got %d", len(store.entries))
 	}
 }
