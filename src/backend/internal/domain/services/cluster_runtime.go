@@ -94,16 +94,16 @@ func (s *ClusterHubSyncer) SyncDomain(ctx context.Context, domain *model.Cluster
 	for _, member := range members {
 		targetNodeIDs = append(targetNodeIDs, member.NodeID)
 	}
-	if err := s.getReachability().ReconcileMembers(domain.Id, targetNodeIDs); err != nil {
-		return err
-	}
 	domain.CommunicationEndpointPath = snapshot.EffectiveCommunicationEndpointPath()
 	domain.CommunicationProtocolVersion = snapshot.EffectiveCommunicationProtocolVersion()
 	domain.LastVersion = snapshot.Version
 	if domain.LastVersion == 0 {
 		domain.LastVersion = version
 	}
-	return store.SaveDomain(domain)
+	if err := store.SaveDomain(domain); err != nil {
+		return err
+	}
+	return s.getReachability().ReconcileMembers(domain.Id, targetNodeIDs)
 }
 
 func (s *ClusterHubSyncer) getSecretProvider() clusterSecretProvider {
@@ -166,7 +166,13 @@ func (b *ClusterHTTPBroadcaster) BroadcastNotifyVersion(ctx context.Context, ver
 			continue
 		}
 		if entry.State == ClusterReachabilityUnreachable {
-			continue
+			shouldRetry, err := reachability.shouldProbeWithError(entry)
+			if err != nil {
+				appendFailure(err)
+			}
+			if !shouldRetry {
+				continue
+			}
 		}
 		token, err := DecryptClusterDomainToken(secret, member.PeerTokenEncrypted)
 		if err != nil {
