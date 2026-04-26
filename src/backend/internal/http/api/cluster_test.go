@@ -157,7 +157,7 @@ func TestClusterListsDomainsAndMembers(t *testing.T) {
 	if !bytes.Contains(domainsJSON, []byte(`"hubUrl":"https://hub.example.com"`)) {
 		t.Fatalf("expected hub URL in domains response, got %s", domainsJSON)
 	}
-	if !bytes.Contains(domainsJSON, []byte(`"supportedActions":["domain.cluster.changed","events","heartbeat","ping","info","action"]`)) {
+	if !bytes.Contains(domainsJSON, []byte(`"supportedActions":["domain.cluster.changed","events","heartbeat","ping","info","action","domain.panel.update.available"]`)) {
 		t.Fatalf("expected supported actions in domains response, got %s", domainsJSON)
 	}
 	if cluster.listMembersCalls != 1 {

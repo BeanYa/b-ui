@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 
+	"github.com/alireza0/b-ui/src/backend/internal/domain/config"
 	"github.com/alireza0/b-ui/src/backend/internal/infra/db/model"
 	"github.com/gofrs/uuid/v5"
 )
@@ -16,6 +17,8 @@ const (
 )
 
 const PeerActionDomainClusterChanged = "domain.cluster.changed"
+
+const PeerActionDomainPanelUpdateAvailable = "domain.panel.update.available"
 
 type ClusterPeerDispatcher struct {
 	eventStore       clusterPeerStore
@@ -52,6 +55,34 @@ func (d *ClusterPeerDispatcher) Dispatch(ctx context.Context, domain *model.Clus
 
 	if message.Category == PeerCategoryEvent && message.Action == PeerActionDomainClusterChanged {
 		if err := d.handleDomainClusterChanged(ctx, domain, source, message); err != nil {
+			forwardedNextStep, chainErr := d.completeChainStep(ctx, domain, message, PeerEventStatusFailed, err.Error())
+			if chainErr != nil {
+				_ = store.MarkEventState(state.MessageID, PeerEventStatusFailed, chainErr.Error())
+				return chainErr
+			}
+			status := PeerEventStatusFailed
+			errorMessage := err.Error()
+			if forwardedNextStep {
+				status = PeerEventStatusSucceeded
+				errorMessage = ""
+			}
+			if markErr := store.MarkEventState(state.MessageID, status, errorMessage); markErr != nil {
+				return markErr
+			}
+			if forwardedNextStep {
+				return nil
+			}
+			return err
+		}
+		if _, err := d.completeChainStep(ctx, domain, message, PeerEventStatusSucceeded, ""); err != nil {
+			_ = store.MarkEventState(state.MessageID, PeerEventStatusFailed, err.Error())
+			return err
+		}
+		return store.MarkEventState(state.MessageID, PeerEventStatusSucceeded, "")
+	}
+
+	if message.Category == PeerCategoryEvent && message.Action == PeerActionDomainPanelUpdateAvailable {
+		if err := d.handleDomainPanelUpdateAvailable(ctx, domain, source, message); err != nil {
 			forwardedNextStep, chainErr := d.completeChainStep(ctx, domain, message, PeerEventStatusFailed, err.Error())
 			if chainErr != nil {
 				_ = store.MarkEventState(state.MessageID, PeerEventStatusFailed, chainErr.Error())
@@ -118,6 +149,22 @@ func (d *ClusterPeerDispatcher) handleDomainClusterChanged(ctx context.Context, 
 	}
 	syncService := d.getSyncService()
 	_, err := syncService.HandleIncomingNotifyVersion(ctx, domain.Id, source.NodeID, int64(versionValue))
+	return err
+}
+
+func (d *ClusterPeerDispatcher) handleDomainPanelUpdateAvailable(ctx context.Context, domain *model.ClusterDomain, source *model.ClusterMember, message *PeerMessage) error {
+	targetVersion, ok := message.Payload["target_version"].(string)
+	if !ok || targetVersion == "" {
+		return errors.New("invalid_payload_target_version")
+	}
+
+	currentVersion := config.GetVersion()
+	if compareReleaseTags(currentVersion, targetVersion) != "older" {
+		return nil // already at or above target, ignore
+	}
+
+	panelSvc := &PanelService{}
+	_, err := panelSvc.StartUpdate(targetVersion, true)
 	return err
 }
 
