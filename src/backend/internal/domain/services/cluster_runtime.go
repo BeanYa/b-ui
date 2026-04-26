@@ -221,6 +221,67 @@ func (b *ClusterHTTPBroadcaster) BroadcastNotifyVersion(ctx context.Context, ver
 	return nil
 }
 
+func (b *ClusterHTTPBroadcaster) BroadcastUpdateAvailable(ctx context.Context, domainID uint, domainName string, targetVersion string, excludeNodeID string) error {
+	identity, err := b.identity.GetOrCreate()
+	if err != nil {
+		return err
+	}
+	secret, err := b.getSecretProvider().GetSecret()
+	if err != nil {
+		return err
+	}
+	members, err := b.getStore().ListMembersWithDomain()
+	if err != nil {
+		return err
+	}
+	reachability := b.getReachability()
+	for _, member := range members {
+		if member.Domain == nil || member.Domain.Id != domainID {
+			continue
+		}
+		if member.NodeID == excludeNodeID || member.NodeID == identity.NodeID || member.BaseURL == "" {
+			continue
+		}
+		entry, err := reachability.load(member.DomainID, member.NodeID)
+		if err != nil {
+			continue
+		}
+		if entry.State == ClusterReachabilityUnreachable {
+			shouldRetry, err := reachability.shouldProbeWithError(entry)
+			if err != nil || !shouldRetry {
+				continue
+			}
+		}
+		token, err := DecryptClusterDomainToken(secret, member.PeerTokenEncrypted)
+		if err != nil {
+			continue
+		}
+		message, err := NewClusterPeerMessage(domainName, 0, identity.NodeID, 0, PeerCategoryEvent, "domain.panel.update.available", map[string]interface{}{
+			"target_version": targetVersion,
+		})
+		if err != nil {
+			continue
+		}
+		message.Route = RoutePlan{
+			Mode: RouteModeBroadcast,
+			Delivery: &DeliveryPolicy{
+				Ack:       DeliveryAckNone,
+				TimeoutMs: 10000,
+				Retry: &RetryPolicy{
+					MaxAttempts: 1,
+					BackoffMs:   1000,
+				},
+			},
+		}
+		if err := SignClusterPeerMessage(identity, message); err != nil {
+			continue
+		}
+		delivery := &ClusterPeerDeliveryService{HTTPClient: b.httpClient(), saveAckAttempt: b.getAckAttemptSaver()}
+		_ = delivery.Send(ctx, message, member, token)
+	}
+	return nil
+}
+
 func (b *ClusterHTTPBroadcaster) httpClient() *http.Client {
 	if b.HTTPClient != nil {
 		return b.HTTPClient

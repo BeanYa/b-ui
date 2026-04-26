@@ -92,6 +92,7 @@ type clusterSyncStore interface {
 
 type clusterBroadcaster interface {
 	BroadcastNotifyVersion(context.Context, int64, string) error
+	BroadcastUpdateAvailable(context.Context, uint, string, string, string) error
 }
 
 type clusterHubSyncer interface {
