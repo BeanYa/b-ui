@@ -140,15 +140,25 @@
                   <td>{{ member.baseUrl || '-' }}</td>
                   <td>{{ formatClusterVersionLabel(member.lastVersion) }}</td>
                   <td>
-                    <v-btn
-                      size="small"
-                      :color="member.isLocal ? 'error' : 'warning'"
-                      variant="outlined"
-                      :loading="member.isLocal ? leavingDomainId === selectedDomain?.id : deletingMemberId === member.id"
-                      @click="member.isLocal ? leaveDomain(selectedDomain) : deleteMember(member)"
-                    >
-                      {{ member.isLocal ? $t('clusterCenter.actions.leave') : $t('clusterCenter.actions.delete') }}
-                    </v-btn>
+                    <div style="display: flex; gap: 8px; align-items: center;">
+                      <v-btn
+                        v-if="!member.isLocal"
+                        size="small"
+                        variant="tonal"
+                        @click="goToNodeDetail(member)"
+                      >
+                        管理
+                      </v-btn>
+                      <v-btn
+                        size="small"
+                        :color="member.isLocal ? 'error' : 'warning'"
+                        variant="outlined"
+                        :loading="member.isLocal ? leavingDomainId === selectedDomain?.id : deletingMemberId === member.id"
+                        @click="member.isLocal ? leaveDomain(selectedDomain) : deleteMember(member)"
+                      >
+                        {{ member.isLocal ? $t('clusterCenter.actions.leave') : $t('clusterCenter.actions.delete') }}
+                      </v-btn>
+                    </div>
                   </td>
                 </tr>
               </tbody>
@@ -246,12 +256,26 @@
 
 <script lang="ts" setup>
 import { computed, onMounted, ref } from 'vue'
+import { useRouter } from 'vue-router'
 import { push } from 'notivue'
 
 import HttpUtils from '@/plugins/httputil'
 import { i18n } from '@/locales'
 import { parseClusterHubJoinUri } from '@/features/clusterHubUri'
 import type { ClusterDomain, ClusterMember, ClusterOperationStatus } from '@/types/clusters'
+
+const router = useRouter()
+
+// TODO: Retrieve the actual peer token from a cluster API or store when available
+const getPeerToken = (_member: ClusterMember): string => ''
+
+const goToNodeDetail = (member: ClusterMember) => {
+  router.push({
+    name: 'pages.clusterNodeDetail',
+    params: { nodeId: member.nodeId },
+    query: { name: member.name, baseUrl: member.baseUrl, token: getPeerToken(member) },
+  })
+}
 
 const pageLoading = ref(false)
 const actionLoading = ref(false)
