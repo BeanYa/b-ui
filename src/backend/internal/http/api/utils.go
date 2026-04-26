@@ -5,7 +5,7 @@ import (
 	"net/http"
 	"strings"
 
-	logger "github.com/alireza0/s-ui/src/backend/internal/infra/logging"
+	logger "github.com/alireza0/b-ui/src/backend/internal/infra/logging"
 
 	"github.com/gin-gonic/gin"
 )

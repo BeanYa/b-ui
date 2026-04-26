@@ -7,8 +7,8 @@ import (
 	"net/url"
 	"strings"
 
-	"github.com/alireza0/s-ui/src/backend/internal/infra/db/model"
-	"github.com/alireza0/s-ui/src/backend/internal/shared/util/common"
+	"github.com/alireza0/b-ui/src/backend/internal/infra/db/model"
+	"github.com/alireza0/b-ui/src/backend/internal/shared/util/common"
 )
 
 var InboundTypeWithLink = []string{"socks", "http", "mixed", "shadowsocks", "naive", "hysteria", "hysteria2", "anytls", "tuic", "vless", "trojan", "vmess"}

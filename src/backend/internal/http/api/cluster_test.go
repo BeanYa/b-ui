@@ -9,9 +9,9 @@ import (
 	"strings"
 	"testing"
 
-	service "github.com/alireza0/s-ui/src/backend/internal/domain/services"
-	"github.com/alireza0/s-ui/src/backend/internal/infra/db/model"
-	logger "github.com/alireza0/s-ui/src/backend/internal/infra/logging"
+	service "github.com/alireza0/b-ui/src/backend/internal/domain/services"
+	"github.com/alireza0/b-ui/src/backend/internal/infra/db/model"
+	logger "github.com/alireza0/b-ui/src/backend/internal/infra/logging"
 
 	"github.com/gin-contrib/sessions"
 	"github.com/gin-contrib/sessions/cookie"
@@ -399,7 +399,7 @@ func newTestClusterRouterWithUserService(userService apiUserService) (*gin.Engin
 	gin.SetMode(gin.TestMode)
 	logger.InitLogger(logging.ERROR)
 	router := gin.New()
-	router.Use(sessions.Sessions("s-ui", cookie.NewStore([]byte("test-secret"))))
+	router.Use(sessions.Sessions("b-ui", cookie.NewStore([]byte("test-secret"))))
 	cluster := &stubClusterAPIService{}
 	handler := &APIHandler{clusterService: cluster}
 	handler.ApiService.userService = userService

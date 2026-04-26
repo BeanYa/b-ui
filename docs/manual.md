@@ -20,8 +20,8 @@ bash <(curl -Ls https://raw.githubusercontent.com/BeanYa/b-ui/main/install.sh) v
 
 - 管理命令：`b-ui`
 - systemd 服务名：`b-ui`
-- 安装根目录：`/usr/local/s-ui`
-- 主数据库路径：`/usr/local/s-ui/db/b-ui.db`
+- 安装根目录：`/usr/local/b-ui`
+- 主数据库路径：`/usr/local/b-ui/db/b-ui.db`
 
 安装脚本的实际行为：
 
@@ -29,7 +29,7 @@ bash <(curl -Ls https://raw.githubusercontent.com/BeanYa/b-ui/main/install.sh) v
 - 检测 Linux 发行版并安装 `wget`、`curl`、`tar`、`tzdata` 等基础依赖。
 - 未指定版本时解析最新 GitHub release。
 - 下载 `b-ui-linux-<arch>.tar.gz`。
-- 将程序安装到 `/usr/local/s-ui`。
+- 将程序安装到 `/usr/local/b-ui`。
 - 将管理命令安装到 `/usr/bin/b-ui`。
 - 安装并启用 `b-ui` systemd 服务。
 - 首次启动前执行数据库迁移。
@@ -134,7 +134,7 @@ IMAGE_REF=registry.example.com/ops/b-ui@sha256:<digest> bash ./scripts/release/i
 - 如果你在安装过程中主动修改过用户名和密码，使用你填写的值。
 - 如果你在全新安装时直接拒绝继续后续交互式修改流程，使用安装脚本打印的随机管理员凭据。
 - 如果这是已有 `b-ui` 的更新，现有凭据会被保留。
-- 如果这是从上游 `s-ui` 迁移，现有凭据和数据库内容会被保留。
+- 如果这是从上游 `b-ui` 迁移，现有凭据和数据库内容会被保留。
 
 首次登录步骤：
 
@@ -170,7 +170,7 @@ IMAGE_REF=registry.example.com/ops/b-ui@sha256:<digest> bash ./scripts/release/i
 
 - `systemctl status b-ui`
 - 确认服务处于活动状态
-- 确认 `/usr/local/s-ui/db/b-ui.db` 已存在
+- 确认 `/usr/local/b-ui/db/b-ui.db` 已存在
 
 ## 3. 最快创建一个代理站点
 
@@ -444,10 +444,10 @@ bash <(curl -Ls https://raw.githubusercontent.com/BeanYa/b-ui/main/install.sh) -
 
 - `--update` 只在已安装 `b-ui` 的情况下工作。
 - 如果未安装 `b-ui`，脚本会退出并提示先执行安装。
-- 如果系统里只有上游 `s-ui`，脚本会退出并提示先迁移。
+- 如果系统里只有上游 `b-ui`，脚本会退出并提示先迁移。
 - 如果当前版本已等于或高于目标版本，脚本会退出并提示改用 `--force-update`。
 - 普通更新保留现有设置和凭据。
-- 普通更新不会执行旧版 `s-ui` 迁移逻辑。
+- 普通更新不会执行旧版 `b-ui` 迁移逻辑。
 
 ### 强制更新
 
@@ -470,22 +470,22 @@ bash <(curl -Ls https://raw.githubusercontent.com/BeanYa/b-ui/main/install.sh) -
 当系统里已存在安装时，脚本会创建回滚备份：
 
 ```text
-/var/backups/s-ui/<timestamp>/
+/var/backups/b-ui/<timestamp>/
 ```
 
 备份内容可能包括：
 
 - 安装根目录归档 `install-root.tar.gz`
 - 当前 `b-ui` CLI
-- 仍然存在时的旧 `s-ui` CLI
+- 仍然存在时的旧 `b-ui` CLI
 - 当前 systemd 单元文件
-- `/usr/local/s-ui/db/` 下的数据库文件
+- `/usr/local/b-ui/db/` 下的数据库文件
 
 如果新服务启动失败并无法保持活动状态，安装脚本会自动回滚并尝试拉起旧服务。
 
 ## 8. 从上游迁移
 
-当服务器已经安装了上游 `s-ui`，并且你希望在保留数据的前提下原地替换为 `b-ui` 时，使用迁移。
+当服务器已经安装了上游 `b-ui`，并且你希望在保留数据的前提下原地替换为 `b-ui` 时，使用迁移。
 
 一行迁移命令：
 
@@ -502,20 +502,20 @@ bash <(curl -Ls https://raw.githubusercontent.com/BeanYa/b-ui/main/install.sh) -
 `--migrate` 的实际步骤：
 
 - 检测兼容的上游安装。
-- 停止旧 `s-ui` 服务。
-- 在 `/var/backups/s-ui/<timestamp>/` 创建回滚备份。
+- 停止旧 `b-ui` 服务。
+- 在 `/var/backups/b-ui/<timestamp>/` 创建回滚备份。
 - 从 `BeanYa/b-ui` 下载目标 release；当前 Linux 资源名为 `b-ui-linux-<arch>.tar.gz`。
 - 原地替换已安装的二进制和 shell 脚本。
-- 执行 `sui migrate`；如果系统里只有旧 `s-ui.db`，会先把它迁移到 `b-ui.db`。
-- 把 systemd 服务名从 `s-ui` 切换为 `b-ui`。
-- 把管理命令从 `s-ui` 切换为 `b-ui`。
+- 执行 `sui migrate`；如果系统里只有旧 `b-ui.db`，会先把它迁移到 `b-ui.db`。
+- 把 systemd 服务名从 `b-ui` 切换为 `b-ui`。
+- 把管理命令从 `b-ui` 切换为 `b-ui`。
 - 启动并启用 `b-ui` 服务。
 
 迁移过程中会保留的内容：
 
 - 现有面板设置和管理员凭据会被保留。
 - 现有入站、出站、端口和其他持久化面板数据会继续保留。
-- 当只有旧数据库存在时，这些数据会自动从 `s-ui.db` 迁移到 `b-ui.db`。
+- 当只有旧数据库存在时，这些数据会自动从 `b-ui.db` 迁移到 `b-ui.db`。
 
 回滚行为：
 
@@ -534,14 +534,14 @@ bash <(curl -Ls https://raw.githubusercontent.com/BeanYa/b-ui/main/install.sh) -
 - `--force-update` 会在版本相同的情况下也重新安装目标版本。
 - 两种模式都可以附带版本号，例如 `--update v0.0.1`。
 - 如果系统里还没有 `b-ui`，更新模式会提示先安装。
-- 如果系统里只有上游 `s-ui`，更新模式会提示先迁移。
+- 如果系统里只有上游 `b-ui`，更新模式会提示先迁移。
 - 如果当前版本已是目标版本或更高版本，普通更新会提示改用 `--force-update`。
-- 普通 `b-ui` 更新不会再执行旧版 `s-ui` 的迁移流程。
+- 普通 `b-ui` 更新不会再执行旧版 `b-ui` 的迁移流程。
 
 验证方法：
 
 - `systemctl status b-ui`
-- 确认 `/usr/local/s-ui/db/b-ui.db` 已存在
+- 确认 `/usr/local/b-ui/db/b-ui.db` 已存在
 - 确认面板中的原设置、凭据、入站和其他持久化数据都仍然存在
 
 ## 9. 功能逻辑与基本使用
@@ -704,8 +704,8 @@ buihub://hub.example.com/domain/example.com?token=xxxx
 ## 11. 基本排错
 
 - 安装命令在下载前失败：检查 root 权限和到 GitHub 的出站连通性。
-- 更新拒绝执行：确认系统里安装的是 `b-ui`；如果只有上游 `s-ui`，请先迁移。
-- 服务启动后又回滚：检查 `systemctl status b-ui`、`journalctl -u b-ui` 和 `/var/backups/s-ui/` 下的回滚备份。
+- 更新拒绝执行：确认系统里安装的是 `b-ui`；如果只有上游 `b-ui`，请先迁移。
+- 服务启动后又回滚：检查 `systemctl status b-ui`、`journalctl -u b-ui` 和 `/var/backups/b-ui/` 下的回滚备份。
 - 全新安装后不知道登录凭据：只有在拒绝继续后续交互式修改流程时，安装脚本才会打印随机管理员凭据。
 - 修改接口设置后面板地址不对：重新检查 `Settings` -> `Interface`，保存后重启应用。
 - TLS 握手失败：检查 `server_name`、证书路径或证书内容，以及入站是否绑定了正确的 TLS 模板。

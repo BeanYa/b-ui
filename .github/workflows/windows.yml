@@ -97,7 +97,7 @@ jobs:
           go env GOOS GOARCH
           
           VERSION_LDFLAGS=""
-          if [ "${GITHUB_REF_TYPE}" = "tag" ]; then VERSION_LDFLAGS="-X github.com/alireza0/s-ui/src/backend/internal/domain/config.buildVersion=${GITHUB_REF_NAME}"; fi
+          if [ "${GITHUB_REF_TYPE}" = "tag" ]; then VERSION_LDFLAGS="-X github.com/alireza0/b-ui/src/backend/internal/domain/config.buildVersion=${GITHUB_REF_NAME}"; fi
           go build -ldflags="-w -s -checklinkname=0 ${VERSION_LDFLAGS}" -tags "${{ env.TAGS }}" -o sui.exe ./src/backend/cmd/b-ui
           file sui.exe
           

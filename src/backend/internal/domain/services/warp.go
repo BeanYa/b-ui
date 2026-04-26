@@ -11,9 +11,9 @@ import (
 	"strconv"
 	"time"
 
-	"github.com/alireza0/s-ui/src/backend/internal/infra/db/model"
-	logger "github.com/alireza0/s-ui/src/backend/internal/infra/logging"
-	"github.com/alireza0/s-ui/src/backend/internal/shared/util/common"
+	"github.com/alireza0/b-ui/src/backend/internal/infra/db/model"
+	logger "github.com/alireza0/b-ui/src/backend/internal/infra/logging"
+	"github.com/alireza0/b-ui/src/backend/internal/shared/util/common"
 
 	"golang.zx2c4.com/wireguard/wgctrl/wgtypes"
 )
@@ -51,7 +51,7 @@ func (s *WarpService) RegisterWarp(ep *model.Endpoint) error {
 	publicKey := privateKey.PublicKey().String()
 	hostName, _ := os.Hostname()
 
-	data := fmt.Sprintf(`{"key":"%s","tos":"%s","type": "PC","model": "s-ui", "name": "%s"}`, publicKey, tos, hostName)
+	data := fmt.Sprintf(`{"key":"%s","tos":"%s","type": "PC","model": "b-ui", "name": "%s"}`, publicKey, tos, hostName)
 	url := "https://api.cloudflareclient.com/v0a2158/reg"
 
 	req, err := http.NewRequest("POST", url, bytes.NewBuffer([]byte(data)))

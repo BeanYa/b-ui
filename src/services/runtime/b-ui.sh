@@ -13,9 +13,9 @@ SCRIPT_RAW_URL="https://raw.githubusercontent.com/${REPO_OWNER}/${REPO_NAME}/mai
 RELEASES_API_URL="https://api.github.com/repos/${REPO_OWNER}/${REPO_NAME}/releases"
 CLI_NAME="${CLI_NAME:-b-ui}"
 CLI_PATH="${CLI_PATH:-/usr/bin/${CLI_NAME}}"
-INSTALL_ROOT="${INSTALL_ROOT:-/usr/local/s-ui}"
+INSTALL_ROOT="${INSTALL_ROOT:-/usr/local/b-ui}"
 SERVICE_NAME="${SERVICE_NAME:-b-ui}"
-LEGACY_SERVICE_NAME="${LEGACY_SERVICE_NAME:-s-ui}"
+LEGACY_SERVICE_NAME="${LEGACY_SERVICE_NAME:-b-ui}"
 DISPLAY_NAME="${DISPLAY_NAME:-B-UI}"
 
 function LOGD() {
@@ -271,7 +271,7 @@ uninstall() {
     rm "/etc/systemd/system/${SERVICE_NAME}.service" -f
     systemctl daemon-reload
     systemctl reset-failed
-    rm -rf /etc/s-ui/
+    rm -rf /etc/b-ui/
     rm -rf "${INSTALL_ROOT}/"
 
     echo ""

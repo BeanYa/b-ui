@@ -8,11 +8,11 @@ import (
 	"strings"
 	"time"
 
-	"github.com/alireza0/s-ui/src/backend/internal/domain/config"
-	database "github.com/alireza0/s-ui/src/backend/internal/infra/db"
-	"github.com/alireza0/s-ui/src/backend/internal/infra/db/model"
-	logger "github.com/alireza0/s-ui/src/backend/internal/infra/logging"
-	"github.com/alireza0/s-ui/src/backend/internal/shared/util/common"
+	"github.com/alireza0/b-ui/src/backend/internal/domain/config"
+	database "github.com/alireza0/b-ui/src/backend/internal/infra/db"
+	"github.com/alireza0/b-ui/src/backend/internal/infra/db/model"
+	logger "github.com/alireza0/b-ui/src/backend/internal/infra/logging"
+	"github.com/alireza0/b-ui/src/backend/internal/shared/util/common"
 
 	"gorm.io/gorm"
 )

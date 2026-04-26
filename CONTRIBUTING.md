@@ -170,7 +170,7 @@ Community help is especially valuable in these areas. Check the [Issues](https:/
 ### High-Value Areas
 
 - **Multi-inbound per user**: Core differentiator inherited from upstream; improvements to UX, docs, and robustness are welcome.
-- **API (v1 and v2)**: Completeness, consistency, and documentation. Upstream API docs remain a useful reference: [API Documentation](https://github.com/alireza0/s-ui/wiki/API-Documentation).
+- **API (v1 and v2)**: Completeness, consistency, and documentation. Upstream API docs remain a useful reference: [API Documentation](https://github.com/alireza0/b-ui/wiki/API-Documentation).
 - **Subscription service**: Link conversion, JSON subscription, and info endpoints (`src/backend/internal/http/sub/`, `src/backend/internal/shared/util/`).
 - **Testing**: Adding unit and integration tests for critical paths.
 - **Documentation**: User docs, migration/update docs, release notes, and contribution docs.

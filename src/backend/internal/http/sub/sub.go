@@ -9,11 +9,11 @@ import (
 	"strconv"
 	"time"
 
-	"github.com/alireza0/s-ui/src/backend/internal/domain/config"
-	service "github.com/alireza0/s-ui/src/backend/internal/domain/services"
-	"github.com/alireza0/s-ui/src/backend/internal/http/middleware"
-	logger "github.com/alireza0/s-ui/src/backend/internal/infra/logging"
-	"github.com/alireza0/s-ui/src/backend/internal/infra/network"
+	"github.com/alireza0/b-ui/src/backend/internal/domain/config"
+	service "github.com/alireza0/b-ui/src/backend/internal/domain/services"
+	"github.com/alireza0/b-ui/src/backend/internal/http/middleware"
+	logger "github.com/alireza0/b-ui/src/backend/internal/infra/logging"
+	"github.com/alireza0/b-ui/src/backend/internal/infra/network"
 
 	"github.com/gin-gonic/gin"
 )

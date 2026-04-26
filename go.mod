@@ -1,4 +1,4 @@
-module github.com/alireza0/s-ui
+module github.com/alireza0/b-ui
 
 go 1.25.7
 

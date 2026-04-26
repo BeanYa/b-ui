@@ -1,8 +1,8 @@
 package cronjob
 
 import (
-	service "github.com/alireza0/s-ui/src/backend/internal/domain/services"
-	logger "github.com/alireza0/s-ui/src/backend/internal/infra/logging"
+	service "github.com/alireza0/b-ui/src/backend/internal/domain/services"
+	logger "github.com/alireza0/b-ui/src/backend/internal/infra/logging"
 )
 
 type StatsJob struct {

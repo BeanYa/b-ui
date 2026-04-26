@@ -3,9 +3,9 @@ package cmd
 import (
 	"fmt"
 
-	"github.com/alireza0/s-ui/src/backend/internal/domain/config"
-	service "github.com/alireza0/s-ui/src/backend/internal/domain/services"
-	database "github.com/alireza0/s-ui/src/backend/internal/infra/db"
+	"github.com/alireza0/b-ui/src/backend/internal/domain/config"
+	service "github.com/alireza0/b-ui/src/backend/internal/domain/services"
+	database "github.com/alireza0/b-ui/src/backend/internal/infra/db"
 )
 
 func resetAdmin() {

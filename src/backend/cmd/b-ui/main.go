@@ -6,8 +6,8 @@ import (
 	"os/signal"
 	"syscall"
 
-	"github.com/alireza0/s-ui/src/backend/internal/app"
-	cmd "github.com/alireza0/s-ui/src/backend/internal/cli"
+	"github.com/alireza0/b-ui/src/backend/internal/app"
+	cmd "github.com/alireza0/b-ui/src/backend/internal/cli"
 )
 
 func runApp() {
