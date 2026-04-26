@@ -114,6 +114,10 @@ export default {
       logPath: "Журнал обновления:",
       logFile: "Журнал обновления",
       logPending: "Ожидание вывода журнала обновления...",
+      steps: {
+        downloading: "Загрузка установочного скрипта...",
+        installing: "Выполнение установочного скрипта...",
+      },
     },
   },
   objects: {
@@ -158,6 +162,7 @@ export default {
     generate: "Генерировать",
     disable: "Отключить",
     close: "Закрыть",
+    refresh: "Обновить",
     restartApp: "Перезапустить приложение",
     restartSb: "Перезапустить Singbox",
     apply: "Применить",

@@ -114,6 +114,10 @@ export default {
       logPath: "لاگ به‌روزرسانی:",
       logFile: "لاگ به‌روزرسانی",
       logPending: "در انتظار خروجی لاگ به‌روزرسانی...",
+      steps: {
+        downloading: "در حال دریافت اسکریپت نصب...",
+        installing: "در حال اجرای اسکریپت نصب...",
+      },
     },
   },
   objects: {
@@ -158,6 +162,7 @@ export default {
     generate: "تولید",
     disable: "غیرفعال",
     close: "بستن",
+    refresh: "تازه‌سازی",
     restartApp: "ریستارت پنل",
     restartSb: "ریستارت سینگ‌باکس",
   },

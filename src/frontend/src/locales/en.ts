@@ -114,6 +114,10 @@ export default {
       logPath: "Update log:",
       logFile: "Log file",
       logPending: "Waiting for update log output...",
+      steps: {
+        downloading: "Downloading install script...",
+        installing: "Running install script...",
+      },
     },
   },
   objects: {
@@ -158,6 +162,7 @@ export default {
     generate: "Generate",
     disable: "Disable",
     close: "Close",
+    refresh: "Refresh",
     restartApp: "Restart App",
     restartSb: "Restart Singbox",
   },

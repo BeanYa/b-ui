@@ -114,6 +114,10 @@ export default {
       logPath: "更新日誌：",
       logFile: "更新日誌",
       logPending: "正在等待更新日誌輸出...",
+      steps: {
+        downloading: "正在下載安裝腳本...",
+        installing: "正在執行安裝腳本...",
+      },
     },
   },
   objects: {
@@ -158,6 +162,7 @@ export default {
     generate: "生成",
     disable: "禁用",
     close: "關閉",
+    refresh: "重新整理",
     restartApp: "重啟面板",
     restartSb: "重啟 Singbox",
   },

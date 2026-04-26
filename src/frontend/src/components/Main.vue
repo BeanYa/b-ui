@@ -32,9 +32,13 @@
               <p class="panel-update__copy panel-update__copy--muted">
                 {{ $t('main.updatePanel.progressHint') }}
               </p>
+              <p v-if="panelUpdateStepLabel" class="panel-update__step">
+                <span class="panel-update__step-dot"></span>
+                <span>{{ panelUpdateStepLabel }}</span>
+              </p>
               <div class="panel-update__log-shell">
                 <div class="panel-update__log-title">{{ $t('main.updatePanel.logFile') }}</div>
-                <pre class="panel-update__log">{{ panelUpdateLogOutput }}</pre>
+                <pre ref="panelUpdateLogPre" class="panel-update__log">{{ panelUpdateLogOutput }}</pre>
               </div>
             </div>
             <p
@@ -48,7 +52,7 @@
               class="panel-update__log-shell"
             >
               <div class="panel-update__log-title">{{ $t('main.updatePanel.logFile') }}</div>
-              <pre class="panel-update__log">{{ panelUpdateLogOutput }}</pre>
+              <pre ref="panelUpdateLogPre" class="panel-update__log">{{ panelUpdateLogOutput }}</pre>
             </div>
           </template>
         </v-card-text>
@@ -269,7 +273,7 @@ import { HumanReadable } from '@/plugins/utils'
 import Data from '@/store/modules/data'
 import Gauge from '@/components/tiles/Gauge.vue'
 import History from '@/components/tiles/History.vue'
-import { computed, onActivated, onBeforeUnmount, onDeactivated, onMounted, ref } from 'vue'
+import { computed, nextTick, onActivated, onBeforeUnmount, onDeactivated, onMounted, ref, watch } from 'vue'
 import { i18n } from '@/locales'
 import { push } from 'notivue'
 import LogVue from '@/layouts/modals/Logs.vue'
@@ -533,6 +537,28 @@ const panelUpdateLogOutput = computed(() => {
     return panelUpdateProgressLines.value.join('\n')
   }
   return i18n.global.t('main.updatePanel.logPending').toString()
+})
+
+const panelUpdateLogPre = ref<HTMLElement | null>(null)
+
+watch(panelUpdateLogOutput, async () => {
+  await nextTick()
+  if (panelUpdateLogPre.value) {
+    panelUpdateLogPre.value.scrollTo({
+      top: panelUpdateLogPre.value.scrollHeight,
+      behavior: 'smooth',
+    })
+  }
+})
+
+const panelUpdateStepLabel = computed(() => {
+  const message = panelUpdateDialog.value.info?.updateState?.message
+  if (!message) return ''
+  const labels: Record<string, string> = {
+    download_install_script: i18n.global.t('main.updatePanel.steps.downloading').toString(),
+    execute_install_script: i18n.global.t('main.updatePanel.steps.installing').toString(),
+  }
+  return labels[message] || ''
 })
 
 const panelUpdateCompletedText = computed(() => {
@@ -983,6 +1009,38 @@ onBeforeUnmount(() => {
 
 .panel-update__progress .panel-update__copy {
   margin-top: 0;
+}
+
+.panel-update__step {
+  align-items: center;
+  color: #b0d4f0;
+  display: flex;
+  font-size: 12px;
+  font-weight: 500;
+  gap: 8px;
+  line-height: 1.4;
+  margin: 0;
+}
+
+.panel-update__step-dot {
+  animation: panel-update-step-pulse 1.6s ease-in-out infinite;
+  background: #60c0e8;
+  border-radius: 50%;
+  box-shadow: 0 0 6px color-mix(in srgb, #60c0e8 48%, transparent);
+  flex-shrink: 0;
+  height: 8px;
+  width: 8px;
+}
+
+@keyframes panel-update-step-pulse {
+  0%, 100% {
+    opacity: 0.35;
+    transform: scale(0.75);
+  }
+  50% {
+    opacity: 1;
+    transform: scale(1);
+  }
 }
 
 .panel-update__details {

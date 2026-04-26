@@ -114,6 +114,10 @@ export default {
       logPath: "Nhật ký cập nhật:",
       logFile: "Nhật ký cập nhật",
       logPending: "Đang chờ nhật ký cập nhật...",
+      steps: {
+        downloading: "Đang tải tập lệnh cài đặt...",
+        installing: "Đang chạy tập lệnh cài đặt...",
+      },
     },
   },
   objects: {
@@ -158,6 +162,7 @@ export default {
     generate: "Tạo ra",
     disable: "Vô hiệu hóa",
     close: "Đóng",
+    refresh: "Làm mới",
     restartApp: "Khởi động lại ứng dụng",
     restartSb: "Khởi động lại Singbox",
   },
