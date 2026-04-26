@@ -418,11 +418,81 @@ func (s *stubClusterAPIService) Ping(string) (*service.ClusterPeerStatus, error)
 }
 
 func (s *stubClusterAPIService) HandleAction(c *gin.Context) {
-	c.JSON(http.StatusOK, gin.H{"status": "stub", "action": "handle_action"})
+	var body map[string]any
+	if err := c.ShouldBindJSON(&body); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"status": "error", "message": "invalid json"})
+		return
+	}
+	action, _ := body["action"].(string)
+	if action == "" {
+		c.JSON(http.StatusBadRequest, gin.H{"status": "error", "message": "missing action"})
+		return
+	}
+	if action != "known.action" {
+		c.JSON(http.StatusOK, gin.H{"status": "unsupported", "action": action})
+		return
+	}
+	c.JSON(http.StatusOK, gin.H{"status": "stub", "action": action})
 }
 
 func (s *stubClusterAPIService) Info(c *gin.Context) {
 	c.JSON(http.StatusOK, gin.H{"actions": []string{}})
+}
+
+func TestClusterInfoEndpoint(t *testing.T) {
+	router, _ := newTestClusterRouter()
+	req := httptest.NewRequest(http.MethodGet, "/_cluster/v1/info", nil)
+	recorder := httptest.NewRecorder()
+
+	router.ServeHTTP(recorder, req)
+
+	if recorder.Code != http.StatusOK {
+		t.Fatalf("expected status %d, got %d", http.StatusOK, recorder.Code)
+	}
+	var response map[string]any
+	decodeResponse(t, recorder, &response)
+	actions, ok := response["actions"]
+	if !ok {
+		t.Fatalf("expected 'actions' key in response, got %#v", response)
+	}
+	_, ok = actions.([]any)
+	if !ok {
+		t.Fatalf("expected 'actions' to be an array, got %T", actions)
+	}
+}
+
+func TestClusterActionEndpoint_UnsupportedAction(t *testing.T) {
+	router, _ := newTestClusterRouter()
+	req := httptest.NewRequest(http.MethodPost, "/_cluster/v1/action", bytes.NewBufferString(`{"action":"unknown.action"}`))
+	req.Header.Set("Content-Type", "application/json")
+	recorder := httptest.NewRecorder()
+
+	router.ServeHTTP(recorder, req)
+
+	if recorder.Code != http.StatusOK {
+		t.Fatalf("expected status %d, got %d", http.StatusOK, recorder.Code)
+	}
+	var response map[string]any
+	decodeResponse(t, recorder, &response)
+	if response["status"] != "unsupported" {
+		t.Fatalf("expected status 'unsupported', got %v", response["status"])
+	}
+	if response["action"] != "unknown.action" {
+		t.Fatalf("expected action 'unknown.action', got %v", response["action"])
+	}
+}
+
+func TestClusterActionEndpoint_InvalidJSON(t *testing.T) {
+	router, _ := newTestClusterRouter()
+	req := httptest.NewRequest(http.MethodPost, "/_cluster/v1/action", bytes.NewBufferString(`{invalid`))
+	req.Header.Set("Content-Type", "application/json")
+	recorder := httptest.NewRecorder()
+
+	router.ServeHTTP(recorder, req)
+
+	if recorder.Code != http.StatusBadRequest {
+		t.Fatalf("expected status %d, got %d", http.StatusBadRequest, recorder.Code)
+	}
 }
 
 var _ = model.ClusterMember{}
