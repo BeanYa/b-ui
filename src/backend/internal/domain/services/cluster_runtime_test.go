@@ -151,6 +151,14 @@ func (s *stubClusterRuntimeHubClient) DeleteMember(context.Context, string, stri
 	return nil, nil
 }
 
+func (s *stubClusterRuntimeHubClient) ClaimUpdate(context.Context, string, string, string, string, string) (*ClusterHubClaimUpdateResponse, error) {
+	return &ClusterHubClaimUpdateResponse{Proceed: true}, nil
+}
+
+func (s *stubClusterRuntimeHubClient) SetMemberStatus(context.Context, string, string, string, string, string, string, string) (*ClusterHubMemberStatusResponse, error) {
+	return &ClusterHubMemberStatusResponse{OK: true}, nil
+}
+
 type stubClusterRuntimeStore struct {
 	replaceCalls      []stubClusterRuntimeReplaceCall
 	membersByDomain   map[uint][]model.ClusterMember
