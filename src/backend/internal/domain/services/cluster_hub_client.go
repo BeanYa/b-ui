@@ -18,6 +18,8 @@ type clusterHubClient interface {
 	GetLatestVersion(context.Context, string, string, string) (*ClusterHubVersionResponse, error)
 	GetSnapshot(context.Context, string, string, string) (*ClusterHubSnapshotResponse, error)
 	DeleteMember(context.Context, string, string, string, string) (*ClusterHubOperationResponse, error)
+	ClaimUpdate(context.Context, string, string, string, string, string) (*ClusterHubClaimUpdateResponse, error)
+	SetMemberStatus(context.Context, string, string, string, string, string, string, string) (*ClusterHubMemberStatusResponse, error)
 }
 
 type ClusterHubRegisterNodeRequest struct {
@@ -28,13 +30,15 @@ type ClusterHubRegisterNodeRequest struct {
 }
 
 type ClusterHubMemberRegister struct {
-	MemberID    string `json:"member_id"`
-	NodeID      string `json:"node_id"`
-	Address     string `json:"address"`
-	BaseURL     string `json:"base_url"`
-	PublicKey   string `json:"public_key"`
-	Name        string `json:"name,omitempty"`
-	DisplayName string `json:"display_name,omitempty"`
+	MemberID     string `json:"member_id"`
+	NodeID       string `json:"node_id"`
+	Address      string `json:"address"`
+	BaseURL      string `json:"base_url"`
+	PublicKey    string `json:"public_key"`
+	Name         string `json:"name,omitempty"`
+	DisplayName  string `json:"display_name,omitempty"`
+	PanelVersion string `json:"panel_version,omitempty"`
+	Status       string `json:"status,omitempty"`
 }
 
 type ClusterHubMemberResponse struct {
@@ -51,6 +55,8 @@ type ClusterHubMemberResponse struct {
 	PeerToken       string `json:"peerToken"`
 	PeerTokenAlt    string `json:"peer_token"`
 	Address         string `json:"address"`
+	PanelVersion    string `json:"panel_version"`
+	Status          string `json:"status"`
 }
 
 type ClusterHubOperationResponse struct {
@@ -65,16 +71,26 @@ type ClusterHubVersionResponse struct {
 	Version int64 `json:"version"`
 }
 
+type ClusterHubClaimUpdateResponse struct {
+	Proceed       bool   `json:"proceed"`
+	TargetVersion string `json:"target_version,omitempty"`
+}
+
+type ClusterHubMemberStatusResponse struct {
+	OK bool `json:"ok"`
+}
+
 type ClusterHubCommunicationResponse struct {
 	EndpointPath    string `json:"endpoint_path"`
 	ProtocolVersion string `json:"protocol_version"`
 }
 
 type ClusterHubSnapshotResponse struct {
-	DomainID      string                          `json:"domain_id"`
-	Version       int64                           `json:"version"`
-	Communication ClusterHubCommunicationResponse `json:"communication"`
-	Members       []ClusterHubMemberResponse      `json:"members"`
+	DomainID            string                          `json:"domain_id"`
+	Version             int64                           `json:"version"`
+	Communication       ClusterHubCommunicationResponse `json:"communication"`
+	Members             []ClusterHubMemberResponse      `json:"members"`
+	UpdateTargetVersion string                          `json:"update_target_version,omitempty"`
 }
 
 func (s ClusterHubSnapshotResponse) EffectiveCommunicationEndpointPath() string {
@@ -130,6 +146,17 @@ func (m ClusterHubMemberResponse) EffectivePeerToken() string {
 		return m.PeerToken
 	}
 	return m.PeerTokenAlt
+}
+
+func (m ClusterHubMemberResponse) EffectivePanelVersion() string {
+	return m.PanelVersion
+}
+
+func (m ClusterHubMemberResponse) EffectiveStatus() string {
+	if m.Status != "" {
+		return m.Status
+	}
+	return "online"
 }
 
 type ClusterHubClient struct {
@@ -225,6 +252,42 @@ func (c *ClusterHubClient) DeleteMember(ctx context.Context, hubURL string, doma
 		return nil, err
 	}
 	return decoded, nil
+}
+
+func (c *ClusterHubClient) ClaimUpdate(ctx context.Context, hubURL string, domain string, domainToken string, requestID string, targetVersion string) (*ClusterHubClaimUpdateResponse, error) {
+	if err := validateClusterHubURL(hubURL); err != nil {
+		return nil, err
+	}
+	payload := map[string]string{
+		"request_id":     requestID,
+		"domain_token":   domainToken,
+		"target_version": targetVersion,
+	}
+	response := &ClusterHubClaimUpdateResponse{}
+	if err := c.postJSON(ctx, strings.TrimRight(hubURL, "/")+"/v1/domains/"+domain+"/claim-update", payload, response); err != nil {
+		return nil, err
+	}
+	return response, nil
+}
+
+func (c *ClusterHubClient) SetMemberStatus(ctx context.Context, hubURL string, domain string, domainToken string, requestID string, memberID string, status string, panelVersion string) (*ClusterHubMemberStatusResponse, error) {
+	if err := validateClusterHubURL(hubURL); err != nil {
+		return nil, err
+	}
+	payload := map[string]string{
+		"request_id":   requestID,
+		"domain_token": domainToken,
+		"member_id":    memberID,
+		"status":       status,
+	}
+	if panelVersion != "" {
+		payload["panel_version"] = panelVersion
+	}
+	response := &ClusterHubMemberStatusResponse{}
+	if err := c.postJSON(ctx, strings.TrimRight(hubURL, "/")+"/v1/domains/"+domain+"/member-status", payload, response); err != nil {
+		return nil, err
+	}
+	return response, nil
 }
 
 func (c *ClusterHubClient) postJSON(ctx context.Context, url string, requestBody interface{}, target interface{}) error {
