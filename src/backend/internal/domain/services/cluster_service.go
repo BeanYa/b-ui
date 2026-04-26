@@ -626,6 +626,78 @@ func (s *ClusterService) resolvedRouter() *router.ActionRouter {
 	return s.actionRouter
 }
 
+func (s *ClusterService) ReceivePeerMessage(message *PeerMessage, token string) error {
+	domain, err := s.getStore().GetDomainByName(message.DomainID)
+	if err != nil {
+		return err
+	}
+	localIdentity, err := s.localIdentity.GetOrCreate()
+	if err != nil {
+		return err
+	}
+	localMember, err := findClusterMemberByDomainNodeID(s.getStore(), domain.Id, localIdentity.NodeID)
+	if err != nil {
+		return err
+	}
+	if localMember == nil {
+		return errClusterMemberNotFound
+	}
+	if err := s.validateClusterPeerToken(localMember, token); err != nil {
+		return err
+	}
+	member, err := findClusterMemberByDomainNodeID(s.getStore(), domain.Id, message.SourceNodeID)
+	if err != nil {
+		return err
+	}
+	if member == nil || message.MembershipVersion > domain.LastVersion {
+		if err := s.refreshPeerMembership(context.Background(), domain, message.MembershipVersion); err != nil {
+			return err
+		}
+		domain, err = s.getStore().GetDomainByName(message.DomainID)
+		if err != nil {
+			return err
+		}
+		member, err = findClusterMemberByDomainNodeID(s.getStore(), domain.Id, message.SourceNodeID)
+		if err != nil {
+			return err
+		}
+	}
+	if member == nil {
+		return errClusterMemberNotFound
+	}
+	if err := VerifyClusterPeerMessage(message, member.PublicKey, time.Now().Unix()); err != nil {
+		return err
+	}
+	syncService := s.peerSyncService()
+	dispatcher := ClusterPeerDispatcher{
+		syncService:    &syncService,
+		identity:       s.localIdentity,
+		secretProvider: s.getSecretProvider(),
+	}
+	return dispatcher.Dispatch(context.Background(), domain, member, message)
+}
+
+func (s *ClusterService) refreshPeerMembership(ctx context.Context, domain *model.ClusterDomain, version int64) error {
+	if domain.HubURL == "" {
+		return nil
+	}
+	return s.getHubSyncer().SyncDomain(ctx, domain, version)
+}
+
+func (s *ClusterService) peerSyncService() ClusterSyncService {
+	syncService := s.syncService
+	if syncService.store == nil {
+		syncService.store = &dbClusterSyncStore{}
+		if s.store != nil {
+			syncService.store = &clusterSyncStoreAdapter{store: s.store}
+		}
+	}
+	if syncService.hubSyncer == nil {
+		syncService.hubSyncer = s.getHubSyncer()
+	}
+	return syncService
+}
+
 func (s *ClusterService) validateClusterPeerToken(member *model.ClusterMember, token string) error {
 	secret, err := s.getSecretProvider().GetSecret()
 	if err != nil {

@@ -80,6 +80,12 @@ profile.cov
 go.work
 go.work.sum
 
+# Root node_modules
+node_modules/
+
+# Claude Code
+.claude/
+
 # Editor directories and files
 .idea
 .vscode

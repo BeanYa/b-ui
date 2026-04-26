@@ -6,8 +6,12 @@ import (
 	"crypto/rand"
 	"encoding/base64"
 	"fmt"
+	"path/filepath"
+	"reflect"
+	"strings"
 	"testing"
 
+	database "github.com/alireza0/s-ui/src/backend/internal/infra/db"
 	"github.com/alireza0/s-ui/src/backend/internal/infra/db/model"
 )
 
@@ -260,7 +264,7 @@ func TestClusterServiceListMembersMarksLocalNode(t *testing.T) {
 	}
 }
 
-func TestClusterServiceListDomainsIncludesCommunicationActions(t *testing.T) {
+func TestClusterServiceListDomainsIncludesSupportedActions(t *testing.T) {
 	store := &stubClusterServiceStore{
 		domains: map[string]*model.ClusterDomain{
 			"edge.example.com": {
@@ -288,8 +292,8 @@ func TestClusterServiceListDomainsIncludesCommunicationActions(t *testing.T) {
 	if domains[0].CommunicationProtocolVersion != "v1" {
 		t.Fatalf("expected protocol version, got %q", domains[0].CommunicationProtocolVersion)
 	}
-	expectedActions := []string{"events", "heartbeat", "ping", "info", "action"}
-	if fmt.Sprint(domains[0].SupportedActions) != fmt.Sprint(expectedActions) {
+	expectedActions := []string{"domain.cluster.changed", "events", "heartbeat", "ping", "info", "action"}
+	if !reflect.DeepEqual(domains[0].SupportedActions, expectedActions) {
 		t.Fatalf("expected supported actions %#v, got %#v", expectedActions, domains[0].SupportedActions)
 	}
 }
@@ -355,8 +359,176 @@ func TestClusterServiceReceiveMessageAcceptsLocalMemberPeerTokenForCorrectDomain
 	}
 }
 
+func TestClusterServiceReceivePeerMessageInitializesInjectedSyncDependencies(t *testing.T) {
+	secret := []byte("panel-secret-for-cluster-tests")
+	sourcePublicKey, _, err := ed25519.GenerateKey(rand.Reader)
+	if err != nil {
+		t.Fatalf("generate source keypair: %v", err)
+	}
+	sourcePublicKeyEncoded := base64.StdEncoding.EncodeToString(sourcePublicKey)
+	store := &stubClusterServiceStore{
+		domains: map[string]*model.ClusterDomain{
+			"edge.example.com": {Id: 1, Domain: "edge.example.com", HubURL: "https://hub.example.com", TokenEncrypted: mustEncryptClusterToken(t, string(secret), "domain-token")},
+		},
+		members: map[string]*model.ClusterMember{
+			serviceMemberKey(1, "node-local"):  {NodeID: "node-local", DomainID: 1, PeerTokenEncrypted: mustEncryptClusterToken(t, string(secret), "peer-token-local")},
+			serviceMemberKey(1, "node-source"): {NodeID: "node-source", DomainID: 1, PublicKey: sourcePublicKeyEncoded, LastVersion: 1},
+		},
+	}
+	hub := &stubClusterHubClient{
+		snapshotResponse: &ClusterHubSnapshotResponse{
+			Version: 9,
+			Members: []ClusterHubMemberResponse{
+				{NodeID: "node-local", BaseURL: "https://local.example.com", PeerToken: "peer-token-local"},
+				{NodeID: "node-source", BaseURL: "https://source.example.com", PublicKey: sourcePublicKeyEncoded},
+			},
+		},
+	}
+	service := &ClusterService{
+		secretProvider: stubClusterSecretProvider{secret: secret},
+		localIdentity:  ClusterLocalIdentityService{store: &stubClusterLocalNodeStore{node: &model.ClusterLocalNode{NodeID: "node-local"}}},
+		store:          store,
+		hubClient:      hub,
+		syncService: ClusterSyncService{
+			store:     &clusterSyncStoreAdapter{store: store},
+			hubSyncer: &ClusterHubSyncer{client: hub, store: store, secretProvider: stubClusterSecretProvider{secret: secret}, reachability: newTestClusterReachabilityService(20)},
+		},
+	}
+
+	syncService := service.peerSyncService()
+	if _, err := syncService.HandleIncomingNotifyVersion(context.Background(), 1, "node-source", 9); err != nil {
+		t.Fatalf("handle incoming notify version: %v", err)
+	}
+	if len(store.savedMembers) == 0 {
+		t.Fatal("expected injected store to save source member version")
+	}
+	if got := store.savedMembers[0].LastVersion; got != 9 {
+		t.Fatalf("expected saved source member version 9, got %d", got)
+	}
+	if hub.snapshotCalls != 1 {
+		t.Fatalf("expected injected hub client snapshot call, got %d", hub.snapshotCalls)
+	}
+	if hub.lastSnapshotToken != "domain-token" {
+		t.Fatalf("expected injected secret provider to decrypt domain token, got %q", hub.lastSnapshotToken)
+	}
+	if len(store.replacedMembers) != 1 {
+		t.Fatalf("expected injected store to replace members from snapshot, got %d", len(store.replacedMembers))
+	}
+}
+
+func TestClusterServiceReceivePeerMessageRefreshesUnknownSourceBeforeRejecting(t *testing.T) {
+	if err := database.InitDB(filepath.Join(t.TempDir(), "receive-peer-refresh.db")); err != nil {
+		if strings.Contains(err.Error(), "go-sqlite3 requires cgo") || strings.Contains(err.Error(), "C compiler") {
+			t.Skipf("sqlite test database unavailable in this toolchain: %v", err)
+		}
+		t.Fatalf("init test db: %v", err)
+	}
+
+	secret := []byte("panel-secret-for-cluster-tests")
+	source := newTestClusterLocalNode(t, "node-source")
+	store := &stubClusterServiceStore{
+		domains: map[string]*model.ClusterDomain{
+			"edge.example.com": {Id: 1, Domain: "edge.example.com", HubURL: "https://hub.example.com", LastVersion: 1, TokenEncrypted: mustEncryptClusterToken(t, string(secret), "domain-token")},
+		},
+		members: map[string]*model.ClusterMember{
+			serviceMemberKey(1, "node-local"): {NodeID: "node-local", DomainID: 1, PeerTokenEncrypted: mustEncryptClusterToken(t, string(secret), "peer-token-local")},
+		},
+	}
+	hub := &stubClusterHubClient{
+		snapshotResponse: &ClusterHubSnapshotResponse{
+			Version: 9,
+			Members: []ClusterHubMemberResponse{
+				{NodeID: "node-local", BaseURL: "https://local.example.com", PeerToken: "peer-token-local"},
+				{NodeID: "node-source", BaseURL: "https://source.example.com", PublicKey: source.PublicKey},
+			},
+		},
+	}
+	service := &ClusterService{
+		secretProvider: stubClusterSecretProvider{secret: secret},
+		localIdentity:  ClusterLocalIdentityService{store: &stubClusterLocalNodeStore{node: &model.ClusterLocalNode{NodeID: "node-local"}}},
+		store:          store,
+		hubClient:      hub,
+	}
+	message, err := NewClusterPeerMessage("edge.example.com", 9, "node-source", 1, PeerCategoryEvent, "future.action", map[string]any{"version": float64(9)})
+	if err != nil {
+		t.Fatalf("new peer message: %v", err)
+	}
+	if err := SignClusterPeerMessage(source, message); err != nil {
+		t.Fatalf("sign peer message: %v", err)
+	}
+
+	if err := service.ReceivePeerMessage(message, "peer-token-local"); err != nil {
+		t.Fatalf("receive peer message after membership refresh: %v", err)
+	}
+	if hub.snapshotCalls != 1 {
+		t.Fatalf("expected one snapshot refresh, got %d", hub.snapshotCalls)
+	}
+	if _, err := store.GetMemberByDomainNodeID(1, "node-source"); err != nil {
+		t.Fatalf("expected source member to be loaded from snapshot: %v", err)
+	}
+}
+
+func TestClusterServiceReceivePeerMessageRefreshesNewerMembershipBeforeSignatureCheck(t *testing.T) {
+	if err := database.InitDB(filepath.Join(t.TempDir(), "receive-peer-newer-refresh.db")); err != nil {
+		if strings.Contains(err.Error(), "go-sqlite3 requires cgo") || strings.Contains(err.Error(), "C compiler") {
+			t.Skipf("sqlite test database unavailable in this toolchain: %v", err)
+		}
+		t.Fatalf("init test db: %v", err)
+	}
+
+	secret := []byte("panel-secret-for-cluster-tests")
+	staleSource := newTestClusterLocalNode(t, "node-source")
+	source := newTestClusterLocalNode(t, "node-source")
+	store := &stubClusterServiceStore{
+		domains: map[string]*model.ClusterDomain{
+			"edge.example.com": {Id: 1, Domain: "edge.example.com", HubURL: "https://hub.example.com", LastVersion: 1, TokenEncrypted: mustEncryptClusterToken(t, string(secret), "domain-token")},
+		},
+		members: map[string]*model.ClusterMember{
+			serviceMemberKey(1, "node-local"):  {NodeID: "node-local", DomainID: 1, PeerTokenEncrypted: mustEncryptClusterToken(t, string(secret), "peer-token-local")},
+			serviceMemberKey(1, "node-source"): {NodeID: "node-source", DomainID: 1, PublicKey: staleSource.PublicKey, LastVersion: 1},
+		},
+	}
+	hub := &stubClusterHubClient{
+		snapshotResponse: &ClusterHubSnapshotResponse{
+			Version: 9,
+			Members: []ClusterHubMemberResponse{
+				{NodeID: "node-local", BaseURL: "https://local.example.com", PeerToken: "peer-token-local"},
+				{NodeID: "node-source", BaseURL: "https://source.example.com", PublicKey: source.PublicKey},
+			},
+		},
+	}
+	service := &ClusterService{
+		secretProvider: stubClusterSecretProvider{secret: secret},
+		localIdentity:  ClusterLocalIdentityService{store: &stubClusterLocalNodeStore{node: &model.ClusterLocalNode{NodeID: "node-local"}}},
+		store:          store,
+		hubClient:      hub,
+	}
+	message, err := NewClusterPeerMessage("edge.example.com", 9, "node-source", 1, PeerCategoryEvent, "future.action", map[string]any{"version": float64(9)})
+	if err != nil {
+		t.Fatalf("new peer message: %v", err)
+	}
+	if err := SignClusterPeerMessage(source, message); err != nil {
+		t.Fatalf("sign peer message: %v", err)
+	}
+
+	if err := service.ReceivePeerMessage(message, "peer-token-local"); err != nil {
+		t.Fatalf("receive peer message after newer membership refresh: %v", err)
+	}
+	if hub.snapshotCalls != 1 {
+		t.Fatalf("expected one snapshot refresh, got %d", hub.snapshotCalls)
+	}
+	refreshed, err := store.GetMemberByDomainNodeID(1, "node-source")
+	if err != nil {
+		t.Fatalf("expected refreshed source member: %v", err)
+	}
+	if refreshed.PublicKey != source.PublicKey {
+		t.Fatal("expected refreshed source public key before signature verification")
+	}
+}
+
 type stubClusterServiceStore struct {
 	domains         map[string]*model.ClusterDomain
+	domainsList     []model.ClusterDomain
 	savedDomains    []*model.ClusterDomain
 	members         map[string]*model.ClusterMember
 	savedMembers    []*model.ClusterMember
@@ -461,6 +633,13 @@ func (s *stubClusterServiceStore) ReplaceDomainMembers(_ uint, members []model.C
 	copyMembers := make([]model.ClusterMember, len(members))
 	copy(copyMembers, members)
 	s.replacedMembers = append(s.replacedMembers, copyMembers)
+	if s.members == nil {
+		s.members = map[string]*model.ClusterMember{}
+	}
+	for _, member := range copyMembers {
+		copy := member
+		s.members[serviceMemberKey(copy.DomainID, copy.NodeID)] = &copy
+	}
 	return nil
 }
 
@@ -471,7 +650,11 @@ type stubClusterHubClient struct {
 	registerErr         error
 	deleteErr           error
 	registerCalls       int
+	snapshotCalls       int
 	lastHubURL          string
+	lastSnapshotHubURL  string
+	lastSnapshotDomain  string
+	lastSnapshotToken   string
 	lastRegisterRequest ClusterHubRegisterNodeRequest
 	lastDeleteMemberID  string
 }
@@ -490,7 +673,11 @@ func (s *stubClusterHubClient) GetLatestVersion(context.Context, string, string,
 	return nil, nil
 }
 
-func (s *stubClusterHubClient) GetSnapshot(context.Context, string, string, string) (*ClusterHubSnapshotResponse, error) {
+func (s *stubClusterHubClient) GetSnapshot(_ context.Context, hubURL string, domain string, token string) (*ClusterHubSnapshotResponse, error) {
+	s.snapshotCalls++
+	s.lastSnapshotHubURL = hubURL
+	s.lastSnapshotDomain = domain
+	s.lastSnapshotToken = token
 	return s.snapshotResponse, nil
 }
 

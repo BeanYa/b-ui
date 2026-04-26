@@ -6,6 +6,7 @@ import (
 	"errors"
 	"net/http"
 	"net/http/httptest"
+	"strings"
 	"testing"
 
 	service "github.com/alireza0/s-ui/src/backend/internal/domain/services"
@@ -129,7 +130,7 @@ func TestClusterAdminRoutesRequireFirstUserAdmin(t *testing.T) {
 
 func TestClusterListsDomainsAndMembers(t *testing.T) {
 	router, cluster := newTestClusterRouter()
-	cluster.domains = []service.ClusterDomainResponse{{ID: 1, Domain: "edge.example.com", LastVersion: 4}}
+	cluster.domains = []service.ClusterDomainResponse{{ID: 1, Domain: "edge.example.com", LastVersion: 4, SupportedActions: service.ClusterCommunicationSupportedActions()}}
 	cluster.domains[0].HubURL = "https://hub.example.com"
 	cluster.members = []service.ClusterMemberResponse{{ID: 2, NodeID: "node-a", Name: "alpha", BaseURL: "https://node-a.example.com", LastVersion: 4}}
 	cookie := loginCookie(t, router, "admin")
@@ -155,6 +156,9 @@ func TestClusterListsDomainsAndMembers(t *testing.T) {
 	}
 	if !bytes.Contains(domainsJSON, []byte(`"hubUrl":"https://hub.example.com"`)) {
 		t.Fatalf("expected hub URL in domains response, got %s", domainsJSON)
+	}
+	if !bytes.Contains(domainsJSON, []byte(`"supportedActions":["domain.cluster.changed","events","heartbeat","ping","info","action"]`)) {
+		t.Fatalf("expected supported actions in domains response, got %s", domainsJSON)
 	}
 	if cluster.listMembersCalls != 1 {
 		t.Fatalf("expected one members call, got %d", cluster.listMembersCalls)
@@ -200,7 +204,7 @@ func TestClusterLeaveDomainUsesService(t *testing.T) {
 	}
 }
 
-func TestClusterMessageReceiveBypassesSessionAndForwardsToken(t *testing.T) {
+func TestClusterMessageRouteAcceptsLegacyEnvelope(t *testing.T) {
 	router, cluster := newTestClusterRouter()
 	body, err := json.Marshal(service.ClusterEnvelope{SchemaVersion: 1, MessageType: "sync.notify_version", SourceNodeID: "node-a", Domain: "edge.example.com", Version: 9, SentAt: 1700000000, Signature: "sig"})
 	if err != nil {
@@ -224,6 +228,78 @@ func TestClusterMessageReceiveBypassesSessionAndForwardsToken(t *testing.T) {
 	}
 	if cluster.receivedEnvelope == nil || cluster.receivedEnvelope.SourceNodeID != "node-a" {
 		t.Fatalf("expected forwarded envelope, got %#v", cluster.receivedEnvelope)
+	}
+}
+
+func TestClusterMessageRouteAcceptsPeerMessage(t *testing.T) {
+	router, cluster := newTestClusterRouter()
+	body := bytes.NewBufferString(`{
+			"messageId":"msg-1",
+			"domainId":"edge.example.com",
+			"membershipVersion":3,
+			"sourceNodeId":"node-a",
+			"sourceSeq":1,
+			"category":"event",
+			"action":"domain.cluster.changed",
+			"protocolVersion":"v1",
+			"schemaVersion":1,
+			"route":{"mode":"broadcast"},
+			"payloadHash":"hash",
+			"payload":{"version":3},
+			"signature":"sig"
+		}`)
+	req := httptest.NewRequest(http.MethodPost, "/_cluster/v1/events", body)
+	req.Header.Set("Content-Type", "application/json")
+	req.Header.Set("X-Cluster-Token", "peer-token")
+	recorder := httptest.NewRecorder()
+
+	router.ServeHTTP(recorder, req)
+
+	if recorder.Code != http.StatusOK {
+		t.Fatalf("expected status %d, got %d: %s", http.StatusOK, recorder.Code, recorder.Body.String())
+	}
+	if cluster.receivedPeerMessage == nil || cluster.receivedPeerMessage.Action != "domain.cluster.changed" {
+		t.Fatalf("expected peer message to be passed to service")
+	}
+	if cluster.receivedToken != "peer-token" {
+		t.Fatalf("expected forwarded token, got %q", cluster.receivedToken)
+	}
+	if cluster.receiveCalls != 0 {
+		t.Fatalf("expected legacy receive not to be called, got %d calls", cluster.receiveCalls)
+	}
+}
+
+func TestClusterMessageRouteRejectsOversizedBody(t *testing.T) {
+	router, cluster := newTestClusterRouter()
+	body := bytes.NewBufferString(`{
+			"messageId":"msg-oversized",
+			"domainId":"edge.example.com",
+			"membershipVersion":3,
+			"sourceNodeId":"node-a",
+			"sourceSeq":1,
+			"category":"event",
+			"action":"domain.cluster.changed",
+			"protocolVersion":"v1",
+			"schemaVersion":1,
+			"route":{"mode":"broadcast"},
+			"payloadHash":"hash",
+			"payload":{"data":"` + strings.Repeat("x", maxClusterMessageBytes+1) + `"},
+			"signature":"sig"
+		}`)
+	req := httptest.NewRequest(http.MethodPost, "/_cluster/v1/events", body)
+	req.Header.Set("Content-Type", "application/json")
+	recorder := httptest.NewRecorder()
+
+	router.ServeHTTP(recorder, req)
+
+	if recorder.Code != http.StatusBadRequest {
+		t.Fatalf("expected status %d, got %d: %s", http.StatusBadRequest, recorder.Code, recorder.Body.String())
+	}
+	if cluster.receiveCalls != 0 {
+		t.Fatalf("expected legacy receive not to be called, got %d calls", cluster.receiveCalls)
+	}
+	if cluster.receivedPeerMessage != nil {
+		t.Fatalf("expected peer receive not to be called, got %#v", cluster.receivedPeerMessage)
 	}
 }
 
@@ -340,21 +416,22 @@ func newTestClusterRouterWithUserService(userService apiUserService) (*gin.Engin
 }
 
 type stubClusterAPIService struct {
-	registerCalls     int
-	listDomainsCalls  int
-	listMembersCalls  int
-	manualSyncCalls   int
-	receiveCalls      int
-	deletedMemberID   uint
-	leftDomainID      uint
-	receivedToken     string
-	receivedEnvelope  *service.ClusterEnvelope
-	receiveErr        error
-	domains           []service.ClusterDomainResponse
-	members           []service.ClusterMemberResponse
-	registeredRequest service.ClusterRegisterRequest
-	heartbeatResponse *service.ClusterPeerStatus
-	pingResponse      *service.ClusterPeerStatus
+	registerCalls       int
+	listDomainsCalls    int
+	listMembersCalls    int
+	manualSyncCalls     int
+	receiveCalls        int
+	deletedMemberID     uint
+	leftDomainID        uint
+	receivedToken       string
+	receivedEnvelope    *service.ClusterEnvelope
+	receivedPeerMessage *service.PeerMessage
+	receiveErr          error
+	domains             []service.ClusterDomainResponse
+	members             []service.ClusterMemberResponse
+	registeredRequest   service.ClusterRegisterRequest
+	heartbeatResponse   *service.ClusterPeerStatus
+	pingResponse        *service.ClusterPeerStatus
 }
 
 func (s *stubClusterAPIService) Register(request service.ClusterRegisterRequest) (*service.ClusterOperationStatus, error) {
@@ -400,6 +477,16 @@ func (s *stubClusterAPIService) ReceiveMessage(envelope *service.ClusterEnvelope
 	s.receivedToken = token
 	copy := *envelope
 	s.receivedEnvelope = &copy
+	return nil
+}
+
+func (s *stubClusterAPIService) ReceivePeerMessage(message *service.PeerMessage, token string) error {
+	if s.receiveErr != nil {
+		return s.receiveErr
+	}
+	s.receivedToken = token
+	copy := *message
+	s.receivedPeerMessage = &copy
 	return nil
 }
 

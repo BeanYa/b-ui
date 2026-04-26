@@ -115,3 +115,70 @@ type ClusterPeerReachability struct {
 	NextProbeAt           int64  `json:"nextProbeAt" gorm:"default:0"`
 	LastObservationSource string `json:"lastObservationSource" gorm:"default:''"`
 }
+
+type ClusterPeerEventLog struct {
+	Id          uint   `json:"id" gorm:"primaryKey;autoIncrement"`
+	MessageID   string `json:"messageId" gorm:"uniqueIndex"`
+	DomainID    string `json:"domainId" gorm:"index"`
+	Direction   string `json:"direction"`
+	SourceNode  string `json:"sourceNode" gorm:"index"`
+	Action      string `json:"action" gorm:"index"`
+	Envelope    string `json:"envelope"`
+	PayloadHash string `json:"payloadHash"`
+	Signature   string `json:"signature"`
+	CreatedAt   int64  `json:"createdAt" gorm:"index"`
+}
+
+type ClusterPeerEventState struct {
+	Id             uint   `json:"id" gorm:"primaryKey;autoIncrement"`
+	MessageID      string `json:"messageId" gorm:"uniqueIndex"`
+	IdempotencyKey string `json:"idempotencyKey" gorm:"index;uniqueIndex:idx_cluster_peer_domain_idempotency,where:idempotency_key <> ''"`
+	SourceNode     string `json:"sourceNode" gorm:"index;uniqueIndex:idx_cluster_peer_domain_source_seq,where:source_seq > 0 AND source_node <> ''"`
+	SourceSeq      int64  `json:"sourceSeq" gorm:"index;uniqueIndex:idx_cluster_peer_domain_source_seq,where:source_seq > 0 AND source_node <> ''"`
+	DomainID       string `json:"domainId" gorm:"index;uniqueIndex:idx_cluster_peer_domain_idempotency,where:idempotency_key <> '';uniqueIndex:idx_cluster_peer_domain_source_seq,where:source_seq > 0 AND source_node <> ''"`
+	Action         string `json:"action" gorm:"index"`
+	PayloadHash    string `json:"payloadHash"`
+	Status         string `json:"status" gorm:"index"`
+	Error          string `json:"error"`
+	CreatedAt      int64  `json:"createdAt"`
+	UpdatedAt      int64  `json:"updatedAt"`
+}
+
+type ClusterPeerAckState struct {
+	Id          uint   `json:"id" gorm:"primaryKey;autoIncrement"`
+	MessageID   string `json:"messageId" gorm:"index;uniqueIndex:idx_cluster_peer_ack_target"`
+	TargetNode  string `json:"targetNode" gorm:"index;uniqueIndex:idx_cluster_peer_ack_target"`
+	Status      string `json:"status" gorm:"index"`
+	Attempts    int    `json:"attempts"`
+	NextRetryAt int64  `json:"nextRetryAt" gorm:"index"`
+	Error       string `json:"error"`
+	UpdatedAt   int64  `json:"updatedAt"`
+}
+
+type ClusterPeerWorkflowState struct {
+	Id         uint   `json:"id" gorm:"primaryKey;autoIncrement"`
+	WorkflowID string `json:"workflowId" gorm:"index;uniqueIndex:idx_cluster_peer_workflow_step"`
+	StepID     string `json:"stepId" gorm:"index;uniqueIndex:idx_cluster_peer_workflow_step"`
+	DomainID   string `json:"domainId" gorm:"index"`
+	NodeID     string `json:"nodeId" gorm:"index"`
+	Status     string `json:"status" gorm:"index"`
+	ResultHash string `json:"resultHash"`
+	Error      string `json:"error"`
+	CreatedAt  int64  `json:"createdAt"`
+	UpdatedAt  int64  `json:"updatedAt"`
+}
+
+type ClusterPeerSchedule struct {
+	Id          uint   `json:"id" gorm:"primaryKey;autoIncrement"`
+	ScheduleID  string `json:"scheduleId" gorm:"uniqueIndex"`
+	DomainID    string `json:"domainId" gorm:"index"`
+	OwnerNodeID string `json:"ownerNodeId" gorm:"index"`
+	Action      string `json:"action" gorm:"index"`
+	RouteJSON   string `json:"routeJson"`
+	PayloadJSON string `json:"payloadJson"`
+	NextRunAt   int64  `json:"nextRunAt" gorm:"index"`
+	LastRunAt   int64  `json:"lastRunAt"`
+	RunCount    int    `json:"runCount"`
+	MaxRuns     int    `json:"maxRuns"`
+	Enabled     bool   `json:"enabled" gorm:"index"`
+}

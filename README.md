@@ -54,6 +54,7 @@ IMAGE_REF=ghcr.io/beanya/b-ui:v0.1.14 bash ./scripts/release/install-docker.sh
 
 - **集群管控平面（Cluster Center）**：提供多节点集群管理能力，支持 Hub 域注册、成员节点自动发现与手动同步、操作状态轮询与成员管理。可在同一面板内跨节点查看集群状态。
 - **一键加入集群**：支持 `buihub://` 协议 URI 解析，配合 Hub URL 协议选择（https/http），可快速将当前节点注册到指定 Hub 域。
+- **节点间通信协议**：节点通过 Hub 下发的成员表获取对端端点后直连通信，使用 HTTP 请求、事件队列、幂等去重和统一业务响应码保持行为一致。Hub 只负责域成员权威登记，不参与节点间消息转发。
 - **面板自更新**：Dashboard 面板内置自更新检测流程，可直接在面板内触发版本升级，无需 SSH 登录手动执行更新命令。
 - **交互式 WebTerminal**：管理员可以在面板内直接打开 `/webterminal`，连接服务器本地 shell，进行实时键盘输入、光标交互、流式输出查看与终端窗口尺寸同步。
 - **更安全的终端连接流程**：WebTerminal 页面默认不会自动连入；需要先点击 `Connect` 并确认。离开页面、刷新页面或关闭标签页前会再次提醒，并在确认后主动中断当前终端会话。
@@ -68,6 +69,20 @@ IMAGE_REF=ghcr.io/beanya/b-ui:v0.1.14 bash ./scripts/release/install-docker.sh
 - 完整用户手册：[`docs/manual.md`](./docs/manual.md)
 - 贡献与本地开发：[`CONTRIBUTING.md`](./CONTRIBUTING.md)
 - 前端设计基线：[`DESIGN.md`](./DESIGN.md)
+- 集群协议：[`BeanYa/b-cluster-hub/protocol`](https://github.com/BeanYa/b-cluster-hub/tree/codex/confirm-node-delete/protocol)
+
+## 集群协议
+
+B-UI 节点把 Hub 视为域成员的权威中心。加入域、退出域、删除成员等成员变更先提交到 Hub；Hub 成功登记后，节点通过节点间协议广播 `domain.cluster.changed` 事件，域内节点再向 Hub 拉取最新成员快照并更新本地集群表。
+
+节点间通信不经过 Hub。每个节点维护自己的事件队列、已处理事件列表和投递日志，请求进入队列后按顺序处理；`messageId` 和 `idempotencyKey` 用于重复请求去重，重复事件不会再次执行副作用。
+
+协议由 Hub 仓库统一维护，并按通信边界拆分：
+
+- Hub 协议：`b-cluster-hub/protocol/hub/v1`，定义注册、删除、操作查询、版本查询和成员快照。
+- Node 协议：`b-cluster-hub/protocol/nodes/v1`，定义 peer message envelope、HTTP 状态码约定、幂等处理和业务响应码。
+
+节点展示名称使用 `display_name`，用于管理面板和域详情列表增强可读性；传播、请求和存储仍以 `node_id` 作为唯一主键。加入域时如果没有显式填写 `display_name`，默认从 `base_url` 的域名段推导，例如 `https://abc.def.com:1000/bui` 推导为 `abc.def.com`。
 
 ## 更新
 
