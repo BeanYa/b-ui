@@ -136,7 +136,7 @@
                       <span v-if="member.isLocal" class="cluster-center__local-badge">{{ $t('clusterCenter.localNode') }}</span>
                     </div>
                   </td>
-                  <td>{{ member.name || '-' }}</td>
+                  <td>{{ member.displayName || member.name || '-' }}</td>
                   <td>{{ member.baseUrl || '-' }}</td>
                   <td>{{ formatClusterVersionLabel(member.lastVersion) }}</td>
                   <td>
@@ -168,52 +168,75 @@
       </v-card>
     </section>
 
-    <v-dialog v-model="registerDialog" class="app-dialog app-dialog--compact" max-width="520">
+    <v-dialog v-model="registerDialog" class="app-dialog app-dialog--compact" max-width="520" @update:model-value="onRegisterDialogClose">
       <v-card class="app-card-shell">
         <v-card-title>{{ $t('clusterCenter.dialogTitle') }}</v-card-title>
 
-        <v-tabs v-model="registerMode" class="cluster-center__register-tabs" color="primary" grow>
-          <v-tab value="uri">URI</v-tab>
-          <v-tab value="manual">{{ $t('clusterCenter.domainsTitle') }}</v-tab>
-        </v-tabs>
+        <template v-if="registerStep === 1">
+          <v-tabs v-model="registerMode" class="cluster-center__register-tabs" color="primary" grow>
+            <v-tab value="uri">URI</v-tab>
+            <v-tab value="manual">{{ $t('clusterCenter.domainsTitle') }}</v-tab>
+          </v-tabs>
 
-        <v-card-text class="cluster-center__dialog-body">
-          <template v-if="registerMode === 'uri'">
-            <v-text-field
-              v-model="form.joinUri"
-              label="Join URI"
-              placeholder="buihub://hub.example.com/domain/example.com?domain_token=..."
-              persistent-hint
-              hint="URI 以 buihub:// 开头，例如 buihub://hub.example.com/domain/example.com?domain_token=xxx"
-            />
-          </template>
-          <template v-else>
-            <v-text-field v-model="form.domain" :label="$t('clusterCenter.fields.domain')" hide-details />
-            <div class="cluster-center__hub-url-field">
-              <v-select
-                v-model="form.hubUrlProtocol"
-                :items="['https', 'http']"
-                variant="plain"
-                hide-details
-                density="compact"
-                class="cluster-center__hub-url-protocol"
-              />
-              <span class="cluster-center__hub-url-sep">://</span>
+          <v-card-text class="cluster-center__dialog-body">
+            <template v-if="registerMode === 'uri'">
               <v-text-field
-                v-model="form.hubUrlHost"
-                :label="$t('clusterCenter.fields.hubUrl')"
-                hide-details
-                class="cluster-center__hub-url-host"
+                v-model="form.joinUri"
+                label="Join URI"
+                placeholder="buihub://hub.example.com/domain/example.com?domain_token=..."
+                persistent-hint
+                hint="URI 以 buihub:// 开头，例如 buihub://hub.example.com/domain/example.com?domain_token=xxx"
               />
+            </template>
+            <template v-else>
+              <v-text-field v-model="form.domain" :label="$t('clusterCenter.fields.domain')" hide-details />
+              <div class="cluster-center__hub-url-field">
+                <v-select
+                  v-model="form.hubUrlProtocol"
+                  :items="['https', 'http']"
+                  variant="plain"
+                  hide-details
+                  density="compact"
+                  class="cluster-center__hub-url-protocol"
+                />
+                <span class="cluster-center__hub-url-sep">://</span>
+                <v-text-field
+                  v-model="form.hubUrlHost"
+                  :label="$t('clusterCenter.fields.hubUrl')"
+                  hide-details
+                  class="cluster-center__hub-url-host"
+                />
+              </div>
+              <v-text-field v-model="form.token" :label="$t('clusterCenter.fields.token')" type="password" hide-details />
+            </template>
+          </v-card-text>
+          <v-card-actions>
+            <v-spacer />
+            <v-btn variant="text" @click="registerDialog = false">{{ $t('clusterCenter.actions.cancel') }}</v-btn>
+            <v-btn color="primary" :loading="checkingUrl" @click="validateAndCheckDomain">{{ $t('clusterCenter.actions.submit') }}</v-btn>
+          </v-card-actions>
+        </template>
+
+        <template v-if="registerStep === 2">
+          <v-card-text class="cluster-center__dialog-body">
+            <div class="cluster-center__step-indicator">
+              <span class="cluster-center__step-label">{{ $t('clusterCenter.stepDomainInfo') }}</span>
+              <span class="cluster-center__step-value">{{ confirmInfo.domain }}</span>
             </div>
-            <v-text-field v-model="form.token" :label="$t('clusterCenter.fields.token')" type="password" hide-details />
-          </template>
-        </v-card-text>
-        <v-card-actions>
-          <v-spacer />
-          <v-btn variant="text" @click="registerDialog = false">{{ $t('clusterCenter.actions.cancel') }}</v-btn>
-          <v-btn color="primary" :loading="actionLoading" @click="prepareConfirm">{{ $t('clusterCenter.actions.submit') }}</v-btn>
-        </v-card-actions>
+            <v-text-field
+              v-model="form.displayName"
+              :label="$t('clusterCenter.displayName')"
+              :hint="$t('clusterCenter.displayNameHint')"
+              persistent-hint
+              hide-details
+            />
+          </v-card-text>
+          <v-card-actions>
+            <v-spacer />
+            <v-btn variant="text" @click="registerStep = 1">{{ $t('clusterCenter.actions.cancel') }}</v-btn>
+            <v-btn color="primary" @click="showConfirmDialog">{{ $t('clusterCenter.actions.submit') }}</v-btn>
+          </v-card-actions>
+        </template>
       </v-card>
     </v-dialog>
 
@@ -237,6 +260,10 @@
                   <td class="cluster-center__confirm-value cluster-center__confirm-token">{{ confirmInfo.token }}</td>
                 </tr>
                 <tr>
+                  <td class="cluster-center__confirm-label">{{ $t('clusterCenter.displayName') }}</td>
+                  <td class="cluster-center__confirm-value">{{ confirmInfo.displayName }}</td>
+                </tr>
+                <tr>
                   <td class="cluster-center__confirm-label">本机地址</td>
                   <td class="cluster-center__confirm-value">{{ confirmInfo.baseUrl }}</td>
                 </tr>
@@ -248,6 +275,20 @@
           <v-spacer />
           <v-btn variant="text" @click="confirmDialog = false">{{ $t('clusterCenter.actions.cancel') }}</v-btn>
           <v-btn color="primary" :loading="actionLoading" @click="confirmAndSubmit">确认注册</v-btn>
+        </v-card-actions>
+      </v-card>
+    </v-dialog>
+
+    <v-dialog v-model="alreadyExistsDialog" class="app-dialog" max-width="460">
+      <v-card class="app-card-shell">
+        <v-card-title>{{ $t('clusterCenter.alreadyExists') }}</v-card-title>
+        <v-card-text>
+          <p>{{ $t('clusterCenter.alreadyExistsHint') }}</p>
+        </v-card-text>
+        <v-card-actions>
+          <v-spacer />
+          <v-btn variant="text" @click="alreadyExistsDialog = false">{{ $t('clusterCenter.actions.cancel') }}</v-btn>
+          <v-btn color="primary" :loading="actionLoading" @click="pullExistingDomain">{{ $t('clusterCenter.pullDomain') }}</v-btn>
         </v-card-actions>
       </v-card>
     </v-dialog>
@@ -294,6 +335,7 @@ const form = ref({
   hubUrlProtocol: 'https',
   hubUrlHost: '',
   token: '',
+  displayName: '',
 })
 
 const confirmInfo = ref({
@@ -301,7 +343,13 @@ const confirmInfo = ref({
   domain: '',
   token: '',
   baseUrl: '',
+  displayName: '',
 })
+
+const alreadyExistsDialog = ref(false)
+const registerStep = ref(1)
+const checkingUrl = ref(false)
+const existingDomainData = ref<{ domain: string; hubUrl: string }>({ domain: '', hubUrl: '' })
 
 const selectedDomain = computed(() => domains.value.find((domain) => domain.id === selectedDomainId.value) ?? null)
 const selectedDomainMembers = computed(() => members.value.filter((member) => member.domainId === selectedDomainId.value))
@@ -338,7 +386,7 @@ const resolvePanelBaseUrl = () => {
   }
 }
 
-const prepareConfirm = () => {
+const validateAndCheckDomain = async () => {
   if (registerMode.value === 'uri') {
     const uri = form.value.joinUri.trim()
     const parsed = parseClusterHubJoinUri(uri)
@@ -351,6 +399,7 @@ const prepareConfirm = () => {
       domain: parsed.domain,
       token: parsed.token,
       baseUrl: resolvePanelBaseUrl(),
+      displayName: '',
     }
   } else {
     const domain = form.value.domain.trim()
@@ -375,10 +424,92 @@ const prepareConfirm = () => {
       domain,
       token: form.value.token,
       baseUrl: resolvePanelBaseUrl(),
+      displayName: '',
     }
   }
 
+  await checkPanelUrlExists()
+}
+
+const checkPanelUrlExists = async () => {
+  checkingUrl.value = true
+  const panelBaseUrl = resolvePanelBaseUrl()
+
+  try {
+    const snapshotUrl = `${confirmInfo.value.hubUrl}/v1/domains/${encodeURIComponent(confirmInfo.value.domain)}/snapshot`
+    const resp = await fetch(snapshotUrl, {
+      headers: { 'X-Domain-Token': confirmInfo.value.token },
+    })
+    if (resp.ok) {
+      const snapshot = await resp.json()
+      const members = snapshot.members || []
+      const existingMember = members.find(
+        (m: any) => (m.base_url || m.baseUrl || '') === panelBaseUrl,
+      )
+      if (existingMember) {
+        existingDomainData.value = {
+          domain: confirmInfo.value.domain,
+          hubUrl: confirmInfo.value.hubUrl,
+        }
+        alreadyExistsDialog.value = true
+        checkingUrl.value = false
+        return
+      }
+    }
+  } catch {
+    // If we can't reach the hub or domain doesn't exist, proceed with registration
+  }
+
+  checkingUrl.value = false
+  registerStep.value = 2
+}
+
+const showConfirmDialog = () => {
+  const displayName = form.value.displayName.trim()
+  if (!displayName) {
+    push.error({ title: i18n.global.t('failed'), message: i18n.global.t('clusterCenter.validation.displayName') })
+    return
+  }
+  confirmInfo.value.displayName = displayName
   confirmDialog.value = true
+}
+
+const onRegisterDialogClose = () => {
+  registerStep.value = 1
+  form.value = { joinUri: '', domain: '', hubUrlProtocol: 'https', hubUrlHost: '', token: '', displayName: '' }
+}
+
+const pullExistingDomain = async () => {
+  alreadyExistsDialog.value = false
+  registerDialog.value = false
+  registerStep.value = 1
+  form.value = { joinUri: '', domain: '', hubUrlProtocol: 'https', hubUrlHost: '', token: '', displayName: '' }
+  actionLoading.value = true
+
+  const panelBaseUrl = resolvePanelBaseUrl()
+  const registerMsg = await HttpUtils.post('api/cluster/register', {
+    domain: existingDomainData.value.domain,
+    hubUrl: existingDomainData.value.hubUrl,
+    token: confirmInfo.value.token,
+    baseUrl: panelBaseUrl,
+    name: '',
+    displayName: '',
+  })
+
+  if (registerMsg.success) {
+    const operation = registerMsg.obj as ClusterOperationStatus
+    if (operation?.id) {
+      await pollOperation(operation.id)
+    }
+    await loadData()
+    push.success({
+      title: i18n.global.t('success'),
+      message: i18n.global.t('clusterCenter.successRegistered'),
+      duration: 5000,
+    })
+  }
+
+  actionLoading.value = false
 }
 
 const confirmAndSubmit = async () => {
@@ -396,6 +527,8 @@ const confirmAndSubmit = async () => {
     hubUrl: confirmInfo.value.hubUrl,
     token: confirmInfo.value.token,
     baseUrl: panelBaseUrl,
+    name: '',
+    displayName: confirmInfo.value.displayName,
   })
 
   if (registerMsg.success) {
@@ -405,7 +538,8 @@ const confirmAndSubmit = async () => {
     }
     await loadData()
     registerDialog.value = false
-    form.value = { joinUri: '', domain: '', hubUrlProtocol: 'https', hubUrlHost: '', token: '' }
+    registerStep.value = 1
+    form.value = { joinUri: '', domain: '', hubUrlProtocol: 'https', hubUrlHost: '', token: '', displayName: '' }
     push.success({
       title: i18n.global.t('success'),
       message: i18n.global.t('clusterCenter.successRegistered'),
@@ -840,6 +974,30 @@ onMounted(async () => {
   .cluster-center__member-table tbody tr:last-child {
     border-bottom: none;
   }
+}
+
+.cluster-center__step-indicator {
+  align-items: center;
+  background: color-mix(in srgb, var(--app-surface-2) 86%, transparent);
+  border: 1px solid var(--app-border-1);
+  border-radius: 12px;
+  display: flex;
+  gap: 10px;
+  padding: 12px 14px;
+}
+
+.cluster-center__step-label {
+  color: var(--app-text-3);
+  font-size: 12px;
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.cluster-center__step-value {
+  font-size: 14px;
+  font-weight: 600;
+  word-break: break-all;
 }
 
 @media (max-width: 640px) {

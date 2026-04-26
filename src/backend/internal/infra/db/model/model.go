@@ -93,6 +93,7 @@ type ClusterMember struct {
 	Id                 uint           `json:"id" gorm:"primaryKey;autoIncrement"`
 	NodeID             string         `json:"nodeId" gorm:"uniqueIndex:idx_cluster_domain_node"`
 	Name               string         `json:"name"`
+	DisplayName        string         `json:"displayName"`
 	BaseURL            string         `json:"baseUrl"`
 	PublicKey          string         `json:"publicKey"`
 	PeerTokenEncrypted string         `json:"-"`

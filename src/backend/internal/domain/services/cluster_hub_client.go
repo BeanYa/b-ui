@@ -28,26 +28,29 @@ type ClusterHubRegisterNodeRequest struct {
 }
 
 type ClusterHubMemberRegister struct {
-	MemberID  string `json:"member_id"`
-	NodeID    string `json:"node_id"`
-	Address   string `json:"address"`
-	BaseURL   string `json:"base_url"`
-	PublicKey string `json:"public_key"`
-	Name      string `json:"name,omitempty"`
+	MemberID    string `json:"member_id"`
+	NodeID      string `json:"node_id"`
+	Address     string `json:"address"`
+	BaseURL     string `json:"base_url"`
+	PublicKey   string `json:"public_key"`
+	Name        string `json:"name,omitempty"`
+	DisplayName string `json:"display_name,omitempty"`
 }
 
 type ClusterHubMemberResponse struct {
-	MemberID     string `json:"member_id"`
-	NodeID       string `json:"nodeId"`
-	NodeIDAlt    string `json:"node_id"`
-	Name         string `json:"name"`
-	BaseURL      string `json:"baseUrl"`
-	BaseURLAlt   string `json:"base_url"`
-	PublicKey    string `json:"publicKey"`
-	PublicKeyAlt string `json:"public_key"`
-	PeerToken    string `json:"peerToken"`
-	PeerTokenAlt string `json:"peer_token"`
-	Address      string `json:"address"`
+	MemberID        string `json:"member_id"`
+	NodeID          string `json:"nodeId"`
+	NodeIDAlt       string `json:"node_id"`
+	Name            string `json:"name"`
+	DisplayName     string `json:"displayName"`
+	DisplayNameAlt  string `json:"display_name"`
+	BaseURL         string `json:"baseUrl"`
+	BaseURLAlt      string `json:"base_url"`
+	PublicKey       string `json:"publicKey"`
+	PublicKeyAlt    string `json:"public_key"`
+	PeerToken       string `json:"peerToken"`
+	PeerTokenAlt    string `json:"peer_token"`
+	Address         string `json:"address"`
 }
 
 type ClusterHubOperationResponse struct {
@@ -103,6 +106,16 @@ func (m ClusterHubMemberResponse) EffectiveBaseURL() string {
 		return m.BaseURLAlt
 	}
 	return m.Address
+}
+
+func (m ClusterHubMemberResponse) EffectiveDisplayName() string {
+	if m.DisplayName != "" {
+		return m.DisplayName
+	}
+	if m.DisplayNameAlt != "" {
+		return m.DisplayNameAlt
+	}
+	return m.Name
 }
 
 func (m ClusterHubMemberResponse) EffectivePublicKey() string {

@@ -22,12 +22,13 @@ import (
 )
 
 type ClusterRegisterRequest struct {
-	JoinURI string `json:"joinUri" form:"joinUri"`
-	HubURL  string `json:"hubUrl" form:"hubUrl"`
-	Name    string `json:"name" form:"name"`
-	Domain  string `json:"domain" form:"domain"`
-	Token   string `json:"token" form:"token"`
-	BaseURL string `json:"baseUrl" form:"baseUrl"`
+	JoinURI     string `json:"joinUri" form:"joinUri"`
+	HubURL      string `json:"hubUrl" form:"hubUrl"`
+	Name        string `json:"name" form:"name"`
+	DisplayName string `json:"displayName" form:"displayName"`
+	Domain      string `json:"domain" form:"domain"`
+	Token       string `json:"token" form:"token"`
+	BaseURL     string `json:"baseUrl" form:"baseUrl"`
 }
 
 type ClusterOperationStatus struct {
@@ -52,6 +53,7 @@ type ClusterMemberResponse struct {
 	DomainID    uint   `json:"domainId"`
 	NodeID      string `json:"nodeId"`
 	Name        string `json:"name"`
+	DisplayName string `json:"displayName"`
 	BaseURL     string `json:"baseUrl"`
 	LastVersion int64  `json:"lastVersion"`
 	IsLocal     bool   `json:"isLocal"`
@@ -162,12 +164,13 @@ func (s *ClusterService) Register(request ClusterRegisterRequest) (*ClusterOpera
 		DomainID:    request.Domain,
 		DomainToken: request.Token,
 		Member: ClusterHubMemberRegister{
-			MemberID:  identity.NodeID,
-			NodeID:    identity.NodeID,
-			Address:   request.BaseURL,
-			BaseURL:   request.BaseURL,
-			PublicKey: identity.PublicKey,
-			Name:      request.Name,
+			MemberID:    identity.NodeID,
+			NodeID:      identity.NodeID,
+			Address:     request.BaseURL,
+			BaseURL:     request.BaseURL,
+			PublicKey:   identity.PublicKey,
+			Name:        request.Name,
+			DisplayName: request.DisplayName,
 		},
 	})
 	if err != nil {
@@ -198,6 +201,7 @@ func (s *ClusterService) Register(request ClusterRegisterRequest) (*ClusterOpera
 		members = append(members, model.ClusterMember{
 			NodeID:             item.EffectiveNodeID(),
 			Name:               item.Name,
+			DisplayName:        item.EffectiveDisplayName(),
 			BaseURL:            item.EffectiveBaseURL(),
 			PublicKey:          item.EffectivePublicKey(),
 			PeerTokenEncrypted: peerTokenEncrypted,
@@ -392,7 +396,7 @@ func (s *ClusterService) ListMembers() ([]ClusterMemberResponse, error) {
 	}
 	response := make([]ClusterMemberResponse, 0, len(members))
 	for _, member := range members {
-		response = append(response, ClusterMemberResponse{ID: member.Id, DomainID: member.DomainID, NodeID: member.NodeID, Name: member.Name, BaseURL: member.BaseURL, LastVersion: member.LastVersion, IsLocal: member.NodeID == localIdentity.NodeID})
+		response = append(response, ClusterMemberResponse{ID: member.Id, DomainID: member.DomainID, NodeID: member.NodeID, Name: member.Name, DisplayName: member.DisplayName, BaseURL: member.BaseURL, LastVersion: member.LastVersion, IsLocal: member.NodeID == localIdentity.NodeID})
 	}
 	return response, nil
 }
