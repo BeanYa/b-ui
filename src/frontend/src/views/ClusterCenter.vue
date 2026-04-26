@@ -125,6 +125,8 @@
                   <th>{{ $t('clusterCenter.table.name') }}</th>
                   <th>{{ $t('clusterCenter.table.baseUrl') }}</th>
                   <th>{{ $t('clusterCenter.table.version') }}</th>
+                  <th>{{ $t('clusterCenter.table.panelVersion') }}</th>
+                  <th>{{ $t('clusterCenter.table.status') }}</th>
                   <th>{{ $t('clusterCenter.table.action') }}</th>
                 </tr>
               </thead>
@@ -139,6 +141,16 @@
                   <td>{{ member.displayName || member.name || '-' }}</td>
                   <td>{{ member.baseUrl || '-' }}</td>
                   <td>{{ formatClusterVersionLabel(member.lastVersion) }}</td>
+                  <td><span class="mono-copy">{{ member.panelVersion || '-' }}</span></td>
+                  <td>
+                    <v-chip
+                      :color="member.status === 'offline' ? 'red' : 'green'"
+                      size="small"
+                      variant="flat"
+                    >
+                      {{ member.status === 'offline' ? $t('offline') : $t('online') }}
+                    </v-chip>
+                  </td>
                   <td>
                     <div style="display: flex; gap: 8px; align-items: center;">
                       <v-btn
