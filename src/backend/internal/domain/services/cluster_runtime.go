@@ -88,6 +88,8 @@ func (s *ClusterHubSyncer) SyncDomain(ctx context.Context, domain *model.Cluster
 			PeerTokenEncrypted: peerTokenEncrypted,
 			DomainID:           domain.Id,
 			LastVersion:        snapshot.Version,
+			PanelVersion:       item.EffectivePanelVersion(),
+			Status:             item.EffectiveStatus(),
 		})
 	}
 	if err := store.ReplaceDomainMembers(domain.Id, members); err != nil {

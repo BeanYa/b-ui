@@ -795,6 +795,13 @@ func (s *stubPeerDispatcherSyncStore) GetMember(uint, string) (*model.ClusterMem
 	return &model.ClusterMember{NodeID: "node-a", LastVersion: 1}, nil
 }
 
+func (s *stubPeerDispatcherSyncStore) GetMembers(domainID uint) ([]model.ClusterMember, error) {
+	if s.member == nil {
+		return nil, nil
+	}
+	return []model.ClusterMember{*s.member}, nil
+}
+
 func (s *stubPeerDispatcherSyncStore) SaveMember(member *model.ClusterMember) error {
 	s.member = member
 	return nil

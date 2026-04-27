@@ -171,6 +171,16 @@ func (s *stubClusterSyncStore) GetMember(domainID uint, nodeID string) (*model.C
 	return &copy, nil
 }
 
+func (s *stubClusterSyncStore) GetMembers(domainID uint) ([]model.ClusterMember, error) {
+	var result []model.ClusterMember
+	for _, member := range s.members {
+		if member.DomainID == domainID {
+			result = append(result, *member)
+		}
+	}
+	return result, nil
+}
+
 func (s *stubClusterSyncStore) SaveMember(member *model.ClusterMember) error {
 	copy := *member
 	s.members[stubClusterSyncKey(member.DomainID, member.NodeID)] = &copy
