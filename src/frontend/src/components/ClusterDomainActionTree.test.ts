@@ -18,6 +18,8 @@ describe('ClusterDomainActionTree source', () => {
     expect(source).toContain('v-for="row in visibleRows"')
     expect(source).toContain('class="cluster-domain-action-tree__empty"')
     expect(source).toContain('class="cluster-domain-action-tree__scroll"')
+    expect(source).toContain('row.isAction && row.hasChildren')
+    expect(source).toContain(':disabled="!row.hasChildren"')
     expect(source).toContain('if (!row.hasChildren) return')
     expect(source).toContain("cluster-domain-action-tree__row--expanded")
   })

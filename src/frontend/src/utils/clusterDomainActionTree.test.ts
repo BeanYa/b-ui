@@ -6,6 +6,13 @@ import {
 } from './clusterDomainActionTree'
 
 describe('buildClusterDomainActionTree', () => {
+  it('treats null input as no actions', () => {
+    expect(() =>
+      buildClusterDomainActionTree(null),
+    ).not.toThrow()
+    expect(buildClusterDomainActionTree(null)).toEqual([])
+  })
+
   it('merges shared prefixes and preserves first-seen top-level order', () => {
     const tree = buildClusterDomainActionTree([
       'domain.cluster.changed',
@@ -41,6 +48,23 @@ describe('buildClusterDomainActionTree', () => {
     expect(tree.map(node => node.key)).toEqual(['valid'])
     expect(tree[0].children.map(node => node.key)).toEqual(['valid.action'])
   })
+
+  it('keeps prefix actions marked as actions when they also have children', () => {
+    const tree = buildClusterDomainActionTree([
+      'domain.panel',
+      'domain.panel.update',
+    ])
+
+    expect(tree[0].isAction).toBe(false)
+    expect(tree[0].children[0]).toMatchObject({
+      key: 'domain.panel',
+      isAction: true,
+    })
+    expect(tree[0].children[0].children[0]).toMatchObject({
+      key: 'domain.panel.update',
+      isAction: true,
+    })
+  })
 })
 
 describe('flattenVisibleClusterDomainActionTree', () => {
@@ -69,6 +93,42 @@ describe('flattenVisibleClusterDomainActionTree', () => {
       '2:domain.panel.update',
       '3:domain.panel.update.available',
       '0:events',
+    ])
+  })
+
+  it('preserves action state for rows that are both actions and branches', () => {
+    const prefixedTree = buildClusterDomainActionTree([
+      'domain.panel',
+      'domain.panel.update',
+    ])
+
+    expect(
+      flattenVisibleClusterDomainActionTree(
+        prefixedTree,
+        new Set(['domain', 'domain.panel']),
+      ),
+    ).toEqual([
+      {
+        key: 'domain',
+        label: 'domain',
+        depth: 0,
+        hasChildren: true,
+        isAction: false,
+      },
+      {
+        key: 'domain.panel',
+        label: 'panel',
+        depth: 1,
+        hasChildren: true,
+        isAction: true,
+      },
+      {
+        key: 'domain.panel.update',
+        label: 'update',
+        depth: 2,
+        hasChildren: false,
+        isAction: true,
+      },
     ])
   })
 

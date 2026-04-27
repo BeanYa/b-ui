@@ -1,6 +1,7 @@
 export interface ClusterDomainActionTreeNode {
   key: string
   label: string
+  isAction: boolean
   children: ClusterDomainActionTreeNode[]
 }
 
@@ -9,6 +10,7 @@ export interface ClusterDomainActionTreeRow {
   label: string
   depth: number
   hasChildren: boolean
+  isAction: boolean
 }
 
 const splitActionSegments = (value: string) => {
@@ -18,11 +20,12 @@ const splitActionSegments = (value: string) => {
 }
 
 export const buildClusterDomainActionTree = (
-  supportedActions: string[] = [],
+  supportedActions: unknown = [],
 ): ClusterDomainActionTreeNode[] => {
+  const actions = Array.isArray(supportedActions) ? supportedActions : []
   const roots: ClusterDomainActionTreeNode[] = []
 
-  for (const action of supportedActions) {
+  for (const action of actions) {
     if (typeof action !== 'string') continue
 
     const segments = splitActionSegments(action)
@@ -31,7 +34,7 @@ export const buildClusterDomainActionTree = (
     let branch = roots
     let currentKey = ''
 
-    for (const segment of segments) {
+    for (const [index, segment] of segments.entries()) {
       currentKey = currentKey ? `${currentKey}.${segment}` : segment
 
       let node = branch.find(entry => entry.key === currentKey)
@@ -39,9 +42,14 @@ export const buildClusterDomainActionTree = (
         node = {
           key: currentKey,
           label: segment,
+          isAction: false,
           children: [],
         }
         branch.push(node)
+      }
+
+      if (index === segments.length - 1) {
+        node.isAction = true
       }
 
       branch = node.children
@@ -66,6 +74,7 @@ export const flattenVisibleClusterDomainActionTree = (
         label: node.label,
         depth,
         hasChildren,
+        isAction: node.isAction,
       })
 
       if (hasChildren && expandedKeys.has(node.key)) {

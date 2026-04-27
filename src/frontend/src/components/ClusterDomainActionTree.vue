@@ -13,6 +13,7 @@
           'cluster-domain-action-tree__row--branch': row.hasChildren,
           'cluster-domain-action-tree__row--expanded': expandedKeys.has(row.key),
         }"
+        :disabled="!row.hasChildren"
         :style="{ '--cluster-action-depth': String(row.depth) }"
         @click="toggleRow(row)"
       >
@@ -20,6 +21,12 @@
           {{ row.hasChildren ? (expandedKeys.has(row.key) ? 'v' : '>') : '' }}
         </span>
         <span class="cluster-domain-action-tree__label">{{ row.label }}</span>
+        <span
+          v-if="row.isAction && row.hasChildren"
+          class="cluster-domain-action-tree__marker"
+        >
+          action
+        </span>
       </button>
     </div>
   </div>
@@ -35,7 +42,7 @@ import {
 } from '@/utils/clusterDomainActionTree'
 
 const props = withDefaults(defineProps<{
-  supportedActions?: string[]
+  supportedActions?: string[] | null
   emptyText?: string
 }>(), {
   supportedActions: () => [],
@@ -96,6 +103,10 @@ const toggleRow = (row: ClusterDomainActionTreeRow) => {
   width: 100%;
 }
 
+.cluster-domain-action-tree__row:disabled {
+  opacity: 1;
+}
+
 .cluster-domain-action-tree__row--branch {
   cursor: pointer;
 }
@@ -116,6 +127,17 @@ const toggleRow = (row: ClusterDomainActionTreeRow) => {
 
 .cluster-domain-action-tree__label {
   overflow-wrap: anywhere;
+}
+
+.cluster-domain-action-tree__marker {
+  background: color-mix(in srgb, var(--app-state-info) 12%, transparent);
+  border-radius: 999px;
+  color: var(--app-text-2);
+  font-size: 11px;
+  line-height: 1;
+  margin-left: auto;
+  padding: 3px 7px;
+  text-transform: lowercase;
 }
 
 @media (max-width: 640px) {
