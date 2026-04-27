@@ -6,6 +6,7 @@ import (
 	"net"
 	"net/http"
 	"net/url"
+	"regexp"
 	"sort"
 	"strings"
 	"sync"
@@ -13,11 +14,11 @@ import (
 
 	"github.com/gin-gonic/gin"
 
-	database "github.com/alireza0/s-ui/src/backend/internal/infra/db"
-	"github.com/alireza0/s-ui/src/backend/internal/infra/db/model"
 	"github.com/alireza0/s-ui/src/backend/internal/domain/services/cluster"
 	"github.com/alireza0/s-ui/src/backend/internal/domain/services/cluster/router"
 	clustertypes "github.com/alireza0/s-ui/src/backend/internal/domain/services/cluster/types"
+	database "github.com/alireza0/s-ui/src/backend/internal/infra/db"
+	"github.com/alireza0/s-ui/src/backend/internal/infra/db/model"
 	"github.com/gofrs/uuid/v5"
 )
 
@@ -57,6 +58,14 @@ type ClusterMemberResponse struct {
 	BaseURL     string `json:"baseUrl"`
 	LastVersion int64  `json:"lastVersion"`
 	IsLocal     bool   `json:"isLocal"`
+}
+
+type ClusterMemberConnectionResponse struct {
+	NodeID      string `json:"nodeId"`
+	Name        string `json:"name"`
+	DisplayName string `json:"displayName"`
+	BaseURL     string `json:"baseUrl"`
+	Token       string `json:"token"`
 }
 
 type ClusterPeerStatus struct {
@@ -110,6 +119,8 @@ var errClusterTokenRequired = errors.New("cluster domain token is required")
 var errClusterBaseURLRequired = errors.New("cluster node base URL is required")
 var errClusterJoinURIInvalid = errors.New("cluster join URI is invalid")
 
+var clusterDisplayNameBaseURLPattern = regexp.MustCompile(`(?i)^https?://([^/:?#]+)(?::\d+)?(?:[/?#]|$)`)
+
 func (s *ClusterService) Register(request ClusterRegisterRequest) (*ClusterOperationStatus, error) {
 	if err := NormalizeClusterRegisterRequest(&request); err != nil {
 		return nil, err
@@ -118,6 +129,7 @@ func (s *ClusterService) Register(request ClusterRegisterRequest) (*ClusterOpera
 	request.HubURL = strings.TrimSpace(request.HubURL)
 	request.BaseURL = strings.TrimSpace(request.BaseURL)
 	request.Name = strings.TrimSpace(request.Name)
+	request.DisplayName = strings.TrimSpace(request.DisplayName)
 	if request.HubURL == "" {
 		return nil, errClusterHubURLRequired
 	}
@@ -129,6 +141,9 @@ func (s *ClusterService) Register(request ClusterRegisterRequest) (*ClusterOpera
 	}
 	if request.BaseURL == "" {
 		return nil, errClusterBaseURLRequired
+	}
+	if request.DisplayName == "" {
+		request.DisplayName = deriveClusterDisplayNameFromBaseURL(request.BaseURL)
 	}
 
 	store := s.getStore()
@@ -189,6 +204,7 @@ func (s *ClusterService) Register(request ClusterRegisterRequest) (*ClusterOpera
 		return nil, err
 	}
 	members := make([]model.ClusterMember, 0, len(snapshot.Members))
+	memberBaseURLIndexes := map[string]int{}
 	for _, item := range snapshot.Members {
 		peerTokenEncrypted := ""
 		peerToken := item.EffectivePeerToken()
@@ -198,7 +214,7 @@ func (s *ClusterService) Register(request ClusterRegisterRequest) (*ClusterOpera
 				return nil, err
 			}
 		}
-		members = append(members, model.ClusterMember{
+		member := model.ClusterMember{
 			NodeID:             item.EffectiveNodeID(),
 			Name:               item.Name,
 			DisplayName:        item.EffectiveDisplayName(),
@@ -207,7 +223,18 @@ func (s *ClusterService) Register(request ClusterRegisterRequest) (*ClusterOpera
 			PeerTokenEncrypted: peerTokenEncrypted,
 			DomainID:           domain.Id,
 			LastVersion:        snapshot.Version,
-		})
+		}
+		baseURLKey := normalizeClusterBaseURLForIdentity(member.BaseURL)
+		if baseURLKey != "" {
+			if existingIndex, exists := memberBaseURLIndexes[baseURLKey]; exists {
+				if members[existingIndex].NodeID != identity.NodeID && member.NodeID == identity.NodeID {
+					members[existingIndex] = member
+				}
+				continue
+			}
+			memberBaseURLIndexes[baseURLKey] = len(members)
+		}
+		members = append(members, member)
 	}
 	if err := store.ReplaceDomainMembers(domain.Id, members); err != nil {
 		return nil, err
@@ -341,6 +368,41 @@ func isClusterLocalHost(host string) bool {
 	return ip != nil && ip.IsLoopback()
 }
 
+func deriveClusterDisplayNameFromBaseURL(baseURL string) string {
+	matches := clusterDisplayNameBaseURLPattern.FindStringSubmatch(strings.TrimSpace(baseURL))
+	if len(matches) < 2 {
+		return ""
+	}
+	return strings.ToLower(matches[1])
+}
+
+func normalizeClusterBaseURLForIdentity(baseURL string) string {
+	trimmed := strings.TrimSpace(baseURL)
+	if trimmed == "" {
+		return ""
+	}
+	parsed, err := url.Parse(trimmed)
+	if err != nil || parsed.Scheme == "" || parsed.Host == "" {
+		return strings.TrimRight(strings.ToLower(trimmed), "/")
+	}
+	parsed.Scheme = strings.ToLower(parsed.Scheme)
+	parsed.RawQuery = ""
+	parsed.Fragment = ""
+	parsed.RawPath = ""
+	parsed.Path = strings.TrimRight(parsed.Path, "/")
+
+	host := strings.ToLower(parsed.Hostname())
+	port := parsed.Port()
+	if port != "" && !((parsed.Scheme == "https" && port == "443") || (parsed.Scheme == "http" && port == "80")) {
+		parsed.Host = net.JoinHostPort(host, port)
+	} else if strings.Contains(host, ":") {
+		parsed.Host = "[" + host + "]"
+	} else {
+		parsed.Host = host
+	}
+	return strings.TrimRight(parsed.String(), "/")
+}
+
 func effectiveClusterCommunicationEndpointPath(value string) string {
 	if strings.TrimSpace(value) == "" {
 		return ClusterCommunicationEndpointPath
@@ -399,6 +461,35 @@ func (s *ClusterService) ListMembers() ([]ClusterMemberResponse, error) {
 		response = append(response, ClusterMemberResponse{ID: member.Id, DomainID: member.DomainID, NodeID: member.NodeID, Name: member.Name, DisplayName: member.DisplayName, BaseURL: member.BaseURL, LastVersion: member.LastVersion, IsLocal: member.NodeID == localIdentity.NodeID})
 	}
 	return response, nil
+}
+
+func (s *ClusterService) GetMemberConnection(nodeID string) (*ClusterMemberConnectionResponse, error) {
+	nodeID = strings.TrimSpace(nodeID)
+	if nodeID == "" {
+		return nil, errClusterMemberNotFound
+	}
+	member, err := s.getStore().GetMemberByNodeID(nodeID)
+	if err != nil {
+		return nil, err
+	}
+	if member.PeerTokenEncrypted == "" {
+		return nil, errClusterTokenRequired
+	}
+	secret, err := s.getSecretProvider().GetSecret()
+	if err != nil {
+		return nil, err
+	}
+	token, err := DecryptClusterDomainToken(secret, member.PeerTokenEncrypted)
+	if err != nil {
+		return nil, err
+	}
+	return &ClusterMemberConnectionResponse{
+		NodeID:      member.NodeID,
+		Name:        member.Name,
+		DisplayName: member.DisplayName,
+		BaseURL:     member.BaseURL,
+		Token:       token,
+	}, nil
 }
 
 func (s *ClusterService) ManualSync() (*ClusterOperationStatus, error) {

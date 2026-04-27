@@ -165,6 +165,38 @@ func TestClusterListsDomainsAndMembers(t *testing.T) {
 	}
 }
 
+func TestClusterMemberConnectionUsesNodeIDQuery(t *testing.T) {
+	router, cluster := newTestClusterRouter()
+	cluster.memberConnection = &service.ClusterMemberConnectionResponse{
+		NodeID:      "node-a",
+		Name:        "alpha",
+		DisplayName: "Alpha",
+		BaseURL:     "https://node-a.example.com",
+		Token:       "peer-token-a",
+	}
+	req := httptest.NewRequest(http.MethodGet, "/api/cluster/member-connection?node_id=node-a", nil)
+	req.Header.Set("Cookie", loginCookie(t, router, "admin"))
+	recorder := httptest.NewRecorder()
+
+	router.ServeHTTP(recorder, req)
+
+	if recorder.Code != http.StatusOK {
+		t.Fatalf("expected status %d, got %d", http.StatusOK, recorder.Code)
+	}
+	if cluster.memberConnectionNodeID != "node-a" {
+		t.Fatalf("expected node_id query to be forwarded, got %q", cluster.memberConnectionNodeID)
+	}
+	var response Msg
+	decodeResponse(t, recorder, &response)
+	connectionJSON, err := json.Marshal(response.Obj)
+	if err != nil {
+		t.Fatalf("marshal connection response: %v", err)
+	}
+	if !bytes.Contains(connectionJSON, []byte(`"token":"peer-token-a"`)) || !bytes.Contains(connectionJSON, []byte(`"baseUrl":"https://node-a.example.com"`)) {
+		t.Fatalf("expected token and baseUrl in connection response, got %s", connectionJSON)
+	}
+}
+
 func TestClusterManualSyncAndDeleteMemberUseService(t *testing.T) {
 	router, cluster := newTestClusterRouter()
 	cookie := loginCookie(t, router, "admin")
@@ -416,22 +448,24 @@ func newTestClusterRouterWithUserService(userService apiUserService) (*gin.Engin
 }
 
 type stubClusterAPIService struct {
-	registerCalls       int
-	listDomainsCalls    int
-	listMembersCalls    int
-	manualSyncCalls     int
-	receiveCalls        int
-	deletedMemberID     uint
-	leftDomainID        uint
-	receivedToken       string
-	receivedEnvelope    *service.ClusterEnvelope
-	receivedPeerMessage *service.PeerMessage
-	receiveErr          error
-	domains             []service.ClusterDomainResponse
-	members             []service.ClusterMemberResponse
-	registeredRequest   service.ClusterRegisterRequest
-	heartbeatResponse   *service.ClusterPeerStatus
-	pingResponse        *service.ClusterPeerStatus
+	registerCalls          int
+	listDomainsCalls       int
+	listMembersCalls       int
+	manualSyncCalls        int
+	receiveCalls           int
+	deletedMemberID        uint
+	leftDomainID           uint
+	receivedToken          string
+	receivedEnvelope       *service.ClusterEnvelope
+	receivedPeerMessage    *service.PeerMessage
+	receiveErr             error
+	domains                []service.ClusterDomainResponse
+	members                []service.ClusterMemberResponse
+	registeredRequest      service.ClusterRegisterRequest
+	heartbeatResponse      *service.ClusterPeerStatus
+	pingResponse           *service.ClusterPeerStatus
+	memberConnection       *service.ClusterMemberConnectionResponse
+	memberConnectionNodeID string
 }
 
 func (s *stubClusterAPIService) Register(request service.ClusterRegisterRequest) (*service.ClusterOperationStatus, error) {
@@ -452,6 +486,14 @@ func (s *stubClusterAPIService) ListDomains() ([]service.ClusterDomainResponse, 
 func (s *stubClusterAPIService) ListMembers() ([]service.ClusterMemberResponse, error) {
 	s.listMembersCalls++
 	return s.members, nil
+}
+
+func (s *stubClusterAPIService) GetMemberConnection(nodeID string) (*service.ClusterMemberConnectionResponse, error) {
+	s.memberConnectionNodeID = nodeID
+	if s.memberConnection != nil {
+		return s.memberConnection, nil
+	}
+	return &service.ClusterMemberConnectionResponse{NodeID: nodeID, BaseURL: "https://node.example.com", Token: "peer-token"}, nil
 }
 
 func (s *stubClusterAPIService) ManualSync() (*service.ClusterOperationStatus, error) {

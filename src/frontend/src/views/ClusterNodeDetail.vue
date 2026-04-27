@@ -92,15 +92,18 @@
 <script lang="ts" setup>
 import { computed, onMounted, onUnmounted, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
+import HttpUtils from '@/plugins/httputil'
 import { useRemoteNodeStore } from '@/store/modules/remoteNode'
+import type { ClusterMemberConnection } from '@/types/clusters'
 
 const route = useRoute()
 const router = useRouter()
 const remoteNode = useRemoteNodeStore()
 
 const pageSize = 10
+const nodeConnection = ref<ClusterMemberConnection | null>(null)
 
-const nodeName = computed(() => (route.query.name as string) || 'Node')
+const nodeName = computed(() => nodeConnection.value?.displayName || nodeConnection.value?.name || nodeConnection.value?.nodeId || 'Node')
 const nodeActions = computed(() => remoteNode.info?.actions ?? [])
 
 const activeTab = ref('inbounds')
@@ -163,16 +166,41 @@ function goBack() {
   router.push('/clusters')
 }
 
-onMounted(async () => {
-  const baseUrl = route.query.baseUrl as string
-  const token = route.query.token as string
+function resolveRouteNodeId() {
+  return String(route.query.node_id || route.params.nodeId || '').trim()
+}
 
-  if (!baseUrl || !token) {
-    remoteNode.pageError = 'Missing baseUrl or token query parameters.'
+async function loadNodeConnection(nodeId: string) {
+  const msg = await HttpUtils.get(`api/cluster/member-connection?node_id=${encodeURIComponent(nodeId)}`)
+  if (!msg.success) {
+    throw new Error(msg.msg || 'Failed to load cluster member connection.')
+  }
+  const connection = msg.obj as ClusterMemberConnection
+  if (!connection?.baseUrl || !connection?.token) {
+    throw new Error('Cluster member connection is missing baseUrl or token.')
+  }
+  return connection
+}
+
+onMounted(async () => {
+  const nodeId = resolveRouteNodeId()
+
+  if (!nodeId) {
+    remoteNode.pageError = 'Missing node_id query parameter.'
     return
   }
 
-  await remoteNode.init(baseUrl, token)
+  remoteNode.pageLoading = true
+  remoteNode.pageError = null
+
+  try {
+    nodeConnection.value = await loadNodeConnection(nodeId)
+    await remoteNode.init(nodeConnection.value.baseUrl, nodeConnection.value.token)
+  } catch (e: any) {
+    remoteNode.pageError = e.message
+    remoteNode.pageLoading = false
+    return
+  }
 
   // TLS and clients are pre-fetched by init(), so mark current page
   const entry = tabMap[activeTab.value]

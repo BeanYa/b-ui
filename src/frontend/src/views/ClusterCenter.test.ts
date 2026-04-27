@@ -91,6 +91,17 @@ describe('ClusterCenter view source', () => {
     expect(source).toContain('const backToClusterCenter = () => {')
   })
 
+  it('deduplicates registration checks by normalized BaseURL and defaults display name from BaseURL host', () => {
+    const source = readFileSync(fileURLToPath(new URL('./ClusterCenter.vue', import.meta.url)), 'utf8')
+
+    expect(source).toContain('const normalizeClusterBaseUrl = (value: string) =>')
+    expect(source).toContain('const deriveDisplayNameFromBaseUrl = (baseUrl: string) =>')
+    expect(source).toContain("match(/^https?:\\/\\/([^/:?#]+)(?::\\d+)?(?:[/?#]|$)/i)")
+    expect(source).toContain('displayName: deriveDisplayNameFromBaseUrl(panelBaseUrl)')
+    expect(source).toContain('normalizeClusterBaseUrl(m.base_url || m.baseUrl || \'\') === normalizedPanelBaseUrl')
+    expect(source).toContain('form.value.displayName = confirmInfo.value.displayName')
+  })
+
   it('places the leave-domain action inside domain details instead of the global toolbar', () => {
     const source = readFileSync(fileURLToPath(new URL('./ClusterCenter.vue', import.meta.url)), 'utf8')
 
@@ -123,5 +134,14 @@ describe('ClusterCenter view source', () => {
     expect(source).toContain("member.isLocal ? leaveDomain(selectedDomain) : deleteMember(member)")
     expect(source).toContain("member.isLocal ? $t('clusterCenter.actions.leave') : $t('clusterCenter.actions.delete')")
     expect(source).toContain('member.isLocal ? leavingDomainId === selectedDomain?.id : deletingMemberId === member.id')
+  })
+
+  it('opens node management with node_id only so connection details are resolved server-side', () => {
+    const source = readFileSync(fileURLToPath(new URL('./ClusterCenter.vue', import.meta.url)), 'utf8')
+
+    expect(source).toContain("query: { node_id: member.nodeId }")
+    expect(source).not.toContain('getPeerToken')
+    expect(source).not.toContain('token: getPeerToken(member)')
+    expect(source).not.toContain('baseUrl: member.baseUrl')
   })
 })

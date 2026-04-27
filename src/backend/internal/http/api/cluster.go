@@ -16,6 +16,7 @@ type clusterAPIService interface {
 	GetOperation(string) (*service.ClusterOperationStatus, error)
 	ListDomains() ([]service.ClusterDomainResponse, error)
 	ListMembers() ([]service.ClusterMemberResponse, error)
+	GetMemberConnection(string) (*service.ClusterMemberConnectionResponse, error)
 	ManualSync() (*service.ClusterOperationStatus, error)
 	DeleteMember(uint) error
 	LeaveDomain(uint) error
@@ -80,6 +81,15 @@ func (a *APIHandler) listClusterMembers(c *gin.Context) {
 	}
 	members, err := a.clusterService.ListMembers()
 	jsonObj(c, members, err)
+}
+
+func (a *APIHandler) getClusterMemberConnection(c *gin.Context) {
+	if !a.requireClusterAdmin(c) {
+		return
+	}
+	nodeID := strings.TrimSpace(c.Query("node_id"))
+	connection, err := a.clusterService.GetMemberConnection(nodeID)
+	jsonObj(c, connection, err)
 }
 
 func (a *APIHandler) manualClusterSync(c *gin.Context) {

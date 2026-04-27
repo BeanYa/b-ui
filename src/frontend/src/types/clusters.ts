@@ -19,6 +19,14 @@ export interface ClusterMember {
   isLocal: boolean
 }
 
+export interface ClusterMemberConnection {
+  nodeId: string
+  name: string
+  displayName: string
+  baseUrl: string
+  token: string
+}
+
 export interface ClusterOperationStatus {
   id: string
   state: string

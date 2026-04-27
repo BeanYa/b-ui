@@ -95,6 +95,104 @@ func TestClusterServiceRegisterParsesJoinURI(t *testing.T) {
 	}
 }
 
+func TestClusterServiceRegisterDefaultsDisplayNameFromBaseURL(t *testing.T) {
+	store := &stubClusterServiceStore{}
+	hub := &stubClusterHubClient{
+		registerResponse: &ClusterHubOperationResponse{OperationID: "op-register", Status: "completed"},
+		snapshotResponse: &ClusterHubSnapshotResponse{Version: 4, Members: []ClusterHubMemberResponse{{NodeID: "node-a", BaseURL: "https://node-a.example.com", PeerToken: "peer-token-a"}}},
+	}
+	service := &ClusterService{
+		secretProvider: stubClusterSecretProvider{secret: []byte("panel-secret-for-cluster-tests")},
+		localIdentity:  ClusterLocalIdentityService{store: &stubClusterLocalNodeStore{}},
+		store:          store,
+		hubClient:      hub,
+	}
+
+	_, err := service.Register(ClusterRegisterRequest{
+		HubURL:  "https://hub.example.com",
+		Domain:  "edge.example.com",
+		Token:   "cluster-token",
+		BaseURL: "https://jp.whoisbean.com:10443/beanui/",
+	})
+	if err != nil {
+		t.Fatalf("register cluster domain: %v", err)
+	}
+	if hub.lastRegisterRequest.Member.DisplayName != "jp.whoisbean.com" {
+		t.Fatalf("expected display name from base URL host, got %q", hub.lastRegisterRequest.Member.DisplayName)
+	}
+}
+
+func TestClusterServiceRegisterMapsExistingBaseURLToLocalIdentity(t *testing.T) {
+	store := &stubClusterServiceStore{}
+	local := newTestClusterLocalNode(t, "node-local")
+	hub := &stubClusterHubClient{
+		registerResponse: &ClusterHubOperationResponse{OperationID: "op-register", Status: "completed"},
+		snapshotResponse: &ClusterHubSnapshotResponse{Version: 4, Members: []ClusterHubMemberResponse{
+			{NodeID: "node-existing", BaseURL: "https://JP.whoisbean.com:10443/beanui", PeerToken: "peer-token-a"},
+			{NodeID: "node-local", BaseURL: "https://jp.whoisbean.com:10443/beanui/", PublicKey: local.PublicKey, PeerToken: "peer-token-a"},
+		}},
+	}
+	service := &ClusterService{
+		secretProvider: stubClusterSecretProvider{secret: []byte("panel-secret-for-cluster-tests")},
+		localIdentity:  ClusterLocalIdentityService{store: &stubClusterLocalNodeStore{node: local}},
+		store:          store,
+		hubClient:      hub,
+	}
+
+	_, err := service.Register(ClusterRegisterRequest{
+		HubURL:  "https://hub.example.com",
+		Domain:  "edge.example.com",
+		Token:   "cluster-token",
+		BaseURL: "https://jp.whoisbean.com:10443/beanui/",
+	})
+	if err != nil {
+		t.Fatalf("register cluster domain: %v", err)
+	}
+	if hub.registerCalls != 1 {
+		t.Fatalf("expected hub register call to map existing URL to local node, got %d", hub.registerCalls)
+	}
+	if hub.snapshotCalls != 1 {
+		t.Fatalf("expected one snapshot refresh, got %d", hub.snapshotCalls)
+	}
+	if len(store.replacedMembers) != 1 || len(store.replacedMembers[0]) != 1 {
+		t.Fatalf("expected local mirror to load one de-duplicated member, got %#v", store.replacedMembers)
+	}
+	if store.replacedMembers[0][0].NodeID != "node-local" {
+		t.Fatalf("expected duplicate base URL to map to local node, got %q", store.replacedMembers[0][0].NodeID)
+	}
+}
+
+func TestClusterServiceGetMemberConnectionDecryptsPeerTokenByNodeID(t *testing.T) {
+	secret := []byte("panel-secret-for-cluster-tests")
+	store := &stubClusterServiceStore{
+		members: map[string]*model.ClusterMember{
+			serviceMemberKey(1, "node-a"): {
+				NodeID:             "node-a",
+				Name:               "alpha",
+				DisplayName:        "Alpha",
+				BaseURL:            "https://node-a.example.com/beanui/",
+				DomainID:           1,
+				PeerTokenEncrypted: mustEncryptClusterToken(t, string(secret), "peer-token-a"),
+			},
+		},
+	}
+	service := &ClusterService{
+		secretProvider: stubClusterSecretProvider{secret: secret},
+		store:          store,
+	}
+
+	connection, err := service.GetMemberConnection("node-a")
+	if err != nil {
+		t.Fatalf("get member connection: %v", err)
+	}
+	if connection.BaseURL != "https://node-a.example.com/beanui/" {
+		t.Fatalf("expected base URL, got %q", connection.BaseURL)
+	}
+	if connection.Token != "peer-token-a" {
+		t.Fatalf("expected decrypted peer token, got %q", connection.Token)
+	}
+}
+
 func TestClusterServiceRegisterDoesNotPersistDomainWhenHubRegistrationFails(t *testing.T) {
 	store := &stubClusterServiceStore{}
 	hub := &stubClusterHubClient{registerErr: errTestClusterHubFailure}
