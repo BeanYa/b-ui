@@ -64,15 +64,8 @@ type ExternalRunRequest struct {
 	SourceIDs []string `json:"source_ids"`
 }
 
-// TCP ping result from a single dial attempt.
-type tcpResult struct {
-	addr      string
-	latencyMs float64
-	err       error
-}
-
-// ICMP ping result parsed from system ping output.
-type icmpResult struct {
+// pingResult holds the outcome of a single probe attempt (TCP or ICMP).
+type pingResult struct {
 	addr      string
 	latencyMs float64
 	err       error
