@@ -50,6 +50,13 @@ describe('ClusterCenter view source', () => {
     expect(source).not.toContain('v-data-table')
   })
 
+  it('renders refresh as a distinct secondary toolbar button instead of a plain text action', () => {
+    const source = readFileSync(fileURLToPath(new URL('./ClusterCenter.vue', import.meta.url)), 'utf8')
+
+    expect(source).toContain('class="cluster-center__refresh-btn" variant="outlined"')
+    expect(source).toContain('background: linear-gradient(')
+  })
+
   it('keeps the hub URL protocol selector compact so the URI host input gets the remaining width', () => {
     const source = readFileSync(fileURLToPath(new URL('./ClusterCenter.vue', import.meta.url)), 'utf8')
 

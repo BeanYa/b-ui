@@ -20,7 +20,7 @@
         <div class="app-page__toolbar-actions cluster-center__actions">
           <v-btn color="primary" @click="registerDialog = true">{{ $t('clusterCenter.actions.register') }}</v-btn>
           <v-btn variant="outlined" color="warning" :loading="actionLoading" @click="manualSync">{{ $t('clusterCenter.actions.manualSync') }}</v-btn>
-          <v-btn class="cluster-center__refresh-btn" variant="text" :loading="pageLoading" @click="loadData">{{ $t('clusterCenter.actions.refresh') }}</v-btn>
+          <v-btn class="cluster-center__refresh-btn" variant="outlined" :loading="pageLoading" @click="loadData">{{ $t('clusterCenter.actions.refresh') }}</v-btn>
         </div>
       </v-col>
     </v-row>
@@ -741,20 +741,33 @@ async function pingAllDomainMembers() {
 }
 
 .cluster-center__refresh-btn {
-  background: color-mix(in srgb, var(--app-surface-2) 88%, transparent) !important;
-  border: 1px solid color-mix(in srgb, var(--app-text-2) 18%, var(--app-border-2)) !important;
+  backdrop-filter: blur(var(--app-blur-panel));
+  background: linear-gradient(
+    180deg,
+    color-mix(in srgb, var(--app-surface-3) 94%, transparent),
+    color-mix(in srgb, var(--app-surface-2) 98%, transparent)
+  ) !important;
+  border: 1px solid color-mix(in srgb, var(--app-text-2) 24%, var(--app-border-2)) !important;
   box-shadow: var(--app-shadow-button) !important;
   color: var(--app-text-1) !important;
 }
 
 .cluster-center__refresh-btn:hover {
-  background: color-mix(in srgb, var(--app-state-info) 8%, var(--app-surface-2)) !important;
+  background: linear-gradient(
+    180deg,
+    color-mix(in srgb, var(--app-state-info) 10%, var(--app-surface-3)),
+    color-mix(in srgb, var(--app-state-info) 6%, var(--app-surface-2))
+  ) !important;
   border-color: color-mix(in srgb, var(--app-state-info) 42%, var(--app-border-2)) !important;
 }
 
 .cluster-center__refresh-btn:focus-visible {
   outline: none;
   box-shadow: var(--app-shadow-button), 0 0 0 4px color-mix(in srgb, var(--app-state-info) 18%, transparent) !important;
+}
+
+.cluster-center__refresh-btn :deep(.v-btn__overlay) {
+  opacity: 0.04;
 }
 
 .cluster-center__grid {
