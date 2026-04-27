@@ -94,6 +94,12 @@ const routes = [
         meta: { requiresAdmin: true },
         component: () => import('@/views/ClusterNodeDetail.vue'),
       },
+      {
+        path: '/ping',
+        name: 'pages.multiLocationPing',
+        meta: { requiresAdmin: true },
+        component: () => import('@/views/MultiLocationPing.vue'),
+      },
     ],
   },
 ]
