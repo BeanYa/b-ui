@@ -2,7 +2,6 @@ package ping
 
 import (
 	"encoding/json"
-	"errors"
 	"os"
 	"path/filepath"
 )
@@ -99,9 +98,6 @@ func writeJSON(path string, v interface{}) error {
 func readJSON(path string, v interface{}) error {
 	data, err := os.ReadFile(path)
 	if err != nil {
-		if errors.Is(err, os.ErrNotExist) {
-			return err
-		}
 		return err
 	}
 	return json.Unmarshal(data, v)
