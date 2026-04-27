@@ -68,6 +68,7 @@ bash <(curl -Ls https://raw.githubusercontent.com/BeanYa/b-ui/main/install.sh) \
 | `--domain` | 面板域名 | 不提供则使用 IP 模式 |
 | `--cert-path` | SSL 证书文件路径 | 需与 `--key-path` 同时提供 |
 | `--key-path` | SSL 私钥文件路径 | 需与 `--cert-path` 同时提供 |
+| `--acme-port` | ACME 证书申请验证端口 | `80` |
 
 **域名与证书行为：**
 

@@ -44,6 +44,7 @@ ARG_SUB_PATH=""
 ARG_DOMAIN=""
 ARG_CERT_PATH=""
 ARG_KEY_PATH=""
+ARG_ACME_PORT="80"
 
 cur_dir=$(pwd)
 
@@ -72,6 +73,7 @@ Options:
   --domain          Domain name for panel (if not provided, IP mode is used)
   --cert-path       SSL certificate file path (requires --key-path)
   --key-path        SSL key file path (requires --cert-path)
+  --acme-port       Port for ACME standalone validation (default: 80)
 
   If --domain is provided without --cert-path and --key-path, ACME will be used
   to automatically apply for and renew the certificate.
@@ -145,6 +147,10 @@ parse_args() {
             ;;
         --key-path)
             ARG_KEY_PATH="$2"
+            shift 2
+            ;;
+        --acme-port)
+            ARG_ACME_PORT="$2"
             shift 2
             ;;
         --*)
@@ -755,7 +761,7 @@ config_after_install() {
 
     # Handle ACME cert before DB init (when domain provided without cert/key)
     if [[ -n "${ARG_DOMAIN}" && -z "${ARG_CERT_PATH}" && -z "${ARG_KEY_PATH}" ]]; then
-        handle_acme_cert "${ARG_DOMAIN}" || {
+        handle_acme_cert "${ARG_DOMAIN}" "${ARG_ACME_PORT}" || {
             echo -e "${red}ACME certificate issuance failed.${plain}"
             rollback_installation
             exit 1
