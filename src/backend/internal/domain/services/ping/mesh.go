@@ -30,6 +30,7 @@ type MeshService struct {
 	httpClient *http.Client
 	tcpDialer  *net.Dialer
 	tcpPort    int
+	icmpPinger func(context.Context, string) (float64, error)
 }
 
 func NewMeshService() *MeshService {
@@ -159,6 +160,10 @@ func (s *MeshService) httpPing(ctx context.Context, baseURL string, peerToken st
 }
 
 func (s *MeshService) icmpPing(ctx context.Context, target string) (float64, error) {
+	if s != nil && s.icmpPinger != nil {
+		return s.icmpPinger(ctx, target)
+	}
+
 	var cmd *exec.Cmd
 
 	if runtime.GOOS == "windows" {
@@ -266,4 +271,3 @@ func extractHostFromBaseURL(baseURL string) string {
 	}
 	return s
 }
-

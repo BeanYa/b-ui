@@ -2,6 +2,7 @@ package ping
 
 import (
 	"context"
+	"errors"
 	"net"
 	"net/http"
 	"net/http/httptest"
@@ -22,14 +23,24 @@ func TestMeshServiceHTTPPing(t *testing.T) {
 	defer ts.Close()
 
 	svc := &MeshService{
-		httpClient: &http.Client{},
+		httpClient: &http.Client{
+			Transport: &http.Transport{
+				DialContext: func(ctx context.Context, network, addr string) (net.Conn, error) {
+					var dialer net.Dialer
+					return dialer.DialContext(ctx, network, ts.Listener.Addr().String())
+				},
+			},
+		},
 		tcpDialer:  &net.Dialer{},
 		tcpPort:    DefaultTCPPort,
+		icmpPinger: func(context.Context, string) (float64, error) {
+			return 0, errors.New("icmp disabled for http fallback test")
+		},
 	}
 
 	members := []MeshMember{
 		{MemberID: "local-1", NodeID: "local-1", Name: "local", BaseURL: "http://localhost:9999", PeerToken: ""},
-		{MemberID: "peer-1", NodeID: "peer-1", Name: "peer", BaseURL: ts.URL, PeerToken: ""},
+		{MemberID: "peer-1", NodeID: "peer-1", Name: "peer", BaseURL: "http://mesh-http.invalid", PeerToken: ""},
 	}
 
 	results := svc.runMesh(context.Background(), "test.example.com", members, "local-1")
