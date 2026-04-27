@@ -11,11 +11,11 @@ export interface ClusterDomainActionTreeRow {
   hasChildren: boolean
 }
 
-const splitActionSegments = (value: string) =>
-  value
-    .split('.')
-    .map(segment => segment.trim())
-    .filter(Boolean)
+const splitActionSegments = (value: string) => {
+  const segments = value.split('.').map(segment => segment.trim())
+
+  return segments.some(segment => segment.length === 0) ? [] : segments
+}
 
 export const buildClusterDomainActionTree = (
   supportedActions: string[] = [],

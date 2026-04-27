@@ -28,6 +28,19 @@ describe('buildClusterDomainActionTree', () => {
     expect(tree[0].children[0].children[0].key).toBe('domain.cluster.changed')
     expect(tree[0].children[1].children[0].key).toBe('domain.panel.update')
   })
+
+  it('ignores malformed action values instead of normalizing them', () => {
+    const tree = buildClusterDomainActionTree([
+      'domain..cluster',
+      '.events',
+      'events.',
+      'domain. .cluster',
+      'valid.action',
+    ])
+
+    expect(tree.map(node => node.key)).toEqual(['valid'])
+    expect(tree[0].children.map(node => node.key)).toEqual(['valid.action'])
+  })
 })
 
 describe('flattenVisibleClusterDomainActionTree', () => {
