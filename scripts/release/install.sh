@@ -797,6 +797,29 @@ stage_legacy_database_for_migration() {
     done
 }
 
+copy_package_to_install_root() {
+    local package_dir="$1"
+    local item=""
+    local name=""
+
+    mkdir -p "${INSTALL_ROOT}" || return 1
+
+    shopt -s dotglob nullglob
+    for item in "${package_dir}"/*; do
+        name="$(basename "${item}")"
+        case "${name}" in
+        db | *.db | *.db-wal | *.db-shm)
+            continue
+            ;;
+        esac
+        cp -rf "${item}" "${INSTALL_ROOT}/" || {
+            shopt -u dotglob nullglob
+            return 1
+        }
+    done
+    shopt -u dotglob nullglob
+}
+
 config_after_install() {
     echo -e "${yellow}Migration... ${plain}"
     "${BINARY_PATH}" migrate
@@ -806,9 +829,9 @@ config_after_install() {
         exit 1
     fi
 
-    # For existing installs in update/migrate mode, keep existing settings
+    # For any existing b-ui/s-ui install, keep existing settings
     # but apply any explicitly provided parameter overrides
-    if [[ "${MODE}" != "install" && ${EXISTING_INSTALL} -eq 1 ]]; then
+    if [[ ${EXISTING_INSTALL} -eq 1 ]]; then
         if [[ "${MODE}" == "migrate" || "${INSTALLATION_KIND}" == "legacy-only" ]]; then
             echo -e "${green}Detected an existing compatible installation. Current settings, credentials, and migrated database contents have been kept.${plain}"
         else
@@ -816,7 +839,7 @@ config_after_install() {
         fi
 
         # Apply overrides if any params were provided in migrate/update mode
-        if [[ -n "${ARG_PANEL_PORT}" || -n "${ARG_PANEL_PATH}" || -n "${ARG_SUB_PORT}" || -n "${ARG_SUB_PATH}" || -n "${ARG_DOMAIN}" || -n "${ARG_CERT_PATH}" ]]; then
+        if [[ -n "${ARG_PANEL_PORT}" || -n "${ARG_PANEL_PATH}" || -n "${ARG_SUB_PORT}" || -n "${ARG_SUB_PATH}" || -n "${ARG_DOMAIN}" || -n "${ARG_CERT_PATH}" || -n "${ARG_KEY_PATH}" ]]; then
             echo -e "${yellow}Applying provided parameter overrides...${plain}"
             apply_settings_params
         fi
@@ -917,6 +940,7 @@ install_app() {
         backup_existing_installation
     fi
 
+    rm -rf /tmp/b-ui
     tar zxvf b-ui-linux-$(arch).tar.gz
     if [[ $? -ne 0 ]]; then
         echo -e "${red}Failed to extract the downloaded package.${plain}"
@@ -944,7 +968,7 @@ install_app() {
 
     chmod +x "${package_binary_path}" "${cli_script_source}"
     mkdir -p "${INSTALL_ROOT}" || { rollback_installation; exit 1; }
-    cp -rf "${package_dir}/." "${INSTALL_ROOT}/" || { rollback_installation; exit 1; }
+    copy_package_to_install_root "${package_dir}" || { rollback_installation; exit 1; }
     chmod +x "${BINARY_PATH}" || { rollback_installation; exit 1; }
     stage_legacy_database_for_migration
     cp "${cli_script_source}" "${CLI_PATH}" || { rollback_installation; exit 1; }
