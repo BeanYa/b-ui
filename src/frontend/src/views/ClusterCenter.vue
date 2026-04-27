@@ -80,34 +80,41 @@
           </div>
         </v-card-title>
         <v-card-text>
-          <div class="cluster-center__info-grid">
-            <div class="cluster-center__info-item">
-              <span>{{ $t('clusterCenter.fields.domain') }}</span>
-              <strong>{{ selectedDomain.domain }}</strong>
+          <div class="cluster-center__detail-panel">
+            <div class="cluster-center__domain-meta">
+              <div class="cluster-center__meta-row">
+                <span class="cluster-center__meta-label">{{ $t('clusterCenter.fields.domain') }}</span>
+                <strong class="cluster-center__meta-value">{{ selectedDomain.domain }}</strong>
+              </div>
+              <div class="cluster-center__meta-row">
+                <span class="cluster-center__meta-label">{{ $t('clusterCenter.fields.hubUrl') }}</span>
+                <strong class="cluster-center__meta-value">{{ selectedDomain.hubUrl || '-' }}</strong>
+              </div>
+              <div class="cluster-center__meta-row">
+                <span class="cluster-center__meta-label">{{ $t('clusterCenter.table.version') }}</span>
+                <strong class="cluster-center__meta-value">{{ formatClusterVersionLabel(selectedDomain.lastVersion) }}</strong>
+              </div>
+              <div class="cluster-center__meta-row">
+                <span class="cluster-center__meta-label">{{ $t('clusterCenter.fields.communicationProtocol') }}</span>
+                <strong class="cluster-center__meta-value">{{ selectedDomain.communicationProtocolVersion || '-' }}</strong>
+              </div>
+              <div class="cluster-center__meta-row">
+                <span class="cluster-center__meta-label">{{ $t('clusterCenter.fields.communicationEndpoint') }}</span>
+                <strong class="cluster-center__meta-value">{{ selectedDomain.communicationEndpointPath || '-' }}</strong>
+              </div>
+              <div class="cluster-center__meta-row">
+                <span class="cluster-center__meta-label">{{ $t('clusterCenter.mirroredMembers') }}</span>
+                <strong class="cluster-center__meta-value">{{ selectedDomainMembers.length }}</strong>
+              </div>
             </div>
-            <div class="cluster-center__info-item">
-              <span>{{ $t('clusterCenter.fields.hubUrl') }}</span>
-              <strong>{{ selectedDomain.hubUrl || '-' }}</strong>
-            </div>
-            <div class="cluster-center__info-item">
-              <span>{{ $t('clusterCenter.table.version') }}</span>
-              <strong>{{ formatClusterVersionLabel(selectedDomain.lastVersion) }}</strong>
-            </div>
-            <div class="cluster-center__info-item">
-              <span>{{ $t('clusterCenter.fields.communicationProtocol') }}</span>
-              <strong>{{ selectedDomain.communicationProtocolVersion || '-' }}</strong>
-            </div>
-            <div class="cluster-center__info-item">
-              <span>{{ $t('clusterCenter.fields.communicationEndpoint') }}</span>
-              <strong>{{ selectedDomain.communicationEndpointPath || '-' }}</strong>
-            </div>
-            <div class="cluster-center__info-item cluster-center__info-item--wide">
-              <span>{{ $t('clusterCenter.fields.supportedActions') }}</span>
-              <strong>{{ formatSupportedActions(selectedDomain.supportedActions) }}</strong>
-            </div>
-            <div class="cluster-center__info-item">
-              <span>{{ $t('clusterCenter.mirroredMembers') }}</span>
-              <strong>{{ selectedDomainMembers.length }}</strong>
+
+            <div class="cluster-center__actions-tree">
+              <span class="cluster-center__meta-label cluster-center__meta-label--header">
+                {{ $t('clusterCenter.fields.supportedActions') }}
+              </span>
+              <ClusterDomainActionTree
+                :supported-actions="selectedDomain.supportedActions"
+              />
             </div>
           </div>
         </v-card-text>
@@ -332,11 +339,12 @@ import { computed, onMounted, ref } from 'vue'
 import { useRouter } from 'vue-router'
 import { push } from 'notivue'
 
-import HttpUtils from '@/plugins/httputil'
-import { i18n } from '@/locales'
+import ClusterDomainActionTree from '@/components/ClusterDomainActionTree.vue'
 import { parseClusterHubJoinUri } from '@/features/clusterHubUri'
-import type { ClusterDomain, ClusterMember, ClusterOperationStatus } from '@/types/clusters'
+import { i18n } from '@/locales'
+import HttpUtils from '@/plugins/httputil'
 import { usePingStore } from '@/store/modules/ping'
+import type { ClusterDomain, ClusterMember, ClusterOperationStatus } from '@/types/clusters'
 import type { MeshPairResult } from '@/types/ping'
 
 const router = useRouter()
@@ -387,7 +395,6 @@ const selectedDomainMembers = computed(() => members.value.filter((member) => me
 
 const domainMemberCount = (domainId: number) => members.value.filter((member) => member.domainId === domainId).length
 const formatClusterVersionLabel = (version: number) => `version-${version}`
-const formatSupportedActions = (actions?: string[]) => Array.isArray(actions) && actions.length > 0 ? actions.join(', ') : '-'
 
 const openDomainDetail = (domain: ClusterDomain) => {
   selectedDomainId.value = domain.id
@@ -855,7 +862,7 @@ async function pingAllDomainMembers() {
 }
 
 .cluster-center__version,
-.cluster-center__domain-meta,
+.cluster-center__domain-card .cluster-center__domain-meta,
 .cluster-center__domain-url {
   color: var(--app-text-3);
   font-size: 13px;
@@ -876,34 +883,54 @@ async function pingAllDomainMembers() {
   padding: 6px 9px;
 }
 
-.cluster-center__info-grid {
+.cluster-center__detail-panel {
   display: grid;
-  gap: 12px;
-  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 14px;
+  grid-template-columns: minmax(0, 1fr) 280px;
 }
 
-.cluster-center__info-item {
-  background: color-mix(in srgb, var(--app-surface-2) 82%, transparent);
-  border: 1px solid var(--app-border-1);
-  border-radius: 16px;
+.cluster-center__domain-meta {
   display: grid;
   gap: 8px;
-  min-width: 0;
-  padding: 14px 16px;
 }
 
-.cluster-center__info-item span {
+.cluster-center__meta-row {
+  align-items: start;
+  border-bottom: 1px solid var(--app-border-1);
+  display: grid;
+  gap: 10px;
+  grid-template-columns: 112px minmax(0, 1fr);
+  padding-bottom: 8px;
+}
+
+.cluster-center__meta-row:last-child {
+  border-bottom: none;
+  padding-bottom: 0;
+}
+
+.cluster-center__meta-label {
   color: var(--app-text-3);
   font-size: 12px;
+  letter-spacing: 0.04em;
 }
 
-.cluster-center__info-item strong {
+.cluster-center__meta-label--header {
+  display: inline-flex;
+  margin-bottom: 10px;
+  text-transform: uppercase;
+}
+
+.cluster-center__meta-value {
   font-size: 14px;
   overflow-wrap: anywhere;
 }
 
-.cluster-center__info-item--wide {
-  grid-column: span 2;
+.cluster-center__actions-tree {
+  background: color-mix(in srgb, var(--app-surface-2) 82%, transparent);
+  border: 1px solid var(--app-border-1);
+  border-radius: 16px;
+  min-width: 0;
+  padding: 14px 16px;
 }
 
 .cluster-center__member-table-wrap {
@@ -1102,8 +1129,8 @@ async function pingAllDomainMembers() {
     flex-direction: column;
   }
 
-  .cluster-center__info-grid {
-    grid-template-columns: repeat(2, minmax(0, 1fr));
+  .cluster-center__detail-panel {
+    grid-template-columns: 1fr;
   }
 
   .cluster-center__member-table,
@@ -1153,12 +1180,9 @@ async function pingAllDomainMembers() {
 }
 
 @media (max-width: 640px) {
-  .cluster-center__info-grid {
+  .cluster-center__meta-row {
+    gap: 6px;
     grid-template-columns: 1fr;
-  }
-
-  .cluster-center__info-item--wide {
-    grid-column: auto;
   }
 }
 </style>

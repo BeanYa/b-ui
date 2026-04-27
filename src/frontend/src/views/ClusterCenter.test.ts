@@ -100,13 +100,15 @@ describe('ClusterCenter view source', () => {
     expect(source).not.toContain("selectedDomainId.value = domains.value[0]?.id ?? null")
   })
 
-  it('renders a detail state with back navigation, domain information, and registered cluster servers', () => {
+  it('renders a detail state with back navigation, domain metadata rows, a dedicated action tree rail, and registered cluster servers', () => {
     const source = readFileSync(fileURLToPath(new URL('./ClusterCenter.vue', import.meta.url)), 'utf8')
 
     expect(source).toContain('v-else class="cluster-center__detail"')
     expect(source).toContain('@click="backToClusterCenter"')
-    expect(source).toContain("{{ $t('clusterCenter.actions.back') }}")
-    expect(source).toContain('cluster-center__domain-info')
+    expect(source).toContain('ClusterDomainActionTree')
+    expect(source).toContain('class="cluster-center__detail-panel"')
+    expect(source).toContain('class="cluster-center__domain-meta"')
+    expect(source).toContain('class="cluster-center__actions-tree"')
     expect(source).toContain("{{ $t('clusterCenter.registeredServers') }}")
     expect(source).toContain('const backToClusterCenter = () => {')
   })
@@ -135,15 +137,14 @@ describe('ClusterCenter view source', () => {
     expect(source).toContain(':loading="leavingDomainId === selectedDomain.id"')
   })
 
-  it('shows domain communication endpoint and supported protocol actions', () => {
+  it('renders supported actions through the dedicated tree component instead of a flat joined string', () => {
     const source = readFileSync(fileURLToPath(new URL('./ClusterCenter.vue', import.meta.url)), 'utf8')
 
-    expect(source).toContain("{{ $t('clusterCenter.fields.communicationEndpoint') }}")
-    expect(source).toContain('selectedDomain.communicationEndpointPath')
+    expect(source).toContain(':supported-actions="selectedDomain.supportedActions"')
     expect(source).toContain("{{ $t('clusterCenter.fields.supportedActions') }}")
-    expect(source).toContain('formatSupportedActions(selectedDomain.supportedActions)')
-    expect(source).toContain("{{ $t('clusterCenter.fields.communicationProtocol') }}")
-    expect(source).toContain('selectedDomain.communicationProtocolVersion')
+    expect(source).toContain('cluster-center__meta-row')
+    expect(source).not.toContain('formatSupportedActions(selectedDomain.supportedActions)')
+    expect(source).not.toContain('const formatSupportedActions =')
   })
 
   it('marks the local member and uses leave-domain semantics for its row action', () => {
