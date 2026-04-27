@@ -269,8 +269,3 @@ func extractHostFromBaseURL(baseURL string) string {
 	return s
 }
 
-func mustPort(addr net.Addr) int {
-	_, portStr, _ := net.SplitHostPort(addr.String())
-	p, _ := strconv.Atoi(portStr)
-	return p
-}
