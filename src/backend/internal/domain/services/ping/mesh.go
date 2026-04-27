@@ -80,11 +80,15 @@ func (s *MeshService) probePair(ctx context.Context, src, tgt MeshMember) MeshPa
 		TargetName:     tgt.Name,
 	}
 
-	// 1. HTTP ping via cluster protocol
-	if tgt.BaseURL != "" {
-		latency, err := s.httpPing(ctx, tgt.BaseURL, tgt.PeerToken)
+	// 1. ICMP ping (preferred — lightest, no auth required)
+	target := tgt.Address
+	if target == "" && tgt.BaseURL != "" {
+		target = extractHostFromBaseURL(tgt.BaseURL)
+	}
+	if target != "" {
+		latency, err := s.icmpPing(ctx, target)
 		if err == nil {
-			r.Method = methodPtr("http")
+			r.Method = methodPtr("icmp")
 			r.LatencyMs = latencyPtr(latency)
 			r.Success = true
 			return r
@@ -103,26 +107,20 @@ func (s *MeshService) probePair(ctx context.Context, src, tgt MeshMember) MeshPa
 		}
 	}
 
-	// 3. ICMP ping fallback
-	if tgt.Address != "" || tgt.BaseURL != "" {
-		target := tgt.Address
-		if target == "" {
-			target = extractHostFromBaseURL(tgt.BaseURL)
-		}
-		if target != "" {
-			latency, err := s.icmpPing(ctx, target)
-			if err == nil {
-				r.Method = methodPtr("icmp")
-				r.LatencyMs = latencyPtr(latency)
-				r.Success = true
-				return r
-			}
+	// 3. HTTP ping via cluster protocol
+	if tgt.BaseURL != "" {
+		latency, err := s.httpPing(ctx, tgt.BaseURL, tgt.PeerToken)
+		if err == nil {
+			r.Method = methodPtr("http")
+			r.LatencyMs = latencyPtr(latency)
+			r.Success = true
+			return r
 		}
 	}
 
 	// All failed
 	r.Success = false
-	r.Error = errorPtr("all methods failed: http, tcp, icmp")
+	r.Error = errorPtr("all methods failed: icmp, tcp, http")
 	return r
 }
 

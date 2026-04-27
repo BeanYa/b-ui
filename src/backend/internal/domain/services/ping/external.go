@@ -176,18 +176,18 @@ func probeExternalTarget(ctx context.Context, meshSvc *MeshService, dialer *net.
 		return r
 
 	case "cdn_edges":
-		// Try HTTP first, then ICMP
-		latency, err := meshSvc.httpPing(ctx, "https://"+tgt.IP, "")
-		if err == nil {
-			r.Success = true
-			r.Method = methodPtr("http")
-			r.LatencyMs = latencyPtr(latency)
-			return r
-		}
-		latency, err = meshSvc.icmpPing(ctx, tgt.IP)
+		// Try ICMP first, then HTTP
+		latency, err := meshSvc.icmpPing(ctx, tgt.IP)
 		if err == nil {
 			r.Success = true
 			r.Method = methodPtr("icmp")
+			r.LatencyMs = latencyPtr(latency)
+			return r
+		}
+		latency, err = meshSvc.httpPing(ctx, "https://"+tgt.IP, "")
+		if err == nil {
+			r.Success = true
+			r.Method = methodPtr("http")
 			r.LatencyMs = latencyPtr(latency)
 			return r
 		}
