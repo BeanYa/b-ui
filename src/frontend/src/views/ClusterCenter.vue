@@ -20,7 +20,7 @@
         <div class="app-page__toolbar-actions cluster-center__actions">
           <v-btn color="primary" @click="registerDialog = true">{{ $t('clusterCenter.actions.register') }}</v-btn>
           <v-btn variant="outlined" color="warning" :loading="actionLoading" @click="manualSync">{{ $t('clusterCenter.actions.manualSync') }}</v-btn>
-          <v-btn variant="text" :loading="pageLoading" @click="loadData">{{ $t('clusterCenter.actions.refresh') }}</v-btn>
+          <v-btn class="cluster-center__refresh-btn" variant="text" :loading="pageLoading" @click="loadData">{{ $t('clusterCenter.actions.refresh') }}</v-btn>
         </div>
       </v-col>
     </v-row>
@@ -114,7 +114,20 @@
       </v-card>
 
       <v-card class="app-card-shell cluster-center__members" :loading="pageLoading">
-        <v-card-title>{{ $t('clusterCenter.registeredServers') }}</v-card-title>
+        <v-card-title>
+          <div style="display: flex; align-items: center; gap: 16px;">
+            <span>{{ $t('clusterCenter.registeredServers') }}</span>
+            <v-btn
+              size="small"
+              variant="outlined"
+              color="primary"
+              :loading="meshPingLoading"
+              @click="pingAllDomainMembers"
+            >
+              Ping All
+            </v-btn>
+          </div>
+        </v-card-title>
         <v-card-text>
           <div v-if="selectedDomainMembers.length === 0" class="cluster-center__empty">{{ $t('clusterCenter.noMembers') }}</div>
           <div v-else class="cluster-center__member-table-wrap">
@@ -125,6 +138,7 @@
                   <th>{{ $t('clusterCenter.table.name') }}</th>
                   <th>{{ $t('clusterCenter.table.baseUrl') }}</th>
                   <th>{{ $t('clusterCenter.table.version') }}</th>
+                  <th>延迟</th>
                   <th>{{ $t('clusterCenter.table.action') }}</th>
                 </tr>
               </thead>
@@ -139,6 +153,12 @@
                   <td>{{ member.displayName || member.name || '-' }}</td>
                   <td>{{ member.baseUrl || '-' }}</td>
                   <td>{{ formatClusterVersionLabel(member.lastVersion) }}</td>
+                  <td>
+                    <span
+                      :style="memberLatencyStyle(member.nodeId)"
+                      class="cluster-center__latency-cell"
+                    >{{ memberLatency(member.nodeId) }}</span>
+                  </td>
                   <td>
                     <div style="display: flex; gap: 8px; align-items: center;">
                       <v-btn
@@ -304,17 +324,16 @@ import HttpUtils from '@/plugins/httputil'
 import { i18n } from '@/locales'
 import { parseClusterHubJoinUri } from '@/features/clusterHubUri'
 import type { ClusterDomain, ClusterMember, ClusterOperationStatus } from '@/types/clusters'
+import { usePingStore } from '@/store/modules/ping'
+import type { MeshPairResult } from '@/types/ping'
 
 const router = useRouter()
-
-// TODO: Retrieve the actual peer token from a cluster API or store when available
-const getPeerToken = (_member: ClusterMember): string => ''
 
 const goToNodeDetail = (member: ClusterMember) => {
   router.push({
     name: 'pages.clusterNodeDetail',
     params: { nodeId: member.nodeId },
-    query: { name: member.name, baseUrl: member.baseUrl, token: getPeerToken(member) },
+    query: { node_id: member.nodeId },
   })
 }
 
@@ -360,6 +379,9 @@ const formatSupportedActions = (actions?: string[]) => Array.isArray(actions) &&
 
 const openDomainDetail = (domain: ClusterDomain) => {
   selectedDomainId.value = domain.id
+  pingStore.loadMeshResult(domain.domain).then(result => {
+    if (result) meshPingResults.value = result.results
+  })
 }
 
 const backToClusterCenter = () => {
@@ -386,6 +408,31 @@ const resolvePanelBaseUrl = () => {
   }
 }
 
+const normalizeClusterBaseUrl = (value: string) => {
+  const trimmed = value.trim()
+  if (!trimmed) return ''
+
+  try {
+    const url = new URL(trimmed)
+    url.protocol = url.protocol.toLowerCase()
+    url.hostname = url.hostname.toLowerCase()
+    url.hash = ''
+    url.search = ''
+    url.pathname = url.pathname.replace(/\/+$/, '')
+    if ((url.protocol === 'https:' && url.port === '443') || (url.protocol === 'http:' && url.port === '80')) {
+      url.port = ''
+    }
+    return url.toString().replace(/\/+$/, '')
+  } catch {
+    return trimmed.toLowerCase().replace(/\/+$/, '')
+  }
+}
+
+const deriveDisplayNameFromBaseUrl = (baseUrl: string) => {
+  const match = baseUrl.trim().match(/^https?:\/\/([^/:?#]+)(?::\d+)?(?:[/?#]|$)/i)
+  return match?.[1]?.toLowerCase() ?? ''
+}
+
 const validateAndCheckDomain = async () => {
   if (registerMode.value === 'uri') {
     const uri = form.value.joinUri.trim()
@@ -394,12 +441,13 @@ const validateAndCheckDomain = async () => {
       push.error({ title: i18n.global.t('failed'), message: 'URI 格式无效，请检查后重试' })
       return
     }
+    const panelBaseUrl = resolvePanelBaseUrl()
     confirmInfo.value = {
       hubUrl: `${parsed.protocol}://${parsed.host}`,
       domain: parsed.domain,
       token: parsed.token,
-      baseUrl: resolvePanelBaseUrl(),
-      displayName: '',
+      baseUrl: panelBaseUrl,
+      displayName: deriveDisplayNameFromBaseUrl(panelBaseUrl),
     }
   } else {
     const domain = form.value.domain.trim()
@@ -419,14 +467,17 @@ const validateAndCheckDomain = async () => {
       return
     }
 
+    const panelBaseUrl = resolvePanelBaseUrl()
     confirmInfo.value = {
       hubUrl,
       domain,
       token: form.value.token,
-      baseUrl: resolvePanelBaseUrl(),
-      displayName: '',
+      baseUrl: panelBaseUrl,
+      displayName: deriveDisplayNameFromBaseUrl(panelBaseUrl),
     }
   }
+
+  form.value.displayName = confirmInfo.value.displayName
 
   await checkPanelUrlExists()
 }
@@ -434,6 +485,7 @@ const validateAndCheckDomain = async () => {
 const checkPanelUrlExists = async () => {
   checkingUrl.value = true
   const panelBaseUrl = resolvePanelBaseUrl()
+  const normalizedPanelBaseUrl = normalizeClusterBaseUrl(panelBaseUrl)
 
   try {
     const snapshotUrl = `${confirmInfo.value.hubUrl}/v1/domains/${encodeURIComponent(confirmInfo.value.domain)}/snapshot`
@@ -444,7 +496,7 @@ const checkPanelUrlExists = async () => {
       const snapshot = await resp.json()
       const members = snapshot.members || []
       const existingMember = members.find(
-        (m: any) => (m.base_url || m.baseUrl || '') === panelBaseUrl,
+        (m: any) => normalizeClusterBaseUrl(m.base_url || m.baseUrl || '') === normalizedPanelBaseUrl,
       )
       if (existingMember) {
         existingDomainData.value = {
@@ -487,13 +539,14 @@ const pullExistingDomain = async () => {
   actionLoading.value = true
 
   const panelBaseUrl = resolvePanelBaseUrl()
+  const displayName = deriveDisplayNameFromBaseUrl(panelBaseUrl)
   const registerMsg = await HttpUtils.post('api/cluster/register', {
     domain: existingDomainData.value.domain,
     hubUrl: existingDomainData.value.hubUrl,
     token: confirmInfo.value.token,
     baseUrl: panelBaseUrl,
     name: '',
-    displayName: '',
+    displayName,
   })
 
   if (registerMsg.success) {
@@ -619,6 +672,53 @@ const leaveDomain = async (domain: ClusterDomain | null) => {
 onMounted(async () => {
   await loadData()
 })
+
+const pingStore = usePingStore()
+const meshPingLoading = ref(false)
+const meshPingResults = ref<MeshPairResult[]>([])
+
+function memberLatency(nodeId: string): string {
+  const results = meshPingResults.value.filter(r => r.target_member_id === nodeId && r.success)
+  if (results.length === 0) {
+    const any = meshPingResults.value.filter(r => r.target_member_id === nodeId)
+    if (any.length > 0) return 'ERROR'
+    return '-'
+  }
+  const avg = results.reduce((s, r) => s + (r.latency_ms ?? 0), 0) / results.length
+  return `${avg.toFixed(0)}ms`
+}
+
+function memberLatencyStyle(nodeId: string): Record<string, string> {
+  const results = meshPingResults.value.filter(r =>
+    r.target_member_id === nodeId && (r.success || !r.success)
+  )
+  if (results.length === 0) return { color: 'var(--app-text-3)' }
+
+  const allFailed = results.every(r => !r.success)
+  if (allFailed) return { color: '#721c24', fontWeight: 'bold' }
+
+  const successResults = results.filter(r => r.success)
+  if (successResults.length === 0) return { color: 'var(--app-text-3)' }
+
+  const avg = successResults.reduce((s, r) => s + (r.latency_ms ?? 0), 0) / successResults.length
+  if (avg < 50) return { color: '#155724', fontWeight: '600' }
+  if (avg < 150) return { color: '#856404', fontWeight: '600' }
+  if (avg < 300) return { color: '#b45309', fontWeight: '600' }
+  return { color: '#721c24', fontWeight: '600' }
+}
+
+async function pingAllDomainMembers() {
+  if (!selectedDomain.value) return
+  meshPingLoading.value = true
+  try {
+    const result = await pingStore.triggerMeshPing(selectedDomain.value.domain)
+    meshPingResults.value = result.results
+  } catch {
+    // error handled by store
+  } finally {
+    meshPingLoading.value = false
+  }
+}
 </script>
 
 <style scoped>
@@ -626,6 +726,23 @@ onMounted(async () => {
   display: flex;
   flex-wrap: wrap;
   gap: 12px;
+}
+
+.cluster-center__refresh-btn {
+  background: color-mix(in srgb, var(--app-surface-2) 88%, transparent) !important;
+  border: 1px solid color-mix(in srgb, var(--app-text-2) 18%, var(--app-border-2)) !important;
+  box-shadow: var(--app-shadow-button) !important;
+  color: var(--app-text-1) !important;
+}
+
+.cluster-center__refresh-btn:hover {
+  background: color-mix(in srgb, var(--app-state-info) 8%, var(--app-surface-2)) !important;
+  border-color: color-mix(in srgb, var(--app-state-info) 42%, var(--app-border-2)) !important;
+}
+
+.cluster-center__refresh-btn:focus-visible {
+  outline: none;
+  box-shadow: var(--app-shadow-button), 0 0 0 4px color-mix(in srgb, var(--app-state-info) 18%, transparent) !important;
 }
 
 .cluster-center__grid {
