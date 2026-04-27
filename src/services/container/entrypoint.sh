@@ -1,10 +1,16 @@
 #!/bin/sh
 
-DB_FOLDER="${BUI_DB_FOLDER:-/app/db}"
+DB_FOLDER="${BUI_DB_FOLDER:-${SUI_DB_FOLDER:-/app/db}}"
 DB_PATH="${DB_FOLDER}/b-ui.db"
 LEGACY_DB_PATH="${DB_FOLDER}/s-ui.db"
-if [ -f "$DB_PATH" ] || [ -f "$LEGACY_DB_PATH" ]; then
-	./b-ui migrate
+BINARY_PATH="${BINARY_PATH:-./b-ui}"
+
+if [ ! -x "$BINARY_PATH" ] && [ -x "./sui" ]; then
+	BINARY_PATH="./sui"
 fi
 
-exec ./b-ui
+if [ -f "$DB_PATH" ] || [ -f "$LEGACY_DB_PATH" ]; then
+	"$BINARY_PATH" migrate
+fi
+
+exec "$BINARY_PATH"

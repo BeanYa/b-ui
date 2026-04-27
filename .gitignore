@@ -47,6 +47,9 @@ report.[0-9]*.[0-9]*.[0-9]*.[0-9]*.json
 *.exe
 *.zip
 b-ui-windows/
+b-ui-*.exe
+b-ui-*.zip
+windows/b-ui-*.exe
 
 # Frontend build artifacts
 src/frontend/node_modules/

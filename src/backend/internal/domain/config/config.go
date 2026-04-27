@@ -33,6 +33,13 @@ const (
 	legacyDBFileName  = "s-ui"
 )
 
+func getenv(primary, legacy string) string {
+	if value := os.Getenv(primary); value != "" {
+		return value
+	}
+	return os.Getenv(legacy)
+}
+
 func GetVersion() string {
 	if strings.TrimSpace(buildVersion) != "" {
 		return strings.TrimSpace(buildVersion)
@@ -48,7 +55,7 @@ func GetLogLevel() LogLevel {
 	if IsDebug() {
 		return Debug
 	}
-	logLevel := os.Getenv("BUI_LOG_LEVEL")
+	logLevel := getenv("BUI_LOG_LEVEL", "SUI_LOG_LEVEL")
 	if logLevel == "" {
 		return Info
 	}
@@ -56,11 +63,11 @@ func GetLogLevel() LogLevel {
 }
 
 func IsDebug() bool {
-	return os.Getenv("BUI_DEBUG") == "true"
+	return getenv("BUI_DEBUG", "SUI_DEBUG") == "true"
 }
 
 func GetDBFolderPath() string {
-	dbFolderPath := os.Getenv("BUI_DB_FOLDER")
+	dbFolderPath := getenv("BUI_DB_FOLDER", "SUI_DB_FOLDER")
 	if dbFolderPath == "" {
 		dir, err := filepath.Abs(filepath.Dir(os.Args[0]))
 		if err != nil {
@@ -76,7 +83,7 @@ func GetDBFolderPath() string {
 }
 
 func GetDBFileName() string {
-	dbFileName := normalizeDBFileName(os.Getenv("BUI_DB_NAME"))
+	dbFileName := normalizeDBFileName(getenv("BUI_DB_NAME", "SUI_DB_NAME"))
 	if dbFileName != "" {
 		return dbFileName
 	}

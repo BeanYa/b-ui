@@ -166,3 +166,35 @@ func TestPrepareDBPathForMigrationReplacesExistingTargetWithLegacyData(t *testin
 		}
 	}
 }
+
+func TestConfigPrefersBUIEnvironmentVariables(t *testing.T) {
+	dbDir := t.TempDir()
+	legacyDir := filepath.Join(dbDir, "legacy")
+
+	t.Setenv("BUI_DB_FOLDER", dbDir)
+	t.Setenv("SUI_DB_FOLDER", legacyDir)
+	t.Setenv("BUI_DB_NAME", "custom")
+	t.Setenv("SUI_DB_NAME", "legacy")
+	t.Setenv("BUI_DEBUG", "true")
+	t.Setenv("SUI_DEBUG", "false")
+	t.Setenv("BUI_LOG_LEVEL", string(Warn))
+	t.Setenv("SUI_LOG_LEVEL", string(Debug))
+
+	if got := GetDBFolderPath(); got != dbDir {
+		t.Fatalf("db folder mismatch: got %s want %s", got, dbDir)
+	}
+
+	if got := GetDBFileName(); got != "custom" {
+		t.Fatalf("db file name mismatch: got %s want %s", got, "custom")
+	}
+
+	if !IsDebug() {
+		t.Fatal("expected BUI_DEBUG to enable debug mode")
+	}
+
+	t.Setenv("BUI_DEBUG", "false")
+
+	if got := GetLogLevel(); got != Warn {
+		t.Fatalf("log level mismatch: got %s want %s", got, Warn)
+	}
+}

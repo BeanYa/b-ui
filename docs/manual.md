@@ -557,7 +557,7 @@ bash <(curl -Ls https://raw.githubusercontent.com/BeanYa/b-ui/main/install.sh) -
 - 停止并移除旧 `s-ui` 服务。
 - 在 `/var/backups/b-ui/<timestamp>/` 创建回滚备份。
 - 从 `BeanYa/b-ui` 下载目标 release；当前 Linux 资源名为 `b-ui-linux-<arch>.tar.gz`。
-- 安装新的 `b-ui` 二进制和 shell 脚本。
+- 原地替换已安装的二进制和 shell 脚本为 `b-ui` 版本。
 - 执行 `b-ui migrate`；如果系统里只有旧 `s-ui.db`，会先把它迁移到 `b-ui.db`。
 - 把 systemd 服务名从 `s-ui` 切换为 `b-ui`。
 - 把管理命令从 `s-ui` 切换为 `b-ui`。

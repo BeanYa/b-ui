@@ -4,6 +4,7 @@ set -euo pipefail
 
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 INSTALL_SCRIPT="${ROOT_DIR}/install.sh"
+CENTRAL_INSTALL_SCRIPT="${ROOT_DIR}/scripts/release/install.sh"
 
 RUN_STATUS=0
 RUN_OUTPUT=""
@@ -93,6 +94,8 @@ run_update_check() {
         LEGACY_INSTALL_ROOT="${scenario_dir}/legacy-install" \
         CLI_PATH="${scenario_dir}/bin/b-ui" \
         LEGACY_CLI_PATH="${scenario_dir}/bin/s-ui" \
+        LEGACY_SERVICE_NAME="s-ui" \
+        LEGACY_DB_FILE="${scenario_dir}/legacy-install/db/s-ui.db" \
         SYSTEMD_DIR="${scenario_dir}/etc/systemd/system" \
         TEST_TARGET_VERSION="${target_version}" \
         bash -lc '
@@ -111,6 +114,16 @@ run_update_check() {
 
     RUN_STATUS="${status}"
     RUN_OUTPUT="${output}"
+}
+
+test_install_script_legacy_defaults_are_s_ui() {
+    local script_contents=""
+
+    script_contents="$(<"${CENTRAL_INSTALL_SCRIPT}")"
+
+    assert_contains "${script_contents}" 'LEGACY_CLI_PATH="${LEGACY_CLI_PATH:-/usr/bin/s-ui}"' "legacy cli default"
+    assert_contains "${script_contents}" 'LEGACY_SERVICE_NAME="${LEGACY_SERVICE_NAME:-s-ui}"' "legacy service default"
+    assert_contains "${script_contents}" 'LEGACY_DB_FILE="${LEGACY_DB_FILE:-${LEGACY_INSTALL_ROOT}/db/s-ui.db}"' "legacy db default"
 }
 
 test_script_can_be_sourced_without_running_main() {
@@ -134,7 +147,7 @@ test_update_refuses_missing_b_ui_install() {
 test_update_refuses_legacy_only_s_ui_install() {
     run_update_check "legacy" "" "v1.2.0"
     assert_eq "${RUN_STATUS}" "1" "legacy-only install should require migration"
-    assert_contains "${RUN_OUTPUT}" "Detected s-ui but b-ui is not installed" "legacy detection message"
+    assert_contains "${RUN_OUTPUT}" "Detected legacy s-ui installation but b-ui is not installed" "legacy detection message"
     assert_contains "${RUN_OUTPUT}" "bash <(curl -Ls https://raw.githubusercontent.com/BeanYa/b-ui/main/install.sh) --migrate" "missing migrate command"
 }
 
@@ -153,6 +166,7 @@ test_update_continues_when_current_version_is_older() {
     assert_not_contains "${RUN_OUTPUT}" "Compatible legacy installation detected" "normal b-ui update should not use legacy wording"
 }
 
+test_install_script_legacy_defaults_are_s_ui
 test_script_can_be_sourced_without_running_main
 test_update_refuses_missing_b_ui_install
 test_update_refuses_legacy_only_s_ui_install

@@ -8,6 +8,6 @@ BINARY_PATH="${BINARY_PATH:-${REPO_ROOT}/build/out/b-ui}"
 
 bash "${REPO_ROOT}/scripts/build/build-all.sh"
 
-BUI_DB_FOLDER="${BUI_DB_FOLDER:-db}" \
-BUI_DEBUG="${BUI_DEBUG:-true}" \
+BUI_DB_FOLDER="${BUI_DB_FOLDER:-${SUI_DB_FOLDER:-db}}" \
+BUI_DEBUG="${BUI_DEBUG:-${SUI_DEBUG:-true}}" \
 "${BINARY_PATH}" "$@"

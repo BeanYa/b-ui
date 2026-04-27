@@ -14,8 +14,12 @@ RELEASES_API_URL="https://api.github.com/repos/${REPO_OWNER}/${REPO_NAME}/releas
 CLI_NAME="${CLI_NAME:-b-ui}"
 CLI_PATH="${CLI_PATH:-/usr/bin/${CLI_NAME}}"
 INSTALL_ROOT="${INSTALL_ROOT:-/usr/local/b-ui}"
+BINARY_NAME="${BINARY_NAME:-b-ui}"
+LEGACY_BINARY_NAME="${LEGACY_BINARY_NAME:-sui}"
+BINARY_PATH="${INSTALL_ROOT}/${BINARY_NAME}"
+LEGACY_BINARY_PATH="${INSTALL_ROOT}/${LEGACY_BINARY_NAME}"
 SERVICE_NAME="${SERVICE_NAME:-b-ui}"
-LEGACY_SERVICE_NAME="${LEGACY_SERVICE_NAME:-${SERVICE_NAME}}"
+LEGACY_SERVICE_NAME="${LEGACY_SERVICE_NAME:-s-ui}"
 DISPLAY_NAME="${DISPLAY_NAME:-B-UI}"
 
 function LOGD() {
@@ -112,11 +116,13 @@ get_latest_release_tag() {
 }
 
 get_current_installed_version() {
+    local current_binary=""
     local version_output=""
     local current_version=""
 
-    if [[ -x "${INSTALL_ROOT}/b-ui" ]]; then
-        version_output=$("${INSTALL_ROOT}/b-ui" -v 2>/dev/null | awk 'NR==1 {print $NF}')
+    current_binary=$(resolve_installed_binary_path || true)
+    if [[ -n "${current_binary}" && -x "${current_binary}" ]]; then
+        version_output=$("${current_binary}" -v 2>/dev/null | awk 'NR==1 {print $NF}')
         current_version=$(normalize_version "${version_output}")
         if [[ -n "${current_version}" ]]; then
             printf '%s\n' "${current_version}"
@@ -125,6 +131,20 @@ get_current_installed_version() {
     fi
 
     return 1
+}
+
+resolve_installed_binary_path() {
+    if [[ -x "${BINARY_PATH}" ]]; then
+        printf '%s\n' "${BINARY_PATH}"
+        return 0
+    fi
+
+    if [[ -x "${LEGACY_BINARY_PATH}" ]]; then
+        printf '%s\n' "${LEGACY_BINARY_PATH}"
+        return 0
+    fi
+
+    printf '%s\n' "${BINARY_PATH}"
 }
 
 run_remote_installer() {
@@ -287,7 +307,7 @@ reset_admin() {
     echo "It is not recommended to set admin's credentials to default!"
     confirm "Are you sure you want to reset admin's credentials to default ?" "n"
     if [[ $? == 0 ]]; then
-        "${INSTALL_ROOT}/b-ui" admin -reset
+        "$(resolve_installed_binary_path)" admin -reset
     fi
     before_show_menu
 }
@@ -296,19 +316,19 @@ set_admin() {
     echo "It is not recommended to set admin's credentials to a complex text."
     read -p "Please set up your username:" config_account
     read -p "Please set up your password:" config_password
-    "${INSTALL_ROOT}/b-ui" admin -username ${config_account} -password ${config_password}
+    "$(resolve_installed_binary_path)" admin -username ${config_account} -password ${config_password}
     before_show_menu
 }
 
 view_admin() {
-    "${INSTALL_ROOT}/b-ui" admin -show
+    "$(resolve_installed_binary_path)" admin -show
     before_show_menu
 }
 
 reset_setting() {
     confirm "Are you sure you want to reset settings to default ?" "n"
     if [[ $? == 0 ]]; then
-        "${INSTALL_ROOT}/b-ui" setting -reset
+        "$(resolve_installed_binary_path)" setting -reset
     fi
     before_show_menu
 }
@@ -330,18 +350,18 @@ set_setting() {
     [ -z "$config_path" ] || params="$params -path $config_path"
     [ -z "$config_subPort" ] || params="$params -subPort $config_subPort"
     [ -z "$config_subPath" ] || params="$params -subPath $config_subPath"
-    "${INSTALL_ROOT}/b-ui" setting ${params}
+    "$(resolve_installed_binary_path)" setting ${params}
     before_show_menu
 }
 
 view_setting() {
-    "${INSTALL_ROOT}/b-ui" setting -show
+    "$(resolve_installed_binary_path)" setting -show
     view_uri
     before_show_menu
 }
 
 view_uri() {
-    info=$("${INSTALL_ROOT}/b-ui" uri)
+    info=$("$(resolve_installed_binary_path)" uri)
     if [[ $? != 0 ]]; then
         LOGE "Get current uri error"
         before_show_menu
@@ -544,7 +564,7 @@ show_enable_status() {
 }
 
 check_panel_status() {
-    count=$(ps -ef | grep "[b]-ui" | wc -l)
+    count=$(ps -ef | grep -E "/(b-ui|sui)( |$)" | grep -v "grep" | wc -l)
     if [[ count -ne 0 ]]; then
         return 0
     else

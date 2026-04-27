@@ -16,14 +16,18 @@ LEGACY_INSTALL_ROOT="${LEGACY_INSTALL_ROOT:-/usr/local/s-ui}"
 INSTALL_PARENT="$(dirname "${INSTALL_ROOT}")"
 CLI_NAME="${CLI_NAME:-b-ui}"
 CLI_PATH="${CLI_PATH:-/usr/bin/${CLI_NAME}}"
+BINARY_NAME="${BINARY_NAME:-b-ui}"
+LEGACY_BINARY_NAME="${LEGACY_BINARY_NAME:-sui}"
+BINARY_PATH="${BINARY_PATH:-${INSTALL_ROOT}/${BINARY_NAME}}"
+LEGACY_BINARY_PATH="${LEGACY_BINARY_PATH:-${INSTALL_ROOT}/${LEGACY_BINARY_NAME}}"
 LEGACY_CLI_PATH="${LEGACY_CLI_PATH:-/usr/bin/s-ui}"
 SERVICE_NAME="${SERVICE_NAME:-b-ui}"
 LEGACY_SERVICE_NAME="${LEGACY_SERVICE_NAME:-s-ui}"
 INSTALL_COMMAND="bash <(curl -Ls https://raw.githubusercontent.com/${REPO_OWNER}/${REPO_NAME}/main/install.sh)"
 MIGRATE_COMMAND="${INSTALL_COMMAND} --migrate"
 FORCE_UPDATE_COMMAND="${INSTALL_COMMAND} --force-update"
-DB_FILE="${INSTALL_ROOT}/db/b-ui.db"
-LEGACY_DB_FILE="${LEGACY_INSTALL_ROOT}/db/s-ui.db"
+DB_FILE="${DB_FILE:-${INSTALL_ROOT}/db/b-ui.db}"
+LEGACY_DB_FILE="${LEGACY_DB_FILE:-${LEGACY_INSTALL_ROOT}/db/s-ui.db}"
 BACKUP_ROOT="${BACKUP_ROOT:-/var/backups/b-ui}"
 DOWNLOAD_RETRY_COUNT="${DOWNLOAD_RETRY_COUNT:-8}"
 DOWNLOAD_RETRY_DELAY="${DOWNLOAD_RETRY_DELAY:-15}"
@@ -389,6 +393,20 @@ detect_existing_install() {
     fi
 }
 
+resolve_installed_binary_path() {
+    if [[ -x "${BINARY_PATH}" ]]; then
+        printf '%s\n' "${BINARY_PATH}"
+        return 0
+    fi
+
+    if [[ -x "${LEGACY_BINARY_PATH}" ]]; then
+        printf '%s\n' "${LEGACY_BINARY_PATH}"
+        return 0
+    fi
+
+    return 1
+}
+
 version_is_gte() {
     local left_version=""
     local right_version=""
@@ -514,9 +532,8 @@ rollback_installation() {
         fi
     fi
 
-    if [[ -f "${INSTALL_ROOT}/b-ui" ]]; then
-        chmod +x "${INSTALL_ROOT}/b-ui"
-    fi
+    [[ ! -f "${BINARY_PATH}" ]] || chmod +x "${BINARY_PATH}"
+    [[ ! -f "${LEGACY_BINARY_PATH}" ]] || chmod +x "${LEGACY_BINARY_PATH}"
 
     systemctl daemon-reload
     local restored_service_name="${PREVIOUS_SERVICE_NAME:-${SERVICE_NAME}}"
@@ -568,11 +585,13 @@ resolve_latest_release_tag() {
 }
 
 get_current_installed_version() {
+    local current_binary=""
     local version_output=""
     local current_version=""
 
-    if [[ -x "${INSTALL_ROOT}/b-ui" ]]; then
-        version_output=$("${INSTALL_ROOT}/b-ui" -v 2>/dev/null | awk 'NR==1 {print $NF}')
+    current_binary=$(resolve_installed_binary_path || true)
+    if [[ -n "${current_binary}" && -x "${current_binary}" ]]; then
+        version_output=$("${current_binary}" -v 2>/dev/null | awk 'NR==1 {print $NF}')
         current_version=$(normalize_version "${version_output}")
         if [[ -n "${current_version}" ]]; then
             printf '%s\n' "${current_version}"
@@ -617,7 +636,7 @@ check_update_requirement() {
     fi
 
     if [[ "${INSTALLATION_KIND}" == "legacy-only" ]]; then
-        echo -e "${red}Detected s-ui but b-ui is not installed. Run migration first.${plain}"
+        echo -e "${red}Detected legacy s-ui installation but b-ui is not installed. Run migration first.${plain}"
         echo -e "${yellow}${MIGRATE_COMMAND}${plain}"
         exit 1
     fi
@@ -694,6 +713,12 @@ remove_legacy_cli() {
     fi
 }
 
+remove_legacy_binary() {
+    if [[ "${LEGACY_BINARY_PATH}" != "${BINARY_PATH}" && -e "${LEGACY_BINARY_PATH}" ]]; then
+        rm -f "${LEGACY_BINARY_PATH}"
+    fi
+}
+
 remove_legacy_service() {
     if [[ "${LEGACY_SERVICE_NAME}" == "${SERVICE_NAME}" ]]; then
         return 0
@@ -711,11 +736,6 @@ resolve_package_dir() {
         return 0
     fi
 
-    if [[ -d "/tmp/b-ui" ]]; then
-        printf '%s\n' "/tmp/b-ui"
-        return 0
-    fi
-
     return 1
 }
 
@@ -727,8 +747,32 @@ resolve_cli_script() {
         return 0
     fi
 
-    if [[ -f "${package_dir}/b-ui.sh" ]]; then
-        printf '%s\n' "${package_dir}/b-ui.sh"
+    if [[ -f "${package_dir}/s-ui.sh" ]]; then
+        printf '%s\n' "${package_dir}/s-ui.sh"
+        return 0
+    fi
+
+    return 1
+}
+
+normalize_package_binary() {
+    local package_dir="$1"
+
+    if [[ ! -f "${package_dir}/${BINARY_NAME}" && -f "${package_dir}/${LEGACY_BINARY_NAME}" ]]; then
+        mv "${package_dir}/${LEGACY_BINARY_NAME}" "${package_dir}/${BINARY_NAME}"
+    fi
+}
+
+resolve_package_binary() {
+    local package_dir="$1"
+
+    if [[ -f "${package_dir}/${BINARY_NAME}" ]]; then
+        printf '%s\n' "${package_dir}/${BINARY_NAME}"
+        return 0
+    fi
+
+    if [[ -f "${package_dir}/${LEGACY_BINARY_NAME}" ]]; then
+        printf '%s\n' "${package_dir}/${LEGACY_BINARY_NAME}"
         return 0
     fi
 
@@ -755,7 +799,7 @@ stage_legacy_database_for_migration() {
 
 config_after_install() {
     echo -e "${yellow}Migration... ${plain}"
-    "${INSTALL_ROOT}/b-ui" migrate
+    "${BINARY_PATH}" migrate
     if [[ $? -ne 0 ]]; then
         echo -e "${red}Database migration failed.${plain}"
         rollback_installation
@@ -809,7 +853,7 @@ config_after_install() {
         echo -e "${green}password: ${passwordTemp}${plain}"
         echo -e "###############################################"
         echo -e "${red}If you forgot your login info, type ${green}${CLI_NAME}${red} for configuration menu${plain}"
-        "${INSTALL_ROOT}/b-ui" admin -username "${usernameTemp}" -password "${passwordTemp}"
+        "${BINARY_PATH}" admin -username "${usernameTemp}" -password "${passwordTemp}"
     fi
 }
 
@@ -825,7 +869,7 @@ apply_settings_params() {
 
     if [[ -n "${params}" ]]; then
         echo -e "${yellow}Applying settings...${plain}"
-        "${INSTALL_ROOT}/b-ui" setting ${params}
+        "${BINARY_PATH}" setting ${params}
     else
         echo -e "${yellow}No custom settings provided, using defaults.${plain}"
     fi
@@ -835,7 +879,7 @@ apply_admin_params() {
     local user="${ARG_USER:-admin}"
     local pwd="${ARG_PWD:-admin}"
     echo -e "${yellow}Setting admin credentials...${plain}"
-    "${INSTALL_ROOT}/b-ui" admin -username "${user}" -password "${pwd}"
+    "${BINARY_PATH}" admin -username "${user}" -password "${pwd}"
 }
 
 prepare_services() {
@@ -857,6 +901,7 @@ install_app() {
     cd /tmp/
     local package_dir=""
     local cli_script_source=""
+    local package_binary_path=""
 
     download_release_asset
 
@@ -890,13 +935,21 @@ install_app() {
         rollback_installation
         exit 1
     }
+    normalize_package_binary "${package_dir}"
+    package_binary_path=$(resolve_package_binary "${package_dir}") || {
+        echo -e "${red}The extracted package did not contain a supported application binary.${plain}"
+        rollback_installation
+        exit 1
+    }
 
-    chmod +x "${package_dir}/b-ui" "${cli_script_source}"
+    chmod +x "${package_binary_path}" "${cli_script_source}"
     mkdir -p "${INSTALL_ROOT}" || { rollback_installation; exit 1; }
     cp -rf "${package_dir}/." "${INSTALL_ROOT}/" || { rollback_installation; exit 1; }
+    chmod +x "${BINARY_PATH}" || { rollback_installation; exit 1; }
     stage_legacy_database_for_migration
     cp "${cli_script_source}" "${CLI_PATH}" || { rollback_installation; exit 1; }
     chmod +x "${CLI_PATH}" || { rollback_installation; exit 1; }
+    remove_legacy_binary
     remove_legacy_cli
     cp -f "${package_dir}"/*.service "${SYSTEMD_DIR}/" || { rollback_installation; exit 1; }
     remove_legacy_service
@@ -914,7 +967,7 @@ install_app() {
     echo -e "${yellow}Service name:${plain} ${SERVICE_NAME}"
     echo -e "${yellow}Management command:${plain} ${CLI_NAME}"
     echo -e "You may access the Panel with following URL(s):${green}"
-    "${INSTALL_ROOT}/b-ui" uri
+    "${BINARY_PATH}" uri
     echo -e "${plain}"
     echo -e ""
     "${CLI_NAME}" help
