@@ -114,7 +114,7 @@ type ClusterSyncService struct {
 func NewRuntimeClusterSyncService() ClusterSyncService {
 	return ClusterSyncService{
 		store:        &dbClusterSyncStore{},
-		hubSyncer:    &ClusterHubSyncer{},
+		hubSyncer:    &ClusterHubSyncer{localIdentity: &ClusterLocalIdentityService{}},
 		panelService: &PanelService{},
 	}
 }
@@ -154,6 +154,7 @@ func (s *ClusterSyncService) PollAndNotifyVersion(ctx context.Context) error {
 	if err != nil {
 		return err
 	}
+	var removedMirrorErr error
 	for i := range domains {
 		domain := domains[i]
 		if domain.HubURL == "" {
@@ -167,12 +168,19 @@ func (s *ClusterSyncService) PollAndNotifyVersion(ctx context.Context) error {
 			continue
 		}
 		if err := s.hubSyncer.SyncDomain(ctx, &domain, version); err != nil {
+			var mirrorErr *clusterDomainMirrorRemovedError
+			if errors.As(err, &mirrorErr) {
+				if removedMirrorErr == nil {
+					removedMirrorErr = mirrorErr
+				}
+				continue
+			}
 			return err
 		}
 
 		_ = s.CheckAndBroadcastUpdate(ctx, &domain)
 	}
-	return nil
+	return removedMirrorErr
 }
 
 func (s *ClusterSyncService) CheckAndBroadcastUpdate(ctx context.Context, domain *model.ClusterDomain) error {

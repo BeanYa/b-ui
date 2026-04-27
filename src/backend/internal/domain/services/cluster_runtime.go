@@ -5,6 +5,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"io"
 	"net"
 	"net/http"
@@ -26,14 +27,34 @@ type ClusterHubSyncer struct {
 	client         clusterHubClient
 	store          clusterServiceStore
 	secretProvider clusterSecretProvider
+	localIdentity  clusterLocalIdentityProvider
 	reachability   *ClusterReachabilityService
 }
 
-func (s *ClusterHubSyncer) LatestVersion(ctx context.Context, domain *model.ClusterDomain) (int64, error) {
-	client := s.client
-	if client == nil {
-		client = &ClusterHubClient{}
+type clusterLocalIdentityProvider interface {
+	GetOrCreate() (*model.ClusterLocalNode, error)
+}
+
+type clusterDomainMirrorRemovedError struct {
+	Domain string
+}
+
+func (e *clusterDomainMirrorRemovedError) Error() string {
+	if e == nil || e.Domain == "" {
+		return "cluster domain info is invalid; local mirror was removed"
 	}
+	return fmt.Sprintf("cluster domain info is invalid for %s; local mirror was removed", e.Domain)
+}
+
+func (s *ClusterHubSyncer) getHubClient() clusterHubClient {
+	if s.client != nil {
+		return s.client
+	}
+	return &ClusterHubClient{localIdentity: s.getLocalIdentity()}
+}
+
+func (s *ClusterHubSyncer) LatestVersion(ctx context.Context, domain *model.ClusterDomain) (int64, error) {
+	client := s.getHubClient()
 	secret, err := s.getSecretProvider().GetSecret()
 	if err != nil {
 		return 0, err
@@ -44,16 +65,17 @@ func (s *ClusterHubSyncer) LatestVersion(ctx context.Context, domain *model.Clus
 	}
 	response, err := client.GetLatestVersion(ctx, domain.HubURL, domain.Domain, domainToken)
 	if err != nil {
+		var rejectedErr *clusterHubReadRejectedError
+		if errors.As(err, &rejectedErr) {
+			return 0, s.removeInvalidMirror(domain)
+		}
 		return 0, err
 	}
 	return response.Version, nil
 }
 
 func (s *ClusterHubSyncer) SyncDomain(ctx context.Context, domain *model.ClusterDomain, version int64) error {
-	client := s.client
-	if client == nil {
-		client = &ClusterHubClient{}
-	}
+	client := s.getHubClient()
 	store := s.store
 	if store == nil {
 		store = &dbClusterStore{}
@@ -66,12 +88,24 @@ func (s *ClusterHubSyncer) SyncDomain(ctx context.Context, domain *model.Cluster
 	if err != nil {
 		return err
 	}
-	snapshot, err := client.GetSnapshot(ctx, domain.HubURL, domain.Domain, domainToken)
+	local, err := s.getLocalIdentity().GetOrCreate()
 	if err != nil {
 		return err
 	}
+	snapshot, err := client.GetSnapshot(ctx, domain.HubURL, domain.Domain, domainToken)
+	if err != nil {
+		var rejectedErr *clusterHubReadRejectedError
+		if errors.As(err, &rejectedErr) {
+			return s.removeInvalidMirror(domain)
+		}
+		return err
+	}
 	members := make([]model.ClusterMember, 0, len(snapshot.Members))
+	localNodePresent := false
 	for _, item := range snapshot.Members {
+		if item.EffectiveNodeID() == local.NodeID {
+			localNodePresent = true
+		}
 		peerTokenEncrypted := ""
 		peerToken := item.EffectivePeerToken()
 		if peerToken != "" {
@@ -92,6 +126,12 @@ func (s *ClusterHubSyncer) SyncDomain(ctx context.Context, domain *model.Cluster
 			Status:             item.EffectiveStatus(),
 		})
 	}
+	if !localNodePresent {
+		if err := store.DeleteDomain(domain.Id); err != nil {
+			return err
+		}
+		return &clusterDomainMirrorRemovedError{Domain: domain.Domain}
+	}
 	if err := store.ReplaceDomainMembers(domain.Id, members); err != nil {
 		return err
 	}
@@ -111,6 +151,17 @@ func (s *ClusterHubSyncer) SyncDomain(ctx context.Context, domain *model.Cluster
 	return s.getReachability().ReconcileMembers(domain.Id, targetNodeIDs)
 }
 
+func (s *ClusterHubSyncer) removeInvalidMirror(domain *model.ClusterDomain) error {
+	store := s.store
+	if store == nil {
+		store = &dbClusterStore{}
+	}
+	if err := store.DeleteDomain(domain.Id); err != nil {
+		return err
+	}
+	return &clusterDomainMirrorRemovedError{Domain: domain.Domain}
+}
+
 func (s *ClusterHubSyncer) getSecretProvider() clusterSecretProvider {
 	if s.secretProvider != nil {
 		return s.secretProvider
@@ -126,6 +177,13 @@ func (s *ClusterHubSyncer) getReachability() *ClusterReachabilityService {
 		store:  &dbClusterReachabilityStore{},
 		policy: DefaultClusterReachabilityPolicy(),
 	}
+}
+
+func (s *ClusterHubSyncer) getLocalIdentity() clusterLocalIdentityProvider {
+	if s.localIdentity != nil {
+		return s.localIdentity
+	}
+	return &ClusterLocalIdentityService{}
 }
 
 type ClusterHTTPBroadcaster struct {

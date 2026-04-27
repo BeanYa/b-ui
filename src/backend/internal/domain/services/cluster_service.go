@@ -167,10 +167,7 @@ func (s *ClusterService) Register(request ClusterRegisterRequest) (*ClusterOpera
 	if domain == nil {
 		domain = &model.ClusterDomain{}
 	}
-	client := s.hubClient
-	if client == nil {
-		client = &ClusterHubClient{}
-	}
+	client := s.getHubClient()
 	requestID, err := uuid.NewV4()
 	if err != nil {
 		return nil, err
@@ -507,9 +504,17 @@ func (s *ClusterService) ManualSync() (*ClusterOperationStatus, error) {
 		syncService.hubSyncer = s.getHubSyncer()
 	}
 	if err := syncService.PollAndNotifyVersion(context.Background()); err != nil {
+		var removedMirrorErr *clusterDomainMirrorRemovedError
+		if errors.As(err, &removedMirrorErr) {
+			status, statusErr := newClusterOperationStatus("completed", removedMirrorErr.Error())
+			if statusErr != nil {
+				return nil, statusErr
+			}
+			return status, nil
+		}
 		return nil, err
 	}
-	status, err := newClusterOperationStatus("completed", "sync triggered")
+	status, err := newClusterOperationStatus("completed", "")
 	if err != nil {
 		return nil, err
 	}
@@ -537,10 +542,7 @@ func (s *ClusterService) DeleteMember(id uint) error {
 	if err != nil {
 		return err
 	}
-	client := s.hubClient
-	if client == nil {
-		client = &ClusterHubClient{}
-	}
+	client := s.getHubClient()
 	if _, err := client.DeleteMember(context.Background(), domain.HubURL, domain.Domain, domainToken, member.NodeID); err != nil {
 		return err
 	}
@@ -568,10 +570,7 @@ func (s *ClusterService) LeaveDomain(id uint) error {
 	if err != nil {
 		return err
 	}
-	client := s.hubClient
-	if client == nil {
-		client = &ClusterHubClient{}
-	}
+	client := s.getHubClient()
 	if _, err := client.DeleteMember(context.Background(), domain.HubURL, domain.Domain, domainToken, localIdentity.NodeID); err != nil {
 		return err
 	}
@@ -1046,8 +1045,15 @@ func (s *ClusterService) getSecretProvider() clusterSecretProvider {
 	return &s.SettingService
 }
 
+func (s *ClusterService) getHubClient() clusterHubClient {
+	if s.hubClient != nil {
+		return s.hubClient
+	}
+	return &ClusterHubClient{localIdentity: &s.localIdentity}
+}
+
 func (s *ClusterService) getHubSyncer() clusterHubSyncer {
-	return &ClusterHubSyncer{client: s.hubClient, store: s.getStore(), secretProvider: s.getSecretProvider()}
+	return &ClusterHubSyncer{client: s.getHubClient(), store: s.getStore(), secretProvider: s.getSecretProvider(), localIdentity: &s.localIdentity}
 }
 
 func findClusterMemberByDomainNodeID(store clusterServiceStore, domainID uint, nodeID string) (*model.ClusterMember, error) {

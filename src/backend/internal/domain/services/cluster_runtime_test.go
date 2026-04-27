@@ -2,12 +2,14 @@ package service
 
 import (
 	"context"
+	"errors"
 	"testing"
 
 	"github.com/BeanYa/b-ui/src/backend/internal/infra/db/model"
 )
 
 func TestClusterHubSyncerSyncDomainPersistsEncryptedPeerTokenPerMember(t *testing.T) {
+	local := newTestClusterLocalNode(t, "node-a")
 	store := &stubClusterRuntimeStore{}
 	syncer := &ClusterHubSyncer{
 		client: &stubClusterRuntimeHubClient{snapshot: &ClusterHubSnapshotResponse{
@@ -22,6 +24,7 @@ func TestClusterHubSyncerSyncDomainPersistsEncryptedPeerTokenPerMember(t *testin
 		}},
 		store:          store,
 		secretProvider: stubClusterSecretProvider{secret: []byte("panel-secret-for-cluster-tests")},
+		localIdentity:  &ClusterLocalIdentityService{store: &stubClusterLocalNodeStore{node: local}},
 		reachability:   newTestClusterRuntimeReachabilityService(10),
 	}
 	domain := &model.ClusterDomain{Id: 1, Domain: "edge.example.com", HubURL: "https://hub.example.com", TokenEncrypted: mustEncryptClusterToken(t, "panel-secret-for-cluster-tests", "domain-token")}
@@ -49,11 +52,13 @@ func TestClusterHubSyncerSyncDomainPersistsEncryptedPeerTokenPerMember(t *testin
 }
 
 func TestClusterHubSyncerSyncDomainKeepsDistinctPeerTokensForSameNodeAcrossDomains(t *testing.T) {
+	local := newTestClusterLocalNode(t, "node-shared")
 	store := &stubClusterRuntimeStore{}
 	syncer := &ClusterHubSyncer{
 		client:         &stubClusterRuntimeHubClient{},
 		store:          store,
 		secretProvider: stubClusterSecretProvider{secret: []byte("panel-secret-for-cluster-tests")},
+		localIdentity:  &ClusterLocalIdentityService{store: &stubClusterLocalNodeStore{node: local}},
 		reachability:   newTestClusterRuntimeReachabilityService(10),
 	}
 	domainA := &model.ClusterDomain{Id: 1, Domain: "edge-a.example.com", HubURL: "https://hub.example.com", TokenEncrypted: mustEncryptClusterToken(t, "panel-secret-for-cluster-tests", "domain-token-a")}
@@ -86,6 +91,7 @@ func TestClusterHubSyncerSyncDomainKeepsDistinctPeerTokensForSameNodeAcrossDomai
 }
 
 func TestClusterHubSyncerSyncDomainClearsReachabilityForRemovedMembers(t *testing.T) {
+	local := newTestClusterLocalNode(t, "node-local")
 	reachabilityStore := newStubClusterReachabilityStore()
 	if err := reachabilityStore.SaveReachability(&model.ClusterPeerReachability{
 		DomainID:     1,
@@ -105,6 +111,7 @@ func TestClusterHubSyncerSyncDomainClearsReachabilityForRemovedMembers(t *testin
 		},
 		store:          store,
 		secretProvider: stubClusterSecretProvider{secret: []byte("panel-secret-for-cluster-tests")},
+		localIdentity:  &ClusterLocalIdentityService{store: &stubClusterLocalNodeStore{node: local}},
 		reachability: &ClusterReachabilityService{
 			store:  reachabilityStore,
 			policy: DefaultClusterReachabilityPolicy(),
@@ -127,9 +134,73 @@ func TestClusterHubSyncerSyncDomainClearsReachabilityForRemovedMembers(t *testin
 	}
 }
 
+func TestClusterHubSyncerSyncDomainDeletesLocalMirrorWhenHubSnapshotNoLongerContainsLocalNode(t *testing.T) {
+	local := newTestClusterLocalNode(t, "node-local")
+	store := &stubClusterRuntimeStore{}
+	syncer := &ClusterHubSyncer{
+		client: &stubClusterRuntimeHubClient{
+			snapshot: &ClusterHubSnapshotResponse{
+				Version: 8,
+				Members: []ClusterHubMemberResponse{{NodeID: "node-peer"}},
+			},
+		},
+		store:          store,
+		secretProvider: stubClusterSecretProvider{secret: []byte("panel-secret-for-cluster-tests")},
+		localIdentity:  &ClusterLocalIdentityService{store: &stubClusterLocalNodeStore{node: local}},
+		reachability:   newTestClusterRuntimeReachabilityService(10),
+	}
+	domain := &model.ClusterDomain{Id: 1, Domain: "edge.example.com", HubURL: "https://hub.example.com", TokenEncrypted: mustEncryptClusterToken(t, "panel-secret-for-cluster-tests", "domain-token")}
+
+	err := syncer.SyncDomain(context.Background(), domain, 8)
+	var removedErr *clusterDomainMirrorRemovedError
+	if !errors.As(err, &removedErr) {
+		t.Fatalf("expected local mirror removal error, got %v", err)
+	}
+	if removedErr.Domain != "edge.example.com" {
+		t.Fatalf("expected removed domain edge.example.com, got %q", removedErr.Domain)
+	}
+	if store.deletedDomainID != 1 {
+		t.Fatalf("expected domain 1 to be deleted locally, got %d", store.deletedDomainID)
+	}
+	if len(store.replaceCalls) != 0 {
+		t.Fatalf("expected no member replacement after local removal, got %#v", store.replaceCalls)
+	}
+}
+
+func TestClusterHubSyncerLatestVersionDeletesLocalMirrorWhenHubRejectsRead(t *testing.T) {
+	local := newTestClusterLocalNode(t, "node-local")
+	store := &stubClusterRuntimeStore{}
+	syncer := &ClusterHubSyncer{
+		client: &stubClusterRuntimeHubClient{
+			latestVersionErr: &clusterHubReadRejectedError{
+				Operation: "hub latest version",
+				Status:    "rejected",
+				Code:      "member_not_found",
+				Message:   "node-local is no longer a member",
+			},
+		},
+		store:          store,
+		secretProvider: stubClusterSecretProvider{secret: []byte("panel-secret-for-cluster-tests")},
+		localIdentity:  &ClusterLocalIdentityService{store: &stubClusterLocalNodeStore{node: local}},
+		reachability:   newTestClusterRuntimeReachabilityService(10),
+	}
+	domain := &model.ClusterDomain{Id: 1, Domain: "edge.example.com", HubURL: "https://hub.example.com", TokenEncrypted: mustEncryptClusterToken(t, "panel-secret-for-cluster-tests", "domain-token")}
+
+	_, err := syncer.LatestVersion(context.Background(), domain)
+	var removedErr *clusterDomainMirrorRemovedError
+	if !errors.As(err, &removedErr) {
+		t.Fatalf("expected local mirror removal error, got %v", err)
+	}
+	if store.deletedDomainID != 1 {
+		t.Fatalf("expected domain 1 to be deleted locally, got %d", store.deletedDomainID)
+	}
+}
+
 type stubClusterRuntimeHubClient struct {
-	snapshot  *ClusterHubSnapshotResponse
-	snapshots map[string]*ClusterHubSnapshotResponse
+	snapshot         *ClusterHubSnapshotResponse
+	snapshots        map[string]*ClusterHubSnapshotResponse
+	latestVersion    *ClusterHubVersionResponse
+	latestVersionErr error
 }
 
 func (s *stubClusterRuntimeHubClient) RegisterNode(context.Context, string, ClusterHubRegisterNodeRequest) (*ClusterHubOperationResponse, error) {
@@ -137,6 +208,12 @@ func (s *stubClusterRuntimeHubClient) RegisterNode(context.Context, string, Clus
 }
 
 func (s *stubClusterRuntimeHubClient) GetLatestVersion(context.Context, string, string, string) (*ClusterHubVersionResponse, error) {
+	if s.latestVersionErr != nil {
+		return nil, s.latestVersionErr
+	}
+	if s.latestVersion != nil {
+		return s.latestVersion, nil
+	}
 	return nil, nil
 }
 
@@ -164,6 +241,7 @@ type stubClusterRuntimeStore struct {
 	membersByDomain   map[uint][]model.ClusterMember
 	savedDomainState  []*model.ClusterDomain
 	reachabilityStore *stubClusterReachabilityStore
+	deletedDomainID   uint
 }
 
 func newTestClusterRuntimeReachabilityService(now int64) *ClusterReachabilityService {
@@ -203,7 +281,11 @@ func (s *stubClusterRuntimeStore) GetMemberByDomainNodeID(uint, string) (*model.
 func (s *stubClusterRuntimeStore) SaveMember(*model.ClusterMember) error       { return nil }
 func (s *stubClusterRuntimeStore) ListMembers() ([]model.ClusterMember, error) { return nil, nil }
 func (s *stubClusterRuntimeStore) DeleteMember(uint) error                     { return nil }
-func (s *stubClusterRuntimeStore) DeleteDomain(uint) error                     { return nil }
+func (s *stubClusterRuntimeStore) DeleteDomain(id uint) error {
+	s.deletedDomainID = id
+	delete(s.membersByDomain, id)
+	return nil
+}
 func (s *stubClusterRuntimeStore) ReplaceDomainMembers(domainID uint, members []model.ClusterMember) error {
 	copyMembers := make([]model.ClusterMember, len(members))
 	copy(copyMembers, members)

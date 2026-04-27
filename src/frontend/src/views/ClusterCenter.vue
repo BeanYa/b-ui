@@ -651,13 +651,23 @@ const pollOperation = async (operationId: string) => {
   return current
 }
 
+const syncClusterState = async () => {
+  const msg = await HttpUtils.post('api/cluster/sync', {})
+  const operation = msg.obj as ClusterOperationStatus | null
+  if (operation?.message) {
+    push.error({ title: i18n.global.t('failed'), message: operation.message })
+  }
+  await loadData()
+  return msg
+}
+
 const manualSync = async () => {
   actionLoading.value = true
-  const msg = await HttpUtils.post('api/cluster/sync', {})
-  if (msg.success) {
-    await loadData()
+  try {
+    await syncClusterState()
+  } finally {
+    actionLoading.value = false
   }
-  actionLoading.value = false
 }
 
 const deleteMember = async (member: ClusterMember) => {
@@ -682,7 +692,7 @@ const leaveDomain = async (domain: ClusterDomain | null) => {
 }
 
 onMounted(async () => {
-  await loadData()
+  await syncClusterState()
 })
 
 const pingStore = usePingStore()

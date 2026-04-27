@@ -311,6 +311,9 @@ func TestClusterServiceLeaveDomainDeletesLocalNodeFromHubAndRemovesDomainMirror(
 		localIdentity:  ClusterLocalIdentityService{store: &stubClusterLocalNodeStore{node: &model.ClusterLocalNode{NodeID: "node-local"}}},
 		store:          store,
 		hubClient:      hub,
+		syncService: ClusterSyncService{
+			store: &clusterSyncStoreAdapter{store: store},
+		},
 	}
 
 	if err := service.LeaveDomain(1); err != nil {
@@ -318,6 +321,59 @@ func TestClusterServiceLeaveDomainDeletesLocalNodeFromHubAndRemovesDomainMirror(
 	}
 	if hub.lastDeleteMemberID != "node-local" {
 		t.Fatalf("expected hub delete for local node, got %q", hub.lastDeleteMemberID)
+	}
+	if store.deletedDomainID != 1 {
+		t.Fatalf("expected local domain mirror delete for id 1, got %d", store.deletedDomainID)
+	}
+}
+
+func TestClusterServiceManualSyncReturnsCleanupMessageWhenHubNoLongerContainsLocalNode(t *testing.T) {
+	secret := []byte("panel-secret-for-cluster-tests")
+	store := &stubClusterServiceStore{
+		domains: map[string]*model.ClusterDomain{
+			"edge.example.com": {
+				Id:             1,
+				Domain:         "edge.example.com",
+				HubURL:         "https://hub.example.com",
+				LastVersion:    1,
+				TokenEncrypted: mustEncryptClusterToken(t, string(secret), "domain-token"),
+			},
+		},
+		members: map[string]*model.ClusterMember{
+			serviceMemberKey(1, "node-local"): {Id: 7, NodeID: "node-local", DomainID: 1},
+		},
+	}
+	hub := &stubClusterHubClient{
+		latestVersionResponse: &ClusterHubVersionResponse{Version: 5},
+		snapshotResponse: &ClusterHubSnapshotResponse{
+			Version: 5,
+			Members: []ClusterHubMemberResponse{
+				{NodeID: "node-peer", BaseURL: "https://peer.example.com"},
+			},
+		},
+	}
+	service := &ClusterService{
+		secretProvider: stubClusterSecretProvider{secret: secret},
+		localIdentity:  ClusterLocalIdentityService{store: &stubClusterLocalNodeStore{node: &model.ClusterLocalNode{NodeID: "node-local"}}},
+		store:          store,
+		hubClient:      hub,
+		syncService: ClusterSyncService{
+			store: &clusterSyncStoreAdapter{store: store},
+		},
+	}
+
+	status, err := service.ManualSync()
+	if err != nil {
+		t.Fatalf("manual sync: %v", err)
+	}
+	if status == nil {
+		t.Fatal("expected manual sync status")
+	}
+	if status.State != "completed" {
+		t.Fatalf("expected completed manual sync status, got %q", status.State)
+	}
+	if !strings.Contains(status.Message, "edge.example.com") {
+		t.Fatalf("expected cleanup message to include domain name, got %q", status.Message)
 	}
 	if store.deletedDomainID != 1 {
 		t.Fatalf("expected local domain mirror delete for id 1, got %d", store.deletedDomainID)
@@ -489,7 +545,7 @@ func TestClusterServiceReceivePeerMessageInitializesInjectedSyncDependencies(t *
 		hubClient:      hub,
 		syncService: ClusterSyncService{
 			store:     &clusterSyncStoreAdapter{store: store},
-			hubSyncer: &ClusterHubSyncer{client: hub, store: store, secretProvider: stubClusterSecretProvider{secret: secret}, reachability: newTestClusterReachabilityService(20)},
+			hubSyncer: &ClusterHubSyncer{client: hub, store: store, secretProvider: stubClusterSecretProvider{secret: secret}, localIdentity: &ClusterLocalIdentityService{store: &stubClusterLocalNodeStore{node: &model.ClusterLocalNode{NodeID: "node-local"}}}, reachability: newTestClusterReachabilityService(20)},
 		},
 	}
 
@@ -725,6 +781,16 @@ func (s *stubClusterServiceStore) DeleteMember(id uint) error {
 }
 func (s *stubClusterServiceStore) DeleteDomain(id uint) error {
 	s.deletedDomainID = id
+	for key, member := range s.members {
+		if member.DomainID == id {
+			delete(s.members, key)
+		}
+	}
+	for name, domain := range s.domains {
+		if domain.Id == id {
+			delete(s.domains, name)
+		}
+	}
 	return nil
 }
 func (s *stubClusterServiceStore) ReplaceDomainMembers(_ uint, members []model.ClusterMember) error {
@@ -743,12 +809,15 @@ func (s *stubClusterServiceStore) ReplaceDomainMembers(_ uint, members []model.C
 
 type stubClusterHubClient struct {
 	registerResponse    *ClusterHubOperationResponse
+	latestVersionResponse *ClusterHubVersionResponse
 	snapshotResponse    *ClusterHubSnapshotResponse
 	deleteResponse      *ClusterHubOperationResponse
 	registerErr         error
+	latestVersionErr    error
 	deleteErr           error
 	registerCalls       int
 	snapshotCalls       int
+	versionChecks       int
 	lastHubURL          string
 	lastSnapshotHubURL  string
 	lastSnapshotDomain  string
@@ -770,7 +839,14 @@ func (s *stubClusterHubClient) RegisterNode(_ context.Context, hubURL string, re
 }
 
 func (s *stubClusterHubClient) GetLatestVersion(context.Context, string, string, string) (*ClusterHubVersionResponse, error) {
-	return nil, nil
+	s.versionChecks++
+	if s.latestVersionErr != nil {
+		return nil, s.latestVersionErr
+	}
+	if s.latestVersionResponse != nil {
+		return s.latestVersionResponse, nil
+	}
+	return &ClusterHubVersionResponse{}, nil
 }
 
 func (s *stubClusterHubClient) GetSnapshot(_ context.Context, hubURL string, domain string, token string) (*ClusterHubSnapshotResponse, error) {

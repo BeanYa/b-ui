@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"io"
 	"net"
 	"net/http"
 	"net/url"
@@ -160,7 +161,8 @@ func (m ClusterHubMemberResponse) EffectiveStatus() string {
 }
 
 type ClusterHubClient struct {
-	HTTPClient *http.Client
+	HTTPClient    *http.Client
+	localIdentity clusterLocalIdentityProvider
 }
 
 func (c *ClusterHubClient) RegisterNode(ctx context.Context, hubURL string, request ClusterHubRegisterNodeRequest) (*ClusterHubOperationResponse, error) {
@@ -183,19 +185,15 @@ func (c *ClusterHubClient) GetLatestVersion(ctx context.Context, hubURL string, 
 		return nil, err
 	}
 	request.Header.Set("X-Domain-Token", domainToken)
+	if err := c.attachReadIdentity(request); err != nil {
+		return nil, err
+	}
 	response, err := c.httpClient().Do(request)
 	if err != nil {
 		return nil, err
 	}
 	defer response.Body.Close()
-	if err := requireHTTPSuccess(response, "hub latest version"); err != nil {
-		return nil, err
-	}
-	decoded := &ClusterHubVersionResponse{}
-	if err := json.NewDecoder(response.Body).Decode(decoded); err != nil {
-		return nil, err
-	}
-	return decoded, nil
+	return decodeClusterHubReadResponse[ClusterHubVersionResponse](response, "hub latest version")
 }
 
 func (c *ClusterHubClient) GetSnapshot(ctx context.Context, hubURL string, domain string, domainToken string) (*ClusterHubSnapshotResponse, error) {
@@ -207,19 +205,15 @@ func (c *ClusterHubClient) GetSnapshot(ctx context.Context, hubURL string, domai
 		return nil, err
 	}
 	request.Header.Set("X-Domain-Token", domainToken)
+	if err := c.attachReadIdentity(request); err != nil {
+		return nil, err
+	}
 	response, err := c.httpClient().Do(request)
 	if err != nil {
 		return nil, err
 	}
 	defer response.Body.Close()
-	if err := requireHTTPSuccess(response, "hub snapshot"); err != nil {
-		return nil, err
-	}
-	decoded := &ClusterHubSnapshotResponse{}
-	if err := json.NewDecoder(response.Body).Decode(decoded); err != nil {
-		return nil, err
-	}
-	return decoded, nil
+	return decodeClusterHubReadResponse[ClusterHubSnapshotResponse](response, "hub snapshot")
 }
 
 func (c *ClusterHubClient) DeleteMember(ctx context.Context, hubURL string, domain string, domainToken string, memberID string) (*ClusterHubOperationResponse, error) {
@@ -311,11 +305,83 @@ func (c *ClusterHubClient) postJSON(ctx context.Context, url string, requestBody
 	return json.NewDecoder(response.Body).Decode(target)
 }
 
+type clusterHubReadRejectedError struct {
+	Operation string
+	Status    string
+	Code      string
+	Message   string
+}
+
+func (e *clusterHubReadRejectedError) Error() string {
+	if e == nil {
+		return "cluster hub read was rejected"
+	}
+	detail := strings.TrimSpace(e.Message)
+	if detail == "" {
+		detail = strings.TrimSpace(e.Code)
+	}
+	if detail == "" {
+		detail = "hub rejected the read request"
+	}
+	if op := strings.TrimSpace(e.Operation); op != "" {
+		return fmt.Sprintf("%s rejected: %s", op, detail)
+	}
+	return detail
+}
+
+type clusterHubProtocolStatusEnvelope struct {
+	Status  string `json:"status"`
+	Code    string `json:"code"`
+	Message string `json:"message"`
+}
+
+func decodeClusterHubReadResponse[T any](response *http.Response, operation string) (*T, error) {
+	if err := requireHTTPSuccess(response, operation); err != nil {
+		return nil, err
+	}
+	payload, err := io.ReadAll(response.Body)
+	if err != nil {
+		return nil, err
+	}
+	envelope := &clusterHubProtocolStatusEnvelope{}
+	if err := json.Unmarshal(payload, envelope); err == nil {
+		switch envelope.Status {
+		case "rejected", "failed", "duplicate", "pending":
+			return nil, &clusterHubReadRejectedError{
+				Operation: operation,
+				Status:    envelope.Status,
+				Code:      envelope.Code,
+				Message:   envelope.Message,
+			}
+		}
+	}
+	decoded := new(T)
+	if err := json.Unmarshal(payload, decoded); err != nil {
+		return nil, err
+	}
+	return decoded, nil
+}
+
 func requireHTTPSuccess(response *http.Response, operation string) error {
 	if response.StatusCode >= http.StatusOK && response.StatusCode < http.StatusMultipleChoices {
 		return nil
 	}
 	return fmt.Errorf("%s failed: %s", operation, response.Status)
+}
+
+func (c *ClusterHubClient) attachReadIdentity(request *http.Request) error {
+	if c.localIdentity == nil {
+		return nil
+	}
+	local, err := c.localIdentity.GetOrCreate()
+	if err != nil {
+		return err
+	}
+	if local == nil || strings.TrimSpace(local.NodeID) == "" {
+		return nil
+	}
+	request.Header.Set("X-Cluster-Node-Id", local.NodeID)
+	return nil
 }
 
 func validateClusterHubURL(hubURL string) error {

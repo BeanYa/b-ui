@@ -15,6 +15,19 @@ describe('ClusterCenter view source', () => {
     expect(source).toContain("HttpUtils.get(`api/cluster/operations/${operationId}`)")
   })
 
+  it('auto-syncs saved domain mirrors when the cluster center opens and surfaces cleanup messages', () => {
+    const source = readFileSync(fileURLToPath(new URL('./ClusterCenter.vue', import.meta.url)), 'utf8')
+
+    expect(source).toContain('const syncClusterState = async () => {')
+    expect(source).toContain("const msg = await HttpUtils.post('api/cluster/sync', {})")
+    expect(source).toContain('const operation = msg.obj as ClusterOperationStatus | null')
+    expect(source).toContain('if (operation?.message) {')
+    expect(source).toContain("push.error({ title: i18n.global.t('failed'), message: operation.message })")
+    expect(source).toContain('await loadData()')
+    expect(source).toContain('onMounted(async () => {')
+    expect(source).toContain('await syncClusterState()')
+  })
+
   it('filters member rows by the selected domain and keeps the page admin-oriented', () => {
     const source = readFileSync(fileURLToPath(new URL('./ClusterCenter.vue', import.meta.url)), 'utf8')
 

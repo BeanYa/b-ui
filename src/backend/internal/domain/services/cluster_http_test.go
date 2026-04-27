@@ -3,6 +3,7 @@ package service
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"net/http"
 	"net/http/httptest"
 	"sync/atomic"
@@ -33,6 +34,51 @@ func TestClusterHubClientRejectsNonHttpsRemoteHubURL(t *testing.T) {
 	client := &ClusterHubClient{}
 	if _, err := client.GetLatestVersion(context.Background(), "http://example.com", "edge.example.com", "domain-token"); err == nil {
 		t.Fatal("expected non-https remote hub URL to fail")
+	}
+}
+
+func TestClusterHubClientSendsLocalNodeIDOnReadRequests(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if got := r.Header.Get("X-Cluster-Node-Id"); got != "node-local" {
+			t.Fatalf("expected X-Cluster-Node-Id node-local, got %q", got)
+		}
+		w.Header().Set("Content-Type", "application/json")
+		_, _ = w.Write([]byte(`{"version":7}`))
+	}))
+	defer server.Close()
+
+	client := &ClusterHubClient{
+		HTTPClient:    server.Client(),
+		localIdentity: &ClusterLocalIdentityService{store: &stubClusterLocalNodeStore{node: &model.ClusterLocalNode{NodeID: "node-local"}}},
+	}
+
+	response, err := client.GetLatestVersion(context.Background(), server.URL, "edge.example.com", "domain-token")
+	if err != nil {
+		t.Fatalf("get latest version: %v", err)
+	}
+	if response.Version != 7 {
+		t.Fatalf("expected version 7, got %d", response.Version)
+	}
+}
+
+func TestClusterHubClientTreatsProtocolRejectedReadAsError(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		_, _ = w.Write([]byte(`{"status":"rejected","code":"member_not_found","message":"node-local is not active"}`))
+	}))
+	defer server.Close()
+
+	client := &ClusterHubClient{HTTPClient: server.Client()}
+	_, err := client.GetSnapshot(context.Background(), server.URL, "edge.example.com", "domain-token")
+	if err == nil {
+		t.Fatal("expected rejected read response to fail")
+	}
+	var rejectedErr *clusterHubReadRejectedError
+	if !errors.As(err, &rejectedErr) {
+		t.Fatalf("expected clusterHubReadRejectedError, got %v", err)
+	}
+	if rejectedErr.Code != "member_not_found" {
+		t.Fatalf("expected reject code member_not_found, got %q", rejectedErr.Code)
 	}
 }
 
