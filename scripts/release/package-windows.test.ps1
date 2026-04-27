@@ -68,11 +68,11 @@ if ($windowsWorkflow -match 'github\.com/alireza0/s-ui/config\.buildVersion' -or
     throw 'release workflows still stamp the old buildVersion linker path'
 }
 
-if ($windowsWorkflow -match '-o\s+sui\.exe' -or $releaseWorkflow -match '-o\s+sui(?:\s|$)') {
+if ($windowsWorkflow -match '-o\s+sui\.exe' -or $releaseWorkflow -match '-o\s+(?:build/out/)?sui(?:\s|$)') {
     throw 'release workflows still build legacy sui executables'
 }
 
-if ($windowsWorkflow -notmatch '-o\s+b-ui\.exe' -or $releaseWorkflow -notmatch '-o\s+b-ui(?:\s|$)') {
+if ($windowsWorkflow -notmatch '-o\s+b-ui\.exe' -or $releaseWorkflow -notmatch '-o\s+(?:build/out/)?b-ui(?:\s|$)') {
     throw 'release workflows should build b-ui-named executables'
 }
 
