@@ -4,8 +4,8 @@ import (
 	"context"
 	"fmt"
 
-	clustertypes "github.com/alireza0/s-ui/src/backend/internal/domain/services/cluster/types"
-	"github.com/alireza0/s-ui/src/backend/internal/domain/services/cluster/router"
+	clustertypes "github.com/alireza0/b-ui/src/backend/internal/domain/services/cluster/types"
+	"github.com/alireza0/b-ui/src/backend/internal/domain/services/cluster/router"
 )
 
 // ListService is the interface that domain services implement for listing.

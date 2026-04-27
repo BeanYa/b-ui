@@ -8,8 +8,8 @@ import (
 	"net/url"
 	"strings"
 
-	database "github.com/alireza0/s-ui/src/backend/internal/infra/db"
-	"github.com/alireza0/s-ui/src/backend/internal/infra/db/model"
+	database "github.com/alireza0/b-ui/src/backend/internal/infra/db"
+	"github.com/alireza0/b-ui/src/backend/internal/infra/db/model"
 )
 
 type clusterProbeStore interface {

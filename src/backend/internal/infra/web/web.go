@@ -13,12 +13,12 @@ import (
 	"strings"
 	"time"
 
-	"github.com/alireza0/s-ui/src/backend/internal/domain/config"
-	service "github.com/alireza0/s-ui/src/backend/internal/domain/services"
-	"github.com/alireza0/s-ui/src/backend/internal/http/api"
-	"github.com/alireza0/s-ui/src/backend/internal/http/middleware"
-	logger "github.com/alireza0/s-ui/src/backend/internal/infra/logging"
-	"github.com/alireza0/s-ui/src/backend/internal/infra/network"
+	"github.com/alireza0/b-ui/src/backend/internal/domain/config"
+	service "github.com/alireza0/b-ui/src/backend/internal/domain/services"
+	"github.com/alireza0/b-ui/src/backend/internal/http/api"
+	"github.com/alireza0/b-ui/src/backend/internal/http/middleware"
+	logger "github.com/alireza0/b-ui/src/backend/internal/infra/logging"
+	"github.com/alireza0/b-ui/src/backend/internal/infra/network"
 
 	"github.com/gin-contrib/gzip"
 	"github.com/gin-contrib/sessions"
@@ -87,7 +87,7 @@ func (s *Server) initRouter() (*gin.Engine, error) {
 	assetsBasePath := base_url + "assets/"
 
 	store := cookie.NewStore(secret)
-	engine.Use(sessions.Sessions("s-ui", store))
+	engine.Use(sessions.Sessions("b-ui", store))
 
 	engine.Use(func(c *gin.Context) {
 		uri := c.Request.RequestURI

@@ -10,7 +10,7 @@ import (
 	"net/http/httptest"
 	"testing"
 
-	"github.com/alireza0/s-ui/src/backend/internal/infra/db/model"
+	"github.com/alireza0/b-ui/src/backend/internal/infra/db/model"
 )
 
 func TestPeerDispatcherMarksUnsupportedEventWithoutError(t *testing.T) {
@@ -793,6 +793,13 @@ func (s *stubPeerDispatcherSyncStore) GetMember(uint, string) (*model.ClusterMem
 		return s.member, nil
 	}
 	return &model.ClusterMember{NodeID: "node-a", LastVersion: 1}, nil
+}
+
+func (s *stubPeerDispatcherSyncStore) GetMembers(domainID uint) ([]model.ClusterMember, error) {
+	if s.member == nil {
+		return nil, nil
+	}
+	return []model.ClusterMember{*s.member}, nil
 }
 
 func (s *stubPeerDispatcherSyncStore) SaveMember(member *model.ClusterMember) error {

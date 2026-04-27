@@ -4,7 +4,7 @@ import (
 	"context"
 	"testing"
 
-	"github.com/alireza0/s-ui/src/backend/internal/infra/db/model"
+	"github.com/alireza0/b-ui/src/backend/internal/infra/db/model"
 )
 
 func TestClusterHubSyncerSyncDomainPersistsEncryptedPeerTokenPerMember(t *testing.T) {
@@ -149,6 +149,14 @@ func (s *stubClusterRuntimeHubClient) GetSnapshot(_ context.Context, _ string, d
 
 func (s *stubClusterRuntimeHubClient) DeleteMember(context.Context, string, string, string, string) (*ClusterHubOperationResponse, error) {
 	return nil, nil
+}
+
+func (s *stubClusterRuntimeHubClient) ClaimUpdate(context.Context, string, string, string, string, string) (*ClusterHubClaimUpdateResponse, error) {
+	return &ClusterHubClaimUpdateResponse{Proceed: true}, nil
+}
+
+func (s *stubClusterRuntimeHubClient) SetMemberStatus(context.Context, string, string, string, string, string, string, string) (*ClusterHubMemberStatusResponse, error) {
+	return &ClusterHubMemberStatusResponse{OK: true}, nil
 }
 
 type stubClusterRuntimeStore struct {

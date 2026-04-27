@@ -1,8 +1,8 @@
 package core
 
 import (
-	logger "github.com/alireza0/s-ui/src/backend/internal/infra/logging"
-	"github.com/alireza0/s-ui/src/backend/internal/shared/util/common"
+	logger "github.com/alireza0/b-ui/src/backend/internal/infra/logging"
+	"github.com/alireza0/b-ui/src/backend/internal/shared/util/common"
 
 	"github.com/sagernet/sing-box/adapter"
 	"github.com/sagernet/sing-box/option"

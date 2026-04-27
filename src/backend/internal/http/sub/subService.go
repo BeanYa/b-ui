@@ -6,10 +6,10 @@ import (
 	"strings"
 	"time"
 
-	service "github.com/alireza0/s-ui/src/backend/internal/domain/services"
-	database "github.com/alireza0/s-ui/src/backend/internal/infra/db"
-	"github.com/alireza0/s-ui/src/backend/internal/infra/db/model"
-	"github.com/alireza0/s-ui/src/backend/internal/shared/util"
+	service "github.com/alireza0/b-ui/src/backend/internal/domain/services"
+	database "github.com/alireza0/b-ui/src/backend/internal/infra/db"
+	"github.com/alireza0/b-ui/src/backend/internal/infra/db/model"
+	"github.com/alireza0/b-ui/src/backend/internal/shared/util"
 )
 
 type SubService struct {

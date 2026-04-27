@@ -3,14 +3,14 @@ package app
 import (
 	"log"
 
-	"github.com/alireza0/s-ui/src/backend/internal/domain/config"
-	"github.com/alireza0/s-ui/src/backend/internal/domain/core"
-	cronjob "github.com/alireza0/s-ui/src/backend/internal/domain/jobs"
-	service "github.com/alireza0/s-ui/src/backend/internal/domain/services"
-	"github.com/alireza0/s-ui/src/backend/internal/http/sub"
-	database "github.com/alireza0/s-ui/src/backend/internal/infra/db"
-	logger "github.com/alireza0/s-ui/src/backend/internal/infra/logging"
-	"github.com/alireza0/s-ui/src/backend/internal/infra/web"
+	"github.com/alireza0/b-ui/src/backend/internal/domain/config"
+	"github.com/alireza0/b-ui/src/backend/internal/domain/core"
+	cronjob "github.com/alireza0/b-ui/src/backend/internal/domain/jobs"
+	service "github.com/alireza0/b-ui/src/backend/internal/domain/services"
+	"github.com/alireza0/b-ui/src/backend/internal/http/sub"
+	database "github.com/alireza0/b-ui/src/backend/internal/infra/db"
+	logger "github.com/alireza0/b-ui/src/backend/internal/infra/logging"
+	"github.com/alireza0/b-ui/src/backend/internal/infra/web"
 
 	"github.com/op/go-logging"
 )

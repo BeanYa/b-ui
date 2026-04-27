@@ -1,6 +1,6 @@
 # B-UI
 
-基于 [S-UI](https://github.com/alireza0/s-ui) 的定制化 fork。当前仓库保留上游后端兼容安装布局，并持续维护 `BeanYa/b-ui` 的发布、安装脚本、前端源码与文档。
+基于 [b-ui](https://github.com/alireza0/b-ui) 的定制化 fork。当前仓库保留上游后端兼容安装布局，并持续维护 `BeanYa/b-ui` 的发布、安装脚本、前端源码与文档。
 
 ## 安装与快速开始
 
@@ -8,8 +8,8 @@ Linux 默认通过仓库根目录的 `install.sh` 进入 `scripts/release/instal
 
 - 管理命令：`b-ui`
 - systemd 服务名：`b-ui`
-- 安装根目录：`/usr/local/s-ui`
-- 数据库路径：`/usr/local/s-ui/db/b-ui.db`
+- 安装根目录：`/usr/local/b-ui`
+- 数据库路径：`/usr/local/b-ui/db/b-ui.db`
 
 ### 全新安装
 
@@ -59,13 +59,13 @@ IMAGE_REF=ghcr.io/beanya/b-ui:v0.1.14 bash ./scripts/release/install-docker.sh
 - **交互式 WebTerminal**：管理员可以在面板内直接打开 `/webterminal`，连接服务器本地 shell，进行实时键盘输入、光标交互、流式输出查看与终端窗口尺寸同步。
 - **更安全的终端连接流程**：WebTerminal 页面默认不会自动连入；需要先点击 `Connect` 并确认。离开页面、刷新页面或关闭标签页前会再次提醒，并在确认后主动中断当前终端会话。
 - **Docker 引导部署**：提供 `scripts/release/install-docker.sh` 作为交互式 Docker 引导入口，可直接生成 compose 文件、初始化面板并按需引导基础协议对象。
-- **与上游兼容的安装布局**：默认安装根目录、数据库路径和服务运行方式继续兼容上游 `s-ui` 布局，便于迁移与运维。
+- **与上游兼容的安装布局**：默认安装根目录、数据库路径和服务运行方式继续兼容上游 `b-ui` 布局，便于迁移与运维。
 - **前端性能优化**：支持代码分割、资源按需加载、MDI 图标字体原生渲染，减少首屏资源开销。
 - **TLS 预设密钥对即时生成**：创建 TLS 预设时自动物化密钥对材料，无需创建后手动重新生成。
 
 ## 文档导航
 
-- 安装迁移上游 `s-ui`：[`MIGRATION.md`](./MIGRATION.md)
+- 安装迁移上游 `b-ui`：[`MIGRATION.md`](./MIGRATION.md)
 - 完整用户手册：[`docs/manual.md`](./docs/manual.md)
 - 贡献与本地开发：[`CONTRIBUTING.md`](./CONTRIBUTING.md)
 - 前端设计基线：[`DESIGN.md`](./DESIGN.md)
@@ -107,13 +107,13 @@ bash <(curl -Ls https://raw.githubusercontent.com/BeanYa/b-ui/main/install.sh) -
 
 ## 从已安装的上游版本迁移
 
-如果服务器已经安装上游 `s-ui`，请使用迁移模式，而不是普通更新模式：
+如果服务器已经安装上游 `b-ui`，请使用迁移模式，而不是普通更新模式：
 
 ```sh
 bash <(curl -Ls https://raw.githubusercontent.com/BeanYa/b-ui/main/install.sh) --migrate
 ```
 
-迁移会保留现有安装根目录 `/usr/local/s-ui`，并把默认服务名和管理命令切换为 `b-ui`。如果只存在旧库 `/usr/local/s-ui/db/s-ui.db`，程序会在首次迁移/启动时自动迁移到 `/usr/local/s-ui/db/b-ui.db`。
+迁移会保留现有安装根目录 `/usr/local/b-ui`，并把默认服务名和管理命令切换为 `b-ui`。如果只存在旧库 `/usr/local/b-ui/db/b-ui.db`，程序会在首次迁移/启动时自动迁移到 `/usr/local/b-ui/db/b-ui.db`。
 
 更多迁移细节见 [`MIGRATION.md`](./MIGRATION.md)。
 
@@ -136,6 +136,6 @@ bash <(curl -Ls https://raw.githubusercontent.com/BeanYa/b-ui/main/install.sh) -
 
 ## Fork 说明
 
-- 上游后端：[`alireza0/s-ui`](https://github.com/alireza0/s-ui)
-- 上游前端：[`alireza0/s-ui-frontend`](https://github.com/alireza0/s-ui-frontend)
+- 上游后端：[`alireza0/b-ui`](https://github.com/alireza0/b-ui)
+- 上游前端：[`alireza0/b-ui-frontend`](https://github.com/alireza0/b-ui-frontend)
 - 当前 fork 已将前端源码直接并入 `BeanYa/b-ui`

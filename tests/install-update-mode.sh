@@ -70,8 +70,8 @@ run_update_check() {
     none)
         ;;
     legacy)
-        touch "${scenario_dir}/bin/s-ui"
-        touch "${scenario_dir}/etc/systemd/system/s-ui.service"
+        touch "${scenario_dir}/bin/b-ui"
+        touch "${scenario_dir}/etc/systemd/system/b-ui.service"
         ;;
     b-ui)
         touch "${scenario_dir}/bin/b-ui"
@@ -88,7 +88,7 @@ run_update_check() {
     output="$(
         INSTALL_ROOT="${scenario_dir}/install" \
         CLI_PATH="${scenario_dir}/bin/b-ui" \
-        LEGACY_CLI_PATH="${scenario_dir}/bin/s-ui" \
+        LEGACY_CLI_PATH="${scenario_dir}/bin/b-ui" \
         SYSTEMD_DIR="${scenario_dir}/etc/systemd/system" \
         TEST_TARGET_VERSION="${target_version}" \
         bash -lc '
@@ -130,7 +130,7 @@ test_update_refuses_missing_b_ui_install() {
 test_update_refuses_legacy_only_s_ui_install() {
     run_update_check "legacy" "" "v1.2.0"
     assert_eq "${RUN_STATUS}" "1" "legacy-only install should require migration"
-    assert_contains "${RUN_OUTPUT}" "Detected s-ui but b-ui is not installed" "legacy detection message"
+    assert_contains "${RUN_OUTPUT}" "Detected b-ui but b-ui is not installed" "legacy detection message"
     assert_contains "${RUN_OUTPUT}" "bash <(curl -Ls https://raw.githubusercontent.com/BeanYa/b-ui/main/install.sh) --migrate" "missing migrate command"
 }
 

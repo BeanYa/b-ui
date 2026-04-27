@@ -14,11 +14,12 @@ import (
 
 	"github.com/gin-gonic/gin"
 
-	"github.com/alireza0/s-ui/src/backend/internal/domain/services/cluster"
-	"github.com/alireza0/s-ui/src/backend/internal/domain/services/cluster/router"
-	clustertypes "github.com/alireza0/s-ui/src/backend/internal/domain/services/cluster/types"
-	database "github.com/alireza0/s-ui/src/backend/internal/infra/db"
-	"github.com/alireza0/s-ui/src/backend/internal/infra/db/model"
+	"github.com/alireza0/b-ui/src/backend/internal/domain/config"
+	"github.com/alireza0/b-ui/src/backend/internal/domain/services/cluster"
+	"github.com/alireza0/b-ui/src/backend/internal/domain/services/cluster/router"
+	clustertypes "github.com/alireza0/b-ui/src/backend/internal/domain/services/cluster/types"
+	database "github.com/alireza0/b-ui/src/backend/internal/infra/db"
+	"github.com/alireza0/b-ui/src/backend/internal/infra/db/model"
 	"github.com/gofrs/uuid/v5"
 )
 
@@ -179,13 +180,15 @@ func (s *ClusterService) Register(request ClusterRegisterRequest) (*ClusterOpera
 		DomainID:    request.Domain,
 		DomainToken: request.Token,
 		Member: ClusterHubMemberRegister{
-			MemberID:    identity.NodeID,
-			NodeID:      identity.NodeID,
-			Address:     request.BaseURL,
-			BaseURL:     request.BaseURL,
-			PublicKey:   identity.PublicKey,
-			Name:        request.Name,
-			DisplayName: request.DisplayName,
+			MemberID:     identity.NodeID,
+			NodeID:       identity.NodeID,
+			Address:      request.BaseURL,
+			BaseURL:      request.BaseURL,
+			PublicKey:    identity.PublicKey,
+			Name:         request.Name,
+			DisplayName:  request.DisplayName,
+			PanelVersion: canonicalizeReleaseTag(config.GetVersion()),
+			Status:       "online",
 		},
 	})
 	if err != nil {
@@ -880,6 +883,14 @@ func (s *dbClusterSyncStore) GetMember(domainID uint, nodeID string) (*model.Clu
 	return (&dbClusterStore{}).GetMemberByDomainNodeID(domainID, nodeID)
 }
 
+func (s *dbClusterSyncStore) GetMembers(domainID uint) ([]model.ClusterMember, error) {
+	var members []model.ClusterMember
+	if err := database.GetDB().Where("domain_id = ?", domainID).Find(&members).Error; err != nil {
+		return nil, err
+	}
+	return members, nil
+}
+
 func (s *dbClusterSyncStore) SaveMember(member *model.ClusterMember) error {
 	return (&dbClusterStore{}).SaveMember(member)
 }
@@ -1057,6 +1068,20 @@ type clusterSyncStoreAdapter struct{ store clusterServiceStore }
 
 func (a *clusterSyncStoreAdapter) GetMember(domainID uint, nodeID string) (*model.ClusterMember, error) {
 	return a.store.GetMemberByDomainNodeID(domainID, nodeID)
+}
+
+func (a *clusterSyncStoreAdapter) GetMembers(domainID uint) ([]model.ClusterMember, error) {
+	members, err := a.store.ListMembers()
+	if err != nil {
+		return nil, err
+	}
+	var result []model.ClusterMember
+	for _, m := range members {
+		if m.DomainID == domainID {
+			result = append(result, m)
+		}
+	}
+	return result, nil
 }
 
 func (a *clusterSyncStoreAdapter) SaveMember(member *model.ClusterMember) error {

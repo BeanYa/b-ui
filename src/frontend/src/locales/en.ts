@@ -20,6 +20,7 @@ export default {
   noData: "No data!",
   invalidLogin: "Invalid Login!",
   online: "Online",
+  offline: "Offline",
   version: "Version",
   email: "Email",
   commaSeparated: "(comma separated)",
@@ -255,6 +256,8 @@ export default {
       name: "Name",
       baseUrl: "Base URL",
       version: "Version",
+      panelVersion: "Panel Version",
+      status: "Status",
       action: "Action",
     },
     actions: {

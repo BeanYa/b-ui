@@ -9,9 +9,9 @@ import (
 	"strings"
 	"testing"
 
-	service "github.com/alireza0/s-ui/src/backend/internal/domain/services"
-	"github.com/alireza0/s-ui/src/backend/internal/infra/db/model"
-	logger "github.com/alireza0/s-ui/src/backend/internal/infra/logging"
+	service "github.com/alireza0/b-ui/src/backend/internal/domain/services"
+	"github.com/alireza0/b-ui/src/backend/internal/infra/db/model"
+	logger "github.com/alireza0/b-ui/src/backend/internal/infra/logging"
 
 	"github.com/gin-contrib/sessions"
 	"github.com/gin-contrib/sessions/cookie"
@@ -157,7 +157,7 @@ func TestClusterListsDomainsAndMembers(t *testing.T) {
 	if !bytes.Contains(domainsJSON, []byte(`"hubUrl":"https://hub.example.com"`)) {
 		t.Fatalf("expected hub URL in domains response, got %s", domainsJSON)
 	}
-	if !bytes.Contains(domainsJSON, []byte(`"supportedActions":["domain.cluster.changed","events","heartbeat","ping","info","action"]`)) {
+	if !bytes.Contains(domainsJSON, []byte(`"supportedActions":["domain.cluster.changed","events","heartbeat","ping","info","action","domain.panel.update.available"]`)) {
 		t.Fatalf("expected supported actions in domains response, got %s", domainsJSON)
 	}
 	if cluster.listMembersCalls != 1 {
@@ -431,7 +431,7 @@ func newTestClusterRouterWithUserService(userService apiUserService) (*gin.Engin
 	gin.SetMode(gin.TestMode)
 	logger.InitLogger(logging.ERROR)
 	router := gin.New()
-	router.Use(sessions.Sessions("s-ui", cookie.NewStore([]byte("test-secret"))))
+	router.Use(sessions.Sessions("b-ui", cookie.NewStore([]byte("test-secret"))))
 	cluster := &stubClusterAPIService{}
 	handler := &APIHandler{clusterService: cluster}
 	handler.ApiService.userService = userService

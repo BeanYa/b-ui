@@ -6,8 +6,11 @@ import (
 	"encoding/base64"
 	"encoding/json"
 	"errors"
+	"fmt"
+	"time"
 
-	"github.com/alireza0/s-ui/src/backend/internal/infra/db/model"
+	"github.com/alireza0/b-ui/src/backend/internal/domain/config"
+	"github.com/alireza0/b-ui/src/backend/internal/infra/db/model"
 )
 
 var errClusterMemberNotFound = errors.New("cluster member not found")
@@ -83,6 +86,7 @@ func VerifyClusterEnvelope(envelope *ClusterEnvelope, publicKey string) (*Cluste
 
 type clusterSyncStore interface {
 	GetMember(domainID uint, nodeID string) (*model.ClusterMember, error)
+	GetMembers(domainID uint) ([]model.ClusterMember, error)
 	SaveMember(*model.ClusterMember) error
 	ListMembers() ([]model.ClusterMember, error)
 	GetDomain(id uint) (*model.ClusterDomain, error)
@@ -92,6 +96,7 @@ type clusterSyncStore interface {
 
 type clusterBroadcaster interface {
 	BroadcastNotifyVersion(context.Context, int64, string) error
+	BroadcastUpdateAvailable(context.Context, uint, string, string, string) error
 }
 
 type clusterHubSyncer interface {
@@ -100,15 +105,17 @@ type clusterHubSyncer interface {
 }
 
 type ClusterSyncService struct {
-	store       clusterSyncStore
-	hubSyncer   clusterHubSyncer
-	broadcaster clusterBroadcaster
+	store        clusterSyncStore
+	hubSyncer    clusterHubSyncer
+	broadcaster  clusterBroadcaster
+	panelService *PanelService
 }
 
 func NewRuntimeClusterSyncService() ClusterSyncService {
 	return ClusterSyncService{
-		store:     &dbClusterSyncStore{},
-		hubSyncer: &ClusterHubSyncer{},
+		store:        &dbClusterSyncStore{},
+		hubSyncer:    &ClusterHubSyncer{},
+		panelService: &PanelService{},
 	}
 }
 
@@ -162,8 +169,61 @@ func (s *ClusterSyncService) PollAndNotifyVersion(ctx context.Context) error {
 		if err := s.hubSyncer.SyncDomain(ctx, &domain, version); err != nil {
 			return err
 		}
+
+		_ = s.CheckAndBroadcastUpdate(ctx, &domain)
 	}
 	return nil
+}
+
+func (s *ClusterSyncService) CheckAndBroadcastUpdate(ctx context.Context, domain *model.ClusterDomain) error {
+	members, err := s.store.GetMembers(domain.Id)
+	if err != nil {
+		return err
+	}
+
+	currentVersion := canonicalizeReleaseTag(config.GetVersion())
+	maxVersion := currentVersion
+	for _, member := range members {
+		mv := canonicalizeReleaseTag(member.PanelVersion)
+		if compareReleaseTags(mv, maxVersion) == "newer" {
+			maxVersion = mv
+		}
+	}
+
+	if compareReleaseTags(currentVersion, maxVersion) != "older" {
+		return nil
+	}
+
+	hubClient := &ClusterHubClient{}
+	secret, err := (&SettingService{}).GetSecret()
+	if err != nil {
+		return err
+	}
+	domainToken, err := DecryptClusterDomainToken(secret, domain.TokenEncrypted)
+	if err != nil {
+		return err
+	}
+	requestID := fmt.Sprintf("update-%d", time.Now().UnixNano())
+	claimResp, err := hubClient.ClaimUpdate(ctx, domain.HubURL, domain.Domain, domainToken, requestID, maxVersion)
+	if err != nil {
+		return err
+	}
+	if !claimResp.Proceed {
+		return nil
+	}
+
+	local, err := (&ClusterLocalIdentityService{}).GetOrCreate()
+	if err != nil {
+		return err
+	}
+	_, _ = hubClient.SetMemberStatus(ctx, domain.HubURL, domain.Domain, domainToken, requestID+"-status", local.NodeID, "offline", "")
+
+	if s.broadcaster != nil {
+		_ = s.broadcaster.BroadcastUpdateAvailable(ctx, domain.Id, domain.Domain, maxVersion, local.NodeID)
+	}
+
+	_, err = s.panelService.StartUpdate(maxVersion, true)
+	return err
 }
 
 func clusterEnvelopePayload(envelope *ClusterEnvelope) ([]byte, error) {

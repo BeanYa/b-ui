@@ -17,6 +17,8 @@ export interface ClusterMember {
   baseUrl: string
   lastVersion: number
   isLocal: boolean
+  panelVersion: string
+  status: string
 }
 
 export interface ClusterMemberConnection {

@@ -115,7 +115,7 @@ let intervalId:any
 // Navigation guard to check authentication state
 router.beforeEach(async (to) => {
   // Check the session cookie
-  const sessionCookie = document.cookie.split(';').find(cookie => cookie.trim().startsWith('s-ui='))
+  const sessionCookie = document.cookie.split(';').find(cookie => cookie.trim().startsWith('b-ui='))
   const isAuthenticated = !!sessionCookie
   const auth = useAuthStore()
 

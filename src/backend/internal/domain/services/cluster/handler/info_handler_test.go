@@ -4,7 +4,7 @@ import (
 	"context"
 	"testing"
 
-	clustertypes "github.com/alireza0/s-ui/src/backend/internal/domain/services/cluster/types"
+	clustertypes "github.com/alireza0/b-ui/src/backend/internal/domain/services/cluster/types"
 )
 
 func TestInfoHandler_ReturnsSupportedActions(t *testing.T) {

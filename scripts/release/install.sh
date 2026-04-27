@@ -11,19 +11,19 @@ PROJECT_NAME="${PROJECT_NAME:-B-UI}"
 RELEASE_BASE_URL="https://github.com/${REPO_OWNER}/${REPO_NAME}/releases"
 GITHUB_API_BASE_URL="https://api.github.com/repos/${REPO_OWNER}/${REPO_NAME}"
 SYSTEMD_DIR="${SYSTEMD_DIR:-/etc/systemd/system}"
-INSTALL_ROOT="${INSTALL_ROOT:-/usr/local/s-ui}"
+INSTALL_ROOT="${INSTALL_ROOT:-/usr/local/b-ui}"
 INSTALL_PARENT="$(dirname "${INSTALL_ROOT}")"
 CLI_NAME="${CLI_NAME:-b-ui}"
 CLI_PATH="${CLI_PATH:-/usr/bin/${CLI_NAME}}"
-LEGACY_CLI_PATH="${LEGACY_CLI_PATH:-/usr/bin/s-ui}"
+LEGACY_CLI_PATH="${LEGACY_CLI_PATH:-/usr/bin/b-ui}"
 SERVICE_NAME="${SERVICE_NAME:-b-ui}"
-LEGACY_SERVICE_NAME="${LEGACY_SERVICE_NAME:-s-ui}"
+LEGACY_SERVICE_NAME="${LEGACY_SERVICE_NAME:-b-ui}"
 INSTALL_COMMAND="bash <(curl -Ls https://raw.githubusercontent.com/${REPO_OWNER}/${REPO_NAME}/main/install.sh)"
 MIGRATE_COMMAND="${INSTALL_COMMAND} --migrate"
 FORCE_UPDATE_COMMAND="${INSTALL_COMMAND} --force-update"
 DB_FILE="${INSTALL_ROOT}/db/b-ui.db"
-LEGACY_DB_FILE="${INSTALL_ROOT}/db/s-ui.db"
-BACKUP_ROOT="${BACKUP_ROOT:-/var/backups/s-ui}"
+LEGACY_DB_FILE="${INSTALL_ROOT}/db/b-ui.db"
+BACKUP_ROOT="${BACKUP_ROOT:-/var/backups/b-ui}"
 DOWNLOAD_RETRY_COUNT="${DOWNLOAD_RETRY_COUNT:-8}"
 DOWNLOAD_RETRY_DELAY="${DOWNLOAD_RETRY_DELAY:-15}"
 MODE="install"
@@ -451,7 +451,7 @@ backup_existing_installation() {
     fi
 
     if [[ "${LEGACY_CLI_PATH}" != "${CLI_PATH}" && -f "${LEGACY_CLI_PATH}" ]]; then
-        cp -a "${LEGACY_CLI_PATH}" "${CURRENT_BACKUP_DIR}/legacy-s-ui-cli"
+        cp -a "${LEGACY_CLI_PATH}" "${CURRENT_BACKUP_DIR}/legacy-b-ui-cli"
     fi
 
     if [[ -f "${SYSTEMD_DIR}/${SERVICE_NAME}.service" ]]; then
@@ -490,8 +490,8 @@ rollback_installation() {
         chmod +x "${CLI_PATH}"
     fi
 
-    if [[ -f "${CURRENT_BACKUP_DIR}/legacy-s-ui-cli" ]]; then
-        cp -af "${CURRENT_BACKUP_DIR}/legacy-s-ui-cli" "${LEGACY_CLI_PATH}"
+    if [[ -f "${CURRENT_BACKUP_DIR}/legacy-b-ui-cli" ]]; then
+        cp -af "${CURRENT_BACKUP_DIR}/legacy-b-ui-cli" "${LEGACY_CLI_PATH}"
         chmod +x "${LEGACY_CLI_PATH}"
     fi
 
@@ -612,7 +612,7 @@ check_update_requirement() {
     fi
 
     if [[ "${INSTALLATION_KIND}" == "legacy-only" ]]; then
-        echo -e "${red}Detected s-ui but b-ui is not installed. Run migration first.${plain}"
+        echo -e "${red}Detected b-ui but b-ui is not installed. Run migration first.${plain}"
         echo -e "${yellow}${MIGRATE_COMMAND}${plain}"
         exit 1
     fi
@@ -706,8 +706,8 @@ resolve_package_dir() {
         return 0
     fi
 
-    if [[ -d "/tmp/s-ui" ]]; then
-        printf '%s\n' "/tmp/s-ui"
+    if [[ -d "/tmp/b-ui" ]]; then
+        printf '%s\n' "/tmp/b-ui"
         return 0
     fi
 
@@ -722,8 +722,8 @@ resolve_cli_script() {
         return 0
     fi
 
-    if [[ -f "${package_dir}/s-ui.sh" ]]; then
-        printf '%s\n' "${package_dir}/s-ui.sh"
+    if [[ -f "${package_dir}/b-ui.sh" ]]; then
+        printf '%s\n' "${package_dir}/b-ui.sh"
         return 0
     fi
 

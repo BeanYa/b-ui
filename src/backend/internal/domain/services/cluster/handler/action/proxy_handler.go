@@ -5,8 +5,8 @@ import (
 	"encoding/json"
 	"fmt"
 
-	clustertypes "github.com/alireza0/s-ui/src/backend/internal/domain/services/cluster/types"
-	"github.com/alireza0/s-ui/src/backend/internal/domain/services/cluster/router"
+	clustertypes "github.com/alireza0/b-ui/src/backend/internal/domain/services/cluster/types"
+	"github.com/alireza0/b-ui/src/backend/internal/domain/services/cluster/router"
 )
 
 // ProxyCreatePayload is the payload for proxy.create action.

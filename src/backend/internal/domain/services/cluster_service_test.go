@@ -11,8 +11,8 @@ import (
 	"strings"
 	"testing"
 
-	database "github.com/alireza0/s-ui/src/backend/internal/infra/db"
-	"github.com/alireza0/s-ui/src/backend/internal/infra/db/model"
+	database "github.com/alireza0/b-ui/src/backend/internal/infra/db"
+	"github.com/alireza0/b-ui/src/backend/internal/infra/db/model"
 )
 
 func TestClusterServiceRegisterPersistsHubURLOnDomain(t *testing.T) {
@@ -390,7 +390,7 @@ func TestClusterServiceListDomainsIncludesSupportedActions(t *testing.T) {
 	if domains[0].CommunicationProtocolVersion != "v1" {
 		t.Fatalf("expected protocol version, got %q", domains[0].CommunicationProtocolVersion)
 	}
-	expectedActions := []string{"domain.cluster.changed", "events", "heartbeat", "ping", "info", "action"}
+	expectedActions := []string{"domain.cluster.changed", "events", "heartbeat", "ping", "info", "action", "domain.panel.update.available"}
 	if !reflect.DeepEqual(domains[0].SupportedActions, expectedActions) {
 		t.Fatalf("expected supported actions %#v, got %#v", expectedActions, domains[0].SupportedActions)
 	}
@@ -753,8 +753,10 @@ type stubClusterHubClient struct {
 	lastSnapshotHubURL  string
 	lastSnapshotDomain  string
 	lastSnapshotToken   string
-	lastRegisterRequest ClusterHubRegisterNodeRequest
-	lastDeleteMemberID  string
+	lastRegisterRequest   ClusterHubRegisterNodeRequest
+	lastDeleteMemberID    string
+	lastClaimTargetVersion string
+	claimResponse         *ClusterHubClaimUpdateResponse
 }
 
 func (s *stubClusterHubClient) RegisterNode(_ context.Context, hubURL string, request ClusterHubRegisterNodeRequest) (*ClusterHubOperationResponse, error) {
@@ -788,6 +790,18 @@ func (s *stubClusterHubClient) DeleteMember(_ context.Context, _ string, _ strin
 		return s.deleteResponse, nil
 	}
 	return &ClusterHubOperationResponse{OperationID: "op-delete", Status: "completed"}, nil
+}
+
+func (s *stubClusterHubClient) ClaimUpdate(_ context.Context, _ string, _ string, _ string, _ string, targetVersion string) (*ClusterHubClaimUpdateResponse, error) {
+	s.lastClaimTargetVersion = targetVersion
+	if s.claimResponse != nil {
+		return s.claimResponse, nil
+	}
+	return &ClusterHubClaimUpdateResponse{Proceed: true, TargetVersion: targetVersion}, nil
+}
+
+func (s *stubClusterHubClient) SetMemberStatus(_ context.Context, _ string, _ string, _ string, _ string, _ string, _ string, _ string) (*ClusterHubMemberStatusResponse, error) {
+	return &ClusterHubMemberStatusResponse{OK: true}, nil
 }
 
 type stubClusterSecretProvider struct{ secret []byte }

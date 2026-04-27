@@ -1,6 +1,6 @@
 # B-UI Frontend
 
-`B-UI Frontend` 是当前主仓库 `BeanYa/b-ui` 内直接维护的前端源码目录，位于 `src/frontend/`，来源于 [上游前端仓库](https://github.com/alireza0/s-ui-frontend)，并在这个 fork 中继续做视觉和交互层的定制。
+`B-UI Frontend` 是当前主仓库 `BeanYa/b-ui` 内直接维护的前端源码目录，位于 `src/frontend/`，来源于 [上游前端仓库](https://github.com/alireza0/b-ui-frontend)，并在这个 fork 中继续做视觉和交互层的定制。
 
 ## 技术栈
 

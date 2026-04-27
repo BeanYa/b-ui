@@ -8,7 +8,7 @@ import (
 	"fmt"
 	"testing"
 
-	"github.com/alireza0/s-ui/src/backend/internal/infra/db/model"
+	"github.com/alireza0/b-ui/src/backend/internal/infra/db/model"
 )
 
 func TestClusterMessageEnvelopeAcceptsSignedSyncNotifyVersionV1(t *testing.T) {
@@ -171,6 +171,16 @@ func (s *stubClusterSyncStore) GetMember(domainID uint, nodeID string) (*model.C
 	return &copy, nil
 }
 
+func (s *stubClusterSyncStore) GetMembers(domainID uint) ([]model.ClusterMember, error) {
+	var result []model.ClusterMember
+	for _, member := range s.members {
+		if member.DomainID == domainID {
+			result = append(result, *member)
+		}
+	}
+	return result, nil
+}
+
 func (s *stubClusterSyncStore) SaveMember(member *model.ClusterMember) error {
 	copy := *member
 	s.members[stubClusterSyncKey(member.DomainID, member.NodeID)] = &copy
@@ -231,6 +241,10 @@ func (s *stubClusterBroadcaster) BroadcastNotifyVersion(_ context.Context, versi
 	s.calls++
 	s.versions = append(s.versions, version)
 	s.excludes = append(s.excludes, excludeNodeID)
+	return nil
+}
+
+func (s *stubClusterBroadcaster) BroadcastUpdateAvailable(_ context.Context, _ uint, _ string, _ string, _ string) error {
 	return nil
 }
 

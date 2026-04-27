@@ -94,6 +94,8 @@ type ClusterMember struct {
 	NodeID             string         `json:"nodeId" gorm:"uniqueIndex:idx_cluster_domain_node"`
 	Name               string         `json:"name"`
 	DisplayName        string         `json:"displayName"`
+	PanelVersion       string         `json:"panelVersion"`
+	Status             string         `json:"status" gorm:"default:online"`
 	BaseURL            string         `json:"baseUrl"`
 	PublicKey          string         `json:"publicKey"`
 	PeerTokenEncrypted string         `json:"-"`
