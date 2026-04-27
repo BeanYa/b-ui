@@ -4,8 +4,8 @@ import (
 	"encoding/json"
 	"time"
 
-	logger "github.com/alireza0/b-ui/src/backend/internal/infra/logging"
-	"github.com/alireza0/b-ui/src/backend/internal/shared/util/common"
+	logger "github.com/BeanYa/b-ui/src/backend/internal/infra/logging"
+	"github.com/BeanYa/b-ui/src/backend/internal/shared/util/common"
 
 	"github.com/gin-gonic/gin"
 )

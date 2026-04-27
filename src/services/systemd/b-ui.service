@@ -5,8 +5,8 @@ Wants=network.target
 
 [Service]
 Type=simple
-WorkingDirectory=/usr/local/s-ui/
-ExecStart=/usr/local/s-ui/sui
+WorkingDirectory=/usr/local/b-ui/
+ExecStart=/usr/local/b-ui/sui
 Restart=on-failure
 RestartSec=10s
 

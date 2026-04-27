@@ -3,7 +3,7 @@ package handler
 import (
 	"context"
 
-	clustertypes "github.com/alireza0/b-ui/src/backend/internal/domain/services/cluster/types"
+	clustertypes "github.com/BeanYa/b-ui/src/backend/internal/domain/services/cluster/types"
 )
 
 // NewInfoHandler returns an ActionHandler that responds with the given supported actions.

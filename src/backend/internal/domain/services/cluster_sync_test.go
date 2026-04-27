@@ -8,7 +8,7 @@ import (
 	"fmt"
 	"testing"
 
-	"github.com/alireza0/b-ui/src/backend/internal/infra/db/model"
+	"github.com/BeanYa/b-ui/src/backend/internal/infra/db/model"
 )
 
 func TestClusterMessageEnvelopeAcceptsSignedSyncNotifyVersionV1(t *testing.T) {

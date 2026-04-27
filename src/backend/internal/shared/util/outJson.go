@@ -3,9 +3,9 @@ package util
 import (
 	"encoding/json"
 
-	"github.com/alireza0/b-ui/src/backend/internal/shared/util/common"
+	"github.com/BeanYa/b-ui/src/backend/internal/shared/util/common"
 
-	"github.com/alireza0/b-ui/src/backend/internal/infra/db/model"
+	"github.com/BeanYa/b-ui/src/backend/internal/infra/db/model"
 )
 
 // Fill Inbound's out_json

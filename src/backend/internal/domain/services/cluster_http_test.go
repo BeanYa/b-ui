@@ -8,7 +8,7 @@ import (
 	"sync/atomic"
 	"testing"
 
-	"github.com/alireza0/b-ui/src/backend/internal/infra/db/model"
+	"github.com/BeanYa/b-ui/src/backend/internal/infra/db/model"
 )
 
 func TestClusterHubClientRejectsNon2xxResponses(t *testing.T) {

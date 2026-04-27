@@ -3,9 +3,9 @@ package sub
 import (
 	"strings"
 
-	service "github.com/alireza0/b-ui/src/backend/internal/domain/services"
-	logger "github.com/alireza0/b-ui/src/backend/internal/infra/logging"
-	"github.com/alireza0/b-ui/src/backend/internal/shared/util"
+	service "github.com/BeanYa/b-ui/src/backend/internal/domain/services"
+	logger "github.com/BeanYa/b-ui/src/backend/internal/infra/logging"
+	"github.com/BeanYa/b-ui/src/backend/internal/shared/util"
 
 	"gopkg.in/yaml.v3"
 )

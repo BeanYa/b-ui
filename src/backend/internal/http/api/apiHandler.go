@@ -3,8 +3,8 @@ package api
 import (
 	"strings"
 
-	service "github.com/alireza0/b-ui/src/backend/internal/domain/services"
-	"github.com/alireza0/b-ui/src/backend/internal/shared/util/common"
+	service "github.com/BeanYa/b-ui/src/backend/internal/domain/services"
+	"github.com/BeanYa/b-ui/src/backend/internal/shared/util/common"
 
 	"github.com/gin-gonic/gin"
 )

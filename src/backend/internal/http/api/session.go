@@ -3,7 +3,7 @@ package api
 import (
 	"encoding/gob"
 
-	"github.com/alireza0/b-ui/src/backend/internal/infra/db/model"
+	"github.com/BeanYa/b-ui/src/backend/internal/infra/db/model"
 
 	"github.com/gin-contrib/sessions"
 	"github.com/gin-gonic/gin"

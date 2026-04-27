@@ -4,8 +4,8 @@ import (
 	"net/http"
 	"strings"
 
-	service "github.com/alireza0/b-ui/src/backend/internal/domain/services"
-	"github.com/alireza0/b-ui/src/backend/internal/domain/services/ping"
+	service "github.com/BeanYa/b-ui/src/backend/internal/domain/services"
+	"github.com/BeanYa/b-ui/src/backend/internal/domain/services/ping"
 
 	"github.com/gin-gonic/gin"
 )

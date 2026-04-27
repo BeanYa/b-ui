@@ -6,10 +6,10 @@ import (
 	"os"
 	"strings"
 
-	database "github.com/alireza0/b-ui/src/backend/internal/infra/db"
-	"github.com/alireza0/b-ui/src/backend/internal/infra/db/model"
-	"github.com/alireza0/b-ui/src/backend/internal/shared/util"
-	"github.com/alireza0/b-ui/src/backend/internal/shared/util/common"
+	database "github.com/BeanYa/b-ui/src/backend/internal/infra/db"
+	"github.com/BeanYa/b-ui/src/backend/internal/infra/db/model"
+	"github.com/BeanYa/b-ui/src/backend/internal/shared/util"
+	"github.com/BeanYa/b-ui/src/backend/internal/shared/util/common"
 
 	"gorm.io/gorm"
 )

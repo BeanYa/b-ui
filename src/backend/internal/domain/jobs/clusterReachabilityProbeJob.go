@@ -3,8 +3,8 @@ package cronjob
 import (
 	"context"
 
-	service "github.com/alireza0/b-ui/src/backend/internal/domain/services"
-	logger "github.com/alireza0/b-ui/src/backend/internal/infra/logging"
+	service "github.com/BeanYa/b-ui/src/backend/internal/domain/services"
+	logger "github.com/BeanYa/b-ui/src/backend/internal/infra/logging"
 )
 
 type ClusterReachabilityProbeJob struct {

@@ -7,8 +7,8 @@ import (
 	"net/http"
 	"strings"
 
-	logger "github.com/alireza0/b-ui/src/backend/internal/infra/logging"
-	"github.com/alireza0/b-ui/src/backend/internal/shared/util/common"
+	logger "github.com/BeanYa/b-ui/src/backend/internal/infra/logging"
+	"github.com/BeanYa/b-ui/src/backend/internal/shared/util/common"
 )
 
 func GetExternalLink(url string) string {

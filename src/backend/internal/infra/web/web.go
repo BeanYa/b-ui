@@ -13,12 +13,12 @@ import (
 	"strings"
 	"time"
 
-	"github.com/alireza0/b-ui/src/backend/internal/domain/config"
-	service "github.com/alireza0/b-ui/src/backend/internal/domain/services"
-	"github.com/alireza0/b-ui/src/backend/internal/http/api"
-	"github.com/alireza0/b-ui/src/backend/internal/http/middleware"
-	logger "github.com/alireza0/b-ui/src/backend/internal/infra/logging"
-	"github.com/alireza0/b-ui/src/backend/internal/infra/network"
+	"github.com/BeanYa/b-ui/src/backend/internal/domain/config"
+	service "github.com/BeanYa/b-ui/src/backend/internal/domain/services"
+	"github.com/BeanYa/b-ui/src/backend/internal/http/api"
+	"github.com/BeanYa/b-ui/src/backend/internal/http/middleware"
+	logger "github.com/BeanYa/b-ui/src/backend/internal/infra/logging"
+	"github.com/BeanYa/b-ui/src/backend/internal/infra/network"
 
 	"github.com/gin-contrib/gzip"
 	"github.com/gin-contrib/sessions"

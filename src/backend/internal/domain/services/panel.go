@@ -6,7 +6,7 @@ import (
 	"syscall"
 	"time"
 
-	logger "github.com/alireza0/b-ui/src/backend/internal/infra/logging"
+	logger "github.com/BeanYa/b-ui/src/backend/internal/infra/logging"
 )
 
 type PanelService struct {

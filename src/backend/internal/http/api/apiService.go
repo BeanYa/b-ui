@@ -6,11 +6,11 @@ import (
 	"strings"
 	"time"
 
-	service "github.com/alireza0/b-ui/src/backend/internal/domain/services"
-	database "github.com/alireza0/b-ui/src/backend/internal/infra/db"
-	"github.com/alireza0/b-ui/src/backend/internal/infra/db/model"
-	logger "github.com/alireza0/b-ui/src/backend/internal/infra/logging"
-	"github.com/alireza0/b-ui/src/backend/internal/shared/util"
+	service "github.com/BeanYa/b-ui/src/backend/internal/domain/services"
+	database "github.com/BeanYa/b-ui/src/backend/internal/infra/db"
+	"github.com/BeanYa/b-ui/src/backend/internal/infra/db/model"
+	logger "github.com/BeanYa/b-ui/src/backend/internal/infra/logging"
+	"github.com/BeanYa/b-ui/src/backend/internal/shared/util"
 
 	"github.com/gin-gonic/gin"
 )

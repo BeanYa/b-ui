@@ -9,8 +9,8 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/alireza0/b-ui/src/backend/internal/domain/config"
-	"github.com/alireza0/b-ui/src/backend/internal/infra/db/model"
+	"github.com/BeanYa/b-ui/src/backend/internal/domain/config"
+	"github.com/BeanYa/b-ui/src/backend/internal/infra/db/model"
 )
 
 var errClusterMemberNotFound = errors.New("cluster member not found")

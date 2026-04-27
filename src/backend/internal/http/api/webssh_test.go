@@ -10,9 +10,9 @@ import (
 	"testing"
 	"time"
 
-	service "github.com/alireza0/b-ui/src/backend/internal/domain/services"
-	"github.com/alireza0/b-ui/src/backend/internal/infra/db/model"
-	logger "github.com/alireza0/b-ui/src/backend/internal/infra/logging"
+	service "github.com/BeanYa/b-ui/src/backend/internal/domain/services"
+	"github.com/BeanYa/b-ui/src/backend/internal/infra/db/model"
+	logger "github.com/BeanYa/b-ui/src/backend/internal/infra/logging"
 	"github.com/coder/websocket"
 	"github.com/coder/websocket/wsjson"
 	"github.com/gin-contrib/sessions"

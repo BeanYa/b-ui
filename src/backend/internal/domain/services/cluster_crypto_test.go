@@ -5,7 +5,7 @@ import (
 	"encoding/base64"
 	"testing"
 
-	"github.com/alireza0/b-ui/src/backend/internal/infra/db/model"
+	"github.com/BeanYa/b-ui/src/backend/internal/infra/db/model"
 )
 
 func TestClusterDomainTokenCodecRoundTrip(t *testing.T) {

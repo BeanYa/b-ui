@@ -7,7 +7,7 @@ import (
 	"io"
 	"time"
 
-	"github.com/alireza0/b-ui/src/backend/internal/shared/util/common"
+	"github.com/BeanYa/b-ui/src/backend/internal/shared/util/common"
 
 	"github.com/sagernet/sing-box/adapter"
 	"github.com/sagernet/sing-box/adapter/endpoint"

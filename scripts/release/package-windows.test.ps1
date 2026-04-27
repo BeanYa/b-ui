@@ -42,11 +42,11 @@ if ($windowsWorkflow -match 'github\.com/alireza0/s-ui/config\.buildVersion' -or
     throw 'release workflows still stamp the old buildVersion linker path'
 }
 
-if ($windowsWorkflow -notmatch 'github\.com/alireza0/s-ui/src/backend/internal/domain/config\.buildVersion') {
+if ($windowsWorkflow -notmatch 'github\.com/BeanYa/b-ui/src/backend/internal/domain/config\.buildVersion') {
     throw 'windows workflow should stamp the new buildVersion linker path'
 }
 
-if ($releaseWorkflow -notmatch 'github\.com/alireza0/s-ui/src/backend/internal/domain/config\.buildVersion') {
+if ($releaseWorkflow -notmatch 'github\.com/BeanYa/b-ui/src/backend/internal/domain/config\.buildVersion') {
     throw 'release workflow should stamp the new buildVersion linker path'
 }
 

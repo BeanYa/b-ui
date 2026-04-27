@@ -8,9 +8,9 @@ import (
 	"sync"
 	"time"
 
-	"github.com/alireza0/b-ui/src/backend/internal/domain/config"
-	service "github.com/alireza0/b-ui/src/backend/internal/domain/services"
-	database "github.com/alireza0/b-ui/src/backend/internal/infra/db"
+	"github.com/BeanYa/b-ui/src/backend/internal/domain/config"
+	service "github.com/BeanYa/b-ui/src/backend/internal/domain/services"
+	database "github.com/BeanYa/b-ui/src/backend/internal/infra/db"
 
 	"github.com/shirou/gopsutil/v4/net"
 )

@@ -8,7 +8,7 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/alireza0/b-ui/src/backend/internal/shared/util/common"
+	"github.com/BeanYa/b-ui/src/backend/internal/shared/util/common"
 )
 
 func GetOutbound(uri string, i int) (*map[string]interface{}, string, error) {

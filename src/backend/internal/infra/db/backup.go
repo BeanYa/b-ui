@@ -12,11 +12,11 @@ import (
 	"syscall"
 	"time"
 
-	"github.com/alireza0/b-ui/src/backend/internal/cli/migration"
-	"github.com/alireza0/b-ui/src/backend/internal/domain/config"
-	"github.com/alireza0/b-ui/src/backend/internal/infra/db/model"
-	logger "github.com/alireza0/b-ui/src/backend/internal/infra/logging"
-	"github.com/alireza0/b-ui/src/backend/internal/shared/util/common"
+	"github.com/BeanYa/b-ui/src/backend/internal/cli/migration"
+	"github.com/BeanYa/b-ui/src/backend/internal/domain/config"
+	"github.com/BeanYa/b-ui/src/backend/internal/infra/db/model"
+	logger "github.com/BeanYa/b-ui/src/backend/internal/infra/logging"
+	"github.com/BeanYa/b-ui/src/backend/internal/shared/util/common"
 
 	"gorm.io/driver/sqlite"
 	"gorm.io/gorm"

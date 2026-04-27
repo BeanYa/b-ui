@@ -8,7 +8,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/alireza0/b-ui/src/backend/internal/infra/db/model"
+	"github.com/BeanYa/b-ui/src/backend/internal/infra/db/model"
 )
 
 func TestPeerMessagePayloadHashIsStable(t *testing.T) {

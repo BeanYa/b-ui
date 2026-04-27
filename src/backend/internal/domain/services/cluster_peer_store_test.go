@@ -6,8 +6,8 @@ import (
 	"strings"
 	"testing"
 
-	database "github.com/alireza0/b-ui/src/backend/internal/infra/db"
-	"github.com/alireza0/b-ui/src/backend/internal/infra/db/model"
+	database "github.com/BeanYa/b-ui/src/backend/internal/infra/db"
+	"github.com/BeanYa/b-ui/src/backend/internal/infra/db/model"
 )
 
 func TestMemoryPeerStoreRejectsDifferentPayloadForSameMessage(t *testing.T) {

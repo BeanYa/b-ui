@@ -14,7 +14,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/alireza0/b-ui/src/backend/internal/domain/config"
+	"github.com/BeanYa/b-ui/src/backend/internal/domain/config"
 )
 
 const (

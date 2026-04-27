@@ -14,12 +14,12 @@ import (
 
 	"github.com/gin-gonic/gin"
 
-	"github.com/alireza0/b-ui/src/backend/internal/domain/config"
-	"github.com/alireza0/b-ui/src/backend/internal/domain/services/cluster"
-	"github.com/alireza0/b-ui/src/backend/internal/domain/services/cluster/router"
-	clustertypes "github.com/alireza0/b-ui/src/backend/internal/domain/services/cluster/types"
-	database "github.com/alireza0/b-ui/src/backend/internal/infra/db"
-	"github.com/alireza0/b-ui/src/backend/internal/infra/db/model"
+	"github.com/BeanYa/b-ui/src/backend/internal/domain/config"
+	"github.com/BeanYa/b-ui/src/backend/internal/domain/services/cluster"
+	"github.com/BeanYa/b-ui/src/backend/internal/domain/services/cluster/router"
+	clustertypes "github.com/BeanYa/b-ui/src/backend/internal/domain/services/cluster/types"
+	database "github.com/BeanYa/b-ui/src/backend/internal/infra/db"
+	"github.com/BeanYa/b-ui/src/backend/internal/infra/db/model"
 	"github.com/gofrs/uuid/v5"
 )
 

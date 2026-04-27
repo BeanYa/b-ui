@@ -1,6 +1,6 @@
 package cronjob
 
-import service "github.com/alireza0/b-ui/src/backend/internal/domain/services"
+import service "github.com/BeanYa/b-ui/src/backend/internal/domain/services"
 
 type ClusterPeerScheduleJob struct {
 	service service.ClusterPeerScheduleService

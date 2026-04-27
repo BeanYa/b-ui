@@ -1,9 +1,9 @@
 package cluster
 
 import (
-	"github.com/alireza0/b-ui/src/backend/internal/domain/services/cluster/handler/action"
-	"github.com/alireza0/b-ui/src/backend/internal/domain/services/cluster/router"
-	clustertypes "github.com/alireza0/b-ui/src/backend/internal/domain/services/cluster/types"
+	"github.com/BeanYa/b-ui/src/backend/internal/domain/services/cluster/handler/action"
+	"github.com/BeanYa/b-ui/src/backend/internal/domain/services/cluster/router"
+	clustertypes "github.com/BeanYa/b-ui/src/backend/internal/domain/services/cluster/types"
 )
 
 // Runtime wires together the action router and all handlers.
