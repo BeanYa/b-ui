@@ -41,6 +41,57 @@ bash <(curl -Ls https://raw.githubusercontent.com/BeanYa/b-ui/main/install.sh) v
 - 也可以在安装时修改管理员用户名和密码。
 - 只有在全新安装时拒绝继续后续交互式修改流程，脚本才会生成随机管理员凭据并打印一次。
 
+### 非交互式安装（带参数）
+
+支持通过命令行参数直接完成安装，无需交互式输入：
+
+```sh
+bash <(curl -Ls https://raw.githubusercontent.com/BeanYa/b-ui/main/install.sh) \
+  --user admin \
+  --pwd mypassword \
+  --panel-port 8080 \
+  --panel-path /admin/ \
+  --sub-port 8081 \
+  --sub-path /sub/
+```
+
+**可用参数：**
+
+| 参数 | 说明 | 默认值 |
+|------|------|--------|
+| `--user` | 管理员用户名 | 不提供则生成随机凭据 |
+| `--pwd` | 管理员密码 | 不提供则生成随机凭据 |
+| `--panel-port` | 面板端口 | `2095` |
+| `--panel-path` | 面板安全入口路径 | `/app/` |
+| `--sub-port` | 订阅端口 | `2096` |
+| `--sub-path` | 订阅入口路径 | `/sub/` |
+| `--domain` | 面板域名 | 不提供则使用 IP 模式 |
+| `--cert-path` | SSL 证书文件路径 | 需与 `--key-path` 同时提供 |
+| `--key-path` | SSL 私钥文件路径 | 需与 `--cert-path` 同时提供 |
+
+**域名与证书行为：**
+
+- **不提供 `--domain`**：使用 IP 模式，面板通过 `http://<IP>:<port><path>` 访问。
+- **提供 `--domain` 但不提供 `--cert-path` / `--key-path`**：安装脚本自动使用 ACME（acme.sh + Let's Encrypt）申请证书并启用自动续期。证书安装到 `/root/cert/<domain>/`，面板配置自动回填证书路径。
+- **同时提供 `--domain`、`--cert-path`、`--key-path`**：使用你已有的证书文件，直接写入面板配置。脚本会校验文件是否存在。
+- **只提供 `--cert-path` 或只提供 `--key-path` 中的一个**：脚本报错退出，要求两者必须同时提供。
+
+**BBR 优化：**
+
+- 全新安装时默认自动启用 BBR TCP 拥塞控制优化（`net.core.default_qdisc=fq` + `net.ipv4.tcp_congestion_control=bbr`）。
+- 如果系统已启用 BBR 则跳过。
+- 不影响 `--update` / `--force-update` 流程。
+
+**参数对 `--migrate` 也生效：**
+
+```sh
+bash <(curl -Ls https://raw.githubusercontent.com/BeanYa/b-ui/main/install.sh) --migrate \
+  --domain example.com \
+  --panel-port 443
+```
+
+迁移时现有设置会被保留，但提供的参数会作为覆盖应用到对应设置字段。
+
 ### Docker 部署引导
 
 Docker 模式默认使用官方 GHCR 镜像 `ghcr.io/beanya/b-ui:latest`。入口脚本是仓库内的 `scripts/release/install-docker.sh`。

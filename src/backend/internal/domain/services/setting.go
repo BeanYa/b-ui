@@ -187,6 +187,10 @@ func (s *SettingService) GetWebDomain() (string, error) {
 	return s.getString("webDomain")
 }
 
+func (s *SettingService) SetWebDomain(domain string) error {
+	return s.setString("webDomain", domain)
+}
+
 func (s *SettingService) GetPort() (int, error) {
 	return s.getInt("webPort")
 }
@@ -199,8 +203,16 @@ func (s *SettingService) GetCertFile() (string, error) {
 	return s.getString("webCertFile")
 }
 
+func (s *SettingService) SetCertFile(path string) error {
+	return s.setString("webCertFile", path)
+}
+
 func (s *SettingService) GetKeyFile() (string, error) {
 	return s.getString("webKeyFile")
+}
+
+func (s *SettingService) SetKeyFile(path string) error {
+	return s.setString("webKeyFile", path)
 }
 
 func (s *SettingService) GetWebPath() (string, error) {
@@ -363,12 +375,24 @@ func (s *SettingService) GetSubDomain() (string, error) {
 	return s.getString("subDomain")
 }
 
+func (s *SettingService) SetSubDomain(domain string) error {
+	return s.setString("subDomain", domain)
+}
+
 func (s *SettingService) GetSubCertFile() (string, error) {
 	return s.getString("subCertFile")
 }
 
+func (s *SettingService) SetSubCertFile(path string) error {
+	return s.setString("subCertFile", path)
+}
+
 func (s *SettingService) GetSubKeyFile() (string, error) {
 	return s.getString("subKeyFile")
+}
+
+func (s *SettingService) SetSubKeyFile(path string) error {
+	return s.setString("subKeyFile", path)
 }
 
 func (s *SettingService) GetSubUpdates() (int, error) {

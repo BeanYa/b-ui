@@ -34,16 +34,26 @@ CURRENT_BACKUP_DIR=""
 PREVIOUS_SERVICE_NAME=""
 release=""
 
+# Non-interactive installation parameters
+ARG_USER=""
+ARG_PWD=""
+ARG_PANEL_PORT=""
+ARG_PANEL_PATH=""
+ARG_SUB_PORT=""
+ARG_SUB_PATH=""
+ARG_DOMAIN=""
+ARG_CERT_PATH=""
+ARG_KEY_PATH=""
+
 cur_dir=$(pwd)
 
 show_usage() {
     cat <<'EOF'
 Usage:
-  bash install.sh
-  bash install.sh <version>
-  bash install.sh --migrate [version]
-  bash install.sh --update [version]
-  bash install.sh --force-update [version]
+  bash install.sh [OPTIONS] [VERSION]
+  bash install.sh --migrate [OPTIONS] [VERSION]
+  bash install.sh --update [VERSION]
+  bash install.sh --force-update [VERSION]
 
 Modes:
   default         Fresh install or manual reinstall. Fresh installs use the b-ui command and b-ui service by default.
@@ -52,12 +62,30 @@ Modes:
   --update        Update an existing b-ui install only when the target version is newer/different.
   --force-update  Reinstall the target version even when the current version already matches.
 
+Options:
+  --user            Admin username
+  --pwd             Admin password
+  --panel-port      Panel port (default: 2095)
+  --panel-path      Panel security entry path (default: /app/)
+  --sub-port        Subscription port (default: 2096)
+  --sub-path        Subscription entry path (default: /sub/)
+  --domain          Domain name for panel (if not provided, IP mode is used)
+  --cert-path       SSL certificate file path (requires --key-path)
+  --key-path        SSL key file path (requires --cert-path)
+
+  If --domain is provided without --cert-path and --key-path, ACME will be used
+  to automatically apply for and renew the certificate.
+  If --domain is not provided, IP mode is used by default.
+  BBR optimization is enabled by default on fresh installs.
+
 Examples:
   bash install.sh
+  bash install.sh --panel-port 8080 --panel-path /admin/
+  bash install.sh --domain example.com
+  bash install.sh --domain example.com --cert-path /etc/certs/fullchain.pem --key-path /etc/certs/privkey.pem
+  bash install.sh --user admin --pwd mypassword --panel-port 8080
+  bash install.sh --migrate --domain example.com
   bash install.sh v0.0.1
-  bash install.sh --migrate
-  bash install.sh --update
-  bash install.sh --force-update v0.0.1
 EOF
 }
 
@@ -65,24 +93,69 @@ parse_args() {
     MODE="install"
     TARGET_VERSION=""
 
-    for arg in "$@"; do
-        case "$arg" in
+    while [[ $# -gt 0 ]]; do
+        case "$1" in
         -h | --help)
             show_usage
             exit 0
             ;;
         --migrate | --auto-migrate | --keep-config)
             MODE="migrate"
+            shift
             ;;
         --update)
             MODE="update"
+            shift
             ;;
         --force-update)
             MODE="force-update"
+            shift
+            ;;
+        --user)
+            ARG_USER="$2"
+            shift 2
+            ;;
+        --pwd)
+            ARG_PWD="$2"
+            shift 2
+            ;;
+        --panel-port)
+            ARG_PANEL_PORT="$2"
+            shift 2
+            ;;
+        --panel-path)
+            ARG_PANEL_PATH="$2"
+            shift 2
+            ;;
+        --sub-port)
+            ARG_SUB_PORT="$2"
+            shift 2
+            ;;
+        --sub-path)
+            ARG_SUB_PATH="$2"
+            shift 2
+            ;;
+        --domain)
+            ARG_DOMAIN="$2"
+            shift 2
+            ;;
+        --cert-path)
+            ARG_CERT_PATH="$2"
+            shift 2
+            ;;
+        --key-path)
+            ARG_KEY_PATH="$2"
+            shift 2
+            ;;
+        --*)
+            echo -e "${red}Fatal error: ${plain} unknown option: $1"
+            show_usage
+            exit 1
             ;;
         *)
             if [[ -z "${TARGET_VERSION}" ]]; then
-                TARGET_VERSION="$arg"
+                TARGET_VERSION="$1"
+                shift
             else
                 echo -e "${red}Fatal error: ${plain} too many arguments: $*"
                 exit 1
@@ -90,6 +163,151 @@ parse_args() {
             ;;
         esac
     done
+}
+
+validate_cert_params() {
+    if [[ -n "${ARG_CERT_PATH}" && -z "${ARG_KEY_PATH}" ]]; then
+        echo -e "${red}Fatal error: ${plain} --cert-path requires --key-path to also be provided"
+        exit 1
+    fi
+    if [[ -z "${ARG_CERT_PATH}" && -n "${ARG_KEY_PATH}" ]]; then
+        echo -e "${red}Fatal error: ${plain} --key-path requires --cert-path to also be provided"
+        exit 1
+    fi
+    if [[ -n "${ARG_CERT_PATH}" && -n "${ARG_KEY_PATH}" ]]; then
+        if [[ ! -f "${ARG_CERT_PATH}" ]]; then
+            echo -e "${red}Fatal error: ${plain} certificate file not found: ${ARG_CERT_PATH}"
+            exit 1
+        fi
+        if [[ ! -f "${ARG_KEY_PATH}" ]]; then
+            echo -e "${red}Fatal error: ${plain} key file not found: ${ARG_KEY_PATH}"
+            exit 1
+        fi
+    fi
+}
+
+enable_bbr() {
+    if grep -q "net.core.default_qdisc=fq" /etc/sysctl.conf && grep -q "net.ipv4.tcp_congestion_control=bbr" /etc/sysctl.conf; then
+        echo -e "${green}BBR is already enabled!${plain}"
+        return 0
+    fi
+
+    echo -e "${yellow}Enabling BBR optimization...${plain}"
+
+    case "${release}" in
+    ubuntu | debian | armbian)
+        apt-get update -yqq && apt-get install -yqq --no-install-recommends ca-certificates
+        ;;
+    centos | almalinux | rocky | oracle)
+        yum -y update && yum -y install ca-certificates
+        ;;
+    fedora)
+        dnf -y update && dnf -y install ca-certificates
+        ;;
+    arch | manjaro | parch)
+        pacman -Sy --noconfirm ca-certificates
+        ;;
+    opensuse-tumbleweed)
+        zypper refresh && zypper -q install -y ca-certificates
+        ;;
+    *)
+        echo -e "${yellow}Unsupported OS for automatic BBR setup. Skipping BBR.${plain}"
+        return 0
+        ;;
+    esac
+
+    echo "net.core.default_qdisc=fq" | tee -a /etc/sysctl.conf
+    echo "net.ipv4.tcp_congestion_control=bbr" | tee -a /etc/sysctl.conf
+    sysctl -p
+
+    if [[ $(sysctl net.ipv4.tcp_congestion_control | awk '{print $3}') == "bbr" ]]; then
+        echo -e "${green}BBR has been enabled successfully.${plain}"
+    else
+        echo -e "${yellow}BBR enable attempt completed. Please check your kernel supports BBR.${plain}"
+    fi
+}
+
+install_acme() {
+    echo -e "${yellow}Installing acme.sh...${plain}"
+    curl -s https://get.acme.sh | sh
+    if [[ $? -ne 0 ]]; then
+        echo -e "${red}Failed to install acme.sh${plain}"
+        return 1
+    fi
+    echo -e "${green}acme.sh installed successfully.${plain}"
+    return 0
+}
+
+handle_acme_cert() {
+    local domain="$1"
+    local web_port="${2:-80}"
+
+    if ! command -v ~/.acme.sh/acme.sh &>/dev/null; then
+        install_acme || return 1
+    fi
+
+    case "${release}" in
+    ubuntu | debian | armbian)
+        apt-get update -yqq && apt-get install -yqq socat
+        ;;
+    centos | almalinux | rocky | oracle)
+        yum -y install socat
+        ;;
+    fedora)
+        dnf -y install socat
+        ;;
+    arch | manjaro | parch)
+        pacman -Sy --noconfirm socat
+        ;;
+    opensuse-tumbleweed)
+        zypper -q install -y socat
+        ;;
+    *)
+        echo -e "${red}Unsupported OS for ACME. Please install socat manually.${plain}"
+        return 1
+        ;;
+    esac
+
+    local certPath="/root/cert/${domain}"
+    if [[ ! -d "$certPath" ]]; then
+        mkdir -p "$certPath"
+    fi
+
+    echo -e "${yellow}Issuing SSL certificate for ${domain}...${plain}"
+
+    local currentCert
+    currentCert=$(~/.acme.sh/acme.sh --list 2>/dev/null | tail -1 | awk '{print $1}')
+    if [[ "${currentCert}" == "${domain}" ]]; then
+        echo -e "${yellow}Certificate for ${domain} already exists, skipping issuance.${plain}"
+    else
+        ~/.acme.sh/acme.sh --set-default-ca --server letsencrypt
+        ~/.acme.sh/acme.sh --issue -d "${domain}" --standalone --httpport "${web_port}"
+        if [[ $? -ne 0 ]]; then
+            echo -e "${red}Failed to issue certificate for ${domain}${plain}"
+            rm -rf ~/.acme.sh/"${domain}"
+            return 1
+        fi
+    fi
+
+    ~/.acme.sh/acme.sh --installcert -d "${domain}" \
+        --key-file "${certPath}/privkey.pem" \
+        --fullchain-file "${certPath}/fullchain.pem"
+
+    if [[ $? -ne 0 ]]; then
+        echo -e "${red}Failed to install certificate for ${domain}${plain}"
+        return 1
+    fi
+
+    ~/.acme.sh/acme.sh --upgrade --auto-upgrade
+    chmod 755 "${certPath}"/*
+
+    ARG_CERT_PATH="${certPath}/fullchain.pem"
+    ARG_KEY_PATH="${certPath}/privkey.pem"
+
+    echo -e "${green}Certificate issued and auto-renew enabled for ${domain}${plain}"
+    echo -e "${green}  Cert: ${ARG_CERT_PATH}${plain}"
+    echo -e "${green}  Key:  ${ARG_KEY_PATH}${plain}"
+    return 0
 }
 
 require_root() {
@@ -515,63 +733,80 @@ config_after_install() {
         exit 1
     fi
 
+    # For existing installs in update/migrate mode, keep existing settings
+    # but apply any explicitly provided parameter overrides
     if [[ "${MODE}" != "install" && ${EXISTING_INSTALL} -eq 1 ]]; then
         if [[ "${MODE}" == "migrate" || "${INSTALLATION_KIND}" == "legacy-only" ]]; then
             echo -e "${green}Detected an existing compatible installation. Current settings, credentials, and migrated database contents have been kept.${plain}"
         else
             echo -e "${green}Detected an existing b-ui installation. Current settings and credentials have been kept.${plain}"
         fi
+
+        # Apply overrides if any params were provided in migrate/update mode
+        if [[ -n "${ARG_PANEL_PORT}" || -n "${ARG_PANEL_PATH}" || -n "${ARG_SUB_PORT}" || -n "${ARG_SUB_PATH}" || -n "${ARG_DOMAIN}" || -n "${ARG_CERT_PATH}" ]]; then
+            echo -e "${yellow}Applying provided parameter overrides...${plain}"
+            apply_settings_params
+        fi
+        if [[ -n "${ARG_USER}" || -n "${ARG_PWD}" ]]; then
+            apply_admin_params
+        fi
         return 0
     fi
-    
-    echo -e "${yellow}Install/update finished! For security it's recommended to modify panel settings ${plain}"
-    read -p "Do you want to continue with the modification [y/n]? ": config_confirm
-    if [[ "${config_confirm}" == "y" || "${config_confirm}" == "Y" ]]; then
-        echo -e "Enter the ${yellow}panel port${plain} (leave blank for existing/default value):"
-        read config_port
-        echo -e "Enter the ${yellow}panel path${plain} (leave blank for existing/default value):"
-        read config_path
 
-        echo -e "Enter the ${yellow}subscription port${plain} (leave blank for existing/default value):"
-        read config_subPort
-        echo -e "Enter the ${yellow}subscription path${plain} (leave blank for existing/default value):" 
-        read config_subPath
-
-        echo -e "${yellow}Initializing, please wait...${plain}"
-        params=""
-        [ -z "$config_port" ] || params="$params -port $config_port"
-        [ -z "$config_path" ] || params="$params -path $config_path"
-        [ -z "$config_subPort" ] || params="$params -subPort $config_subPort"
-        [ -z "$config_subPath" ] || params="$params -subPath $config_subPath"
-        "${INSTALL_ROOT}/sui" setting ${params}
-
-        read -p "Do you want to change admin credentials [y/n]? ": admin_confirm
-        if [[ "${admin_confirm}" == "y" || "${admin_confirm}" == "Y" ]]; then
-            read -p "Please set up your username:" config_account
-            read -p "Please set up your password:" config_password
-
-            echo -e "${yellow}Initializing, please wait...${plain}"
-            "${INSTALL_ROOT}/sui" admin -username ${config_account} -password ${config_password}
-        else
-            echo -e "${yellow}Your current admin credentials: ${plain}"
-            "${INSTALL_ROOT}/sui" admin -show
-        fi
-    else
-        echo -e "${red}cancel...${plain}"
-        if [[ ! -f "${DB_FILE}" ]]; then
-            local usernameTemp=$(head -c 6 /dev/urandom | base64)
-            local passwordTemp=$(head -c 6 /dev/urandom | base64)
-            echo -e "this is a fresh installation,will generate random login info for security concerns:"
-            echo -e "###############################################"
-            echo -e "${green}username:${usernameTemp}${plain}"
-            echo -e "${green}password:${passwordTemp}${plain}"
-            echo -e "###############################################"
-            echo -e "${red}if you forgot your login info,you can type ${green}${CLI_NAME}${red} for configuration menu${plain}"
-            "${INSTALL_ROOT}/sui" admin -username ${usernameTemp} -password ${passwordTemp}
-        else
-            echo -e "${red} this is your upgrade,will keep old settings,if you forgot your login info,you can type ${green}${CLI_NAME}${red} for configuration menu${plain}"
-        fi
+    # Handle ACME cert before DB init (when domain provided without cert/key)
+    if [[ -n "${ARG_DOMAIN}" && -z "${ARG_CERT_PATH}" && -z "${ARG_KEY_PATH}" ]]; then
+        handle_acme_cert "${ARG_DOMAIN}" || {
+            echo -e "${red}ACME certificate issuance failed.${plain}"
+            rollback_installation
+            exit 1
+        }
     fi
+
+    # Apply settings via CLI
+    apply_settings_params
+
+    # Apply admin credentials
+    if [[ -n "${ARG_USER}" || -n "${ARG_PWD}" ]]; then
+        apply_admin_params
+    else
+        # Fresh install without admin params: generate random credentials
+        local usernameTemp
+        local passwordTemp
+        usernameTemp=$(head -c 6 /dev/urandom | base64)
+        passwordTemp=$(head -c 6 /dev/urandom | base64)
+        echo -e "${yellow}No admin credentials provided, generating random credentials:${plain}"
+        echo -e "###############################################"
+        echo -e "${green}username: ${usernameTemp}${plain}"
+        echo -e "${green}password: ${passwordTemp}${plain}"
+        echo -e "###############################################"
+        echo -e "${red}If you forgot your login info, type ${green}${CLI_NAME}${red} for configuration menu${plain}"
+        "${INSTALL_ROOT}/sui" admin -username "${usernameTemp}" -password "${passwordTemp}"
+    fi
+}
+
+apply_settings_params() {
+    local params=""
+    [[ -z "${ARG_PANEL_PORT}" ]] || params="${params} -port ${ARG_PANEL_PORT}"
+    [[ -z "${ARG_PANEL_PATH}" ]] || params="${params} -path ${ARG_PANEL_PATH}"
+    [[ -z "${ARG_SUB_PORT}" ]] || params="${params} -subPort ${ARG_SUB_PORT}"
+    [[ -z "${ARG_SUB_PATH}" ]] || params="${params} -subPath ${ARG_SUB_PATH}"
+    [[ -z "${ARG_DOMAIN}" ]] || params="${params} -domain ${ARG_DOMAIN}"
+    [[ -z "${ARG_CERT_PATH}" ]] || params="${params} -certFile ${ARG_CERT_PATH}"
+    [[ -z "${ARG_KEY_PATH}" ]] || params="${params} -keyFile ${ARG_KEY_PATH}"
+
+    if [[ -n "${params}" ]]; then
+        echo -e "${yellow}Applying settings...${plain}"
+        "${INSTALL_ROOT}/sui" setting ${params}
+    else
+        echo -e "${yellow}No custom settings provided, using defaults.${plain}"
+    fi
+}
+
+apply_admin_params() {
+    local user="${ARG_USER:-admin}"
+    local pwd="${ARG_PWD:-admin}"
+    echo -e "${yellow}Setting admin credentials...${plain}"
+    "${INSTALL_ROOT}/sui" admin -username "${user}" -password "${pwd}"
 }
 
 prepare_services() {
@@ -658,6 +893,7 @@ install_app() {
 main() {
     echo -e "${green}Executing...${plain}"
     parse_args "$@"
+    validate_cert_params
     require_root
     detect_os_release
     echo "arch: $(arch)"
@@ -665,6 +901,7 @@ main() {
     resolve_target_version
     check_update_requirement
     install_base
+    enable_bbr
     install_app
 }
 

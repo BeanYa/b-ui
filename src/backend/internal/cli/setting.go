@@ -31,7 +31,7 @@ func resetSetting() {
 	}
 }
 
-func updateSetting(port int, path string, subPort int, subPath string) {
+func updateSetting(port int, path string, subPort int, subPath string, domain string, certFile string, keyFile string, subDomain string, subCertFile string, subKeyFile string) {
 	err := database.InitDB(config.GetDBPath())
 	if err != nil {
 		fmt.Println(err)
@@ -70,6 +70,54 @@ func updateSetting(port int, path string, subPort int, subPath string) {
 			fmt.Println("set sub path failed:", err)
 		} else {
 			fmt.Println("set sub path success")
+		}
+	}
+	if domain != "" {
+		err := settingService.SetWebDomain(domain)
+		if err != nil {
+			fmt.Println("set domain failed:", err)
+		} else {
+			fmt.Println("set domain success")
+		}
+	}
+	if certFile != "" {
+		err := settingService.SetCertFile(certFile)
+		if err != nil {
+			fmt.Println("set cert file failed:", err)
+		} else {
+			fmt.Println("set cert file success")
+		}
+	}
+	if keyFile != "" {
+		err := settingService.SetKeyFile(keyFile)
+		if err != nil {
+			fmt.Println("set key file failed:", err)
+		} else {
+			fmt.Println("set key file success")
+		}
+	}
+	if subDomain != "" {
+		err := settingService.SetSubDomain(subDomain)
+		if err != nil {
+			fmt.Println("set sub domain failed:", err)
+		} else {
+			fmt.Println("set sub domain success")
+		}
+	}
+	if subCertFile != "" {
+		err := settingService.SetSubCertFile(subCertFile)
+		if err != nil {
+			fmt.Println("set sub cert file failed:", err)
+		} else {
+			fmt.Println("set sub cert file success")
+		}
+	}
+	if subKeyFile != "" {
+		err := settingService.SetSubKeyFile(subKeyFile)
+		if err != nil {
+			fmt.Println("set sub key file failed:", err)
+		} else {
+			fmt.Println("set sub key file success")
 		}
 	}
 }
