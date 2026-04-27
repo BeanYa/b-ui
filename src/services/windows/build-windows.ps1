@@ -91,7 +91,7 @@ if ($NoCGO) {
     Write-Host "Building with CGO..." -ForegroundColor Yellow
 }
 
-$buildCmd = "go build -ldflags `"-w -s`" -tags `"with_quic,with_grpc,with_utls,with_acme,with_gvisor,with_tailscale`" -o sui.exe ./src/backend/cmd/b-ui"
+$buildCmd = "go build -ldflags `"-w -s`" -tags `"with_quic,with_grpc,with_utls,with_acme,with_gvisor,with_tailscale`" -o b-ui.exe ./src/backend/cmd/b-ui"
 
 try {
     Invoke-Expression $buildCmd
@@ -122,11 +122,11 @@ try {
 }
 
 Write-Host "Build completed successfully!" -ForegroundColor Green
-Write-Host "Output: sui.exe" -ForegroundColor Green
+Write-Host "Output: b-ui.exe" -ForegroundColor Green
 
 # Show file info
-if (Test-Path "sui.exe") {
-    $fileInfo = Get-Item "sui.exe"
+if (Test-Path "b-ui.exe") {
+    $fileInfo = Get-Item "b-ui.exe"
     Write-Host "File size: $([math]::Round($fileInfo.Length / 1MB, 2)) MB" -ForegroundColor Cyan
     Write-Host "Created: $($fileInfo.CreationTime)" -ForegroundColor Cyan
 }

@@ -537,7 +537,7 @@ bash <(curl -Ls https://raw.githubusercontent.com/BeanYa/b-ui/main/install.sh) -
 
 ## 8. 从上游迁移
 
-当服务器已经安装了上游 `b-ui`，并且你希望在保留数据的前提下原地替换为 `b-ui` 时，使用迁移。
+当服务器已经安装了上游 `s-ui`，并且你希望在保留数据的前提下迁移为 `b-ui` 时，使用迁移。
 
 一行迁移命令：
 
@@ -553,21 +553,21 @@ bash <(curl -Ls https://raw.githubusercontent.com/BeanYa/b-ui/main/install.sh) -
 
 `--migrate` 的实际步骤：
 
-- 检测兼容的上游安装。
-- 停止旧 `b-ui` 服务。
+- 检测兼容的上游 `s-ui` 安装。
+- 停止并移除旧 `s-ui` 服务。
 - 在 `/var/backups/b-ui/<timestamp>/` 创建回滚备份。
 - 从 `BeanYa/b-ui` 下载目标 release；当前 Linux 资源名为 `b-ui-linux-<arch>.tar.gz`。
-- 原地替换已安装的二进制和 shell 脚本。
-- 执行 `sui migrate`；如果系统里只有旧 `b-ui.db`，会先把它迁移到 `b-ui.db`。
-- 把 systemd 服务名从 `b-ui` 切换为 `b-ui`。
-- 把管理命令从 `b-ui` 切换为 `b-ui`。
+- 安装新的 `b-ui` 二进制和 shell 脚本。
+- 执行 `b-ui migrate`；如果系统里只有旧 `s-ui.db`，会先把它迁移到 `b-ui.db`。
+- 把 systemd 服务名从 `s-ui` 切换为 `b-ui`。
+- 把管理命令从 `s-ui` 切换为 `b-ui`。
 - 启动并启用 `b-ui` 服务。
 
 迁移过程中会保留的内容：
 
 - 现有面板设置和管理员凭据会被保留。
 - 现有入站、出站、端口和其他持久化面板数据会继续保留。
-- 当只有旧数据库存在时，这些数据会自动从 `b-ui.db` 迁移到 `b-ui.db`。
+- 当只有旧数据库存在时，这些数据会自动从 `s-ui.db` 迁移到 `b-ui.db`。
 
 回滚行为：
 

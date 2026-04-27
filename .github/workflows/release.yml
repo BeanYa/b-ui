@@ -161,12 +161,13 @@ jobs:
           [ "${{ matrix.naive }}" = "true" ] && BUILD_TAGS="${BUILD_TAGS},with_naive_outbound,with_musl"
           VERSION_LDFLAGS=""
           if [ "${GITHUB_REF_TYPE}" = "tag" ]; then VERSION_LDFLAGS="-X github.com/BeanYa/b-ui/src/backend/internal/domain/config.buildVersion=${GITHUB_REF_NAME}"; fi
-          go build -ldflags="-w -s -checklinkname=0 -linkmode external -extldflags '-static' ${VERSION_LDFLAGS}" -tags "$BUILD_TAGS" -o sui ./src/backend/cmd/b-ui
-          file sui
-          ldd sui 2>/dev/null || echo "Static binary confirmed"
+          mkdir -p build/out
+          go build -ldflags="-w -s -checklinkname=0 -linkmode external -extldflags '-static' ${VERSION_LDFLAGS}" -tags "$BUILD_TAGS" -o build/out/b-ui ./src/backend/cmd/b-ui
+          file build/out/b-ui
+          ldd build/out/b-ui 2>/dev/null || echo "Static binary confirmed"
 
           mkdir b-ui
-          cp sui b-ui/
+          cp build/out/b-ui b-ui/
           cp src/services/systemd/b-ui.service b-ui/
           cp src/services/runtime/b-ui.sh b-ui/
 

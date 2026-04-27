@@ -102,7 +102,8 @@ archive_listing="$(tar -tzf "${ARCHIVE_PATH}")"
 pwsh_log="$(<"${PW_LOG_FILE}")"
 go_log="$(<"${GO_LOG_FILE}")"
 
-assert_contains 'b-ui/sui' "${archive_listing}" 'archive layout'
+assert_contains 'b-ui/b-ui' "${archive_listing}" 'archive layout'
+assert_not_contains 'b-ui/sui' "${archive_listing}" 'archive layout'
 assert_contains 'b-ui/src/services/runtime/b-ui.sh' "${archive_listing}" 'archive layout'
 assert_contains 'b-ui/src/services/systemd/b-ui.service' "${archive_listing}" 'archive layout'
 assert_contains 'b-ui/b-ui.sh' "${archive_listing}" 'archive layout'

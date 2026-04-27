@@ -6,7 +6,7 @@ import (
 	"os"
 	"time"
 
-	suiLog "github.com/BeanYa/b-ui/src/backend/internal/infra/logging"
+	buiLog "github.com/BeanYa/b-ui/src/backend/internal/infra/logging"
 
 	"github.com/sagernet/sing-box/log"
 	"github.com/sagernet/sing/common"
@@ -23,15 +23,15 @@ func (p PlatformWriter) DisableColors() bool {
 func (p PlatformWriter) WriteMessage(level log.Level, message string) {
 	switch level {
 	case log.LevelInfo:
-		suiLog.Info(message)
+		buiLog.Info(message)
 	case log.LevelWarn:
-		suiLog.Warning(message)
+		buiLog.Warning(message)
 	case log.LevelPanic:
 	case log.LevelFatal:
 	case log.LevelError:
-		suiLog.Error(message)
+		buiLog.Error(message)
 	default:
-		suiLog.Debug(message)
+		buiLog.Debug(message)
 	}
 }
 
@@ -169,15 +169,15 @@ func (l *observableLogger) Log(ctx context.Context, level log.Level, args []any)
 	msg := F.ToString(args...)
 	switch level {
 	case log.LevelInfo:
-		suiLog.Info(l.tag, msg)
+		buiLog.Info(l.tag, msg)
 	case log.LevelWarn:
-		suiLog.Warning(l.tag, msg)
+		buiLog.Warning(l.tag, msg)
 	case log.LevelPanic:
 	case log.LevelFatal:
 	case log.LevelError:
-		suiLog.Error(l.tag, msg)
+		buiLog.Error(l.tag, msg)
 	default:
-		suiLog.Debug(l.tag, msg)
+		buiLog.Debug(l.tag, msg)
 	}
 	if (l.filePath != "" || l.writer != os.Stderr) && l.writer != nil {
 		message := l.formatter.Format(ctx, level, l.tag, msg, time.Now())

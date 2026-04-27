@@ -13,7 +13,7 @@ $PackageRoot = Join-Path $StageDir "b-ui-windows"
 $OutputDir = Join-Path $RepoRoot "dist\release"
 $OutputArchive = Join-Path $OutputDir "b-ui-windows-$Architecture.zip"
 $ServiceDir = Join-Path $RepoRoot "src\services\windows"
-$BackendOutputPath = Join-Path $RepoRoot "build\out\sui.exe"
+$BackendOutputPath = Join-Path $RepoRoot "build\out\b-ui.exe"
 $LibcronetBaseUrl = if ($env:LIBCRONET_BASE_URL) { $env:LIBCRONET_BASE_URL } else { 'https://github.com/SagerNet/cronet-go/releases/latest/download' }
 $LibcronetUrl = "$LibcronetBaseUrl/libcronet-windows-$Architecture.dll"
 

@@ -4,7 +4,7 @@ set -euo pipefail
 
 SCRIPT_DIR=$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)
 REPO_ROOT=$(cd "${SCRIPT_DIR}/../.." && pwd)
-OUTPUT_PATH="${OUTPUT_PATH:-${REPO_ROOT}/build/out/sui}"
+OUTPUT_PATH="${OUTPUT_PATH:-${REPO_ROOT}/build/out/b-ui}"
 
 # shellcheck source=./_runtime.sh
 source "${SCRIPT_DIR}/_runtime.sh"

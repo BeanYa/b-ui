@@ -98,11 +98,11 @@ jobs:
           
           VERSION_LDFLAGS=""
           if [ "${GITHUB_REF_TYPE}" = "tag" ]; then VERSION_LDFLAGS="-X github.com/BeanYa/b-ui/src/backend/internal/domain/config.buildVersion=${GITHUB_REF_NAME}"; fi
-          go build -ldflags="-w -s -checklinkname=0 ${VERSION_LDFLAGS}" -tags "${{ env.TAGS }}" -o sui.exe ./src/backend/cmd/b-ui
-          file sui.exe
+          go build -ldflags="-w -s -checklinkname=0 ${VERSION_LDFLAGS}" -tags "${{ env.TAGS }}" -o b-ui.exe ./src/backend/cmd/b-ui
+          file b-ui.exe
           
           mkdir b-ui-windows
-          cp sui.exe b-ui-windows/
+          cp b-ui.exe b-ui-windows/
           cp src/services/windows/b-ui-windows.xml b-ui-windows/
           cp src/services/windows/b-ui-windows.bat b-ui-windows/
           cp src/services/windows/install-windows.bat b-ui-windows/

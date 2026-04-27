@@ -6,10 +6,40 @@ import (
 	"testing"
 )
 
-func TestPrepareDBPathMigratesLegacyDatabase(t *testing.T) {
+func TestPrepareDBPathIgnoresLegacyDatabaseOutsideMigration(t *testing.T) {
 	dbDir := t.TempDir()
-	t.Setenv("SUI_DB_FOLDER", dbDir)
-	t.Setenv("SUI_DB_NAME", "")
+	t.Setenv("BUI_DB_FOLDER", dbDir)
+	t.Setenv("BUI_DB_NAME", "")
+
+	legacyPath := filepath.Join(dbDir, "s-ui.db")
+	if err := os.WriteFile(legacyPath, []byte("legacy"), 0o600); err != nil {
+		t.Fatalf("write legacy db: %v", err)
+	}
+
+	dbPath, err := PrepareDBPath()
+	if err != nil {
+		t.Fatalf("prepare db path: %v", err)
+	}
+	targetPath := filepath.Join(dbDir, "b-ui.db")
+	if dbPath != targetPath {
+		t.Fatalf("db path mismatch: got %s want %s", dbPath, targetPath)
+	}
+	if _, err := os.Stat(targetPath); !os.IsNotExist(err) {
+		t.Fatalf("target database should not be created during normal startup: %v", err)
+	}
+	content, err := os.ReadFile(legacyPath)
+	if err != nil {
+		t.Fatalf("legacy file should be preserved: %v", err)
+	}
+	if string(content) != "legacy" {
+		t.Fatalf("legacy file changed unexpectedly: got %q", string(content))
+	}
+}
+
+func TestPrepareDBPathForMigrationMigratesLegacyDatabase(t *testing.T) {
+	dbDir := t.TempDir()
+	t.Setenv("BUI_DB_FOLDER", dbDir)
+	t.Setenv("BUI_DB_NAME", "")
 
 	legacyMain := filepath.Join(dbDir, "s-ui.db")
 	legacyWal := legacyMain + "-wal"
@@ -25,7 +55,7 @@ func TestPrepareDBPathMigratesLegacyDatabase(t *testing.T) {
 		t.Fatalf("write legacy shm: %v", err)
 	}
 
-	dbPath, err := PrepareDBPath()
+	dbPath, err := PrepareDBPathForMigration()
 	if err != nil {
 		t.Fatalf("prepare db path: %v", err)
 	}
@@ -60,8 +90,8 @@ func TestPrepareDBPathMigratesLegacyDatabase(t *testing.T) {
 
 func TestPrepareDBPathKeepsExistingTargetDatabase(t *testing.T) {
 	dbDir := t.TempDir()
-	t.Setenv("SUI_DB_FOLDER", dbDir)
-	t.Setenv("SUI_DB_NAME", "")
+	t.Setenv("BUI_DB_FOLDER", dbDir)
+	t.Setenv("BUI_DB_NAME", "")
 
 	targetPath := filepath.Join(dbDir, "b-ui.db")
 	legacyPath := filepath.Join(dbDir, "s-ui.db")
@@ -93,8 +123,8 @@ func TestPrepareDBPathKeepsExistingTargetDatabase(t *testing.T) {
 
 func TestPrepareDBPathForMigrationReplacesExistingTargetWithLegacyData(t *testing.T) {
 	dbDir := t.TempDir()
-	t.Setenv("SUI_DB_FOLDER", dbDir)
-	t.Setenv("SUI_DB_NAME", "")
+	t.Setenv("BUI_DB_FOLDER", dbDir)
+	t.Setenv("BUI_DB_NAME", "")
 
 	legacyPath := filepath.Join(dbDir, "s-ui.db")
 	targetPath := filepath.Join(dbDir, "b-ui.db")

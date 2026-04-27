@@ -57,7 +57,7 @@ The **frontend** now lives directly in the `src/frontend/` directory of this rep
    ```bash
     bash ./scripts/build/build-frontend.sh
     bash ./scripts/build/build-backend.sh
-    SUI_DB_FOLDER=db SUI_DEBUG=true ./build/out/sui
+    BUI_DB_FOLDER=db BUI_DEBUG=true ./build/out/b-ui
     ```
 
    Use this path when you only need to rebuild one side of the app or want to inspect failures step by step.
@@ -80,10 +80,10 @@ Use the centralized build scripts when you need release-parity behavior locally,
 
 | Variable       | Description                    | Example   |
 |----------------|--------------------------------|-----------|
-| `SUI_DB_FOLDER`| Directory for SQLite DB files  | `db`      |
-| `SUI_DEBUG`    | Enable debug mode              | `true`    |
-| `SUI_LOG_LEVEL`| Log level                      | `debug`   |
-| `SUI_BIN_FOLDER` | Directory for binaries       | `bin`     |
+| `BUI_DB_FOLDER`| Directory for SQLite DB files  | `db`      |
+| `BUI_DEBUG`    | Enable debug mode              | `true`    |
+| `BUI_LOG_LEVEL`| Log level                      | `debug`   |
+| `BUI_BIN_FOLDER` | Directory for binaries       | `bin`     |
 
 ### Docker (optional)
 

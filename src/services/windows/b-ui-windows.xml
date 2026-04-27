@@ -3,15 +3,15 @@
   <id>b-ui</id>
   <name>B-UI Proxy Panel</name>
   <description>B-UI is a proxy panel for managing proxy services</description>
-  <executable>%BASE%\sui.exe</executable>
+  <executable>%BASE%\b-ui.exe</executable>
   <arguments></arguments>
   <logmode>rotate</logmode>
   <logpath>%BASE%\logs</logpath>
   <log size="10 m" />
   <log keep="10" />
   <workingdirectory>%BASE%</workingdirectory>
-  <env name="SUI_DB_FOLDER" value="db" />
-  <env name="SUI_DEBUG" value="false" />
+  <env name="BUI_DB_FOLDER" value="db" />
+  <env name="BUI_DEBUG" value="false" />
   <onfailure action="restart" delay="10 sec" />
   <onfailure action="restart" delay="20 sec" />
   <onfailure action="none" />

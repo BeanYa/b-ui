@@ -113,14 +113,14 @@ goto menu
 
 :run_manual
 echo Running B-UI manually...
-if exist "%INSTALL_DIR%\sui.exe" (
+if exist "%INSTALL_DIR%\b-ui.exe" (
     cd /d "%INSTALL_DIR%"
     echo Starting B-UI in current window...
     echo Press Ctrl+C to stop
     echo.
-    sui.exe
+    b-ui.exe
 ) else (
-    echo B-UI executable not found: %INSTALL_DIR%\sui.exe
+    echo B-UI executable not found: %INSTALL_DIR%\b-ui.exe
     echo Please run the installer first.
 )
 pause
@@ -193,13 +193,13 @@ echo.
 echo ========================================
 echo B-UI Configuration
 echo ========================================
-if exist "%INSTALL_DIR%\sui.exe" (
+if exist "%INSTALL_DIR%\b-ui.exe" (
     cd /d "%INSTALL_DIR%"
     echo Current settings:
-    sui.exe setting -show
+    b-ui.exe setting -show
     echo.
     echo Admin credentials:
-    sui.exe admin -show
+    b-ui.exe admin -show
 ) else (
     echo B-UI executable not found. Please run the installer first.
 )

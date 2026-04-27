@@ -6,7 +6,7 @@ Wants=network.target
 [Service]
 Type=simple
 WorkingDirectory=/usr/local/b-ui/
-ExecStart=/usr/local/b-ui/sui
+ExecStart=/usr/local/b-ui/b-ui
 Restart=on-failure
 RestartSec=10s
 

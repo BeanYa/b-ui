@@ -15,7 +15,7 @@ CLI_NAME="${CLI_NAME:-b-ui}"
 CLI_PATH="${CLI_PATH:-/usr/bin/${CLI_NAME}}"
 INSTALL_ROOT="${INSTALL_ROOT:-/usr/local/b-ui}"
 SERVICE_NAME="${SERVICE_NAME:-b-ui}"
-LEGACY_SERVICE_NAME="${LEGACY_SERVICE_NAME:-b-ui}"
+LEGACY_SERVICE_NAME="${LEGACY_SERVICE_NAME:-${SERVICE_NAME}}"
 DISPLAY_NAME="${DISPLAY_NAME:-B-UI}"
 
 function LOGD() {
@@ -115,8 +115,8 @@ get_current_installed_version() {
     local version_output=""
     local current_version=""
 
-    if [[ -x "${INSTALL_ROOT}/sui" ]]; then
-        version_output=$("${INSTALL_ROOT}/sui" -v 2>/dev/null | awk 'NR==1 {print $NF}')
+    if [[ -x "${INSTALL_ROOT}/b-ui" ]]; then
+        version_output=$("${INSTALL_ROOT}/b-ui" -v 2>/dev/null | awk 'NR==1 {print $NF}')
         current_version=$(normalize_version "${version_output}")
         if [[ -n "${current_version}" ]]; then
             printf '%s\n' "${current_version}"
@@ -287,7 +287,7 @@ reset_admin() {
     echo "It is not recommended to set admin's credentials to default!"
     confirm "Are you sure you want to reset admin's credentials to default ?" "n"
     if [[ $? == 0 ]]; then
-        "${INSTALL_ROOT}/sui" admin -reset
+        "${INSTALL_ROOT}/b-ui" admin -reset
     fi
     before_show_menu
 }
@@ -296,19 +296,19 @@ set_admin() {
     echo "It is not recommended to set admin's credentials to a complex text."
     read -p "Please set up your username:" config_account
     read -p "Please set up your password:" config_password
-    "${INSTALL_ROOT}/sui" admin -username ${config_account} -password ${config_password}
+    "${INSTALL_ROOT}/b-ui" admin -username ${config_account} -password ${config_password}
     before_show_menu
 }
 
 view_admin() {
-    "${INSTALL_ROOT}/sui" admin -show
+    "${INSTALL_ROOT}/b-ui" admin -show
     before_show_menu
 }
 
 reset_setting() {
     confirm "Are you sure you want to reset settings to default ?" "n"
     if [[ $? == 0 ]]; then
-        "${INSTALL_ROOT}/sui" setting -reset
+        "${INSTALL_ROOT}/b-ui" setting -reset
     fi
     before_show_menu
 }
@@ -330,18 +330,18 @@ set_setting() {
     [ -z "$config_path" ] || params="$params -path $config_path"
     [ -z "$config_subPort" ] || params="$params -subPort $config_subPort"
     [ -z "$config_subPath" ] || params="$params -subPath $config_subPath"
-    "${INSTALL_ROOT}/sui" setting ${params}
+    "${INSTALL_ROOT}/b-ui" setting ${params}
     before_show_menu
 }
 
 view_setting() {
-    "${INSTALL_ROOT}/sui" setting -show
+    "${INSTALL_ROOT}/b-ui" setting -show
     view_uri
     before_show_menu
 }
 
 view_uri() {
-    info=$("${INSTALL_ROOT}/sui" uri)
+    info=$("${INSTALL_ROOT}/b-ui" uri)
     if [[ $? != 0 ]]; then
         LOGE "Get current uri error"
         before_show_menu
@@ -544,7 +544,7 @@ show_enable_status() {
 }
 
 check_panel_status() {
-    count=$(ps -ef | grep "sui" | grep -v "grep" | wc -l)
+    count=$(ps -ef | grep "[b]-ui" | wc -l)
     if [[ count -ne 0 ]]; then
         return 0
     else

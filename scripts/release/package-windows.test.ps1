@@ -26,6 +26,14 @@ if ($content -notmatch 'b-ui-windows-\$\{?Architecture\}?\.zip') {
     throw 'package-windows.ps1 should emit b-ui-windows-<arch>.zip'
 }
 
+if ($content -notmatch 'build\\out\\b-ui\.exe') {
+    throw 'package-windows.ps1 should package build\out\b-ui.exe'
+}
+
+if ($content -match 'build\\out\\sui\.exe') {
+    throw 'package-windows.ps1 should not package build\out\sui.exe'
+}
+
 if ($content -notmatch 'libcronet\.dll') {
     throw 'package-windows.ps1 should place libcronet.dll into the Windows package'
 }
@@ -48,6 +56,14 @@ if ($windowsWorkflow -notmatch 'github\.com/BeanYa/b-ui/src/backend/internal/dom
 
 if ($releaseWorkflow -notmatch 'github\.com/BeanYa/b-ui/src/backend/internal/domain/config\.buildVersion') {
     throw 'release workflow should stamp the new buildVersion linker path'
+}
+
+if ($windowsWorkflow -match '\bsui\.exe\b' -or $releaseWorkflow -match '\bsui\b') {
+    throw 'release workflows should not emit legacy sui binaries'
+}
+
+if ($windowsWorkflow -notmatch '\bb-ui\.exe\b' -or $releaseWorkflow -notmatch '\bb-ui\b') {
+    throw 'release workflows should emit b-ui binaries'
 }
 
 Write-Host 'package-windows script wiring ok'

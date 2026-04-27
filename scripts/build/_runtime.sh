@@ -3,7 +3,7 @@
 set -euo pipefail
 
 bui_should_use_windows_toolchain() {
-  bui_has_windows_toolchain
+  [[ "$(bui_target_os)" == 'windows' ]] && bui_has_windows_toolchain
 }
 
 bui_has_windows_path_bridge() {

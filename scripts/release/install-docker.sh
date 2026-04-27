@@ -357,7 +357,7 @@ wait_for_panel() {
 
 apply_base_settings() {
     local line=""
-    local -a command=(docker compose -f "${DEPLOY_DIR}/docker-compose.yml" exec -T b-ui ./sui setting)
+    local -a command=(docker compose -f "${DEPLOY_DIR}/docker-compose.yml" exec -T b-ui ./b-ui setting)
 
     while IFS= read -r line; do
         if [[ -n "${line}" ]]; then
@@ -369,7 +369,7 @@ apply_base_settings() {
         "${command[@]}"
     fi
 
-    printf './sui admin -username %s -password %s\n' \
+    printf './b-ui admin -username %s -password %s\n' \
         "$(shell_quote "${ADMIN_USERNAME}")" \
         "$(shell_quote "${ADMIN_PASSWORD}")" | \
         docker compose -f "${DEPLOY_DIR}/docker-compose.yml" exec -T b-ui sh

@@ -48,7 +48,7 @@ func GetLogLevel() LogLevel {
 	if IsDebug() {
 		return Debug
 	}
-	logLevel := os.Getenv("SUI_LOG_LEVEL")
+	logLevel := os.Getenv("BUI_LOG_LEVEL")
 	if logLevel == "" {
 		return Info
 	}
@@ -56,11 +56,11 @@ func GetLogLevel() LogLevel {
 }
 
 func IsDebug() bool {
-	return os.Getenv("SUI_DEBUG") == "true"
+	return os.Getenv("BUI_DEBUG") == "true"
 }
 
 func GetDBFolderPath() string {
-	dbFolderPath := os.Getenv("SUI_DB_FOLDER")
+	dbFolderPath := os.Getenv("BUI_DB_FOLDER")
 	if dbFolderPath == "" {
 		dir, err := filepath.Abs(filepath.Dir(os.Args[0]))
 		if err != nil {
@@ -76,7 +76,7 @@ func GetDBFolderPath() string {
 }
 
 func GetDBFileName() string {
-	dbFileName := normalizeDBFileName(os.Getenv("SUI_DB_NAME"))
+	dbFileName := normalizeDBFileName(os.Getenv("BUI_DB_NAME"))
 	if dbFileName != "" {
 		return dbFileName
 	}
@@ -92,7 +92,7 @@ func GetLegacyDBPath() string {
 }
 
 func PrepareDBPath() (string, error) {
-	return prepareDBPath(false)
+	return GetDBPath(), nil
 }
 
 func PrepareDBPathForMigration() (string, error) {

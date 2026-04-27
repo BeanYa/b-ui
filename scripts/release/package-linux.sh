@@ -66,7 +66,7 @@ bash "${REPO_ROOT}/scripts/build/build-backend.sh"
 rm -rf "${STAGE_DIR}"
 mkdir -p "${PACKAGE_ROOT}/src/services/runtime" "${PACKAGE_ROOT}/src/services/systemd"
 
-cp "${REPO_ROOT}/build/out/sui" "${PACKAGE_ROOT}/sui"
+cp "${REPO_ROOT}/build/out/b-ui" "${PACKAGE_ROOT}/b-ui"
 cp "${REPO_ROOT}/src/services/runtime/b-ui.sh" "${PACKAGE_ROOT}/src/services/runtime/b-ui.sh"
 cp "${REPO_ROOT}/src/services/systemd/b-ui.service" "${PACKAGE_ROOT}/src/services/systemd/b-ui.service"
 cp "${REPO_ROOT}/src/services/runtime/b-ui.sh" "${PACKAGE_ROOT}/b-ui.sh"

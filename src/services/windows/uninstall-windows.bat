@@ -59,7 +59,7 @@ set /p keep_data="Do you want to keep your data (database, logs, certificates)? 
 if /i "%keep_data%"=="y" (
     echo Keeping data files...
     REM Remove only executable and service files
-    if exist "%INSTALL_DIR%\sui.exe" del "%INSTALL_DIR%\sui.exe" >nul 2>&1
+    if exist "%INSTALL_DIR%\b-ui.exe" del "%INSTALL_DIR%\b-ui.exe" >nul 2>&1
     if exist "%INSTALL_DIR%\b-ui-service.exe" del "%INSTALL_DIR%\b-ui-service.exe" >nul 2>&1
     if exist "%INSTALL_DIR%\b-ui-service.xml" del "%INSTALL_DIR%\b-ui-service.xml" >nul 2>&1
     if exist "%INSTALL_DIR%\winsw.exe" del "%INSTALL_DIR%\winsw.exe" >nul 2>&1

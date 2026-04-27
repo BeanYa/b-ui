@@ -29,7 +29,7 @@ if not exist "%INSTALL_DIR%\cert" mkdir "%INSTALL_DIR%\cert"
 
 REM Copy files
 echo Copying files...
-copy "sui.exe" "%INSTALL_DIR%\" >nul
+copy "b-ui.exe" "%INSTALL_DIR%\" >nul
 copy "b-ui-windows.xml" "%INSTALL_DIR%\" >nul
 copy "b-ui-windows.bat" "%INSTALL_DIR%\" >nul
 
@@ -65,7 +65,7 @@ if exist "%WINSW_PATH%" (
 REM Run migration
 echo Running database migration...
 cd /d "%INSTALL_DIR%"
-sui.exe migrate
+b-ui.exe migrate
 if %errorLevel% equ 0 (
     echo Migration completed successfully
 ) else (
@@ -102,7 +102,7 @@ REM Apply settings
 echo.
 echo Applying settings...
 cd /d "%INSTALL_DIR%"
-sui.exe setting -port %panel_port% -path "%panel_path%" -subPort %sub_port% -subPath "%sub_path%"
+b-ui.exe setting -port %panel_port% -path "%panel_path%" -subPort %sub_port% -subPath "%sub_path%"
 
 REM Get admin credentials
 echo.
@@ -122,7 +122,7 @@ if "%admin_password%"=="" (
 
 REM Set admin credentials
 echo Setting admin credentials...
-sui.exe admin -username "%admin_username%" -password "%admin_password%"
+b-ui.exe admin -username "%admin_username%" -password "%admin_password%"
 
 REM Start service
 echo Starting B-UI service...

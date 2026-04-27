@@ -19,7 +19,10 @@ type InboundData struct {
 }
 
 func moveJsonToDb(db *gorm.DB) error {
-	binFolderPath := os.Getenv("SUI_BIN_FOLDER")
+	binFolderPath := os.Getenv("BUI_BIN_FOLDER")
+	if binFolderPath == "" {
+		binFolderPath = os.Getenv("SUI_BIN_FOLDER")
+	}
 	if binFolderPath == "" {
 		binFolderPath = "bin"
 	}
