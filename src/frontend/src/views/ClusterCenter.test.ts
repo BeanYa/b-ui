@@ -28,6 +28,29 @@ describe('ClusterCenter view source', () => {
     expect(source).toContain('await syncClusterState()')
   })
 
+  it('keeps the loading mask up for the initial cluster sync until page data is ready', () => {
+    const source = readFileSync(fileURLToPath(new URL('./ClusterCenter.vue', import.meta.url)), 'utf8')
+    const mountedStart = source.indexOf('onMounted(async () => {')
+    const syncIndex = source.indexOf('await syncClusterState()', mountedStart)
+    const finallyIndex = source.indexOf('} finally {', mountedStart)
+    const pageLoadingStartIndex = source.indexOf('pageLoading.value = true', mountedStart)
+    const globalLoadingStartIndex = source.indexOf('globalLoading.value = true', mountedStart)
+    const pageLoadingStopIndex = source.indexOf('pageLoading.value = false', finallyIndex)
+    const globalLoadingStopIndex = source.indexOf('globalLoading.value = false', finallyIndex)
+
+    expect(source).toContain("inject<Ref<boolean>>('loading', ref(false))")
+    expect(source).toContain('const pageLoading = ref(true)')
+    expect(mountedStart).toBeGreaterThan(-1)
+    expect(syncIndex).toBeGreaterThan(mountedStart)
+    expect(finallyIndex).toBeGreaterThan(syncIndex)
+    expect(pageLoadingStartIndex).toBeGreaterThan(mountedStart)
+    expect(globalLoadingStartIndex).toBeGreaterThan(mountedStart)
+    expect(pageLoadingStartIndex).toBeLessThan(syncIndex)
+    expect(globalLoadingStartIndex).toBeLessThan(syncIndex)
+    expect(pageLoadingStopIndex).toBeGreaterThan(syncIndex)
+    expect(globalLoadingStopIndex).toBeGreaterThan(syncIndex)
+  })
+
   it('filters member rows by the selected domain and keeps the page admin-oriented', () => {
     const source = readFileSync(fileURLToPath(new URL('./ClusterCenter.vue', import.meta.url)), 'utf8')
 

@@ -335,7 +335,7 @@
 </template>
 
 <script lang="ts" setup>
-import { computed, onMounted, ref } from 'vue'
+import { computed, inject, onBeforeUnmount, onMounted, ref, type Ref } from 'vue'
 import { useRouter } from 'vue-router'
 import { push } from 'notivue'
 
@@ -348,6 +348,7 @@ import type { ClusterDomain, ClusterMember, ClusterOperationStatus } from '@/typ
 import type { MeshPairResult } from '@/types/ping'
 
 const router = useRouter()
+const globalLoading = inject<Ref<boolean>>('loading', ref(false))
 
 const goToNodeDetail = (member: ClusterMember) => {
   router.push({
@@ -356,7 +357,7 @@ const goToNodeDetail = (member: ClusterMember) => {
   })
 }
 
-const pageLoading = ref(false)
+const pageLoading = ref(true)
 const actionLoading = ref(false)
 const registerDialog = ref(false)
 const confirmDialog = ref(false)
@@ -625,20 +626,23 @@ const confirmAndSubmit = async () => {
 
 const loadData = async () => {
   pageLoading.value = true
-  const [domainsMsg, membersMsg] = await Promise.all([
-    HttpUtils.get('api/cluster/domains'),
-    HttpUtils.get('api/cluster/members'),
-  ])
-  if (domainsMsg.success) {
-    domains.value = Array.isArray(domainsMsg.obj) ? domainsMsg.obj : []
-    if (selectedDomainId.value && !domains.value.some((domain) => domain.id === selectedDomainId.value)) {
-      selectedDomainId.value = null
+  try {
+    const [domainsMsg, membersMsg] = await Promise.all([
+      HttpUtils.get('api/cluster/domains'),
+      HttpUtils.get('api/cluster/members'),
+    ])
+    if (domainsMsg.success) {
+      domains.value = Array.isArray(domainsMsg.obj) ? domainsMsg.obj : []
+      if (selectedDomainId.value && !domains.value.some((domain) => domain.id === selectedDomainId.value)) {
+        selectedDomainId.value = null
+      }
     }
+    if (membersMsg.success) {
+      members.value = Array.isArray(membersMsg.obj) ? membersMsg.obj : []
+    }
+  } finally {
+    pageLoading.value = false
   }
-  if (membersMsg.success) {
-    members.value = Array.isArray(membersMsg.obj) ? membersMsg.obj : []
-  }
-  pageLoading.value = false
 }
 
 const pollOperation = async (operationId: string) => {
@@ -700,7 +704,18 @@ const leaveDomain = async (domain: ClusterDomain | null) => {
 }
 
 onMounted(async () => {
-  await syncClusterState()
+  pageLoading.value = true
+  globalLoading.value = true
+  try {
+    await syncClusterState()
+  } finally {
+    pageLoading.value = false
+    globalLoading.value = false
+  }
+})
+
+onBeforeUnmount(() => {
+  globalLoading.value = false
 })
 
 const pingStore = usePingStore()
