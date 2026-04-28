@@ -1,33 +1,44 @@
+import api from '@/plugins/api'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { fetchNodeInfo, sendAction } from './clusterPeerApi'
 
-describe('cluster peer API URL building', () => {
+vi.mock('@/plugins/api', () => ({
+  default: {
+    get: vi.fn(),
+    post: vi.fn(),
+  },
+}))
+
+describe('cluster peer API proxying', () => {
   afterEach(() => {
+    vi.clearAllMocks()
     vi.unstubAllGlobals()
   })
 
-  it('loads node info without adding a double slash after a mounted panel base URL', async () => {
-    const fetchMock = vi.fn(async () => ({
-      ok: true,
-      json: async () => ({ actions: [] }),
-    }))
+  it('loads node info through the local API proxy instead of browser-fetching the remote node', async () => {
+    vi.mocked(api.get).mockResolvedValue({
+      data: { success: true, msg: '', obj: { actions: ['inbound.list'] } },
+    })
+    const fetchMock = vi.fn()
     vi.stubGlobal('fetch', fetchMock as any)
 
-    await fetchNodeInfo('https://node.example.com/beanui/', 'peer-token')
+    const info = await fetchNodeInfo('node-a')
 
-    expect(fetchMock).toHaveBeenCalledWith('https://node.example.com/beanui/_cluster/v1/info', {
-      headers: { 'X-Cluster-Token': 'peer-token' },
+    expect(info).toEqual({ actions: ['inbound.list'] })
+    expect(api.get).toHaveBeenCalledWith('api/cluster/member-info', {
+      params: { node_id: 'node-a' },
     })
+    expect(fetchMock).not.toHaveBeenCalled()
   })
 
-  it('sends actions without adding a double slash after a mounted panel base URL', async () => {
-    const fetchMock = vi.fn(async () => ({
-      ok: true,
-      json: async () => ({ status: 'success' }),
-    }))
+  it('sends actions through the local API proxy instead of exposing peer tokens to the browser', async () => {
+    vi.mocked(api.post).mockResolvedValue({
+      data: { success: true, msg: '', obj: { status: 'success', action: 'inbound.list' } },
+    })
+    const fetchMock = vi.fn()
     vi.stubGlobal('fetch', fetchMock as any)
 
-    await sendAction('https://node.example.com/beanui/', 'peer-token', {
+    await sendAction('node-a', {
       schema_version: 1,
       sourceNodeId: '',
       domain: '',
@@ -37,13 +48,9 @@ describe('cluster peer API URL building', () => {
       payload: { page: 1, page_size: 10 },
     })
 
-    expect(fetchMock).toHaveBeenCalledWith('https://node.example.com/beanui/_cluster/v1/action', {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'X-Cluster-Token': 'peer-token',
-      },
-      body: JSON.stringify({
+    expect(api.post).toHaveBeenCalledWith('api/cluster/member-action', {
+      node_id: 'node-a',
+      request: {
         schema_version: 1,
         sourceNodeId: '',
         domain: '',
@@ -51,7 +58,8 @@ describe('cluster peer API URL building', () => {
         signature: '',
         action: 'inbound.list',
         payload: { page: 1, page_size: 10 },
-      }),
+      },
     })
+    expect(fetchMock).not.toHaveBeenCalled()
   })
 })

@@ -7,6 +7,7 @@ import (
 	"strings"
 
 	service "github.com/BeanYa/b-ui/src/backend/internal/domain/services"
+	clustertypes "github.com/BeanYa/b-ui/src/backend/internal/domain/services/cluster/types"
 
 	"github.com/gin-gonic/gin"
 )
@@ -17,6 +18,8 @@ type clusterAPIService interface {
 	ListDomains() ([]service.ClusterDomainResponse, error)
 	ListMembers() ([]service.ClusterMemberResponse, error)
 	GetMemberConnection(string) (*service.ClusterMemberConnectionResponse, error)
+	GetMemberInfo(string) (*clustertypes.InfoResponse, error)
+	SendMemberAction(string, clustertypes.ActionRequest) (*clustertypes.ActionResponse, error)
 	ManualSync() (*service.ClusterOperationStatus, error)
 	DeleteMember(uint) error
 	LeaveDomain(uint) error
@@ -89,7 +92,32 @@ func (a *APIHandler) getClusterMemberConnection(c *gin.Context) {
 	}
 	nodeID := strings.TrimSpace(c.Query("node_id"))
 	connection, err := a.clusterService.GetMemberConnection(nodeID)
+	if err == nil && connection != nil {
+		connection.Token = ""
+	}
 	jsonObj(c, connection, err)
+}
+
+func (a *APIHandler) getClusterMemberInfo(c *gin.Context) {
+	if !a.requireClusterAdmin(c) {
+		return
+	}
+	nodeID := strings.TrimSpace(c.Query("node_id"))
+	info, err := a.clusterService.GetMemberInfo(nodeID)
+	jsonObj(c, info, err)
+}
+
+func (a *APIHandler) sendClusterMemberAction(c *gin.Context) {
+	if !a.requireClusterAdmin(c) {
+		return
+	}
+	var request service.ClusterMemberActionRequest
+	if err := c.ShouldBindJSON(&request); err != nil {
+		jsonMsg(c, "cluster member action", err)
+		return
+	}
+	response, err := a.clusterService.SendMemberAction(strings.TrimSpace(request.NodeID), request.Request)
+	jsonObj(c, response, err)
 }
 
 func (a *APIHandler) manualClusterSync(c *gin.Context) {

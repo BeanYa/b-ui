@@ -322,7 +322,7 @@ export default {
           payload: payload as unknown as Record<string, unknown>,
         }
 
-        const resp = await sendAction(remoteNode.baseURL, remoteNode.token, req)
+        const resp = await sendAction(remoteNode.nodeID, req)
 
         if (resp.status === 'success') {
           push.success({

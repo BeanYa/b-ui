@@ -2,6 +2,7 @@ package api
 
 import (
 	"net/http"
+	"os"
 	"strings"
 
 	service "github.com/BeanYa/b-ui/src/backend/internal/domain/services"
@@ -111,6 +112,10 @@ func (h *pingAPIHandler) getMeshPing(c *gin.Context) {
 	domainID := c.Param("domainId")
 	result, err := h.store.LoadMeshResult(domainID)
 	if err != nil {
+		if os.IsNotExist(err) {
+			jsonObj(c, nil, nil)
+			return
+		}
 		c.JSON(http.StatusNotFound, Msg{Success: false, Msg: "no mesh ping data for domain: " + domainID})
 		return
 	}

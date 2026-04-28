@@ -10,6 +10,7 @@ import (
 	"testing"
 
 	service "github.com/BeanYa/b-ui/src/backend/internal/domain/services"
+	clustertypes "github.com/BeanYa/b-ui/src/backend/internal/domain/services/cluster/types"
 	"github.com/BeanYa/b-ui/src/backend/internal/infra/db/model"
 	logger "github.com/BeanYa/b-ui/src/backend/internal/infra/logging"
 
@@ -192,8 +193,67 @@ func TestClusterMemberConnectionUsesNodeIDQuery(t *testing.T) {
 	if err != nil {
 		t.Fatalf("marshal connection response: %v", err)
 	}
-	if !bytes.Contains(connectionJSON, []byte(`"token":"peer-token-a"`)) || !bytes.Contains(connectionJSON, []byte(`"baseUrl":"https://node-a.example.com"`)) {
-		t.Fatalf("expected token and baseUrl in connection response, got %s", connectionJSON)
+	if bytes.Contains(connectionJSON, []byte(`"token"`)) {
+		t.Fatalf("expected peer token to be omitted from browser-facing connection response, got %s", connectionJSON)
+	}
+	if !bytes.Contains(connectionJSON, []byte(`"baseUrl":"https://node-a.example.com"`)) {
+		t.Fatalf("expected baseUrl in connection response, got %s", connectionJSON)
+	}
+}
+
+func TestClusterMemberInfoUsesServerSideProxy(t *testing.T) {
+	router, cluster := newTestClusterRouter()
+	cluster.memberInfo = &clustertypes.InfoResponse{Actions: []string{"inbound.list"}}
+	req := httptest.NewRequest(http.MethodGet, "/api/cluster/member-info?node_id=node-a", nil)
+	req.Header.Set("Cookie", loginCookie(t, router, "admin"))
+	recorder := httptest.NewRecorder()
+
+	router.ServeHTTP(recorder, req)
+
+	if recorder.Code != http.StatusOK {
+		t.Fatalf("expected status %d, got %d", http.StatusOK, recorder.Code)
+	}
+	if cluster.memberInfoNodeID != "node-a" {
+		t.Fatalf("expected node_id query to be forwarded, got %q", cluster.memberInfoNodeID)
+	}
+	var response Msg
+	decodeResponse(t, recorder, &response)
+	infoJSON, err := json.Marshal(response.Obj)
+	if err != nil {
+		t.Fatalf("marshal info response: %v", err)
+	}
+	if !bytes.Contains(infoJSON, []byte(`"actions":["inbound.list"]`)) {
+		t.Fatalf("expected proxied actions in response, got %s", infoJSON)
+	}
+}
+
+func TestClusterMemberActionUsesServerSideProxy(t *testing.T) {
+	router, cluster := newTestClusterRouter()
+	cluster.memberAction = &clustertypes.ActionResponse{Status: "success", Action: "inbound.list"}
+	req := httptest.NewRequest(http.MethodPost, "/api/cluster/member-action", bytes.NewBufferString(`{"node_id":"node-a","request":{"schema_version":1,"action":"inbound.list","payload":{"page":1,"page_size":10}}}`))
+	req.Header.Set("Content-Type", "application/json")
+	req.Header.Set("Cookie", loginCookie(t, router, "admin"))
+	recorder := httptest.NewRecorder()
+
+	router.ServeHTTP(recorder, req)
+
+	if recorder.Code != http.StatusOK {
+		t.Fatalf("expected status %d, got %d", http.StatusOK, recorder.Code)
+	}
+	if cluster.memberActionNodeID != "node-a" {
+		t.Fatalf("expected node_id to be forwarded, got %q", cluster.memberActionNodeID)
+	}
+	if cluster.memberActionRequest.Action != "inbound.list" {
+		t.Fatalf("expected action request to be forwarded, got %#v", cluster.memberActionRequest)
+	}
+	var response Msg
+	decodeResponse(t, recorder, &response)
+	actionJSON, err := json.Marshal(response.Obj)
+	if err != nil {
+		t.Fatalf("marshal action response: %v", err)
+	}
+	if !bytes.Contains(actionJSON, []byte(`"status":"success"`)) || !bytes.Contains(actionJSON, []byte(`"action":"inbound.list"`)) {
+		t.Fatalf("expected proxied action response, got %s", actionJSON)
 	}
 }
 
@@ -466,6 +526,11 @@ type stubClusterAPIService struct {
 	pingResponse           *service.ClusterPeerStatus
 	memberConnection       *service.ClusterMemberConnectionResponse
 	memberConnectionNodeID string
+	memberInfo             *clustertypes.InfoResponse
+	memberInfoNodeID       string
+	memberAction           *clustertypes.ActionResponse
+	memberActionNodeID     string
+	memberActionRequest    clustertypes.ActionRequest
 }
 
 func (s *stubClusterAPIService) Register(request service.ClusterRegisterRequest) (*service.ClusterOperationStatus, error) {
@@ -494,6 +559,23 @@ func (s *stubClusterAPIService) GetMemberConnection(nodeID string) (*service.Clu
 		return s.memberConnection, nil
 	}
 	return &service.ClusterMemberConnectionResponse{NodeID: nodeID, BaseURL: "https://node.example.com", Token: "peer-token"}, nil
+}
+
+func (s *stubClusterAPIService) GetMemberInfo(nodeID string) (*clustertypes.InfoResponse, error) {
+	s.memberInfoNodeID = nodeID
+	if s.memberInfo != nil {
+		return s.memberInfo, nil
+	}
+	return &clustertypes.InfoResponse{Actions: []string{}}, nil
+}
+
+func (s *stubClusterAPIService) SendMemberAction(nodeID string, req clustertypes.ActionRequest) (*clustertypes.ActionResponse, error) {
+	s.memberActionNodeID = nodeID
+	s.memberActionRequest = req
+	if s.memberAction != nil {
+		return s.memberAction, nil
+	}
+	return &clustertypes.ActionResponse{Status: "success", Action: req.Action}, nil
 }
 
 func (s *stubClusterAPIService) ManualSync() (*service.ClusterOperationStatus, error) {

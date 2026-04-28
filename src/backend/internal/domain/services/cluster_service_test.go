@@ -8,11 +8,14 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"net/http"
+	"net/http/httptest"
 	"path/filepath"
 	"reflect"
 	"strings"
 	"testing"
 
+	clustertypes "github.com/BeanYa/b-ui/src/backend/internal/domain/services/cluster/types"
 	database "github.com/BeanYa/b-ui/src/backend/internal/infra/db"
 	"github.com/BeanYa/b-ui/src/backend/internal/infra/db/model"
 )
@@ -244,6 +247,99 @@ func TestClusterServiceGetMemberConnectionDecryptsPeerTokenByNodeID(t *testing.T
 	}
 	if connection.Token != "peer-token-a" {
 		t.Fatalf("expected decrypted peer token, got %q", connection.Token)
+	}
+}
+
+func TestClusterServiceGetMemberInfoProxiesToPeerInfoEndpoint(t *testing.T) {
+	secret := []byte("panel-secret-for-cluster-tests")
+	var receivedPath string
+	var receivedToken string
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		receivedPath = r.URL.Path
+		receivedToken = r.Header.Get("X-Cluster-Token")
+		w.Header().Set("Content-Type", "application/json")
+		_, _ = w.Write([]byte(`{"actions":["inbound.list"]}`))
+	}))
+	defer server.Close()
+	store := &stubClusterServiceStore{
+		members: map[string]*model.ClusterMember{
+			serviceMemberKey(1, "node-a"): {
+				NodeID:             "node-a",
+				BaseURL:            server.URL + "/beanui/",
+				DomainID:           1,
+				PeerTokenEncrypted: mustEncryptClusterToken(t, string(secret), "peer-token-a"),
+			},
+		},
+	}
+	service := &ClusterService{
+		secretProvider: stubClusterSecretProvider{secret: secret},
+		store:          store,
+	}
+
+	info, err := service.GetMemberInfo("node-a")
+	if err != nil {
+		t.Fatalf("get member info: %v", err)
+	}
+	if receivedPath != "/beanui/_cluster/v1/info" {
+		t.Fatalf("expected mounted peer info path, got %q", receivedPath)
+	}
+	if receivedToken != "peer-token-a" {
+		t.Fatalf("expected peer token header, got %q", receivedToken)
+	}
+	if len(info.Actions) != 1 || info.Actions[0] != "inbound.list" {
+		t.Fatalf("expected proxied info actions, got %#v", info)
+	}
+}
+
+func TestClusterServiceSendMemberActionProxiesToPeerActionEndpoint(t *testing.T) {
+	secret := []byte("panel-secret-for-cluster-tests")
+	var receivedPath string
+	var receivedToken string
+	var receivedRequest clustertypes.ActionRequest
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		receivedPath = r.URL.Path
+		receivedToken = r.Header.Get("X-Cluster-Token")
+		if err := json.NewDecoder(r.Body).Decode(&receivedRequest); err != nil {
+			t.Fatalf("decode action request: %v", err)
+		}
+		w.Header().Set("Content-Type", "application/json")
+		_, _ = w.Write([]byte(`{"status":"success","action":"inbound.list","data":{"total":0}}`))
+	}))
+	defer server.Close()
+	store := &stubClusterServiceStore{
+		members: map[string]*model.ClusterMember{
+			serviceMemberKey(1, "node-a"): {
+				NodeID:             "node-a",
+				BaseURL:            server.URL + "/beanui/",
+				DomainID:           1,
+				PeerTokenEncrypted: mustEncryptClusterToken(t, string(secret), "peer-token-a"),
+			},
+		},
+	}
+	service := &ClusterService{
+		secretProvider: stubClusterSecretProvider{secret: secret},
+		store:          store,
+	}
+
+	resp, err := service.SendMemberAction("node-a", clustertypes.ActionRequest{
+		SchemaVersion: 1,
+		Action:        "inbound.list",
+		Payload:       map[string]interface{}{"page": float64(1)},
+	})
+	if err != nil {
+		t.Fatalf("send member action: %v", err)
+	}
+	if receivedPath != "/beanui/_cluster/v1/action" {
+		t.Fatalf("expected mounted peer action path, got %q", receivedPath)
+	}
+	if receivedToken != "peer-token-a" {
+		t.Fatalf("expected peer token header, got %q", receivedToken)
+	}
+	if receivedRequest.Action != "inbound.list" {
+		t.Fatalf("expected forwarded action request, got %#v", receivedRequest)
+	}
+	if resp.Status != "success" || resp.Action != "inbound.list" {
+		t.Fatalf("expected proxied action response, got %#v", resp)
 	}
 }
 

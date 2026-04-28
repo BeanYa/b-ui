@@ -1,7 +1,9 @@
 package service
 
 import (
+	"bytes"
 	"context"
+	"encoding/json"
 	"errors"
 	"net"
 	"net/http"
@@ -68,7 +70,12 @@ type ClusterMemberConnectionResponse struct {
 	Name        string `json:"name"`
 	DisplayName string `json:"displayName"`
 	BaseURL     string `json:"baseUrl"`
-	Token       string `json:"token"`
+	Token       string `json:"token,omitempty"`
+}
+
+type ClusterMemberActionRequest struct {
+	NodeID  string                     `json:"node_id"`
+	Request clustertypes.ActionRequest `json:"request"`
 }
 
 type ClusterPeerStatus struct {
@@ -498,6 +505,87 @@ func (s *ClusterService) GetMemberConnection(nodeID string) (*ClusterMemberConne
 		BaseURL:     member.BaseURL,
 		Token:       token,
 	}, nil
+}
+
+func (s *ClusterService) GetMemberInfo(nodeID string) (*clustertypes.InfoResponse, error) {
+	connection, err := s.GetMemberConnection(nodeID)
+	if err != nil {
+		return nil, err
+	}
+	infoURL, err := clusterPeerActionURL(
+		connection.BaseURL,
+		ClusterCommunicationEndpointPath,
+		ClusterCommunicationProtocolVersion,
+		"info",
+	)
+	if err != nil {
+		return nil, err
+	}
+	request, err := http.NewRequestWithContext(context.Background(), http.MethodGet, infoURL, nil)
+	if err != nil {
+		return nil, err
+	}
+	if connection.Token != "" {
+		request.Header.Set("X-Cluster-Token", connection.Token)
+	}
+	response, err := s.peerHTTPClient().Do(request)
+	if err != nil {
+		return nil, err
+	}
+	defer response.Body.Close()
+	if err := requireHTTPSuccess(response, "cluster peer info"); err != nil {
+		return nil, err
+	}
+	var info clustertypes.InfoResponse
+	if err := json.NewDecoder(response.Body).Decode(&info); err != nil {
+		return nil, err
+	}
+	return &info, nil
+}
+
+func (s *ClusterService) SendMemberAction(nodeID string, actionRequest clustertypes.ActionRequest) (*clustertypes.ActionResponse, error) {
+	connection, err := s.GetMemberConnection(nodeID)
+	if err != nil {
+		return nil, err
+	}
+	actionURL, err := clusterPeerActionURL(
+		connection.BaseURL,
+		ClusterCommunicationEndpointPath,
+		ClusterCommunicationProtocolVersion,
+		"action",
+	)
+	if err != nil {
+		return nil, err
+	}
+	body, err := json.Marshal(actionRequest)
+	if err != nil {
+		return nil, err
+	}
+	request, err := http.NewRequestWithContext(context.Background(), http.MethodPost, actionURL, bytes.NewReader(body))
+	if err != nil {
+		return nil, err
+	}
+	request.Header.Set("Content-Type", "application/json")
+	if connection.Token != "" {
+		request.Header.Set("X-Cluster-Token", connection.Token)
+	}
+	response, err := s.peerHTTPClient().Do(request)
+	if err != nil {
+		return nil, err
+	}
+	defer response.Body.Close()
+	if err := requireHTTPSuccess(response, "cluster peer action"); err != nil {
+		return nil, err
+	}
+	var actionResponse clustertypes.ActionResponse
+	if err := json.NewDecoder(response.Body).Decode(&actionResponse); err != nil {
+		return nil, err
+	}
+	return &actionResponse, nil
+}
+
+func (s *ClusterService) peerHTTPClient() *http.Client {
+	return &http.Client{Timeout: 10 * time.Second}
 }
 
 func (s *ClusterService) ManualSync() (*ClusterOperationStatus, error) {

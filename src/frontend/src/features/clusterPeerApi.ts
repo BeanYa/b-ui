@@ -3,37 +3,26 @@ import type {
   ActionResponse,
   InfoResponse,
 } from '@/types/clusterActions'
+import api from '@/plugins/api'
 
 export async function fetchNodeInfo(
-  baseURL: string,
-  token: string
+  nodeId: string
 ): Promise<InfoResponse> {
-  const resp = await fetch(clusterPeerURL(baseURL, '/_cluster/v1/info'), {
-    headers: { 'X-Cluster-Token': token },
+  const resp = await api.get('api/cluster/member-info', {
+    params: { node_id: nodeId },
   })
-  if (!resp.ok) throw new Error(`info request failed: ${resp.status}`)
-  return resp.json()
+  return unwrapMsg<InfoResponse>(resp.data, 'info request failed')
 }
 
 export async function sendAction(
-  baseURL: string,
-  token: string,
+  nodeId: string,
   req: ActionRequest
 ): Promise<ActionResponse> {
-  const resp = await fetch(clusterPeerURL(baseURL, '/_cluster/v1/action'), {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-      'X-Cluster-Token': token,
-    },
-    body: JSON.stringify(req),
+  const resp = await api.post('api/cluster/member-action', {
+    node_id: nodeId,
+    request: req,
   })
-  if (!resp.ok) throw new Error(`action request failed: ${resp.status}`)
-  return resp.json()
-}
-
-function clusterPeerURL(baseURL: string, path: string): string {
-  return `${baseURL.replace(/\/+$/, '')}/${path.replace(/^\/+/, '')}`
+  return unwrapMsg<ActionResponse>(resp.data, 'action request failed')
 }
 
 export function buildListActionPayload(
@@ -50,4 +39,18 @@ export function buildListActionPayload(
     action,
     payload: { page, page_size: pageSize },
   }
+}
+
+function unwrapMsg<T>(data: unknown, fallback: string): T {
+  if (!data || typeof data !== 'object') {
+    throw new Error(fallback)
+  }
+  const msg = data as { success?: boolean; msg?: string; obj?: T | null }
+  if (!msg.success) {
+    throw new Error(msg.msg || fallback)
+  }
+  if (msg.obj == null) {
+    throw new Error(fallback)
+  }
+  return msg.obj
 }

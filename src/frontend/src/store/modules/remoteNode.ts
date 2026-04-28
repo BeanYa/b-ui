@@ -12,8 +12,8 @@ interface TabData<T> {
 }
 
 export const useRemoteNodeStore = defineStore('RemoteNode', () => {
+  const nodeID = ref('')
   const baseURL = ref('')
-  const token = ref('')
   const info = ref<InfoResponse | null>(null)
 
   const pageLoading = ref(true)
@@ -26,14 +26,14 @@ export const useRemoteNodeStore = defineStore('RemoteNode', () => {
   const routes = reactive<TabData<any>>({ items: [], total: 0, page: 1, loaded: false, loading: false })
   const outbounds = reactive<TabData<any>>({ items: [], total: 0, page: 1, loaded: false, loading: false })
 
-  async function init(url: string, t: string) {
+  async function init(id: string, url: string) {
+    nodeID.value = id
     baseURL.value = url
-    token.value = t
     pageLoading.value = true
     pageError.value = null
 
     try {
-      info.value = await fetchNodeInfo(url, t)
+      info.value = await fetchNodeInfo(id)
       await Promise.all([
         fetchTab(tlsConfigs, 'tls.list'),
         fetchTab(clients, 'client.list'),
@@ -50,7 +50,7 @@ export const useRemoteNodeStore = defineStore('RemoteNode', () => {
     try {
       const p = page ?? tab.page ?? 1
       const req = buildListActionPayload(action, p)
-      const resp = await sendAction(baseURL.value, token.value, req)
+      const resp = await sendAction(nodeID.value, req)
       if (resp.status === 'success' && resp.data) {
         const data = resp.data as PaginationResponse<T>
         tab.items = data.items
@@ -64,6 +64,8 @@ export const useRemoteNodeStore = defineStore('RemoteNode', () => {
   }
 
   function reset() {
+    nodeID.value = ''
+    baseURL.value = ''
     info.value = null
     tlsConfigs.loaded = false
     clients.loaded = false
@@ -74,7 +76,7 @@ export const useRemoteNodeStore = defineStore('RemoteNode', () => {
   }
 
   return {
-    baseURL, token, info, pageLoading, pageError,
+    nodeID, baseURL, info, pageLoading, pageError,
     tlsConfigs, clients, inbounds, services, routes, outbounds,
     init, fetchTab, reset,
   }

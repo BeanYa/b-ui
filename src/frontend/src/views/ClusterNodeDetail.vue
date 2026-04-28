@@ -176,8 +176,8 @@ async function loadNodeConnection(nodeId: string) {
     throw new Error(msg.msg || 'Failed to load cluster member connection.')
   }
   const connection = msg.obj as ClusterMemberConnection
-  if (!connection?.baseUrl || !connection?.token) {
-    throw new Error('Cluster member connection is missing baseUrl or token.')
+  if (!connection?.nodeId || !connection?.baseUrl) {
+    throw new Error('Cluster member connection is missing nodeId or baseUrl.')
   }
   return connection
 }
@@ -195,7 +195,7 @@ onMounted(async () => {
 
   try {
     nodeConnection.value = await loadNodeConnection(nodeId)
-    await remoteNode.init(nodeConnection.value.baseUrl, nodeConnection.value.token)
+    await remoteNode.init(nodeConnection.value.nodeId, nodeConnection.value.baseUrl)
   } catch (e: any) {
     remoteNode.pageError = e.message
     remoteNode.pageLoading = false
