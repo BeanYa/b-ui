@@ -22,4 +22,30 @@ describe('ClusterNodeDetail view source', () => {
     expect(source).not.toContain('route.query.baseUrl')
     expect(source).not.toContain('route.query.token')
   })
+
+  it('enters remote Data mode and renders the full local panel when panel actions are supported', () => {
+    const source = readFileSync(fileURLToPath(new URL('./ClusterNodeDetail.vue', import.meta.url)), 'utf8')
+
+    expect(source).toContain("nodeActions.value.includes('panel.load')")
+    expect(source).toContain("nodeActions.value.includes('panel.save')")
+    expect(source).toContain('Data().enterRemoteNode(nodeConnection.value.nodeId, nodeConnection.value.baseUrl)')
+    expect(source).toContain('await Data().loadData()')
+    expect(source).toContain('Data().exitRemoteNode()')
+
+    expect(source).toContain("import InboundsView from '@/views/Inbounds.vue'")
+    expect(source).toContain("import ClientsView from '@/views/Clients.vue'")
+    expect(source).toContain("import TlsView from '@/views/Tls.vue'")
+    expect(source).toContain("import ServicesView from '@/views/Services.vue'")
+    expect(source).toContain("import RulesView from '@/views/Rules.vue'")
+    expect(source).toContain("import OutboundsView from '@/views/Outbounds.vue'")
+    expect(source).toContain("import EndpointsView from '@/views/Endpoints.vue'")
+
+    expect(source).toContain('<InboundsView />')
+    expect(source).toContain('<ClientsView />')
+    expect(source).toContain('<TlsView />')
+    expect(source).toContain('<ServicesView />')
+    expect(source).toContain('<RulesView />')
+    expect(source).toContain('<OutboundsView />')
+    expect(source).toContain('<EndpointsView />')
+  })
 })
