@@ -140,10 +140,12 @@ const remoteNode = useRemoteNodeStore()
 const pageSize = 10
 const nodeConnection = ref<ClusterMemberConnection | null>(null)
 const panelLoading = ref(false)
+const panelReady = ref(false)
 
 const nodeName = computed(() => nodeConnection.value?.displayName || nodeConnection.value?.name || nodeConnection.value?.nodeId || 'Node')
 const nodeActions = computed(() => remoteNode.info?.actions ?? [])
-const supportsPanelExperience = computed(() => nodeActions.value.includes('panel.load') && nodeActions.value.includes('panel.save'))
+const advertisesPanelExperience = computed(() => nodeActions.value.includes('panel.load') && nodeActions.value.includes('panel.save'))
+const supportsPanelExperience = computed(() => panelReady.value || advertisesPanelExperience.value)
 const isPageLoading = computed(() => remoteNode.pageLoading || panelLoading.value)
 
 const activeTab = ref('inbounds')
@@ -224,6 +226,25 @@ async function loadNodeConnection(nodeId: string) {
   return connection
 }
 
+async function tryEnterRemotePanel() {
+  if (!nodeConnection.value) return false
+  panelLoading.value = true
+  try {
+    Data().enterRemoteNode(nodeConnection.value.nodeId, nodeConnection.value.baseUrl)
+    await Data().loadData()
+    panelReady.value = true
+    return true
+  } catch {
+    panelReady.value = false
+    if (Data().isRemote()) {
+      Data().exitRemoteNode()
+    }
+    return false
+  } finally {
+    panelLoading.value = false
+  }
+}
+
 onMounted(async () => {
   const nodeId = resolveRouteNodeId()
 
@@ -239,18 +260,20 @@ onMounted(async () => {
     nodeConnection.value = await loadNodeConnection(nodeId)
     await remoteNode.init(nodeConnection.value.nodeId, nodeConnection.value.baseUrl)
     if (remoteNode.pageError) return
-    if (supportsPanelExperience.value) {
-      panelLoading.value = true
-      Data().enterRemoteNode(nodeConnection.value.nodeId, nodeConnection.value.baseUrl)
-      await Data().loadData()
+    if (advertisesPanelExperience.value || nodeActions.value.length === 0) {
+      const panelEntered = await tryEnterRemotePanel()
+      if (panelEntered) {
+        return
+      }
+    }
+    if (advertisesPanelExperience.value) {
+      remoteNode.pageError = 'Remote panel management is advertised but panel.load failed.'
       return
     }
   } catch (e: any) {
     remoteNode.pageError = e.message
     remoteNode.pageLoading = false
     return
-  } finally {
-    panelLoading.value = false
   }
 
   const entry = tabMap[activeTab.value]
@@ -261,6 +284,7 @@ onMounted(async () => {
 
 onUnmounted(() => {
   if (Data().isRemote()) {
+    panelReady.value = false
     Data().exitRemoteNode()
     void Data().loadData()
   }

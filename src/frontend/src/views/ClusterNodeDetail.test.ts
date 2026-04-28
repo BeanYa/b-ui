@@ -28,6 +28,7 @@ describe('ClusterNodeDetail view source', () => {
 
     expect(source).toContain("nodeActions.value.includes('panel.load')")
     expect(source).toContain("nodeActions.value.includes('panel.save')")
+    expect(source).toContain('panelReady.value')
     expect(source).toContain('Data().enterRemoteNode(nodeConnection.value.nodeId, nodeConnection.value.baseUrl)')
     expect(source).toContain('await Data().loadData()')
     expect(source).toContain('Data().exitRemoteNode()')
@@ -47,5 +48,14 @@ describe('ClusterNodeDetail view source', () => {
     expect(source).toContain('<RulesView />')
     expect(source).toContain('<OutboundsView />')
     expect(source).toContain('<EndpointsView />')
+  })
+
+  it('probes panel.load when member-info returns no advertised actions', () => {
+    const source = readFileSync(fileURLToPath(new URL('./ClusterNodeDetail.vue', import.meta.url)), 'utf8')
+
+    expect(source).toContain('async function tryEnterRemotePanel()')
+    expect(source).toContain('nodeActions.value.length === 0')
+    expect(source).toContain('await tryEnterRemotePanel()')
+    expect(source).toContain('panelReady.value = true')
   })
 })
