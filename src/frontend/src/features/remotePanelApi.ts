@@ -80,7 +80,7 @@ function unwrapPanelAction(response: ActionResponse): any {
   throw new Error(response.error_message || `${response.action || 'panel action'} failed`)
 }
 
-function compactPayload(payload: Record<string, unknown>): Record<string, unknown> {
+function compactPayload<T extends object>(payload: T): Record<string, unknown> {
   return Object.fromEntries(
     Object.entries(payload).filter(([, value]) => value !== undefined),
   )
