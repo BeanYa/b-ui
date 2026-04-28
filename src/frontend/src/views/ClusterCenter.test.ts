@@ -160,6 +160,24 @@ describe('ClusterCenter view source', () => {
     expect(source).toContain('form.value.displayName = confirmInfo.value.displayName')
   })
 
+  it('closes the display-name entry dialog and starts loading before submitting confirmed registration', () => {
+    const source = readFileSync(fileURLToPath(new URL('./ClusterCenter.vue', import.meta.url)), 'utf8')
+    const submitStart = source.indexOf('const confirmAndSubmit = async () => {')
+    const requestIndex = source.indexOf("const registerMsg = await HttpUtils.post('api/cluster/register'", submitStart)
+    const loadingIndex = source.indexOf('actionLoading.value = true', submitStart)
+    const entryDialogCloseIndex = source.indexOf('registerDialog.value = false', submitStart)
+    const confirmDialogCloseIndex = source.indexOf('confirmDialog.value = false', submitStart)
+
+    expect(submitStart).toBeGreaterThan(-1)
+    expect(requestIndex).toBeGreaterThan(submitStart)
+    expect(loadingIndex).toBeGreaterThan(submitStart)
+    expect(entryDialogCloseIndex).toBeGreaterThan(submitStart)
+    expect(confirmDialogCloseIndex).toBeGreaterThan(submitStart)
+    expect(loadingIndex).toBeLessThan(requestIndex)
+    expect(entryDialogCloseIndex).toBeLessThan(requestIndex)
+    expect(confirmDialogCloseIndex).toBeGreaterThan(requestIndex)
+  })
+
   it('places the leave-domain action inside domain details instead of the global toolbar', () => {
     const source = readFileSync(fileURLToPath(new URL('./ClusterCenter.vue', import.meta.url)), 'utf8')
 

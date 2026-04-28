@@ -585,8 +585,6 @@ const pullExistingDomain = async () => {
 }
 
 const confirmAndSubmit = async () => {
-  confirmDialog.value = false
-
   const panelBaseUrl = resolvePanelBaseUrl()
   if (!isUsableAbsoluteUrl(panelBaseUrl)) {
     push.error({ title: i18n.global.t('failed'), message: i18n.global.t('clusterCenter.validation.panelUrl') })
@@ -594,32 +592,36 @@ const confirmAndSubmit = async () => {
   }
 
   actionLoading.value = true
-  const registerMsg = await HttpUtils.post('api/cluster/register', {
-    domain: confirmInfo.value.domain,
-    hubUrl: confirmInfo.value.hubUrl,
-    token: confirmInfo.value.token,
-    baseUrl: panelBaseUrl,
-    name: '',
-    displayName: confirmInfo.value.displayName,
-  })
+  registerDialog.value = false
+  registerStep.value = 1
 
-  if (registerMsg.success) {
-    const operation = registerMsg.obj as ClusterOperationStatus
-    if (operation?.id) {
-      await pollOperation(operation.id)
-    }
-    await loadData()
-    registerDialog.value = false
-    registerStep.value = 1
-    form.value = { joinUri: '', domain: '', hubUrlProtocol: 'https', hubUrlHost: '', token: '', displayName: '' }
-    push.success({
-      title: i18n.global.t('success'),
-      message: i18n.global.t('clusterCenter.successRegistered'),
-      duration: 5000,
+  try {
+    const registerMsg = await HttpUtils.post('api/cluster/register', {
+      domain: confirmInfo.value.domain,
+      hubUrl: confirmInfo.value.hubUrl,
+      token: confirmInfo.value.token,
+      baseUrl: panelBaseUrl,
+      name: '',
+      displayName: confirmInfo.value.displayName,
     })
-  }
 
-  actionLoading.value = false
+    if (registerMsg.success) {
+      const operation = registerMsg.obj as ClusterOperationStatus
+      if (operation?.id) {
+        await pollOperation(operation.id)
+      }
+      await loadData()
+      confirmDialog.value = false
+      form.value = { joinUri: '', domain: '', hubUrlProtocol: 'https', hubUrlHost: '', token: '', displayName: '' }
+      push.success({
+        title: i18n.global.t('success'),
+        message: i18n.global.t('clusterCenter.successRegistered'),
+        duration: 5000,
+      })
+    }
+  } finally {
+    actionLoading.value = false
+  }
 }
 
 const loadData = async () => {
