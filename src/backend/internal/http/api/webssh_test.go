@@ -212,7 +212,7 @@ func TestAPIAuthStateReturnsUserServiceError(t *testing.T) {
 	if response.Success {
 		t.Fatal("expected user service error to fail")
 	}
-	if response.Msg != ": boom" {
+	if response.Msg != "boom" {
 		t.Fatalf("expected propagated user service error, got %q", response.Msg)
 	}
 }
