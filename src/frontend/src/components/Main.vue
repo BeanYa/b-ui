@@ -196,11 +196,15 @@
             <div class="probe-card__clusters">
               <div class="probe-cluster">
                 <div class="probe-cluster__label">System</div>
-                <div class="probe-cluster__value">{{ hostAddress }}</div>
-                <div class="probe-cluster__meta">
-                  <span>{{ cpuDescriptor }}</span>
-                  <span>{{ systemUptime }}</span>
-                  <span>{{ appVersion }}</span>
+                <div class="probe-cluster__facts">
+                  <div
+                    v-for="item in systemFacts"
+                    :key="item.label"
+                    class="probe-cluster__fact"
+                  >
+                    <span>{{ item.label }}</span>
+                    <strong>{{ item.value }}</strong>
+                  </div>
                 </div>
               </div>
               <div class="probe-cluster">
@@ -432,6 +436,12 @@ const cpuDescriptor = computed(() => {
   if (!tilesData.value.sys?.cpuCount) return 'Processor pending'
   return `${tilesData.value.sys.cpuCount} ${i18n.global.t('main.info.core')} · ${tilesData.value.sys?.cpuType || 'Unknown CPU'}`
 })
+const systemFacts = computed(() => [
+  { label: 'IP', value: hostAddress.value },
+  { label: 'CPU', value: cpuDescriptor.value },
+  { label: 'Uptime', value: systemUptime.value },
+  { label: 'Version', value: appVersion.value },
+])
 const onlineSummary = computed(() =>
   `${dataStore.onlines.user.length} users · ${dataStore.onlines.inbound.length} inbounds · ${dataStore.onlines.outbound.length} outbounds`
 )
@@ -1402,6 +1412,44 @@ onBeforeUnmount(() => {
   font-weight: 600;
   line-height: 1.2;
   margin-top: 8px;
+  overflow-wrap: anywhere;
+}
+
+.probe-cluster__facts {
+  display: grid;
+  gap: 8px;
+  grid-template-columns: repeat(auto-fit, minmax(132px, 1fr));
+  margin-top: 10px;
+}
+
+.probe-cluster__fact {
+  background: color-mix(in srgb, var(--app-surface-4) 68%, transparent);
+  border: 1px solid color-mix(in srgb, var(--app-border-1) 72%, transparent);
+  border-radius: 12px;
+  min-width: 0;
+  padding: 8px 10px;
+}
+
+.probe-cluster__fact span {
+  color: var(--app-text-4);
+  display: block;
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  line-height: 1.2;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  text-transform: uppercase;
+  white-space: nowrap;
+}
+
+.probe-cluster__fact strong {
+  color: var(--app-text-1);
+  display: block;
+  font-size: 12px;
+  font-weight: 600;
+  line-height: 1.35;
+  margin-top: 4px;
   overflow-wrap: anywhere;
 }
 
