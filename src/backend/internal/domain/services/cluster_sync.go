@@ -224,7 +224,7 @@ func (s *ClusterSyncService) CheckAndBroadcastUpdate(ctx context.Context, domain
 	if err != nil {
 		return err
 	}
-	_, _ = hubClient.SetMemberStatus(ctx, domain.HubURL, domain.Domain, domainToken, requestID+"-status", local.NodeID, "offline", "")
+	_, _ = hubClient.SetMemberStatus(ctx, domain.HubURL, domain.Domain, domainToken, requestID+"-status", local.NodeID, "offline", currentVersion)
 
 	if s.broadcaster != nil {
 		_ = s.broadcaster.BroadcastUpdateAvailable(ctx, domain.Id, domain.Domain, maxVersion, local.NodeID)

@@ -747,10 +747,16 @@ const startPanelUpdatePolling = (targetVersion: string) => {
 }
 
 const openPanelUpdateDialog = async () => {
+  panelUpdateDialog.value.mode = 'confirm'
+  panelUpdateDialog.value.info = null
+  panelUpdateDialog.value.visible = true
   panelUpdateDialog.value.loading = true
   const msg = await HttpUtils.get('api/panelUpdate')
   panelUpdateDialog.value.loading = false
-  if (!msg.success || !msg.obj) return
+  if (!msg.success || !msg.obj) {
+    panelUpdateDialog.value.visible = false
+    return
+  }
 
   const info = msg.obj as PanelUpdateInfo
   applyPanelUpdateInfo(info)

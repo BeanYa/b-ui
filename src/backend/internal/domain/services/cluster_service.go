@@ -51,14 +51,16 @@ type ClusterDomainResponse struct {
 }
 
 type ClusterMemberResponse struct {
-	ID          uint   `json:"id"`
-	DomainID    uint   `json:"domainId"`
-	NodeID      string `json:"nodeId"`
-	Name        string `json:"name"`
-	DisplayName string `json:"displayName"`
-	BaseURL     string `json:"baseUrl"`
-	LastVersion int64  `json:"lastVersion"`
-	IsLocal     bool   `json:"isLocal"`
+	ID           uint   `json:"id"`
+	DomainID     uint   `json:"domainId"`
+	NodeID       string `json:"nodeId"`
+	Name         string `json:"name"`
+	DisplayName  string `json:"displayName"`
+	BaseURL      string `json:"baseUrl"`
+	LastVersion  int64  `json:"lastVersion"`
+	IsLocal      bool   `json:"isLocal"`
+	PanelVersion string `json:"panelVersion"`
+	Status       string `json:"status"`
 }
 
 type ClusterMemberConnectionResponse struct {
@@ -223,6 +225,8 @@ func (s *ClusterService) Register(request ClusterRegisterRequest) (*ClusterOpera
 			PeerTokenEncrypted: peerTokenEncrypted,
 			DomainID:           domain.Id,
 			LastVersion:        snapshot.Version,
+			PanelVersion:       item.EffectivePanelVersion(),
+			Status:             item.EffectiveStatus(),
 		}
 		baseURLKey := normalizeClusterBaseURLForIdentity(member.BaseURL)
 		if baseURLKey != "" {
@@ -458,7 +462,7 @@ func (s *ClusterService) ListMembers() ([]ClusterMemberResponse, error) {
 	}
 	response := make([]ClusterMemberResponse, 0, len(members))
 	for _, member := range members {
-		response = append(response, ClusterMemberResponse{ID: member.Id, DomainID: member.DomainID, NodeID: member.NodeID, Name: member.Name, DisplayName: member.DisplayName, BaseURL: member.BaseURL, LastVersion: member.LastVersion, IsLocal: member.NodeID == localIdentity.NodeID})
+		response = append(response, ClusterMemberResponse{ID: member.Id, DomainID: member.DomainID, NodeID: member.NodeID, Name: member.Name, DisplayName: member.DisplayName, BaseURL: member.BaseURL, LastVersion: member.LastVersion, IsLocal: member.NodeID == localIdentity.NodeID, PanelVersion: member.PanelVersion, Status: member.Status})
 	}
 	return response, nil
 }

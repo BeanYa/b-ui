@@ -12,4 +12,19 @@ describe('Main dashboard source', () => {
     expect(source).toContain('value: appVersion.value')
     expect(source).not.toContain('<span>{{ appVersion }}</span>')
   })
+
+  it('opens the panel update dialog before waiting for release metadata', () => {
+    const source = readFileSync(fileURLToPath(new URL('./Main.vue', import.meta.url)), 'utf8')
+    const openDialogStart = source.indexOf('const openPanelUpdateDialog = async () => {')
+    const visibleIndex = source.indexOf('panelUpdateDialog.value.visible = true', openDialogStart)
+    const loadingIndex = source.indexOf('panelUpdateDialog.value.loading = true', openDialogStart)
+    const requestIndex = source.indexOf("await HttpUtils.get('api/panelUpdate')", openDialogStart)
+
+    expect(openDialogStart).toBeGreaterThan(-1)
+    expect(visibleIndex).toBeGreaterThan(openDialogStart)
+    expect(loadingIndex).toBeGreaterThan(openDialogStart)
+    expect(requestIndex).toBeGreaterThan(openDialogStart)
+    expect(visibleIndex).toBeLessThan(requestIndex)
+    expect(loadingIndex).toBeLessThan(requestIndex)
+  })
 })

@@ -57,6 +57,7 @@ type ClusterHubMemberResponse struct {
 	PeerTokenAlt    string `json:"peer_token"`
 	Address         string `json:"address"`
 	PanelVersion    string `json:"panel_version"`
+	PanelVersionAlt string `json:"panelVersion"`
 	Status          string `json:"status"`
 }
 
@@ -150,6 +151,12 @@ func (m ClusterHubMemberResponse) EffectivePeerToken() string {
 }
 
 func (m ClusterHubMemberResponse) EffectivePanelVersion() string {
+	if m.PanelVersion != "" {
+		return m.PanelVersion
+	}
+	if m.PanelVersionAlt != "" {
+		return m.PanelVersionAlt
+	}
 	return m.PanelVersion
 }
 

@@ -142,6 +142,7 @@ func TestBuildPanelUpdateCommandPassesEnvironmentToSystemdUnit(t *testing.T) {
 	args := strings.Join(cmd.Args, "\n")
 
 	expected := []string{
+		"--no-block",
 		"--setenv=INSTALL_SCRIPT_URL=https://raw.githubusercontent.com/BeanYa/b-ui/main/install.sh",
 		"--setenv=INSTALL_MODE=--force-update",
 		"--setenv=TARGET_VERSION=v0.1.15",

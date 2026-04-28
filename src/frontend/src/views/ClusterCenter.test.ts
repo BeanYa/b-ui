@@ -113,6 +113,42 @@ describe('ClusterCenter view source', () => {
     expect(source).toContain('const backToClusterCenter = () => {')
   })
 
+  it('keeps member version, panel version, status, latency, and action columns aligned', () => {
+    const source = readFileSync(fileURLToPath(new URL('./ClusterCenter.vue', import.meta.url)), 'utf8')
+    const tableStart = source.indexOf('<table class="cluster-center__member-table">')
+    const tableEnd = source.indexOf('</table>', tableStart)
+    const tableSource = source.slice(tableStart, tableEnd)
+
+    const expectedHeaderOrder = [
+      "$t('clusterCenter.table.version')",
+      "$t('clusterCenter.table.panelVersion')",
+      "$t('clusterCenter.table.status')",
+      "$t('clusterCenter.table.latency')",
+      "$t('clusterCenter.table.action')",
+    ]
+    const expectedCellOrder = [
+      'formatClusterVersionLabel(member.lastVersion)',
+      'member.panelVersion ||',
+      "member.status === 'offline'",
+      'memberLatency(member.nodeId)',
+      'member.isLocal ? leaveDomain(selectedDomain) : deleteMember(member)',
+    ]
+
+    let lastIndex = -1
+    for (const token of expectedHeaderOrder) {
+      const index = tableSource.indexOf(token)
+      expect(index).toBeGreaterThan(lastIndex)
+      lastIndex = index
+    }
+
+    lastIndex = -1
+    for (const token of expectedCellOrder) {
+      const index = tableSource.indexOf(token)
+      expect(index).toBeGreaterThan(lastIndex)
+      lastIndex = index
+    }
+  })
+
   it('deduplicates registration checks by normalized BaseURL and defaults display name from BaseURL host', () => {
     const source = readFileSync(fileURLToPath(new URL('./ClusterCenter.vue', import.meta.url)), 'utf8')
 
