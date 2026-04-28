@@ -149,7 +149,8 @@ export default {
         if (typeof result != 'object' || Array.isArray(result)) throw new Error()
       } catch (e) {
         push.error({
-          message: i18n.global.t('failed') + ": " + i18n.global.t('error.invalidData'),
+          title: i18n.global.t('failed'),
+          message: i18n.global.t('error.invalidData'),
           duration: 5000,
         })
         return

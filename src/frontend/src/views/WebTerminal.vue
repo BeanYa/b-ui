@@ -2,14 +2,14 @@
   <div class="app-page">
     <section class="app-page__hero">
       <div class="app-page__hero-head">
-        <div class="app-page__hero-kicker">WebTerminal</div>
-        <h1 class="app-page__hero-title">WebTerminal</h1>
+        <div class="app-page__hero-kicker">{{ $t('pages.webTerminal') }}</div>
+        <h1 class="app-page__hero-title">{{ $t('pages.webTerminal') }}</h1>
         <p class="app-page__hero-copy">
-          Open a browser terminal session to inspect the local terminal-backed backend stream without leaving the admin UI.
+          {{ $t('webTerminal.heroCopy') }}
         </p>
         <div class="app-page__hero-meta">
-          <span class="app-page__hero-meta-item">Connection status: {{ session.status }}</span>
-          <span class="app-page__hero-meta-item">Interactive TTY stream</span>
+          <span class="app-page__hero-meta-item">{{ $t('webTerminal.connectionStatus') }}: {{ session.status }}</span>
+          <span class="app-page__hero-meta-item">{{ $t('webTerminal.interactiveStream') }}</span>
         </div>
       </div>
     </section>
@@ -18,21 +18,21 @@
       <v-card-text class="web-terminal__stack">
         <div class="web-terminal__toolbar">
           <div>
-            <div class="web-terminal__label">Connection status</div>
+            <div class="web-terminal__label">{{ $t('webTerminal.connectionStatus') }}</div>
             <div class="web-terminal__status" :data-status="session.status">{{ session.status }}</div>
           </div>
           <div class="web-terminal__actions">
-            <v-btn color="primary" :disabled="!canConnect" @click="requestConnect">Connect</v-btn>
-            <v-btn variant="outlined" color="warning" :disabled="!canDisconnect" @click="disconnect">Disconnect</v-btn>
+            <v-btn color="primary" :disabled="!canConnect" @click="requestConnect">{{ $t('webTerminal.connect') }}</v-btn>
+            <v-btn variant="outlined" color="warning" :disabled="!canDisconnect" @click="disconnect">{{ $t('webTerminal.disconnect') }}</v-btn>
           </div>
         </div>
 
         <div>
-          <div class="web-terminal__label">Transcript</div>
+          <div class="web-terminal__label">{{ $t('webTerminal.transcript') }}</div>
           <div class="web-terminal__transcript" role="log" aria-live="polite">
             <div ref="terminalHost" class="web-terminal__viewport"></div>
             <div v-if="showActivationOverlay" class="web-terminal__placeholder">
-              Connect to start the interactive terminal session.
+              {{ $t('webTerminal.placeholder') }}
             </div>
           </div>
         </div>
@@ -40,39 +40,39 @@
 
       <div v-if="showActivationOverlay" class="web-terminal__activation-mask">
         <div class="web-terminal__activation-dialog">
-          <div class="web-terminal__activation-title">Interactive Web Terminal</div>
+          <div class="web-terminal__activation-title">{{ $t('webTerminal.activationTitle') }}</div>
           <p class="web-terminal__activation-copy">
-            Start a live terminal session with real-time keyboard interaction, cursor rendering, and streamed output.
+            {{ $t('webTerminal.activationCopy') }}
           </p>
-          <v-btn color="primary" size="large" @click="requestConnect">Connect</v-btn>
+          <v-btn color="primary" size="large" @click="requestConnect">{{ $t('webTerminal.connect') }}</v-btn>
         </div>
       </div>
     </v-card>
 
     <v-dialog v-model="connectDialogVisible" class="app-dialog app-dialog--compact" max-width="440">
       <v-card class="app-card-shell">
-        <v-card-title>Connect web terminal?</v-card-title>
+        <v-card-title>{{ $t('webTerminal.connectTitle') }}</v-card-title>
         <v-card-text>
-          This will open a live shell session on the server and allow real-time keyboard interaction inside the browser.
+          {{ $t('webTerminal.connectCopy') }}
         </v-card-text>
         <v-card-actions class="web-terminal__dialog-actions">
           <v-spacer></v-spacer>
-          <v-btn variant="text" @click="connectDialogVisible = false">Cancel</v-btn>
-          <v-btn color="primary" @click="confirmConnect">Connect</v-btn>
+          <v-btn variant="text" @click="connectDialogVisible = false">{{ $t('no') }}</v-btn>
+          <v-btn color="primary" @click="confirmConnect">{{ $t('webTerminal.connect') }}</v-btn>
         </v-card-actions>
       </v-card>
     </v-dialog>
 
     <v-dialog v-model="leaveDialogVisible" class="app-dialog app-dialog--compact" max-width="460">
       <v-card class="app-card-shell">
-        <v-card-title>Leave WebTerminal?</v-card-title>
+        <v-card-title>{{ $t('webTerminal.leaveTitle') }}</v-card-title>
         <v-card-text>
-          Leaving this page will close the active terminal session and may interrupt any running command or task on the server.
+          {{ $t('webTerminal.leaveCopy') }}
         </v-card-text>
         <v-card-actions class="web-terminal__dialog-actions">
           <v-spacer></v-spacer>
-          <v-btn variant="text" @click="cancelLeave">Stay</v-btn>
-          <v-btn color="warning" @click="confirmLeave">Leave and abort</v-btn>
+          <v-btn variant="text" @click="cancelLeave">{{ $t('webTerminal.stay') }}</v-btn>
+          <v-btn color="warning" @click="confirmLeave">{{ $t('webTerminal.leaveAndAbort') }}</v-btn>
         </v-card-actions>
       </v-card>
     </v-dialog>
@@ -86,6 +86,7 @@ import { Terminal } from '@xterm/xterm'
 import { onBeforeRouteLeave } from 'vue-router'
 import '@xterm/xterm/css/xterm.css'
 
+import { i18n } from '@/locales'
 import {
   createWebTerminalSession,
   reduceWebTerminalSession,
@@ -115,12 +116,13 @@ const canConnect = computed(() => session.value.status === 'disconnected')
 const canDisconnect = computed(() => session.value.status !== 'disconnected')
 const hasActiveSession = computed(() => session.value.status !== 'disconnected')
 const showActivationOverlay = computed(() => session.value.status === 'disconnected')
+const terminalText = (key: string) => i18n.global.t(`webTerminal.${key}`).toString()
 
 const writeTerminalStatusLine = (text: string) => {
   terminal.value?.writeln(`\r\n${text}`)
 }
 
-const closeActiveSession = (reasonText = 'Terminal disconnected.') => {
+const closeActiveSession = (reasonText = terminalText('terminalDisconnected')) => {
   const currentSocket = socket.value
   if (currentSocket) {
     socket.value = null
@@ -169,16 +171,17 @@ const connect = () => {
   const normalizedBaseUrl = rawBaseUrl.endsWith('/') ? rawBaseUrl : `${rawBaseUrl}/`
   const wsUrl = new URL(`${normalizedBaseUrl}api/webssh/ws`, window.location.origin)
   wsUrl.protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:'
+  const openingText = terminalText('terminalOpening')
 
   applySession({
     type: 'connection',
     status: 'connecting',
-    text: 'Opening terminal connection...',
+    text: openingText,
   })
 
   terminal.value?.reset()
   terminal.value?.focus()
-  writeTerminalStatusLine('Opening terminal connection...')
+  writeTerminalStatusLine(openingText)
 
   console.debug('[WebTerminal] connecting websocket', {
     rawBaseUrl,
@@ -199,7 +202,7 @@ const connect = () => {
     applySession({
       type: 'connection',
       status: 'connected',
-      text: 'Terminal connected.',
+      text: terminalText('terminalConnected'),
     })
   })
 
@@ -229,7 +232,7 @@ const connect = () => {
       applySession({
         type: 'connection',
         status: session.value.status,
-        text: 'Ignored malformed terminal message.',
+        text: terminalText('terminalMalformedMessage'),
       })
     }
   })
@@ -245,10 +248,10 @@ const connect = () => {
     applySession({
       type: 'connection',
       status: 'disconnected',
-      text: 'Terminal connection error.',
+      text: terminalText('terminalConnectionError'),
     })
 
-    writeTerminalStatusLine('Terminal connection error.')
+    writeTerminalStatusLine(terminalText('terminalConnectionError'))
   })
 
   currentSocket.addEventListener('close', () => {
@@ -260,16 +263,16 @@ const connect = () => {
       applySession({
         type: 'connection',
         status: 'disconnected',
-        text: 'Terminal disconnected.',
+        text: terminalText('terminalDisconnected'),
       })
 
-      writeTerminalStatusLine('Terminal disconnected.')
+      writeTerminalStatusLine(terminalText('terminalDisconnected'))
     }
   })
 }
 
 const disconnect = () => {
-  closeActiveSession('Terminal disconnected.')
+  closeActiveSession()
 }
 
 const cancelLeave = () => {
@@ -295,7 +298,7 @@ const confirmLeave = () => {
     targetPath,
   })
 
-  closeActiveSession('Terminal aborted because you left the page.')
+  closeActiveSession(terminalText('terminalAborted'))
   decision?.proceed()
 }
 
@@ -303,7 +306,7 @@ const handleBeforeUnload = (event: BeforeUnloadEvent) => {
   if (!hasActiveSession.value) return
 
   event.preventDefault()
-  event.returnValue = 'Leaving WebTerminal will close the active terminal session and interrupt running tasks.'
+  event.returnValue = terminalText('beforeUnload')
 }
 
 onMounted(() => {
@@ -329,7 +332,7 @@ onMounted(() => {
   currentTerminal.open(host)
   currentFitAddon.fit()
   currentTerminal.focus()
-  currentTerminal.writeln('Press Connect to start the interactive terminal session.')
+  currentTerminal.writeln(terminalText('terminalStartPrompt'))
 
   terminalInputSubscription.value = currentTerminal.onData((data) => {
     if (session.value.status !== 'connected' || socket.value === null || socket.value.readyState !== WebSocket.OPEN) return

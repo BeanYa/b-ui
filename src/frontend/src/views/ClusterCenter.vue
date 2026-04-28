@@ -131,7 +131,7 @@
               :loading="meshPingLoading"
               @click="pingAllDomainMembers"
             >
-              Ping All
+              {{ $t('clusterCenter.actions.pingAll') }}
             </v-btn>
           </div>
         </v-card-title>
@@ -186,7 +186,7 @@
                         variant="tonal"
                         @click="goToNodeDetail(member)"
                       >
-                        管理
+                        {{ $t('clusterCenter.actions.manage') }}
                       </v-btn>
                       <v-btn
                         size="small"
@@ -221,10 +221,10 @@
             <template v-if="registerMode === 'uri'">
               <v-text-field
                 v-model="form.joinUri"
-                label="Join URI"
+                :label="$t('clusterCenter.fields.joinUri')"
                 placeholder="buihub://hub.example.com/domain/example.com?domain_token=..."
                 persistent-hint
-                hint="URI 以 buihub:// 开头，例如 buihub://hub.example.com/domain/example.com?domain_token=xxx"
+                :hint="$t('clusterCenter.joinUriHint')"
               />
             </template>
             <template v-else>
@@ -287,7 +287,7 @@
             <table class="cluster-center__confirm-table">
               <tbody>
                 <tr>
-                  <td class="cluster-center__confirm-label">Hub 地址</td>
+                  <td class="cluster-center__confirm-label">{{ $t('clusterCenter.fields.hubUrl') }}</td>
                   <td class="cluster-center__confirm-value">{{ confirmInfo.hubUrl }}</td>
                 </tr>
                 <tr>
@@ -303,7 +303,7 @@
                   <td class="cluster-center__confirm-value">{{ confirmInfo.displayName }}</td>
                 </tr>
                 <tr>
-                  <td class="cluster-center__confirm-label">本机地址</td>
+                  <td class="cluster-center__confirm-label">{{ $t('clusterCenter.fields.localBaseUrl') }}</td>
                   <td class="cluster-center__confirm-value">{{ confirmInfo.baseUrl }}</td>
                 </tr>
               </tbody>
@@ -313,7 +313,7 @@
         <v-card-actions>
           <v-spacer />
           <v-btn variant="text" @click="confirmDialog = false">{{ $t('clusterCenter.actions.cancel') }}</v-btn>
-          <v-btn color="primary" :loading="actionLoading" @click="confirmAndSubmit">确认注册</v-btn>
+          <v-btn color="primary" :loading="actionLoading" @click="confirmAndSubmit">{{ $t('clusterCenter.actions.confirmRegister') }}</v-btn>
         </v-card-actions>
       </v-card>
     </v-dialog>
@@ -456,7 +456,7 @@ const validateAndCheckDomain = async () => {
     const uri = form.value.joinUri.trim()
     const parsed = parseClusterHubJoinUri(uri)
     if (!parsed) {
-      push.error({ title: i18n.global.t('failed'), message: 'URI 格式无效，请检查后重试' })
+      push.error({ title: i18n.global.t('failed'), message: i18n.global.t('clusterCenter.validation.invalidJoinUri') })
       return
     }
     const panelBaseUrl = resolvePanelBaseUrl()

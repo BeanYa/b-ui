@@ -265,7 +265,7 @@ const save = async () => {
     push.success({
       title: i18n.global.t('success'),
       duration: 5000,
-      message: i18n.global.t('actions.set') + " " + i18n.global.t('pages.settings')
+      message: i18n.global.t('setting.saved')
     })
     setData(msg.obj.settings)
   }
