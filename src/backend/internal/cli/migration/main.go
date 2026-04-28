@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"log"
 	"os"
+	"strings"
 
 	"github.com/BeanYa/b-ui/src/backend/internal/domain/config"
 
@@ -13,7 +14,7 @@ import (
 
 func MigrateDb() {
 	// void running on first install
-	path, err := config.PrepareDBPathForMigration()
+	path, err := prepareDBPathForCommand()
 	if err != nil {
 		log.Fatal(err)
 		return
@@ -80,4 +81,16 @@ func MigrateDb() {
 		return
 	}
 	fmt.Println("Migration done!")
+}
+
+func prepareDBPathForCommand() (string, error) {
+	if legacyDBMigrationEnabled() {
+		return config.PrepareDBPathForMigration()
+	}
+	return config.PrepareDBPath()
+}
+
+func legacyDBMigrationEnabled() bool {
+	value := strings.TrimSpace(os.Getenv("BUI_LEGACY_DB_MIGRATION"))
+	return value == "1" || strings.EqualFold(value, "true") || strings.EqualFold(value, "yes")
 }

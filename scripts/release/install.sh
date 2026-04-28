@@ -20,6 +20,7 @@ BINARY_NAME="${BINARY_NAME:-b-ui}"
 LEGACY_BINARY_NAME="${LEGACY_BINARY_NAME:-sui}"
 BINARY_PATH="${BINARY_PATH:-${INSTALL_ROOT}/${BINARY_NAME}}"
 LEGACY_BINARY_PATH="${LEGACY_BINARY_PATH:-${INSTALL_ROOT}/${LEGACY_BINARY_NAME}}"
+LEGACY_ROOT_BINARY_PATH="${LEGACY_ROOT_BINARY_PATH:-${LEGACY_INSTALL_ROOT}/${LEGACY_BINARY_NAME}}"
 LEGACY_CLI_PATH="${LEGACY_CLI_PATH:-/usr/bin/s-ui}"
 SERVICE_NAME="${SERVICE_NAME:-b-ui}"
 LEGACY_SERVICE_NAME="${LEGACY_SERVICE_NAME:-s-ui}"
@@ -29,6 +30,9 @@ FORCE_UPDATE_COMMAND="${INSTALL_COMMAND} --force-update"
 DB_FILE="${DB_FILE:-${INSTALL_ROOT}/db/b-ui.db}"
 LEGACY_DB_FILE="${LEGACY_DB_FILE:-${LEGACY_INSTALL_ROOT}/db/s-ui.db}"
 BACKUP_ROOT="${BACKUP_ROOT:-/var/backups/b-ui}"
+CERT_ROOT="${CERT_ROOT:-/root/cert}"
+ACME_HOME="${ACME_HOME:-${HOME:-/root}/.acme.sh}"
+LETSENCRYPT_LIVE_ROOT="${LETSENCRYPT_LIVE_ROOT:-/etc/letsencrypt/live}"
 DOWNLOAD_RETRY_COUNT="${DOWNLOAD_RETRY_COUNT:-8}"
 DOWNLOAD_RETRY_DELAY="${DOWNLOAD_RETRY_DELAY:-15}"
 MODE="install"
@@ -50,6 +54,7 @@ ARG_DOMAIN=""
 ARG_CERT_PATH=""
 ARG_KEY_PATH=""
 ARG_ACME_PORT="80"
+ARG_REUSE_DOMAIN=0
 
 cur_dir=$(pwd)
 
@@ -57,12 +62,16 @@ show_usage() {
     cat <<'EOF'
 Usage:
   bash install.sh [OPTIONS] [VERSION]
+  bash install.sh --install [OPTIONS] [VERSION]
+  bash install.sh --reinstall [OPTIONS] [VERSION]
   bash install.sh --migrate [OPTIONS] [VERSION]
   bash install.sh --update [VERSION]
   bash install.sh --force-update [VERSION]
 
 Modes:
   default         Fresh install or manual reinstall. Fresh installs use the b-ui command and b-ui service by default.
+  --install       Explicit fresh install mode. Supports the same options as default install mode.
+  --reinstall     Remove installed services and program files, keep data/settings, then install again with install-mode options.
   --migrate       Migrate an existing upstream install in place, keep current settings, and switch both the service and command to b-ui.
                   When used through migrate-to-b-ui.sh without a version, migration is followed by an explicit update check to the latest b-ui release.
   --update        Update an existing b-ui install only when the target version is newer/different.
@@ -79,6 +88,7 @@ Options:
   --cert-path       SSL certificate file path (requires --key-path)
   --key-path        SSL key file path (requires --cert-path)
   --acme-port       Port for ACME standalone validation (default: 80)
+  --reuse-domain    Reuse an existing local certificate. With --domain, reuse that domain when available; without --domain, discover the first reusable domain certificate.
 
   If --domain is provided without --cert-path and --key-path, ACME will be used
   to automatically apply for and renew the certificate.
@@ -89,7 +99,9 @@ Examples:
   bash install.sh
   bash install.sh --panel-port 8080 --panel-path /admin/
   bash install.sh --domain example.com
+  bash install.sh --domain example.com --reuse-domain
   bash install.sh --domain example.com --cert-path /etc/certs/fullchain.pem --key-path /etc/certs/privkey.pem
+  bash install.sh --reinstall --domain example.com --reuse-domain
   bash install.sh --user admin --pwd mypassword --panel-port 8080
   bash install.sh --migrate --domain example.com
   bash install.sh v0.0.1
@@ -105,6 +117,14 @@ parse_args() {
         -h | --help)
             show_usage
             exit 0
+            ;;
+        --install)
+            MODE="install"
+            shift
+            ;;
+        --reinstall)
+            MODE="reinstall"
+            shift
             ;;
         --migrate | --auto-migrate | --keep-config)
             MODE="migrate"
@@ -158,6 +178,10 @@ parse_args() {
             ARG_ACME_PORT="$2"
             shift 2
             ;;
+        --reuse-domain)
+            ARG_REUSE_DOMAIN=1
+            shift
+            ;;
         --*)
             echo -e "${red}Fatal error: ${plain} unknown option: $1"
             show_usage
@@ -174,6 +198,10 @@ parse_args() {
             ;;
         esac
     done
+}
+
+validate_reuse_domain_params() {
+    return 0
 }
 
 validate_cert_params() {
@@ -252,9 +280,14 @@ install_acme() {
 handle_acme_cert() {
     local domain="$1"
     local web_port="${2:-80}"
+    local acme_bin="${ACME_HOME}/acme.sh"
 
-    if ! command -v ~/.acme.sh/acme.sh &>/dev/null; then
+    if [[ ! -x "${acme_bin}" ]]; then
         install_acme || return 1
+    fi
+    if [[ ! -x "${acme_bin}" ]]; then
+        echo -e "${red}acme.sh was not found at ${acme_bin}${plain}"
+        return 1
     fi
 
     case "${release}" in
@@ -279,7 +312,7 @@ handle_acme_cert() {
         ;;
     esac
 
-    local certPath="/root/cert/${domain}"
+    local certPath="${CERT_ROOT}/${domain}"
     if [[ ! -d "$certPath" ]]; then
         mkdir -p "$certPath"
     fi
@@ -287,20 +320,20 @@ handle_acme_cert() {
     echo -e "${yellow}Issuing SSL certificate for ${domain}...${plain}"
 
     local currentCert
-    currentCert=$(~/.acme.sh/acme.sh --list 2>/dev/null | tail -1 | awk '{print $1}')
+    currentCert=$("${acme_bin}" --list 2>/dev/null | tail -1 | awk '{print $1}')
     if [[ "${currentCert}" == "${domain}" ]]; then
         echo -e "${yellow}Certificate for ${domain} already exists, skipping issuance.${plain}"
     else
-        ~/.acme.sh/acme.sh --set-default-ca --server letsencrypt
-        ~/.acme.sh/acme.sh --issue -d "${domain}" --standalone --httpport "${web_port}"
+        "${acme_bin}" --set-default-ca --server letsencrypt
+        "${acme_bin}" --issue -d "${domain}" --standalone --httpport "${web_port}"
         if [[ $? -ne 0 ]]; then
             echo -e "${red}Failed to issue certificate for ${domain}${plain}"
-            rm -rf ~/.acme.sh/"${domain}"
+            rm -rf "${ACME_HOME:?}/${domain}"
             return 1
         fi
     fi
 
-    ~/.acme.sh/acme.sh --installcert -d "${domain}" \
+    "${acme_bin}" --installcert -d "${domain}" \
         --key-file "${certPath}/privkey.pem" \
         --fullchain-file "${certPath}/fullchain.pem"
 
@@ -309,7 +342,7 @@ handle_acme_cert() {
         return 1
     fi
 
-    ~/.acme.sh/acme.sh --upgrade --auto-upgrade
+    "${acme_bin}" --upgrade --auto-upgrade
     chmod 755 "${certPath}"/*
 
     ARG_CERT_PATH="${certPath}/fullchain.pem"
@@ -319,6 +352,116 @@ handle_acme_cert() {
     echo -e "${green}  Cert: ${ARG_CERT_PATH}${plain}"
     echo -e "${green}  Key:  ${ARG_KEY_PATH}${plain}"
     return 0
+}
+
+find_domain_cert_pair() {
+    local domain="$1"
+    local pair=""
+    local cert_path=""
+    local key_path=""
+
+    for pair in \
+        "${CERT_ROOT}/${domain}/fullchain.pem|${CERT_ROOT}/${domain}/privkey.pem" \
+        "${CERT_ROOT}/${domain}/fullchain.cer|${CERT_ROOT}/${domain}/${domain}.key" \
+        "${ACME_HOME}/${domain}/fullchain.cer|${ACME_HOME}/${domain}/${domain}.key" \
+        "${ACME_HOME}/${domain}_ecc/fullchain.cer|${ACME_HOME}/${domain}_ecc/${domain}.key" \
+        "${LETSENCRYPT_LIVE_ROOT}/${domain}/fullchain.pem|${LETSENCRYPT_LIVE_ROOT}/${domain}/privkey.pem"; do
+        cert_path="${pair%%|*}"
+        key_path="${pair#*|}"
+        if [[ -f "${cert_path}" && -f "${key_path}" ]]; then
+            printf '%s|%s\n' "${cert_path}" "${key_path}"
+            return 0
+        fi
+    done
+
+    return 1
+}
+
+find_any_domain_cert_pair() {
+    local cert_dir=""
+    local domain=""
+    local pair=""
+
+    shopt -s nullglob
+    for cert_dir in "${CERT_ROOT}"/* "${ACME_HOME}"/* "${LETSENCRYPT_LIVE_ROOT}"/*; do
+        [[ -d "${cert_dir}" ]] || continue
+        domain="$(basename "${cert_dir}")"
+        domain="${domain%_ecc}"
+        [[ -n "${domain}" ]] || continue
+
+        pair=$(find_domain_cert_pair "${domain}" || true)
+        if [[ -n "${pair}" ]]; then
+            shopt -u nullglob
+            printf '%s|%s\n' "${domain}" "${pair}"
+            return 0
+        fi
+    done
+    shopt -u nullglob
+
+    return 1
+}
+
+reuse_existing_domain_certificate() {
+    local domain="$1"
+    local pair=""
+
+    pair=$(find_domain_cert_pair "${domain}" || true)
+    if [[ -z "${pair}" ]]; then
+        return 1
+    fi
+
+    ARG_CERT_PATH="${pair%%|*}"
+    ARG_KEY_PATH="${pair#*|}"
+    echo -e "${green}Reusing existing certificate for ${domain}${plain}"
+    echo -e "${green}  Cert: ${ARG_CERT_PATH}${plain}"
+    echo -e "${green}  Key:  ${ARG_KEY_PATH}${plain}"
+    return 0
+}
+
+reuse_discovered_domain_certificate() {
+    local pair=""
+    local cert_pair=""
+
+    pair=$(find_any_domain_cert_pair || true)
+    if [[ -z "${pair}" ]]; then
+        return 1
+    fi
+
+    ARG_DOMAIN="${pair%%|*}"
+    cert_pair="${pair#*|}"
+    ARG_CERT_PATH="${cert_pair%%|*}"
+    ARG_KEY_PATH="${cert_pair#*|}"
+    echo -e "${green}Reusing existing certificate for ${ARG_DOMAIN}${plain}"
+    echo -e "${green}  Cert: ${ARG_CERT_PATH}${plain}"
+    echo -e "${green}  Key:  ${ARG_KEY_PATH}${plain}"
+    return 0
+}
+
+prepare_domain_certificate() {
+    if [[ -n "${ARG_CERT_PATH}" || -n "${ARG_KEY_PATH}" ]]; then
+        return 0
+    fi
+
+    if [[ ${ARG_REUSE_DOMAIN} -eq 1 ]]; then
+        if [[ -z "${ARG_DOMAIN}" ]]; then
+            if reuse_discovered_domain_certificate; then
+                return 0
+            fi
+            echo -e "${yellow}No reusable domain certificate found. Continuing without a domain certificate.${plain}"
+            return 0
+        fi
+
+        if reuse_existing_domain_certificate "${ARG_DOMAIN}"; then
+            return 0
+        fi
+        echo -e "${yellow}No reusable certificate found for ${ARG_DOMAIN}. Continuing with ACME issuance.${plain}"
+    fi
+
+    if [[ -z "${ARG_DOMAIN}" ]]; then
+        return 0
+    fi
+
+    handle_acme_cert "${ARG_DOMAIN}" "${ARG_ACME_PORT}"
 }
 
 require_root() {
@@ -394,15 +537,18 @@ detect_existing_install() {
 }
 
 resolve_installed_binary_path() {
-    if [[ -x "${BINARY_PATH}" ]]; then
-        printf '%s\n' "${BINARY_PATH}"
-        return 0
-    fi
+    local candidate=""
 
-    if [[ -x "${LEGACY_BINARY_PATH}" ]]; then
-        printf '%s\n' "${LEGACY_BINARY_PATH}"
-        return 0
-    fi
+    for candidate in \
+        "${BINARY_PATH}" \
+        "${LEGACY_BINARY_PATH}" \
+        "${LEGACY_ROOT_BINARY_PATH}" \
+        "${LEGACY_INSTALL_ROOT}/${BINARY_NAME}"; do
+        if [[ -x "${candidate}" ]]; then
+            printf '%s\n' "${candidate}"
+            return 0
+        fi
+    done
 
     return 1
 }
@@ -730,6 +876,58 @@ remove_legacy_service() {
     systemctl reset-failed "${LEGACY_SERVICE_NAME}" 2>/dev/null || true
 }
 
+cleanup_install_root_preserving_db() {
+    local root_path="$1"
+    local item=""
+    local name=""
+
+    if [[ -z "${root_path}" || "${root_path}" == "/" ]]; then
+        echo -e "${red}Refusing to clean unsafe install root: ${root_path}${plain}"
+        return 1
+    fi
+    if [[ ! -d "${root_path}" ]]; then
+        return 0
+    fi
+
+    shopt -s dotglob nullglob
+    for item in "${root_path}"/*; do
+        name="$(basename "${item}")"
+        if [[ "${name}" == "db" ]]; then
+            continue
+        fi
+        rm -rf "${item}"
+    done
+    shopt -u dotglob nullglob
+}
+
+cleanup_for_reinstall() {
+    echo -e "${yellow}Cleaning existing services and program files for reinstall while keeping data/settings...${plain}"
+
+    systemctl stop "${SERVICE_NAME}" 2>/dev/null || true
+    systemctl disable "${SERVICE_NAME}" 2>/dev/null || true
+    systemctl reset-failed "${SERVICE_NAME}" 2>/dev/null || true
+    rm -f "${SYSTEMD_DIR}/${SERVICE_NAME}.service"
+
+    if [[ "${LEGACY_SERVICE_NAME}" != "${SERVICE_NAME}" ]]; then
+        systemctl stop "${LEGACY_SERVICE_NAME}" 2>/dev/null || true
+        systemctl disable "${LEGACY_SERVICE_NAME}" 2>/dev/null || true
+        systemctl reset-failed "${LEGACY_SERVICE_NAME}" 2>/dev/null || true
+        rm -f "${SYSTEMD_DIR}/${LEGACY_SERVICE_NAME}.service"
+    fi
+
+    rm -f "${CLI_PATH}"
+    if [[ "${LEGACY_CLI_PATH}" != "${CLI_PATH}" ]]; then
+        rm -f "${LEGACY_CLI_PATH}"
+    fi
+
+    cleanup_install_root_preserving_db "${INSTALL_ROOT}" || return 1
+    if [[ "${LEGACY_INSTALL_ROOT}" != "${INSTALL_ROOT}" ]]; then
+        cleanup_install_root_preserving_db "${LEGACY_INSTALL_ROOT}" || return 1
+    fi
+
+    systemctl daemon-reload
+}
+
 resolve_package_dir() {
     if [[ -d "/tmp/b-ui" ]]; then
         printf '%s\n' "/tmp/b-ui"
@@ -779,8 +977,30 @@ resolve_package_binary() {
     return 1
 }
 
+current_database_exists() {
+    [[ -f "${DB_FILE}" ]]
+}
+
+legacy_database_exists() {
+    local staged_legacy_db="${INSTALL_ROOT}/db/$(basename "${LEGACY_DB_FILE}")"
+
+    [[ -f "${staged_legacy_db}" || -f "${LEGACY_DB_FILE}" ]]
+}
+
+should_enable_legacy_database_migration() {
+    if [[ "${MODE}" == "migrate" || "${INSTALLATION_KIND}" == "legacy-only" ]]; then
+        return 0
+    fi
+
+    if current_database_exists; then
+        return 1
+    fi
+
+    legacy_database_exists
+}
+
 stage_legacy_database_for_migration() {
-    if [[ "${MODE}" != "migrate" && "${INSTALLATION_KIND}" != "legacy-only" ]]; then
+    if ! should_enable_legacy_database_migration; then
         return 0
     fi
 
@@ -820,14 +1040,32 @@ copy_package_to_install_root() {
     shopt -u dotglob nullglob
 }
 
+run_database_migration() {
+    if should_enable_legacy_database_migration; then
+        BUI_LEGACY_DB_MIGRATION=1 "${BINARY_PATH}" migrate
+        return $?
+    fi
+
+    (
+        unset BUI_LEGACY_DB_MIGRATION
+        "${BINARY_PATH}" migrate
+    )
+}
+
 config_after_install() {
     echo -e "${yellow}Migration... ${plain}"
-    "${BINARY_PATH}" migrate
+    run_database_migration
     if [[ $? -ne 0 ]]; then
         echo -e "${red}Database migration failed.${plain}"
         rollback_installation
         exit 1
     fi
+
+    prepare_domain_certificate || {
+        echo -e "${red}ACME certificate issuance failed.${plain}"
+        rollback_installation
+        exit 1
+    }
 
     # For any existing b-ui/s-ui install, keep existing settings
     # but apply any explicitly provided parameter overrides
@@ -847,15 +1085,6 @@ config_after_install() {
             apply_admin_params
         fi
         return 0
-    fi
-
-    # Handle ACME cert before DB init (when domain provided without cert/key)
-    if [[ -n "${ARG_DOMAIN}" && -z "${ARG_CERT_PATH}" && -z "${ARG_KEY_PATH}" ]]; then
-        handle_acme_cert "${ARG_DOMAIN}" "${ARG_ACME_PORT}" || {
-            echo -e "${red}ACME certificate issuance failed.${plain}"
-            rollback_installation
-            exit 1
-        }
     fi
 
     # Apply settings via CLI
@@ -938,6 +1167,9 @@ install_app() {
             systemctl stop "${LEGACY_SERVICE_NAME}" 2>/dev/null || true
         fi
         backup_existing_installation
+        if [[ "${MODE}" == "reinstall" ]]; then
+            cleanup_for_reinstall || { rollback_installation; exit 1; }
+        fi
     fi
 
     rm -rf /tmp/b-ui
@@ -1000,6 +1232,7 @@ install_app() {
 main() {
     echo -e "${green}Executing...${plain}"
     parse_args "$@"
+    validate_reuse_domain_params
     validate_cert_params
     require_root
     detect_os_release

@@ -14,10 +14,12 @@ RELEASES_API_URL="https://api.github.com/repos/${REPO_OWNER}/${REPO_NAME}/releas
 CLI_NAME="${CLI_NAME:-b-ui}"
 CLI_PATH="${CLI_PATH:-/usr/bin/${CLI_NAME}}"
 INSTALL_ROOT="${INSTALL_ROOT:-/usr/local/b-ui}"
+LEGACY_INSTALL_ROOT="${LEGACY_INSTALL_ROOT:-/usr/local/s-ui}"
 BINARY_NAME="${BINARY_NAME:-b-ui}"
 LEGACY_BINARY_NAME="${LEGACY_BINARY_NAME:-sui}"
-BINARY_PATH="${INSTALL_ROOT}/${BINARY_NAME}"
-LEGACY_BINARY_PATH="${INSTALL_ROOT}/${LEGACY_BINARY_NAME}"
+BINARY_PATH="${BINARY_PATH:-${INSTALL_ROOT}/${BINARY_NAME}}"
+LEGACY_BINARY_PATH="${LEGACY_BINARY_PATH:-${INSTALL_ROOT}/${LEGACY_BINARY_NAME}}"
+LEGACY_ROOT_BINARY_PATH="${LEGACY_ROOT_BINARY_PATH:-${LEGACY_INSTALL_ROOT}/${LEGACY_BINARY_NAME}}"
 SERVICE_NAME="${SERVICE_NAME:-b-ui}"
 LEGACY_SERVICE_NAME="${LEGACY_SERVICE_NAME:-s-ui}"
 DISPLAY_NAME="${DISPLAY_NAME:-B-UI}"
@@ -134,15 +136,18 @@ get_current_installed_version() {
 }
 
 resolve_installed_binary_path() {
-    if [[ -x "${BINARY_PATH}" ]]; then
-        printf '%s\n' "${BINARY_PATH}"
-        return 0
-    fi
+    local candidate=""
 
-    if [[ -x "${LEGACY_BINARY_PATH}" ]]; then
-        printf '%s\n' "${LEGACY_BINARY_PATH}"
-        return 0
-    fi
+    for candidate in \
+        "${BINARY_PATH}" \
+        "${LEGACY_BINARY_PATH}" \
+        "${LEGACY_ROOT_BINARY_PATH}" \
+        "${LEGACY_INSTALL_ROOT}/${BINARY_NAME}"; do
+        if [[ -x "${candidate}" ]]; then
+            printf '%s\n' "${candidate}"
+            return 0
+        fi
+    done
 
     printf '%s\n' "${BINARY_PATH}"
 }
