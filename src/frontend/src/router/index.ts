@@ -89,7 +89,7 @@ const routes = [
         component: () => import('@/views/ClusterCenter.vue'),
       },
       {
-        path: '/cluster/node/:nodeId',
+        path: '/cluster/node',
         name: 'pages.clusterNodeDetail',
         meta: { requiresAdmin: true },
         component: () => import('@/views/ClusterNodeDetail.vue'),

@@ -8,7 +8,7 @@ export async function fetchNodeInfo(
   baseURL: string,
   token: string
 ): Promise<InfoResponse> {
-  const resp = await fetch(`${baseURL}/_cluster/v1/info`, {
+  const resp = await fetch(clusterPeerURL(baseURL, '/_cluster/v1/info'), {
     headers: { 'X-Cluster-Token': token },
   })
   if (!resp.ok) throw new Error(`info request failed: ${resp.status}`)
@@ -20,7 +20,7 @@ export async function sendAction(
   token: string,
   req: ActionRequest
 ): Promise<ActionResponse> {
-  const resp = await fetch(`${baseURL}/_cluster/v1/action`, {
+  const resp = await fetch(clusterPeerURL(baseURL, '/_cluster/v1/action'), {
     method: 'POST',
     headers: {
       'Content-Type': 'application/json',
@@ -30,6 +30,10 @@ export async function sendAction(
   })
   if (!resp.ok) throw new Error(`action request failed: ${resp.status}`)
   return resp.json()
+}
+
+function clusterPeerURL(baseURL: string, path: string): string {
+  return `${baseURL.replace(/\/+$/, '')}/${path.replace(/^\/+/, '')}`
 }
 
 export function buildListActionPayload(

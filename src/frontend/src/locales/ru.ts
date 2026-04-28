@@ -51,6 +51,7 @@ export default {
     admins: "Администраторы",
     settings: "Настройки",
     clusterCenter: "Центр кластера",
+    clusterNodeDetail: "Узел кластера",
     webTerminal: "Веб-терминал",
   },
   main: {

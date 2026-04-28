@@ -352,8 +352,7 @@ const router = useRouter()
 const goToNodeDetail = (member: ClusterMember) => {
   router.push({
     name: 'pages.clusterNodeDetail',
-    params: { nodeId: member.nodeId },
-    query: { node_id: member.nodeId },
+    query: { id: member.nodeId },
   })
 }
 

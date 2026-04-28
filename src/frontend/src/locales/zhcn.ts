@@ -51,6 +51,7 @@ export default {
     admins: "管理员",
     settings: "设置",
     clusterCenter: "集群中心",
+    clusterNodeDetail: "集群节点详情",
     webTerminal: "WebTerminal",
   },
   main: {

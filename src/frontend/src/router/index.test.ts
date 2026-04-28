@@ -34,4 +34,11 @@ describe('router admin-only terminal route', () => {
     expect(source).toMatch(/meta:\s*\{[\s\S]*requiresAdmin:\s*true[\s\S]*\}/)
     expect(source).toContain("@/views/ClusterCenter.vue")
   })
+
+  it('defines cluster node detail as a query-based route without duplicating the node id in params', () => {
+    const source = readFileSync(fileURLToPath(new URL('./index.ts', import.meta.url)), 'utf8')
+
+    expect(source).toMatch(/path:\s*['"]\/cluster\/node['"],[\s\S]*name:\s*['"]pages\.clusterNodeDetail['"]/)
+    expect(source).not.toContain('/cluster/node/:nodeId')
+  })
 })

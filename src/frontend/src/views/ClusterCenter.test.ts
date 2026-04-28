@@ -211,10 +211,12 @@ describe('ClusterCenter view source', () => {
     expect(source).toContain('member.isLocal ? leavingDomainId === selectedDomain?.id : deletingMemberId === member.id')
   })
 
-  it('opens node management with node_id only so connection details are resolved server-side', () => {
+  it('opens node management with id query only so connection details are resolved server-side', () => {
     const source = readFileSync(fileURLToPath(new URL('./ClusterCenter.vue', import.meta.url)), 'utf8')
 
-    expect(source).toContain("query: { node_id: member.nodeId }")
+    expect(source).toContain("query: { id: member.nodeId }")
+    expect(source).not.toContain("params: { nodeId: member.nodeId }")
+    expect(source).not.toContain("query: { node_id: member.nodeId }")
     expect(source).not.toContain('getPeerToken')
     expect(source).not.toContain('token: getPeerToken(member)')
     expect(source).not.toContain('baseUrl: member.baseUrl')

@@ -3,7 +3,15 @@ import axios from 'axios'
 axios.defaults.headers.post['Content-Type'] = 'application/x-www-form-urlencoded; charset=UTF-8'
 axios.defaults.headers.common['X-Requested-With'] = 'XMLHttpRequest'
 
-axios.defaults.baseURL = "./"
+function resolveApiBaseURL(): string {
+    const rawBaseURL = String((globalThis as any).window?.BASE_URL ?? './')
+    const baseURL = rawBaseURL.charAt(0) === '{' ? '/app/' : rawBaseURL
+    if (!baseURL) return './'
+    return baseURL.endsWith('/') ? baseURL : `${baseURL}/`
+}
+
+const apiBaseURL = resolveApiBaseURL()
+axios.defaults.baseURL = apiBaseURL
 const pendingRequests = new Map()
 
 axios.interceptors.request.use(
@@ -52,6 +60,6 @@ axios.interceptors.response.use(
     }
 )
 
-const api = axios.create()
+const api = axios.create({ baseURL: apiBaseURL })
 
 export default api

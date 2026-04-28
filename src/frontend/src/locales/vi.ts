@@ -51,6 +51,7 @@ export default {
     admins: "Quản trị viên",
     settings: "Cài đặt",
     clusterCenter: "Trung tâm cụm",
+    clusterNodeDetail: "Chi tiết nút cụm",
     webTerminal: "WebTerminal",
   },
   main: {

@@ -167,7 +167,7 @@ function goBack() {
 }
 
 function resolveRouteNodeId() {
-  return String(route.query.node_id || route.params.nodeId || '').trim()
+  return String(route.query.id || '').trim()
 }
 
 async function loadNodeConnection(nodeId: string) {
@@ -186,7 +186,7 @@ onMounted(async () => {
   const nodeId = resolveRouteNodeId()
 
   if (!nodeId) {
-    remoteNode.pageError = 'Missing node_id query parameter.'
+    remoteNode.pageError = 'Missing id query parameter.'
     return
   }
 

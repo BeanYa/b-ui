@@ -51,6 +51,7 @@ export default {
     admins: "ادمین‌ها",
     settings: "پیکربندی",
     clusterCenter: "مرکز خوشه",
+    clusterNodeDetail: "جزئیات گره خوشه",
     webTerminal: "ترمینال وب",
   },
   main: {

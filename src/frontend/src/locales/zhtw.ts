@@ -51,6 +51,7 @@ export default {
     admins: "管理員",
     settings: "設置",
     clusterCenter: "集群中心",
+    clusterNodeDetail: "叢集節點詳情",
     webTerminal: "WebTerminal",
   },
   main: {

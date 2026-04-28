@@ -52,6 +52,7 @@ export default {
     admins: "Admins",
     settings: "Settings",
     clusterCenter: "Cluster Center",
+    clusterNodeDetail: "Cluster Node Detail",
     webTerminal: "WebTerminal",
   },
   main: {
