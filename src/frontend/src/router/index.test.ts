@@ -18,6 +18,15 @@ describe('router admin-only terminal route', () => {
     expect(source).toMatch(/if \(to\.meta\.requiresAdmin\) \{[\s\S]*if \(!auth\.loaded\) \{[\s\S]*await auth\.loadAuthState\(\)[\s\S]*\}[\s\S]*if \(!auth\.isAdmin\) \{[\s\S]*return ['"]\/['"][\s\S]*\}[\s\S]*\}/)
   })
 
+  it('loads auth state before rendering authenticated shell routes', () => {
+    const source = readFileSync(fileURLToPath(new URL('./index.ts', import.meta.url)), 'utf8')
+
+    expect(source).toMatch(/if \(to\.path !== ['"]\/login['"] && isAuthenticated && !auth\.loaded\) \{[\s\S]*await auth\.loadAuthState\(\)[\s\S]*\}/)
+    expect(source.indexOf("if (to.path !== '/login' && isAuthenticated && !auth.loaded)")).toBeLessThan(
+      source.indexOf('if (to.meta.requiresAdmin)'),
+    )
+  })
+
   it('defines a guarded Cluster Center route inside the authenticated shell', () => {
     const source = readFileSync(fileURLToPath(new URL('./index.ts', import.meta.url)), 'utf8')
 

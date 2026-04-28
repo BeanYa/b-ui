@@ -127,6 +127,9 @@ router.beforeEach(async (to) => {
     // If already authenticated and visiting /login, redirect to '/'
     return '/'
   }
+  if (to.path !== '/login' && isAuthenticated && !auth.loaded) {
+    await auth.loadAuthState()
+  }
   if (to.meta.requiresAdmin) {
     if (!auth.loaded) {
       await auth.loadAuthState()
