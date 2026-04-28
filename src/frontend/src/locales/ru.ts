@@ -241,6 +241,7 @@ export default {
     path: "Путь по умолчанию",
     update: "Время автоматического обновления",
     subUri: "URI подписки",
+    subTlsLink: "Use panel access TLS",
     jsonSub: "JSON подписка",
     toDirect: "Маршрутизация на Direct",
     toBlock: "Маршрутизация на Block",

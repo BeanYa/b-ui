@@ -240,6 +240,7 @@ export default {
     path: "مسیر پیشفرض",
     update: "زمان بروزرسانی خودکار",
     subUri: "آدرس نهایی سابسکریپشن",
+    subTlsLink: "Use panel access TLS",
     jsonSub: "سابسکریپشن JSON",
     toDirect: "هدایت مستقیم",
     toBlock: "بستن مسیر",

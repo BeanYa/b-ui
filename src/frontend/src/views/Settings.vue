@@ -200,10 +200,23 @@
             </div>
             <v-row>
               <v-col cols="12" sm="6" md="4">
-                <v-text-field v-model="settings.subKeyFile" :label="$t('setting.sslKey')" hide-details></v-text-field>
+                <v-switch color="primary" v-model="subTLSUsesPanel" :label="$t('setting.subTlsLink')" hide-details />
               </v-col>
               <v-col cols="12" sm="6" md="4">
-                <v-text-field v-model="settings.subCertFile" :label="$t('setting.sslCert')" hide-details></v-text-field>
+                <v-text-field
+                  v-model="settings.subKeyFile"
+                  :label="$t('setting.sslKey')"
+                  :disabled="subTLSUsesPanel"
+                  hide-details
+                ></v-text-field>
+              </v-col>
+              <v-col cols="12" sm="6" md="4">
+                <v-text-field
+                  v-model="settings.subCertFile"
+                  :label="$t('setting.sslCert')"
+                  :disabled="subTLSUsesPanel"
+                  hide-details
+                ></v-text-field>
               </v-col>
             </v-row>
           </section>
@@ -231,11 +244,12 @@ import { FindDiff } from '@/plugins/utils'
 import SubJsonExtVue from '@/components/SubJsonExt.vue'
 import SubClashExtVue from '@/components/SubClashExt.vue'
 import { push } from 'notivue'
-import { defaultSettings, normalizeSettings, toNumberSetting } from '@/features/settings/normalize'
+import { defaultSettings, isSubTLSLinked, normalizeSettings, toNumberSetting } from '@/features/settings/normalize'
 const tab = ref("t1")
 const loading:Ref = inject('loading')?? ref(false)
 const oldSettings = ref({})
 const settings = ref({ ...defaultSettings })
+const subTLSLinked = ref(true)
 
 onMounted(async () => {
   loading.value = true
@@ -255,12 +269,18 @@ const loadData = async () => {
 const setData = (data: any) => {
   const normalized = normalizeSettings(data)
   settings.value = normalized
+  subTLSLinked.value = isSubTLSLinked(normalized)
   oldSettings.value = JSON.parse(JSON.stringify(normalized))
 }
 
 const save = async () => {
   loading.value = true
-  const msg = await HttpUtils.post('api/save', { object: 'settings', action: 'set', data: JSON.stringify(settings.value) })
+  const payload = { ...settings.value }
+  if (subTLSLinked.value || isSubTLSLinked(payload)) {
+    payload.subCertFile = ''
+    payload.subKeyFile = ''
+  }
+  const msg = await HttpUtils.post('api/save', { object: 'settings', action: 'set', data: JSON.stringify(payload) })
   if (msg.success) {
     push.success({
       title: i18n.global.t('success'),
@@ -312,6 +332,17 @@ const subEncode = computed({
 const subShowInfo = computed({
   get: () => { return settings.value.subShowInfo == "true" },
   set: (v:boolean) => { settings.value.subShowInfo = v ? "true" : "false" }
+})
+
+const subTLSUsesPanel = computed({
+  get: () => subTLSLinked.value,
+  set: (v: boolean) => {
+    subTLSLinked.value = v
+    if (v) {
+      settings.value.subCertFile = ''
+      settings.value.subKeyFile = ''
+    }
+  }
 })
 
 const webPort = computed({

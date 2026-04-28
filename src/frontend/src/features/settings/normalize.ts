@@ -29,6 +29,13 @@ const toStringSetting = (value: unknown, fallback: string): string => {
   return typeof value === 'string' ? value : String(value)
 }
 
+export const isSubTLSLinked = (value: unknown): boolean => {
+  const source = value && typeof value === 'object' ? value as Record<string, unknown> : {}
+  const certFile = toStringSetting(source.subCertFile, defaultSettings.subCertFile).trim()
+  const keyFile = toStringSetting(source.subKeyFile, defaultSettings.subKeyFile).trim()
+  return certFile === '' || keyFile === ''
+}
+
 export const normalizeSettings = (value: unknown) => {
   const source = value && typeof value === 'object' ? value as Record<string, unknown> : {}
 

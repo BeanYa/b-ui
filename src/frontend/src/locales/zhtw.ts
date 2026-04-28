@@ -242,6 +242,7 @@ export default {
     path: "默認路徑",
     update: "自動更新時間",
     subUri: "訂閱 URL",
+    subTlsLink: "沿用面板存取 TLS",
     jsonSub: "JSON 訂閱",
     toDirect: "路由到直連",
     toBlock: "路由到阻止",

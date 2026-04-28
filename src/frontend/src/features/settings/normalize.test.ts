@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 
-import { defaultSettings, normalizeSettings, toNumberSetting } from './normalize'
+import { defaultSettings, isSubTLSLinked, normalizeSettings, toNumberSetting } from './normalize'
 
 describe('normalizeSettings', () => {
   it('falls back to defaults and coerces numeric fields to strings', () => {
@@ -21,5 +21,14 @@ describe('toNumberSetting', () => {
   it('returns a fallback when the source value is empty', () => {
     expect(toNumberSetting(undefined, 2095)).toBe(2095)
     expect(toNumberSetting('', 2095)).toBe(2095)
+  })
+})
+
+describe('isSubTLSLinked', () => {
+  it('uses linked panel TLS unless both subscription cert and key are set', () => {
+    expect(isSubTLSLinked({ subCertFile: '', subKeyFile: '' })).toBe(true)
+    expect(isSubTLSLinked({ subCertFile: '/cert.pem', subKeyFile: '' })).toBe(true)
+    expect(isSubTLSLinked({ subCertFile: '', subKeyFile: '/key.pem' })).toBe(true)
+    expect(isSubTLSLinked({ subCertFile: '/cert.pem', subKeyFile: '/key.pem' })).toBe(false)
   })
 })

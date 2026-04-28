@@ -243,6 +243,7 @@ export default {
     path: "Default Path",
     update: "Automatic Update Time",
     subUri: "Subscription URI",
+    subTlsLink: "Use panel access TLS",
     jsonSub: "JSON Subscription",
     toDirect: "Route to Direct",
     toBlock: "Route to Block",

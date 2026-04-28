@@ -240,6 +240,7 @@ export default {
     path: "Đường dẫn mặc định",
     update: "Thời gian cập nhật tự động",
     subUri: "URI đăng ký",
+    subTlsLink: "Use panel access TLS",
     jsonSub: "Đăng ký JSON",
     toDirect: "Chuyển hướng tới Trực tiếp",
     toBlock: "Chuyển hướng tới Chặn",

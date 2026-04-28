@@ -395,6 +395,43 @@ func (s *SettingService) SetSubKeyFile(path string) error {
 	return s.setString("subKeyFile", path)
 }
 
+func (s *SettingService) GetSubTLSFiles() (string, string, error) {
+	subCertFile, err := s.getString("subCertFile")
+	if err != nil {
+		return "", "", err
+	}
+	subKeyFile, err := s.getString("subKeyFile")
+	if err != nil {
+		return "", "", err
+	}
+	webCertFile, err := s.getString("webCertFile")
+	if err != nil {
+		return "", "", err
+	}
+	webKeyFile, err := s.getString("webKeyFile")
+	if err != nil {
+		return "", "", err
+	}
+
+	certFile, keyFile := resolveSubTLSFiles(subCertFile, subKeyFile, webCertFile, webKeyFile)
+	return certFile, keyFile, nil
+}
+
+func resolveSubTLSFiles(subCertFile string, subKeyFile string, webCertFile string, webKeyFile string) (string, string) {
+	subCertFile = strings.TrimSpace(subCertFile)
+	subKeyFile = strings.TrimSpace(subKeyFile)
+	webCertFile = strings.TrimSpace(webCertFile)
+	webKeyFile = strings.TrimSpace(webKeyFile)
+
+	if subCertFile != "" && subKeyFile != "" {
+		return subCertFile, subKeyFile
+	}
+	if webCertFile != "" && webKeyFile != "" {
+		return webCertFile, webKeyFile
+	}
+	return "", ""
+}
+
 func (s *SettingService) GetSubUpdates() (int, error) {
 	return s.getInt("subUpdates")
 }
@@ -421,7 +458,13 @@ func (s *SettingService) GetFinalSubURI(host string) (string, error) {
 		return SubURI, nil
 	}
 	protocol := "http"
-	if (*allSetting)["subKeyFile"] != "" && (*allSetting)["subCertFile"] != "" {
+	certFile, keyFile := resolveSubTLSFiles(
+		(*allSetting)["subCertFile"],
+		(*allSetting)["subKeyFile"],
+		(*allSetting)["webCertFile"],
+		(*allSetting)["webKeyFile"],
+	)
+	if certFile != "" && keyFile != "" {
 		protocol = "https"
 	}
 	if (*allSetting)["subDomain"] != "" {
@@ -456,6 +499,12 @@ func (s *SettingService) Save(tx *gorm.DB, data json.RawMessage) error {
 	err = json.Unmarshal(data, &settings)
 	if err != nil {
 		return err
+	}
+	_, hasSubCertFile := settings["subCertFile"]
+	_, hasSubKeyFile := settings["subKeyFile"]
+	if hasSubCertFile && hasSubKeyFile && isSubTLSLinkedSetting(settings) {
+		settings["subCertFile"] = ""
+		settings["subKeyFile"] = ""
 	}
 	for key, obj := range settings {
 		// Secure file existence check
@@ -493,6 +542,10 @@ func (s *SettingService) Save(tx *gorm.DB, data json.RawMessage) error {
 		}
 	}
 	return err
+}
+
+func isSubTLSLinkedSetting(settings map[string]string) bool {
+	return strings.TrimSpace(settings["subCertFile"]) == "" || strings.TrimSpace(settings["subKeyFile"]) == ""
 }
 
 func (s *SettingService) GetSubJsonExt() (string, error) {
