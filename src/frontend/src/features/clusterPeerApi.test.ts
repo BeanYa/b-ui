@@ -48,18 +48,24 @@ describe('cluster peer API proxying', () => {
       payload: { page: 1, page_size: 10 },
     })
 
-    expect(api.post).toHaveBeenCalledWith('api/cluster/member-action', {
-      node_id: 'node-a',
-      request: {
-        schema_version: 1,
-        sourceNodeId: '',
-        domain: '',
-        sentAt: 1,
-        signature: '',
-        action: 'inbound.list',
-        payload: { page: 1, page_size: 10 },
+    expect(api.post).toHaveBeenCalledWith(
+      'api/cluster/member-action',
+      {
+        node_id: 'node-a',
+        request: {
+          schema_version: 1,
+          sourceNodeId: '',
+          domain: '',
+          sentAt: 1,
+          signature: '',
+          action: 'inbound.list',
+          payload: { page: 1, page_size: 10 },
+        },
       },
-    })
+      {
+        headers: { 'Content-Type': 'application/json' },
+      }
+    )
     expect(fetchMock).not.toHaveBeenCalled()
   })
 })

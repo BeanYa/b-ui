@@ -21,6 +21,8 @@ export async function sendAction(
   const resp = await api.post('api/cluster/member-action', {
     node_id: nodeId,
     request: req,
+  }, {
+    headers: { 'Content-Type': 'application/json' },
   })
   return unwrapMsg<ActionResponse>(resp.data, 'action request failed')
 }
