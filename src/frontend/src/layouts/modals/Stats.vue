@@ -37,7 +37,7 @@
 
 <script lang="ts">
 import { i18n } from '@/locales'
-import HttpUtils from '@/plugins/httputil'
+import Data from '@/store/modules/data'
 import { HumanReadable } from '@/plugins/utils'
 import {
   Chart as ChartJS,
@@ -131,9 +131,8 @@ export default {
   methods: {
     async loadData() {
       this.loading = true
-      const data = await HttpUtils.get('api/stats', { resource: this.resource, tag: this.tag, limit: this.limit })
-      if (data.success && data.obj) {
-        const obj = <any[]>data.obj
+      const obj = await Data().stats(this.resource, this.tag, this.limit)
+      if (obj) {
         const l = String(i18n.global.locale) == 'fa' ? "fa-IR" : "en-US"
         const oneStep = this.limit * 3600 * 1000 / 360 // Each 10 sec
         const now = new Date().getTime()

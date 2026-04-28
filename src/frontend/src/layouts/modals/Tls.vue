@@ -396,6 +396,7 @@ import { push } from 'notivue'
 import { i18n } from '@/locales'
 import RandomUtil from '@/plugins/randomUtil'
 import { buildDomainHintItems, type DomainHintDisplayItem, type DomainHintItem } from './tlsDomainHints'
+import Data from '@/store/modules/data'
 
 export default {
   props: ['visible', 'data', 'id'],
@@ -530,55 +531,52 @@ export default {
     },
     async genSelfSigned(){
       this.loading = true
-      const msg = await HttpUtils.get('api/keypairs', { k: "tls", o: this.inTls.server_name?? "''" })
+      const keypairs = await Data().keypairs("tls", this.inTls.server_name?? "''")
       this.loading = false
-      if (msg.success) {
+      if (keypairs.length > 0) {
         this.inTls.key_path=undefined
         this.inTls.certificate_path=undefined
         this.usePath = 1
-        if (msg.obj.length>0){
-          let privateKey = <string[]>[]
-          let publicKey = <string[]>[]
-          let isPrivateKey = false
-          let isPublicKey = false
+        let privateKey = <string[]>[]
+        let publicKey = <string[]>[]
+        let isPrivateKey = false
+        let isPublicKey = false
 
-          msg.obj.forEach((line:string) => {
-              if (line === "-----BEGIN PRIVATE KEY-----") {
-                  isPrivateKey = true
-                  isPublicKey = false
-                  privateKey.push(line)
-              } else if (line === "-----END PRIVATE KEY-----") {
-                  isPrivateKey = false
-                  privateKey.push(line)
-              } else if (line === "-----BEGIN CERTIFICATE-----") {
-                  isPublicKey = true
-                  isPrivateKey = false
-                  publicKey.push(line)
-              } else if (line === "-----END CERTIFICATE-----") {
-                  isPublicKey = false
-                  publicKey.push(line)
-              } else if (isPrivateKey) {
-                  privateKey.push(line)
-              } else if (isPublicKey) {
-                  publicKey.push(line)
-              }
-          })
-          this.inTls.key = privateKey?? undefined
-          this.inTls.certificate = publicKey?? undefined
-
-        } else {
-          push.error({
-            message: i18n.global.t('error') + ": " + msg.obj
-          })
-        }
+        keypairs.forEach((line:string) => {
+            if (line === "-----BEGIN PRIVATE KEY-----") {
+                isPrivateKey = true
+                isPublicKey = false
+                privateKey.push(line)
+            } else if (line === "-----END PRIVATE KEY-----") {
+                isPrivateKey = false
+                privateKey.push(line)
+            } else if (line === "-----BEGIN CERTIFICATE-----") {
+                isPublicKey = true
+                isPrivateKey = false
+                publicKey.push(line)
+            } else if (line === "-----END CERTIFICATE-----") {
+                isPublicKey = false
+                publicKey.push(line)
+            } else if (isPrivateKey) {
+                privateKey.push(line)
+            } else if (isPublicKey) {
+                publicKey.push(line)
+            }
+        })
+        this.inTls.key = privateKey?? undefined
+        this.inTls.certificate = publicKey?? undefined
+      } else {
+        push.error({
+          message: i18n.global.t('error') + ": " + keypairs
+        })
       }
     },
     async genRealityKey(){
       this.loading = true
-      const msg = await HttpUtils.get('api/keypairs', { k: "reality" })
+      const keypairs = await Data().keypairs("reality")
       this.loading = false
-      if (msg.success) {
-        msg.obj.forEach((line:string) => {
+      if (keypairs.length > 0) {
+        keypairs.forEach((line:string) => {
           if (this.inTls.reality && this.outTls.reality){
             if (line.startsWith("PrivateKey")){
               this.inTls.reality.private_key = line.substring(12)
@@ -590,7 +588,7 @@ export default {
         })
       } else {
         push.error({
-          message: i18n.global.t('error') + ": " + msg.obj
+          message: i18n.global.t('error') + ": " + keypairs
         })
       }
     },

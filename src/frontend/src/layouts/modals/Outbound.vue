@@ -129,7 +129,6 @@ import Tor from '@/components/protocols/Tor.vue'
 import Ssh from '@/components/protocols/Ssh.vue'
 import Selector from '@/components/protocols/Selector.vue'
 import UrlTest from '@/components/protocols/UrlTest.vue'
-import HttpUtils from '@/plugins/httputil'
 import AnyTls from '@/components/protocols/AnyTls.vue'
 import Data from '@/store/modules/data'
 export default {
@@ -186,10 +185,10 @@ export default {
     async linkConvert() {
       if (this.link.length>0){
         this.loading = true
-        const msg = await HttpUtils.post('api/linkConvert', { link: this.link })
+        const outbound = await Data().linkConvert(this.link)
         this.loading = false
-        if (msg.success) {
-          this.outbound = msg.obj
+        if (outbound) {
+          this.outbound = outbound
           if (this.$props.id > 0) this.outbound.id = this.$props.id
           this.tab = "t1"
           this.link = ""

@@ -157,7 +157,6 @@
 
 <script lang="ts" setup>
 import Data from '@/store/modules/data'
-import HttpUtils from '@/plugins/httputil'
 import OutboundVue from '@/layouts/modals/Outbound.vue'
 import OutboundBulk from '@/layouts/modals/OutboundBulk.vue'
 import Stats from '@/layouts/modals/Stats.vue'
@@ -175,12 +174,12 @@ const checkResults = ref<Record<string, CheckResult>>({})
 
 const checkOutbound = async (tag: string) => {
   checkResults.value = { ...checkResults.value, [tag]: { loading: true, success: false } }
-  const msg = await HttpUtils.get('api/checkOutbound', { tag })
-  const success = msg.success && msg.obj?.OK
-  const errorMessage = success ? undefined : (msg.obj?.Error ?? msg.msg ?? '')
+  const result = await Data().checkOutbound(tag)
+  const success = !!result?.OK
+  const errorMessage = success ? undefined : (result?.Error ?? '')
   checkResults.value = {
     ...checkResults.value,
-    [tag]: { loading: false, success, data: msg.obj ?? null, errorMessage },
+    [tag]: { loading: false, success, data: result ?? null, errorMessage },
   }
 }
 

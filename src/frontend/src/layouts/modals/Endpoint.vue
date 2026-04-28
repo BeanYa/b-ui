@@ -61,7 +61,6 @@ import Dial from '@/components/Dial.vue'
 import Wireguard from '@/components/protocols/Wireguard.vue'
 import Warp from '@/components/protocols/Warp.vue'
 import TailscaleVue from '@/components/protocols/Tailscale.vue'
-import HttpUtils from '@/plugins/httputil'
 import { push } from 'notivue'
 import { i18n } from '@/locales'
 import Data from '@/store/modules/data'
@@ -144,11 +143,11 @@ export default {
     },
     async genWgKey(){
       this.loading = true
-      const msg = await HttpUtils.get('api/keypairs', { k: "wireguard" })
+      const keypairs = await Data().keypairs("wireguard")
       this.loading = false
       let result = { private_key: "", public_key: "" }
-      if (msg.success) {
-        msg.obj.forEach((line:string) => {
+      if (keypairs.length > 0) {
+        keypairs.forEach((line:string) => {
           if (line.startsWith("PrivateKey")){
             result.private_key = line.substring(12)
           }
@@ -158,7 +157,7 @@ export default {
         })
       } else {
         push.error({
-          message: i18n.global.t('error') + ": " + msg.obj
+          message: i18n.global.t('error') + ": " + keypairs
         })
       }
       return result
@@ -174,9 +173,9 @@ export default {
     async getWgPubKey(private_key: string) {
       if (!this.endpoint.ext) this.endpoint.ext = {keys: []}
       this.loading = true
-      const msg = await HttpUtils.get('api/keypairs', { k: "wireguard", o: private_key })
-      if (msg.success) {
-        this.endpoint.ext.public_key = msg.obj[0]
+      const keypairs = await Data().keypairs("wireguard", private_key)
+      if (keypairs.length > 0) {
+        this.endpoint.ext.public_key = keypairs[0]
       }
       this.loading = false
     },
