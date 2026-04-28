@@ -19,7 +19,7 @@ type APIHandler struct {
 func NewAPIHandler(g *gin.RouterGroup, a2 *APIv2Handler) {
 	a := &APIHandler{
 		apiv2:          a2,
-		clusterService: &service.ClusterService{},
+		clusterService: service.NewClusterService(),
 	}
 	a.initRouter(g)
 }

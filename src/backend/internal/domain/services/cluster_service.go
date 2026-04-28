@@ -97,6 +97,13 @@ type ClusterService struct {
 	runtime        *cluster.Runtime
 }
 
+func NewClusterService() *ClusterService {
+	service := &ClusterService{}
+	panel := &ClusterPanelActionService{}
+	service.SetRuntime(cluster.NewRuntimeWithPanel(NewClusterPanelListServices(panel), panel))
+	return service
+}
+
 type clusterSecretProvider interface {
 	GetSecret() ([]byte, error)
 }

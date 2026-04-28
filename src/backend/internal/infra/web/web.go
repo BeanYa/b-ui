@@ -110,7 +110,7 @@ func (s *Server) initRouter() (*gin.Engine, error) {
 	group_api := engine.Group(base_url + "api")
 	api.NewAPIHandler(group_api, apiv2)
 	api.RegisterPingRoutes(group_api)
-	api.RegisterClusterMessageRoute(engine.Group(base_url), &service.ClusterService{})
+	api.RegisterClusterMessageRoute(engine.Group(base_url), service.NewClusterService())
 
 	// Serve index.html as the entry point
 	// Handle all other routes by serving index.html
