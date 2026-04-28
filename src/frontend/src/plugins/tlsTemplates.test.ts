@@ -101,6 +101,33 @@ describe('createTlsPreset', () => {
     expect(preset.server.certificate?.[0]).toBe('-----BEGIN CERTIFICATE-----')
   })
 
+  it('materializes the hysteria2 preset with the first TLS domain hint as SNI', async () => {
+    const generatedFor: string[] = []
+
+    const preset = await createMaterializedTlsPreset('hysteria2', undefined, {
+      async generateTlsKeypair(serverName) {
+        generatedFor.push(serverName)
+        return [
+          '-----BEGIN EC PRIVATE KEY-----',
+          'private-line',
+          '-----END EC PRIVATE KEY-----',
+          '-----BEGIN CERTIFICATE-----',
+          'cert-line',
+          '-----END CERTIFICATE-----',
+        ]
+      },
+      async generateRealityKeypair() {
+        throw new Error('unexpected reality generation')
+      },
+      async getTlsDomainHints() {
+        return ['', '  www.cloudflare.com  ']
+      },
+    })
+
+    expect(preset.server.server_name).toBe('www.cloudflare.com')
+    expect(generatedFor).toEqual(['www.cloudflare.com'])
+  })
+
   it('materializes the reality preset with generated public and private keys', async () => {
     const preset = await createMaterializedTlsPreset('reality', undefined, {
       async generateTlsKeypair() {

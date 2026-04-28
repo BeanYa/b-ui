@@ -52,8 +52,9 @@
                 :items="domainHintItems"
                 item-title="domain"
                 item-value="value"
+                :return-object="false"
                 :loading="domainHintLoading"
-                v-model="inTls.server_name">
+                v-model="serverName">
                 <template #item="{ props, item }">
                   <v-list-item v-bind="props" :title="item.domain">
                     <template #append>
@@ -207,8 +208,9 @@
                   :items="domainHintItems"
                   item-title="domain"
                   item-value="value"
+                  :return-object="false"
                   :loading="domainHintLoading"
-                  v-model="inTls.reality.handshake.server">
+                  v-model="realityHandshakeServer">
                   <template #item="{ props, item }">
                     <v-list-item v-bind="props" :title="item.domain">
                       <template #append>
@@ -395,7 +397,7 @@ import { getTlsPresetBaseName, type TlsPresetKey } from '@/plugins/tlsTemplates'
 import { push } from 'notivue'
 import { i18n } from '@/locales'
 import RandomUtil from '@/plugins/randomUtil'
-import { buildDomainHintItems, type DomainHintDisplayItem, type DomainHintItem } from './tlsDomainHints'
+import { buildDomainHintItems, normalizeDomainSelection, type DomainHintDisplayItem, type DomainHintItem } from './tlsDomainHints'
 import Data from '@/store/modules/data'
 
 export default {
@@ -526,12 +528,13 @@ export default {
     },
     saveChanges() {
       this.loading = true
+      this.normalizeDomainSelections()
       this.$emit('save', this.tls)
       this.loading = false
     },
     async genSelfSigned(){
       this.loading = true
-      const keypairs = await Data().keypairs("tls", this.inTls.server_name?? "''")
+      const keypairs = await Data().keypairs("tls", this.serverName || "''")
       this.loading = false
       if (keypairs.length > 0) {
         this.inTls.key_path=undefined
@@ -594,6 +597,14 @@ export default {
     },
     randomSID(){
       this.short_id = RandomUtil.randomShortId().join(',')
+    },
+    normalizeDomainSelections() {
+      if (this.inTls.server_name != undefined) {
+        this.inTls.server_name = normalizeDomainSelection(this.inTls.server_name)
+      }
+      if (this.inTls.reality?.handshake) {
+        this.inTls.reality.handshake.server = normalizeDomainSelection(this.inTls.reality.handshake.server)
+      }
     }
   },
   computed: {
@@ -602,6 +613,18 @@ export default {
     },
     outTls(): oTls {
       return this.tls.client
+    },
+    serverName: {
+      get(): string { return normalizeDomainSelection(this.inTls.server_name) },
+      set(v: unknown) { this.inTls.server_name = normalizeDomainSelection(v) }
+    },
+    realityHandshakeServer: {
+      get(): string { return normalizeDomainSelection(this.inTls.reality?.handshake?.server) },
+      set(v: unknown) {
+        if (this.inTls.reality?.handshake) {
+          this.inTls.reality.handshake.server = normalizeDomainSelection(v)
+        }
+      }
     },
     certText: {
       get(): string { return this.inTls.certificate ? this.inTls.certificate.join('\n') : '' },

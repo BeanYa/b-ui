@@ -116,6 +116,53 @@ func TestPanelHandlerLoadCallsService(t *testing.T) {
 	}
 }
 
+func TestPanelHandlerLoadAcceptsNumericCursor(t *testing.T) {
+	svc := &stubPanelService{}
+	h := NewPanelHandler(svc)
+
+	resp, err := h.Load(context.Background(), clustertypes.ActionRequest{
+		Action: "panel.load",
+		Payload: map[string]interface{}{
+			"lu":       float64(123),
+			"hostname": "node.example.com",
+		},
+	})
+
+	if err != nil {
+		t.Fatalf("load: %v", err)
+	}
+	if resp.Status != "success" {
+		t.Fatalf("expected success, got %q", resp.Status)
+	}
+	if svc.loadLU != "123" {
+		t.Fatalf("expected numeric cursor to be normalized to 123, got %q", svc.loadLU)
+	}
+}
+
+func TestPanelHandlerPartialAcceptsNumericID(t *testing.T) {
+	svc := &stubPanelService{}
+	h := NewPanelHandler(svc)
+
+	resp, err := h.Partial(context.Background(), clustertypes.ActionRequest{
+		Action: "panel.partial",
+		Payload: map[string]interface{}{
+			"object":   "clients",
+			"id":       float64(7),
+			"hostname": "node.example.com",
+		},
+	})
+
+	if err != nil {
+		t.Fatalf("partial: %v", err)
+	}
+	if resp.Status != "success" {
+		t.Fatalf("expected success, got %q", resp.Status)
+	}
+	if svc.partialObject != "clients" || svc.partialID != "7" || svc.partialHostname != "node.example.com" {
+		t.Fatalf("unexpected partial args: object=%q id=%q hostname=%q", svc.partialObject, svc.partialID, svc.partialHostname)
+	}
+}
+
 func TestPanelHandlerSavePassesRawDataAndInitUsers(t *testing.T) {
 	svc := &stubPanelService{}
 	h := NewPanelHandler(svc)

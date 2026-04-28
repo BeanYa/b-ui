@@ -4,6 +4,7 @@ import { createTlsPreset, type TlsPresetKey } from '@/plugins/tlsTemplates'
 export interface TlsPresetMaterialProvider {
   generateTlsKeypair(serverName: string): Promise<string[]>
   generateRealityKeypair(): Promise<string[]>
+  getTlsDomainHints?(): Promise<unknown[]>
 }
 
 const clone = <T>(value: T): T => JSON.parse(JSON.stringify(value))
@@ -11,6 +12,40 @@ const clone = <T>(value: T): T => JSON.parse(JSON.stringify(value))
 const normalizeServerName = (serverName?: string): string => {
   const normalized = serverName?.trim()
   return normalized && normalized.length > 0 ? normalized : "''"
+}
+
+const normalizeOptionalServerName = (serverName: unknown): string => {
+  if (typeof serverName === 'string') {
+    return serverName.trim()
+  }
+
+  if (serverName && typeof serverName === 'object') {
+    const item = serverName as Record<string, unknown>
+    if (typeof item.value === 'string') {
+      return item.value.trim()
+    }
+    if (typeof item.domain === 'string') {
+      return item.domain.trim()
+    }
+  }
+
+  return ''
+}
+
+const firstTlsDomainHint = async (provider: TlsPresetMaterialProvider): Promise<string> => {
+  const hints = await provider.getTlsDomainHints?.()
+  if (!Array.isArray(hints)) {
+    return ''
+  }
+
+  for (const hint of hints) {
+    const domain = normalizeOptionalServerName(hint)
+    if (domain.length > 0) {
+      return domain
+    }
+  }
+
+  return ''
 }
 
 const isPemBoundary = (line: string, marker: string, boundary: 'BEGIN' | 'END'): boolean => {
@@ -95,18 +130,27 @@ const getDefaultMaterialProvider = async (): Promise<TlsPresetMaterialProvider> 
 
   return {
     async generateTlsKeypair(serverName: string) {
-      const msg = await HttpUtils.get('api/keypairs', { k: 'tls', o: serverName })
-      if (!msg.success || !Array.isArray(msg.obj)) {
-        throw new Error(msg.msg || 'Failed to generate TLS keypair')
+      const { default: Data } = await import('@/store/modules/data')
+      const keypairs = await Data().keypairs('tls', serverName)
+      if (!Array.isArray(keypairs) || keypairs.length === 0) {
+        throw new Error('Failed to generate TLS keypair')
       }
-      return msg.obj as string[]
+      return keypairs
     },
     async generateRealityKeypair() {
-      const msg = await HttpUtils.get('api/keypairs', { k: 'reality' })
-      if (!msg.success || !Array.isArray(msg.obj)) {
-        throw new Error(msg.msg || 'Failed to generate Reality keypair')
+      const { default: Data } = await import('@/store/modules/data')
+      const keypairs = await Data().keypairs('reality')
+      if (!Array.isArray(keypairs) || keypairs.length === 0) {
+        throw new Error('Failed to generate Reality keypair')
       }
-      return msg.obj as string[]
+      return keypairs
+    },
+    async getTlsDomainHints() {
+      const msg = await HttpUtils.get('api/domainHints')
+      if (!msg.success || !Array.isArray(msg.obj?.items)) {
+        return []
+      }
+      return msg.obj.items as unknown[]
     },
   }
 }
@@ -122,6 +166,15 @@ export const materializeTlsPreset = async (
   switch (preset) {
     case 'standard':
     case 'hysteria2': {
+      const serverName = normalizeOptionalServerName(next.server.server_name)
+      if (serverName.length > 0) {
+        next.server.server_name = serverName
+      } else if (preset === 'hysteria2') {
+        const hintedServerName = await firstTlsDomainHint(resolvedProvider)
+        if (hintedServerName.length > 0) {
+          next.server.server_name = hintedServerName
+        }
+      }
       const material = parseGeneratedTlsKeypair(
         await resolvedProvider.generateTlsKeypair(normalizeServerName(next.server.server_name)),
       )

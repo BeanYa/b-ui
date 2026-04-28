@@ -14,6 +14,24 @@ export interface DomainHintDisplayItem {
   metaLabels: string[]
 }
 
+export const normalizeDomainSelection = (value: unknown): string => {
+  if (typeof value === 'string') {
+    return value.trim()
+  }
+
+  if (value && typeof value === 'object') {
+    const item = value as Record<string, unknown>
+    if (typeof item.value === 'string') {
+      return item.value.trim()
+    }
+    if (typeof item.domain === 'string') {
+      return item.domain.trim()
+    }
+  }
+
+  return ''
+}
+
 export const buildDomainHintItems = (
   items: DomainHintItem[],
   t: (key: string) => string,

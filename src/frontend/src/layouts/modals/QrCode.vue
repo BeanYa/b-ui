@@ -85,9 +85,24 @@ export default {
   methods: {
     async load() {
       this.loading = true
-      const newData = await Data().loadClients(this.$props.id)
-      this.client = newData
-      this.loading = false
+      try {
+        const newData = await Data().loadClients(this.$props.id)
+        this.client = this.hasClientData(newData) ? newData : this.fallbackClient()
+      } catch (error: any) {
+        this.client = this.fallbackClient()
+        push.error({
+          title: i18n.global.t('failed'),
+          message: error?.message ?? String(error),
+        })
+      } finally {
+        this.loading = false
+      }
+    },
+    hasClientData(client: any) {
+      return client && typeof client === 'object' && Object.keys(client).length > 0
+    },
+    fallbackClient() {
+      return Data().clients.find((c: any) => c.id == this.$props.id) ?? {}
     },
     copyToClipboard(txt:string) {
       const hiddenButton = document.createElement('button')
@@ -122,14 +137,31 @@ export default {
   },
   computed: {
     clientSub() {
-      return Data().subURI + this.client.name
+      const name = this.client?.name ?? ''
+      return name ? Data().subURI + name : ''
     },
     singbox() {
-      const url = Data().subURI + this.client.name + "?format=json"
-      return "sing-box://import-remote-profile?url=" +  encodeURIComponent(url) + "#" + this.client.name
+      const name = this.client?.name ?? ''
+      if (!name) return ''
+      const url = Data().subURI + name + "?format=json"
+      return "sing-box://import-remote-profile?url=" +  encodeURIComponent(url) + "#" + name
     },
     clientLinks() {
-      return this.client.links?? []
+      const links = this.client?.links
+      if (Array.isArray(links)) {
+        return links.filter((link: any) => link && typeof link.uri === 'string' && link.uri.length > 0)
+      }
+      if (typeof links === 'string' && links.length > 0) {
+        try {
+          const parsed = JSON.parse(links)
+          return Array.isArray(parsed)
+            ? parsed.filter((link: any) => link && typeof link.uri === 'string' && link.uri.length > 0)
+            : []
+        } catch {
+          return []
+        }
+      }
+      return []
     },
     size() {
       if (window.innerWidth > 380) return 300

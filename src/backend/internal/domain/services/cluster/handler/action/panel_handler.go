@@ -43,13 +43,17 @@ func (h *PanelHandler) RegisterAll(r *router.ActionRouter) {
 
 func (h *PanelHandler) Load(ctx context.Context, req clustertypes.ActionRequest) (clustertypes.ActionResponse, error) {
 	var payload struct {
-		LU       string `json:"lu"`
-		Hostname string `json:"hostname"`
+		LU       json.RawMessage `json:"lu"`
+		Hostname string          `json:"hostname"`
 	}
 	if err := decodePanelPayload(req.Payload, &payload); err != nil {
 		return clustertypes.ActionResponse{}, router.HandlerError{Message: fmt.Sprintf("invalid payload: %v", err)}
 	}
-	data, err := h.svc.Load(payload.LU, payload.Hostname)
+	lu, err := normalizePanelScalarString(payload.LU)
+	if err != nil {
+		return clustertypes.ActionResponse{}, router.HandlerError{Message: fmt.Sprintf("invalid lu: %v", err)}
+	}
+	data, err := h.svc.Load(lu, payload.Hostname)
 	if err != nil {
 		return clustertypes.ActionResponse{}, router.HandlerError{Message: err.Error()}
 	}
@@ -58,9 +62,9 @@ func (h *PanelHandler) Load(ctx context.Context, req clustertypes.ActionRequest)
 
 func (h *PanelHandler) Partial(ctx context.Context, req clustertypes.ActionRequest) (clustertypes.ActionResponse, error) {
 	var payload struct {
-		Object   string `json:"object"`
-		ID       string `json:"id"`
-		Hostname string `json:"hostname"`
+		Object   string          `json:"object"`
+		ID       json.RawMessage `json:"id"`
+		Hostname string          `json:"hostname"`
 	}
 	if err := decodePanelPayload(req.Payload, &payload); err != nil {
 		return clustertypes.ActionResponse{}, router.HandlerError{Message: fmt.Sprintf("invalid payload: %v", err)}
@@ -68,7 +72,11 @@ func (h *PanelHandler) Partial(ctx context.Context, req clustertypes.ActionReque
 	if strings.TrimSpace(payload.Object) == "" {
 		return clustertypes.ActionResponse{}, router.HandlerError{Message: "object is required"}
 	}
-	data, err := h.svc.Partial(payload.Object, payload.ID, payload.Hostname)
+	id, err := normalizePanelScalarString(payload.ID)
+	if err != nil {
+		return clustertypes.ActionResponse{}, router.HandlerError{Message: fmt.Sprintf("invalid id: %v", err)}
+	}
+	data, err := h.svc.Partial(payload.Object, id, payload.Hostname)
 	if err != nil {
 		return clustertypes.ActionResponse{}, router.HandlerError{Message: err.Error()}
 	}
@@ -183,6 +191,27 @@ func panelSuccess(data interface{}) clustertypes.ActionResponse {
 		Status: "success",
 		Data:   data,
 	}
+}
+
+func normalizePanelScalarString(raw json.RawMessage) (string, error) {
+	text := strings.TrimSpace(string(raw))
+	if text == "" || text == "null" {
+		return "", nil
+	}
+
+	var asString string
+	if err := json.Unmarshal(raw, &asString); err == nil {
+		return asString, nil
+	}
+
+	var asNumber json.Number
+	decoder := json.NewDecoder(strings.NewReader(text))
+	decoder.UseNumber()
+	if err := decoder.Decode(&asNumber); err == nil {
+		return asNumber.String(), nil
+	}
+
+	return "", fmt.Errorf("unsupported scalar value %s", text)
 }
 
 func normalizePanelInitUsers(raw json.RawMessage) (string, error) {

@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 
-import { buildDomainHintItems } from './tlsDomainHints'
+import { buildDomainHintItems, normalizeDomainSelection } from './tlsDomainHints'
 
 describe('buildDomainHintItems', () => {
   it('keeps the saved value as the domain and moves diagnostics into labels', () => {
@@ -24,5 +24,13 @@ describe('buildDomainHintItems', () => {
         metaLabels: ['Recommended', 'TLS 1.3', 'H2', '8ms'],
       },
     ])
+  })
+
+  it('normalizes Vuetify combobox domain objects to a plain string value', () => {
+    expect(normalizeDomainSelection({
+      value: 'example.com',
+      domain: 'Example',
+      metaLabels: ['Recommended'],
+    })).toBe('example.com')
   })
 })

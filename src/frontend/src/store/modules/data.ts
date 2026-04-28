@@ -73,7 +73,7 @@ const Data = defineStore('Data', {
     async loadData() {
       if (this.isRemote()) {
         const payload = {
-          ...(this.lastLoad > 0 ? { lu: this.lastLoad } : {}),
+          ...(this.lastLoad > 0 ? { lu: String(this.lastLoad) } : {}),
           hostname: this.remoteHostname,
         }
         const data = await remotePanelLoad(this.remoteNodeId, payload)
@@ -130,7 +130,7 @@ const Data = defineStore('Data', {
       if (this.isRemote()) {
         const data = await remotePanelPartial(this.remoteNodeId, {
           object: 'clients',
-          ...(id > 0 ? { id } : {}),
+          ...(id > 0 ? { id: String(id) } : {}),
           hostname: this.remoteHostname,
         })
         return <Client>data?.clients?.[0] ?? <Client>{}

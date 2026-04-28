@@ -86,6 +86,22 @@ describe('data store remote node mode', () => {
     expect(data.onlines.inbound).toEqual(['remote-in'])
   })
 
+  it('serializes remote load cursors as strings for panel.load', async () => {
+    mockRemoteLoad.mockResolvedValue({ onlines: {} })
+
+    const { default: Data } = await import('./data')
+    const data = Data()
+
+    data.enterRemoteNode('node-a', 'https://node.example.com')
+    data.lastLoad = 123
+    await data.loadData()
+
+    expect(mockRemoteLoad).toHaveBeenCalledWith('node-a', {
+      lu: '123',
+      hostname: 'node.example.com',
+    })
+  })
+
   it('saves through panel.save and refreshes store data', async () => {
     mockRemoteSave.mockResolvedValue({
       inbounds: [{ id: 2, tag: 'created' }],
@@ -120,7 +136,7 @@ describe('data store remote node mode', () => {
     await expect(data.loadClients(7)).resolves.toEqual({ id: 7, name: 'alice' })
     expect(mockRemotePartial).toHaveBeenCalledWith('node-a', {
       object: 'clients',
-      id: 7,
+      id: '7',
       hostname: 'node.example.com',
     })
 
