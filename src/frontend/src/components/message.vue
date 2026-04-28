@@ -2,7 +2,7 @@
   <Notivue v-slot="item">
     <NotivueSwipe :item="item">
       <Notification
-        :item="normalizedNotificationItem(item)"
+        :item="item"
         :theme="theme"
         :dir="direction"
         :icons="outlinedIcons"
@@ -15,10 +15,9 @@
 
 <script lang="ts" setup>
 import { Notivue, Notification, NotivueSwipe, outlinedIcons, pastelTheme, darkTheme } from 'notivue'
-import { computed, unref } from 'vue'
+import { computed } from 'vue'
 import { useTheme } from 'vuetify'
 import vuetify from '@/plugins/vuetify'
-import { normalizePromptMessage } from '@/features/notifications/prompt'
 
 const Theme = useTheme()
 
@@ -33,11 +32,6 @@ const theme = computed(() =>{
 
 const direction = computed(() => {
   return vuetify.locale.isRtl ? 'rtl' : 'ltr'
-})
-
-const normalizedNotificationItem = (item: any) => ({
-  ...item,
-  message: normalizePromptMessage(unref(item.message)),
 })
 </script>
 

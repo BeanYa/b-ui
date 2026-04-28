@@ -19,6 +19,6 @@ describe('buildPanelUpdateProgressLines', () => {
 
 describe('panelUpdateCompletionMessage', () => {
   it('asks the user to refresh the page after the update completes', () => {
-    expect(panelUpdateCompletionMessage('v0.2.0')).toBe('The panel has been updated to v0.2.0. Refresh the page to load the new version.')
+    expect(panelUpdateCompletionMessage('v0.2.0')).toBe('Panel update succeeded. Refresh the page to load the new version.')
   })
 })

@@ -33,6 +33,6 @@ export const buildPanelUpdateProgressLines = (
   return lines
 }
 
-export const panelUpdateCompletionMessage = (targetVersion: string) => {
-  return `The panel has been updated to ${targetVersion}. Refresh the page to load the new version.`
+export const panelUpdateCompletionMessage = (_targetVersion: string) => {
+  return 'Panel update succeeded. Refresh the page to load the new version.'
 }
