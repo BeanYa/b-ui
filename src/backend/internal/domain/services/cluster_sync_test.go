@@ -109,6 +109,29 @@ func TestClusterSyncServiceVersionPollIsNoOpWhenHubVersionUnchanged(t *testing.T
 	}
 }
 
+func TestClusterSyncServiceVersionPollBackfillsMissingMemberDisplayNames(t *testing.T) {
+	store := &stubClusterSyncStore{
+		domains: map[uint]*model.ClusterDomain{
+			1: {Id: 1, Domain: "edge.example.com", HubURL: "https://hub.example.com", LastVersion: 9},
+		},
+		members: map[string]*model.ClusterMember{
+			stubClusterSyncKey(1, "node-a"): {NodeID: "node-a", DomainID: 1, LastVersion: 9},
+		},
+	}
+	hub := &stubClusterHubSyncer{latestVersions: []int64{9}}
+	service := &ClusterSyncService{store: store, hubSyncer: hub}
+
+	if err := service.PollAndNotifyVersion(context.Background()); err != nil {
+		t.Fatalf("poll and backfill member display names: %v", err)
+	}
+	if hub.syncCalls != 1 {
+		t.Fatalf("expected unchanged hub version to sync missing member display names, got %d syncs", hub.syncCalls)
+	}
+	if hub.syncedVersions[0] != 9 {
+		t.Fatalf("expected synced version 9, got %d", hub.syncedVersions[0])
+	}
+}
+
 func TestClusterSyncServiceManualPollSyncsFromHubWhenRemoteVersionNewer(t *testing.T) {
 	store := &stubClusterSyncStore{
 		domains: map[uint]*model.ClusterDomain{

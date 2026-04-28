@@ -7,6 +7,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"strings"
 	"time"
 
 	"github.com/BeanYa/b-ui/src/backend/internal/domain/config"
@@ -165,7 +166,16 @@ func (s *ClusterSyncService) PollAndNotifyVersion(ctx context.Context) error {
 			return err
 		}
 		if version <= domain.LastVersion {
-			continue
+			if version < domain.LastVersion {
+				continue
+			}
+			needsDisplayNameBackfill, err := s.domainNeedsDisplayNameBackfill(domain.Id)
+			if err != nil {
+				return err
+			}
+			if !needsDisplayNameBackfill {
+				continue
+			}
 		}
 		if err := s.hubSyncer.SyncDomain(ctx, &domain, version); err != nil {
 			var mirrorErr *clusterDomainMirrorRemovedError
@@ -181,6 +191,19 @@ func (s *ClusterSyncService) PollAndNotifyVersion(ctx context.Context) error {
 		_ = s.CheckAndBroadcastUpdate(ctx, &domain)
 	}
 	return removedMirrorErr
+}
+
+func (s *ClusterSyncService) domainNeedsDisplayNameBackfill(domainID uint) (bool, error) {
+	members, err := s.store.GetMembers(domainID)
+	if err != nil {
+		return false, err
+	}
+	for _, member := range members {
+		if strings.TrimSpace(member.DisplayName) == "" && strings.TrimSpace(member.Name) == "" {
+			return true, nil
+		}
+	}
+	return false, nil
 }
 
 func (s *ClusterSyncService) CheckAndBroadcastUpdate(ctx context.Context, domain *model.ClusterDomain) error {

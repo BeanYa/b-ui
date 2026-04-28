@@ -51,6 +51,35 @@ func TestClusterHubSyncerSyncDomainPersistsEncryptedPeerTokenPerMember(t *testin
 	}
 }
 
+func TestClusterHubSyncerSyncDomainPersistsDisplayNameFromSnapshot(t *testing.T) {
+	local := newTestClusterLocalNode(t, "node-local")
+	store := &stubClusterRuntimeStore{}
+	syncer := &ClusterHubSyncer{
+		client: &stubClusterRuntimeHubClient{snapshot: &ClusterHubSnapshotResponse{
+			Version: 7,
+			Members: []ClusterHubMemberResponse{{
+				NodeID:         "node-local",
+				DisplayNameAlt: "JP Bean Tokyo",
+				BaseURL:        "https://jp.whoisbean.com:10443/beanui/",
+				PeerToken:      "peer-token-local",
+			}},
+		}},
+		store:          store,
+		secretProvider: stubClusterSecretProvider{secret: []byte("panel-secret-for-cluster-tests")},
+		localIdentity:  &ClusterLocalIdentityService{store: &stubClusterLocalNodeStore{node: local}},
+		reachability:   newTestClusterRuntimeReachabilityService(10),
+	}
+	domain := &model.ClusterDomain{Id: 1, Domain: "edge.example.com", HubURL: "https://hub.example.com", TokenEncrypted: mustEncryptClusterToken(t, "panel-secret-for-cluster-tests", "domain-token")}
+
+	if err := syncer.SyncDomain(context.Background(), domain, 7); err != nil {
+		t.Fatalf("sync domain: %v", err)
+	}
+	member := store.replaceCalls[0].members[0]
+	if member.DisplayName != "JP Bean Tokyo" {
+		t.Fatalf("expected display name from snapshot, got %q", member.DisplayName)
+	}
+}
+
 func TestClusterHubSyncerSyncDomainKeepsDistinctPeerTokensForSameNodeAcrossDomains(t *testing.T) {
 	local := newTestClusterLocalNode(t, "node-shared")
 	store := &stubClusterRuntimeStore{}

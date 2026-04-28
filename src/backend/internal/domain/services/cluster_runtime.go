@@ -117,6 +117,7 @@ func (s *ClusterHubSyncer) SyncDomain(ctx context.Context, domain *model.Cluster
 		members = append(members, model.ClusterMember{
 			NodeID:             item.EffectiveNodeID(),
 			Name:               item.Name,
+			DisplayName:        item.EffectiveDisplayName(),
 			BaseURL:            item.EffectiveBaseURL(),
 			PublicKey:          item.EffectivePublicKey(),
 			PeerTokenEncrypted: peerTokenEncrypted,
