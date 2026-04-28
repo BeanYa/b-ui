@@ -300,7 +300,7 @@ export default {
       pingAll: "Ping tất cả",
       confirmRegister: "Xác nhận đăng ký",
     },
-    joinUriHint: "URI bắt đầu bằng buihub://, ví dụ buihub://hub.example.com/domain/example.com?domain_token=xxx",
+    joinUriHint: "URI bắt đầu bằng buihub://, ví dụ buihub://hub.example.com/domain?id=example.com&domain_token=xxx",
     validation: {
       required: "URL Hub, ID miền và token miền là bắt buộc.",
       hubUrl: "URL Hub phải là URL tuyệt đối và dùng https, trừ localhost.",

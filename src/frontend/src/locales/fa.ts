@@ -300,7 +300,7 @@ export default {
       pingAll: "Ping همه",
       confirmRegister: "تأیید ثبت‌نام",
     },
-    joinUriHint: "URI با buihub:// شروع می‌شود؛ برای نمونه buihub://hub.example.com/domain/example.com?domain_token=xxx",
+    joinUriHint: "URI با buihub:// شروع می‌شود؛ برای نمونه buihub://hub.example.com/domain?id=example.com&domain_token=xxx",
     validation: {
       required: "آدرس Hub، شناسه دامنه و توکن دامنه الزامی هستند.",
       hubUrl: "آدرس Hub باید یک URL کامل باشد و به‌جز localhost از https استفاده کند.",

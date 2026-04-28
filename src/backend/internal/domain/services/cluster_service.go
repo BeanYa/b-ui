@@ -312,13 +312,17 @@ func parseClusterHubJoinURI(raw string) (*clusterHubJoinURI, error) {
 }
 
 func clusterJoinURIDomain(parsed *url.URL) (string, error) {
+	if domainID := firstQueryValue(parsed.Query(), "id"); domainID != "" {
+		return strings.TrimSpace(domainID), nil
+	}
+
 	path := strings.Trim(parsed.EscapedPath(), "/")
 	domainValue := ""
 	if path != "" {
 		parts := strings.Split(path, "/")
 		if len(parts) >= 2 && strings.EqualFold(parts[0], "domain") {
 			domainValue = strings.Join(parts[1:], "/")
-		} else if len(parts) == 1 {
+		} else if len(parts) == 1 && !strings.EqualFold(parts[0], "domain") {
 			domainValue = parts[0]
 		}
 	}

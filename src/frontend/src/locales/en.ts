@@ -303,7 +303,7 @@ export default {
       pingAll: "Ping All",
       confirmRegister: "Confirm Registration",
     },
-    joinUriHint: "URI starts with buihub://, for example buihub://hub.example.com/domain/example.com?domain_token=xxx",
+    joinUriHint: "URI starts with buihub://, for example buihub://hub.example.com/domain?id=example.com&domain_token=xxx",
     displayName: "Display Name",
     displayNameHint: "A human-readable label shown in management panels for this node.",
     alreadyExists: "A node with the same Base URL already exists in this domain.",

@@ -160,6 +160,14 @@ describe('ClusterCenter view source', () => {
     expect(source).toContain('form.value.displayName = confirmInfo.value.displayName')
   })
 
+  it('uses the canonical Hub join URI id query parameter when registering from URI', () => {
+    const source = readFileSync(fileURLToPath(new URL('./ClusterCenter.vue', import.meta.url)), 'utf8')
+
+    expect(source).toContain('placeholder="buihub://hub.example.com/domain?id=example.com&domain_token=..."')
+    expect(source).toContain('domain: parsed.domainId')
+    expect(source).not.toContain('domain: parsed.domain,')
+  })
+
   it('closes the display-name entry dialog and starts loading before submitting confirmed registration', () => {
     const source = readFileSync(fileURLToPath(new URL('./ClusterCenter.vue', import.meta.url)), 'utf8')
     const submitStart = source.indexOf('const confirmAndSubmit = async () => {')

@@ -50,7 +50,7 @@ func TestClusterRegisterReturnsOperationStatus(t *testing.T) {
 
 func TestClusterRegisterAcceptsJoinURI(t *testing.T) {
 	router, cluster := newTestClusterRouter()
-	registerBody := bytes.NewBufferString(`{"joinUri":"buihub://hub.example.com/domain/edge.example.com?domain_token=cluster-token&hub_protocol=https","baseUrl":"https://panel.example.com/app/"}`)
+	registerBody := bytes.NewBufferString(`{"joinUri":"buihub://hub.example.com/domain?id=edge.example.com&domain_token=cluster-token&hub_protocol=https","baseUrl":"https://panel.example.com/app/"}`)
 	req := httptest.NewRequest(http.MethodPost, "/api/cluster/register", registerBody)
 	req.Header.Set("Content-Type", "application/json")
 	req.Header.Set("Cookie", loginCookie(t, router, "admin"))

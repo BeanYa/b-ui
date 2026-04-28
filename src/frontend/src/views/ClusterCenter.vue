@@ -222,7 +222,7 @@
               <v-text-field
                 v-model="form.joinUri"
                 :label="$t('clusterCenter.fields.joinUri')"
-                placeholder="buihub://hub.example.com/domain/example.com?domain_token=..."
+                placeholder="buihub://hub.example.com/domain?id=example.com&domain_token=..."
                 persistent-hint
                 :hint="$t('clusterCenter.joinUriHint')"
               />
@@ -462,7 +462,7 @@ const validateAndCheckDomain = async () => {
     const panelBaseUrl = resolvePanelBaseUrl()
     confirmInfo.value = {
       hubUrl: `${parsed.protocol}://${parsed.host}`,
-      domain: parsed.domain,
+      domain: parsed.domainId,
       token: parsed.token,
       baseUrl: panelBaseUrl,
       displayName: deriveDisplayNameFromBaseUrl(panelBaseUrl),

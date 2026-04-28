@@ -187,7 +187,7 @@ func (c *ClusterHubClient) GetLatestVersion(ctx context.Context, hubURL string, 
 	if err := validateClusterHubURL(hubURL); err != nil {
 		return nil, err
 	}
-	request, err := http.NewRequestWithContext(ctx, http.MethodGet, strings.TrimRight(hubURL, "/")+"/v1/domains/"+domain+"/version", nil)
+	request, err := http.NewRequestWithContext(ctx, http.MethodGet, strings.TrimRight(hubURL, "/")+"/v1/domains/"+url.PathEscape(domain)+"/version", nil)
 	if err != nil {
 		return nil, err
 	}
@@ -207,7 +207,7 @@ func (c *ClusterHubClient) GetSnapshot(ctx context.Context, hubURL string, domai
 	if err := validateClusterHubURL(hubURL); err != nil {
 		return nil, err
 	}
-	request, err := http.NewRequestWithContext(ctx, http.MethodGet, strings.TrimRight(hubURL, "/")+"/v1/domains/"+domain+"/snapshot", nil)
+	request, err := http.NewRequestWithContext(ctx, http.MethodGet, strings.TrimRight(hubURL, "/")+"/v1/domains/"+url.PathEscape(domain)+"/snapshot", nil)
 	if err != nil {
 		return nil, err
 	}
@@ -235,7 +235,7 @@ func (c *ClusterHubClient) DeleteMember(ctx context.Context, hubURL string, doma
 	if err != nil {
 		return nil, err
 	}
-	request, err := http.NewRequestWithContext(ctx, http.MethodDelete, strings.TrimRight(hubURL, "/")+"/v1/domains/"+domain+"/members/"+memberID, bytes.NewReader(body))
+	request, err := http.NewRequestWithContext(ctx, http.MethodDelete, strings.TrimRight(hubURL, "/")+"/v1/domains/"+url.PathEscape(domain)+"/members/"+url.PathEscape(memberID), bytes.NewReader(body))
 	if err != nil {
 		return nil, err
 	}
@@ -265,7 +265,7 @@ func (c *ClusterHubClient) ClaimUpdate(ctx context.Context, hubURL string, domai
 		"target_version": targetVersion,
 	}
 	response := &ClusterHubClaimUpdateResponse{}
-	if err := c.postJSON(ctx, strings.TrimRight(hubURL, "/")+"/v1/domains/"+domain+"/claim-update", payload, response); err != nil {
+	if err := c.postJSON(ctx, strings.TrimRight(hubURL, "/")+"/v1/domains/"+url.PathEscape(domain)+"/claim-update", payload, response); err != nil {
 		return nil, err
 	}
 	return response, nil
@@ -285,7 +285,7 @@ func (c *ClusterHubClient) SetMemberStatus(ctx context.Context, hubURL string, d
 		payload["panel_version"] = panelVersion
 	}
 	response := &ClusterHubMemberStatusResponse{}
-	if err := c.postJSON(ctx, strings.TrimRight(hubURL, "/")+"/v1/domains/"+domain+"/member-status", payload, response); err != nil {
+	if err := c.postJSON(ctx, strings.TrimRight(hubURL, "/")+"/v1/domains/"+url.PathEscape(domain)+"/member-status", payload, response); err != nil {
 		return nil, err
 	}
 	return response, nil

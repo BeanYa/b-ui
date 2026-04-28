@@ -6,6 +6,7 @@ import (
 	"crypto/rand"
 	"encoding/base64"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"path/filepath"
 	"reflect"
@@ -119,7 +120,7 @@ func TestClusterServiceRegisterParsesJoinURI(t *testing.T) {
 	}
 
 	_, err := service.Register(ClusterRegisterRequest{
-		JoinURI: "buihub://hub.example.com/domain/edge.example.com?domain_token=cluster-token&hub_protocol=https",
+		JoinURI: "buihub://hub.example.com/domain?id=edge.example.com&domain_token=cluster-token&hub_protocol=https",
 		BaseURL: "https://panel.example.com/app/",
 	})
 	if err != nil {
@@ -133,6 +134,18 @@ func TestClusterServiceRegisterParsesJoinURI(t *testing.T) {
 	}
 	if hub.lastRegisterRequest.DomainToken != "cluster-token" {
 		t.Fatalf("expected parsed token, got %q", hub.lastRegisterRequest.DomainToken)
+	}
+}
+
+func TestClusterServiceRegisterRejectsCanonicalJoinURIWithoutID(t *testing.T) {
+	service := &ClusterService{}
+
+	_, err := service.Register(ClusterRegisterRequest{
+		JoinURI: "buihub://hub.example.com/domain?domain_token=cluster-token&hub_protocol=https",
+		BaseURL: "https://panel.example.com/app/",
+	})
+	if !errors.Is(err, errClusterDomainRequired) {
+		t.Fatalf("expected missing domain id error, got %v", err)
 	}
 }
 

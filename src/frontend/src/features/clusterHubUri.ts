@@ -1,5 +1,5 @@
 export type ClusterHubJoinUri = {
-  domain: string
+  domainId: string
   host: string
   protocol: 'http' | 'https'
   token: string
@@ -30,14 +30,19 @@ export const parseClusterHubJoinUri = (uri: string): ClusterHubJoinUri | null =>
 
   try {
     const url = new URL(trimmed)
-    const domainMatch = url.pathname.match(/^\/domain\/(.+)$/i) || url.pathname.match(/^\/([^/]+)$/i)
-    const domain = domainMatch?.[1] || firstParam(url.searchParams, ['domain_id', 'domainId', 'domain'])
-    if (!domain) return null
+    const canonicalDomainPath = /^\/domain\/?$/i.test(url.pathname)
+    const legacyDomainPathMatch = url.pathname.match(/^\/domain\/(.+)$/i)
+    const directPathMatch = canonicalDomainPath ? null : url.pathname.match(/^\/([^/]+)$/i)
+    const domainId = firstParam(url.searchParams, ['id'])
+      || legacyDomainPathMatch?.[1]
+      || directPathMatch?.[1]
+      || firstParam(url.searchParams, ['domain_id', 'domainId', 'domain'])
+    if (!domainId) return null
     const token = firstParam(url.searchParams, ['domain_token', 'domainToken', 'domain-token', 'token'])
     if (!token) return null
 
     return {
-      domain: decodeURIComponent(domain),
+      domainId: legacyDomainPathMatch || directPathMatch ? decodeURIComponent(domainId) : domainId,
       host: url.host,
       protocol: protocolFromParams(url.searchParams, url.hostname),
       token,

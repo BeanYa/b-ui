@@ -301,7 +301,7 @@ export default {
       pingAll: "Ping всех",
       confirmRegister: "Подтвердить регистрацию",
     },
-    joinUriHint: "URI начинается с buihub://, например buihub://hub.example.com/domain/example.com?domain_token=xxx",
+    joinUriHint: "URI начинается с buihub://, например buihub://hub.example.com/domain?id=example.com&domain_token=xxx",
     validation: {
       required: "URL Hub, ID домена и токен домена обязательны.",
       hubUrl: "URL Hub должен быть абсолютным и использовать https, кроме localhost.",

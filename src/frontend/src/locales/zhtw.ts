@@ -302,7 +302,7 @@ export default {
       pingAll: "Ping 全部",
       confirmRegister: "確認註冊",
     },
-    joinUriHint: "URI 以 buihub:// 開頭，例如 buihub://hub.example.com/domain/example.com?domain_token=xxx。",
+    joinUriHint: "URI 以 buihub:// 開頭，例如 buihub://hub.example.com/domain?id=example.com&domain_token=xxx。",
     validation: {
       required: "Hub 位址、域Id 與域認證令牌為必填欄位。",
       hubUrl: "Hub 位址必須是絕對 URL，且除 localhost 外必須使用 https。",

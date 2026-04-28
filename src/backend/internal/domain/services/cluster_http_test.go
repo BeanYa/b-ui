@@ -6,6 +6,8 @@ import (
 	"errors"
 	"net/http"
 	"net/http/httptest"
+	"reflect"
+	"strings"
 	"sync/atomic"
 	"testing"
 
@@ -58,6 +60,47 @@ func TestClusterHubClientSendsLocalNodeIDOnReadRequests(t *testing.T) {
 	}
 	if response.Version != 7 {
 		t.Fatalf("expected version 7, got %d", response.Version)
+	}
+}
+
+func TestClusterHubClientEscapesDomainAndMemberIDsInRequestPaths(t *testing.T) {
+	requests := make([]string, 0, 3)
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		requests = append(requests, r.URL.RequestURI())
+		w.Header().Set("Content-Type", "application/json")
+		switch r.Method {
+		case http.MethodGet:
+			if strings.HasSuffix(r.URL.Path, "/snapshot") {
+				_, _ = w.Write([]byte(`{"domain_id":"edge/id.example.com","version":7,"communication":{"endpoint_path":"/_cluster","protocol_version":"v1"},"members":[]}`))
+				return
+			}
+			_, _ = w.Write([]byte(`{"version":7}`))
+		case http.MethodDelete:
+			_, _ = w.Write([]byte(`{"operation_id":"op-delete","request_id":"req-delete","status":"completed","domain_id":"edge/id.example.com","type":"delete"}`))
+		default:
+			t.Fatalf("unexpected method %s", r.Method)
+		}
+	}))
+	defer server.Close()
+
+	client := &ClusterHubClient{HTTPClient: server.Client()}
+	if _, err := client.GetLatestVersion(context.Background(), server.URL, "edge/id.example.com", "domain-token"); err != nil {
+		t.Fatalf("get latest version: %v", err)
+	}
+	if _, err := client.GetSnapshot(context.Background(), server.URL, "edge/id.example.com", "domain-token"); err != nil {
+		t.Fatalf("get snapshot: %v", err)
+	}
+	if _, err := client.DeleteMember(context.Background(), server.URL, "edge/id.example.com", "domain-token", "member/one"); err != nil {
+		t.Fatalf("delete member: %v", err)
+	}
+
+	expected := []string{
+		"/v1/domains/edge%2Fid.example.com/version",
+		"/v1/domains/edge%2Fid.example.com/snapshot",
+		"/v1/domains/edge%2Fid.example.com/members/member%2Fone",
+	}
+	if !reflect.DeepEqual(requests, expected) {
+		t.Fatalf("expected escaped request paths %#v, got %#v", expected, requests)
 	}
 }
 
