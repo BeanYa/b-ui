@@ -248,6 +248,7 @@ fi`
 		"--unit="+panelUpdateUnitName,
 		"--collect",
 		"--quiet",
+		"--no-block",
 		"--setenv=INSTALL_SCRIPT_URL="+panelInstallScriptURL(),
 		"--setenv=INSTALL_MODE="+installMode,
 		"--setenv=TARGET_VERSION="+targetVersion,

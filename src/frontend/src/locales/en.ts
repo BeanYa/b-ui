@@ -258,6 +258,7 @@ export default {
       version: "Version",
       panelVersion: "Panel Version",
       status: "Status",
+      latency: "Latency",
       action: "Action",
     },
     actions: {

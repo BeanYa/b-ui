@@ -145,9 +145,9 @@
                   <th>{{ $t('clusterCenter.table.name') }}</th>
                   <th>{{ $t('clusterCenter.table.baseUrl') }}</th>
                   <th>{{ $t('clusterCenter.table.version') }}</th>
-                  <th>延迟</th>
                   <th>{{ $t('clusterCenter.table.panelVersion') }}</th>
                   <th>{{ $t('clusterCenter.table.status') }}</th>
+                  <th>{{ $t('clusterCenter.table.latency') }}</th>
                   <th>{{ $t('clusterCenter.table.action') }}</th>
                 </tr>
               </thead>

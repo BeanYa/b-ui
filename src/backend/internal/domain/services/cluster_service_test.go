@@ -5,6 +5,7 @@ import (
 	"crypto/ed25519"
 	"crypto/rand"
 	"encoding/base64"
+	"encoding/json"
 	"fmt"
 	"path/filepath"
 	"reflect"
@@ -61,6 +62,46 @@ func TestClusterServiceRegisterPersistsHubURLOnDomain(t *testing.T) {
 	}
 	if store.replacedMembers[0][0].DomainID != lastDomain.Id {
 		t.Fatalf("expected member domain id %d, got %d", lastDomain.Id, store.replacedMembers[0][0].DomainID)
+	}
+}
+
+func TestClusterServiceRegisterPersistsMemberPanelVersionAndStatus(t *testing.T) {
+	store := &stubClusterServiceStore{}
+	hub := &stubClusterHubClient{
+		registerResponse: &ClusterHubOperationResponse{OperationID: "op-register", Status: "completed"},
+		snapshotResponse: &ClusterHubSnapshotResponse{Version: 4, Members: []ClusterHubMemberResponse{{
+			NodeID:       "node-a",
+			BaseURL:      "https://node-a.example.com",
+			PeerToken:    "peer-token-a",
+			PanelVersion: "v0.1.19",
+			Status:       "offline",
+		}}},
+	}
+	service := &ClusterService{
+		secretProvider: stubClusterSecretProvider{secret: []byte("panel-secret-for-cluster-tests")},
+		localIdentity:  ClusterLocalIdentityService{store: &stubClusterLocalNodeStore{}},
+		store:          store,
+		hubClient:      hub,
+	}
+
+	_, err := service.Register(ClusterRegisterRequest{
+		HubURL:  "https://hub.example.com",
+		Domain:  "edge.example.com",
+		Token:   "cluster-token",
+		BaseURL: "https://panel.example.com/app/",
+	})
+	if err != nil {
+		t.Fatalf("register cluster domain: %v", err)
+	}
+	if len(store.replacedMembers) != 1 || len(store.replacedMembers[0]) != 1 {
+		t.Fatalf("expected one replaced member, got %#v", store.replacedMembers)
+	}
+	member := store.replacedMembers[0][0]
+	if member.PanelVersion != "v0.1.19" {
+		t.Fatalf("expected member panel version from hub snapshot, got %q", member.PanelVersion)
+	}
+	if member.Status != "offline" {
+		t.Fatalf("expected member status from hub snapshot, got %q", member.Status)
 	}
 }
 
@@ -415,6 +456,46 @@ func TestClusterServiceListMembersMarksLocalNode(t *testing.T) {
 	}
 	if !localSeen || !peerSeen {
 		t.Fatalf("expected both local and peer members, got %#v", members)
+	}
+}
+
+func TestClusterServiceListMembersIncludesPanelVersionAndStatus(t *testing.T) {
+	store := &stubClusterServiceStore{
+		members: map[string]*model.ClusterMember{
+			serviceMemberKey(1, "node-peer"): {
+				Id:           8,
+				NodeID:       "node-peer",
+				DomainID:     1,
+				PanelVersion: "v0.1.20",
+				Status:       "offline",
+			},
+		},
+	}
+	service := &ClusterService{
+		localIdentity: ClusterLocalIdentityService{store: &stubClusterLocalNodeStore{node: &model.ClusterLocalNode{NodeID: "node-local"}}},
+		store:         store,
+	}
+
+	members, err := service.ListMembers()
+	if err != nil {
+		t.Fatalf("list cluster members: %v", err)
+	}
+	encoded, err := json.Marshal(members)
+	if err != nil {
+		t.Fatalf("marshal members: %v", err)
+	}
+	var payload []map[string]any
+	if err := json.Unmarshal(encoded, &payload); err != nil {
+		t.Fatalf("unmarshal members payload: %v", err)
+	}
+	if len(payload) != 1 {
+		t.Fatalf("expected one member payload, got %#v", payload)
+	}
+	if payload[0]["panelVersion"] != "v0.1.20" {
+		t.Fatalf("expected panelVersion in member payload, got %#v", payload[0])
+	}
+	if payload[0]["status"] != "offline" {
+		t.Fatalf("expected status in member payload, got %#v", payload[0])
 	}
 }
 
@@ -808,24 +889,24 @@ func (s *stubClusterServiceStore) ReplaceDomainMembers(_ uint, members []model.C
 }
 
 type stubClusterHubClient struct {
-	registerResponse    *ClusterHubOperationResponse
-	latestVersionResponse *ClusterHubVersionResponse
-	snapshotResponse    *ClusterHubSnapshotResponse
-	deleteResponse      *ClusterHubOperationResponse
-	registerErr         error
-	latestVersionErr    error
-	deleteErr           error
-	registerCalls       int
-	snapshotCalls       int
-	versionChecks       int
-	lastHubURL          string
-	lastSnapshotHubURL  string
-	lastSnapshotDomain  string
-	lastSnapshotToken   string
-	lastRegisterRequest   ClusterHubRegisterNodeRequest
-	lastDeleteMemberID    string
+	registerResponse       *ClusterHubOperationResponse
+	latestVersionResponse  *ClusterHubVersionResponse
+	snapshotResponse       *ClusterHubSnapshotResponse
+	deleteResponse         *ClusterHubOperationResponse
+	registerErr            error
+	latestVersionErr       error
+	deleteErr              error
+	registerCalls          int
+	snapshotCalls          int
+	versionChecks          int
+	lastHubURL             string
+	lastSnapshotHubURL     string
+	lastSnapshotDomain     string
+	lastSnapshotToken      string
+	lastRegisterRequest    ClusterHubRegisterNodeRequest
+	lastDeleteMemberID     string
 	lastClaimTargetVersion string
-	claimResponse         *ClusterHubClaimUpdateResponse
+	claimResponse          *ClusterHubClaimUpdateResponse
 }
 
 func (s *stubClusterHubClient) RegisterNode(_ context.Context, hubURL string, request ClusterHubRegisterNodeRequest) (*ClusterHubOperationResponse, error) {
