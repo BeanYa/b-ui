@@ -5,6 +5,15 @@ import { i18n } from '@/locales'
 import { Inbound } from '@/types/inbounds'
 import { Client } from '@/types/clients'
 import {
+  remotePanelCheckOutbound,
+  remotePanelKeypairs,
+  remotePanelLinkConvert,
+  remotePanelLoad,
+  remotePanelPartial,
+  remotePanelSave,
+  remotePanelStats,
+} from '@/features/remotePanelApi'
+import {
   createDefaultConfig,
   createEmptyOnlines,
   normalizeCollection,
@@ -16,6 +25,9 @@ import { parseReloadItems } from '@/features/dashboard/persistence'
 const Data = defineStore('Data', {
   state: () => ({ 
     lastLoad: 0,
+    remoteNodeId: '',
+    remoteBaseUrl: '',
+    remoteHostname: '',
     reloadItems: parseReloadItems(localStorage.getItem('reloadItems')),
     subURI: "",
     enableTraffic: false,
@@ -29,7 +41,45 @@ const Data = defineStore('Data', {
     tlsConfigs: <any[]>[],
   }),
   actions: {
+    enterRemoteNode(nodeId: string, baseUrl: string) {
+      this.remoteNodeId = nodeId
+      this.remoteBaseUrl = baseUrl
+      this.remoteHostname = panelHostname(baseUrl)
+      this.lastLoad = 0
+      this.resetPanelData()
+    },
+    exitRemoteNode() {
+      this.remoteNodeId = ''
+      this.remoteBaseUrl = ''
+      this.remoteHostname = ''
+      this.lastLoad = 0
+      this.resetPanelData()
+    },
+    isRemote(): boolean {
+      return this.remoteNodeId.length > 0
+    },
+    resetPanelData() {
+      this.subURI = ''
+      this.enableTraffic = false
+      this.onlines = createEmptyOnlines()
+      this.config = createDefaultConfig()
+      this.clients = []
+      this.inbounds = []
+      this.outbounds = []
+      this.endpoints = []
+      this.services = []
+      this.tlsConfigs = []
+    },
     async loadData() {
+      if (this.isRemote()) {
+        const payload = {
+          ...(this.lastLoad > 0 ? { lu: this.lastLoad } : {}),
+          hostname: this.remoteHostname,
+        }
+        const data = await remotePanelLoad(this.remoteNodeId, payload)
+        this.setNewData(data ?? {})
+        return
+      }
       const msg = await HttpUtils.get('api/load', this.lastLoad >0 ? {lu: this.lastLoad} : {} )
       if(msg.success) {
         this.lastLoad = Math.floor((new Date()).getTime()/1000)
@@ -61,6 +111,14 @@ const Data = defineStore('Data', {
       if (Object.hasOwn(data, 'tls')) this.tlsConfigs = normalizeCollection(data.tls)
     },
     async loadInbounds(ids: number[]): Promise<Inbound[]> {
+      if (this.isRemote()) {
+        const data = await remotePanelPartial(this.remoteNodeId, {
+          object: 'inbounds',
+          ...(ids.length > 0 ? { id: ids.join(',') } : {}),
+          hostname: this.remoteHostname,
+        })
+        return data?.inbounds ?? []
+      }
       const options = ids.length > 0 ? {id: ids.join(",")} : {}
       const msg = await HttpUtils.get('api/inbounds', options)
       if(msg.success) {
@@ -69,6 +127,14 @@ const Data = defineStore('Data', {
       return <Inbound[]>[]
     },
     async loadClients(id: number): Promise<Client> {
+      if (this.isRemote()) {
+        const data = await remotePanelPartial(this.remoteNodeId, {
+          object: 'clients',
+          ...(id > 0 ? { id } : {}),
+          hostname: this.remoteHostname,
+        })
+        return <Client>data?.clients?.[0] ?? <Client>{}
+      }
       const options = id > 0 ? {id: id} : {}
       const msg = await HttpUtils.get('api/clients', options)
       if(msg.success) {
@@ -77,6 +143,31 @@ const Data = defineStore('Data', {
       return <Client>{}
     },
     async save (object: string, action: string, data: any, initUsers?: number[]): Promise<boolean> {
+      if (this.isRemote()) {
+        try {
+          const newData = await remotePanelSave(this.remoteNodeId, {
+            object,
+            action,
+            data,
+            initUsers,
+            hostname: this.remoteHostname,
+          })
+          const objectName = ['tls', 'config'].includes(object) ? object : object.substring(0, object.length - 1)
+          push.success({
+            title: i18n.global.t('success'),
+            duration: 5000,
+            message: i18n.global.t('actions.' + action) + " " + i18n.global.t('objects.' + objectName)
+          })
+          this.setNewData(newData ?? {})
+          return true
+        } catch (error: any) {
+          push.error({
+            title: i18n.global.t('failed'),
+            message: error?.message ?? String(error),
+          })
+          return false
+        }
+      }
       let postData = {
         object: object,
         action: action,
@@ -94,6 +185,40 @@ const Data = defineStore('Data', {
         this.setNewData(msg.obj)
       }
       return msg.success
+    },
+    async keypairs(kind: string, options = ''): Promise<string[]> {
+      if (this.isRemote()) {
+        return remotePanelKeypairs(this.remoteNodeId, {
+          k: kind,
+          ...(options.length > 0 ? { o: options } : {}),
+        })
+      }
+      const msg = await HttpUtils.get('api/keypairs', options.length > 0 ? { k: kind, o: options } : { k: kind })
+      return msg.success ? msg.obj : []
+    },
+    async linkConvert(link: string): Promise<any> {
+      if (this.isRemote()) {
+        return remotePanelLinkConvert(this.remoteNodeId, { link })
+      }
+      const msg = await HttpUtils.post('api/linkConvert', { link })
+      return msg.success ? msg.obj : null
+    },
+    async checkOutbound(tag: string, link = ''): Promise<any> {
+      if (this.isRemote()) {
+        return remotePanelCheckOutbound(this.remoteNodeId, {
+          tag,
+          ...(link.length > 0 ? { link } : {}),
+        })
+      }
+      const msg = await HttpUtils.get('api/checkOutbound', link.length > 0 ? { tag, link } : { tag })
+      return msg.success ? msg.obj : { OK: false, Error: msg.msg }
+    },
+    async stats(resource: string, tag: string, limit: number): Promise<any[]> {
+      if (this.isRemote()) {
+        return remotePanelStats(this.remoteNodeId, { resource, tag, limit })
+      }
+      const msg = await HttpUtils.get('api/stats', { resource, tag, limit })
+      return msg.success ? (msg.obj ?? []) : []
     },
     // Check duplicate client name
     checkClientName (id: number, newName: string): boolean {
@@ -149,5 +274,16 @@ const Data = defineStore('Data', {
     },
   }
 })
+
+function panelHostname(baseUrl: string): string {
+  try {
+    return new URL(baseUrl).hostname
+  } catch {
+    return baseUrl
+      .replace(/^https?:\/\//i, '')
+      .replace(/\/.*$/, '')
+      .replace(/:\d+$/, '')
+  }
+}
 
 export default Data
