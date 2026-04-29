@@ -93,7 +93,7 @@ func TestReconcilePanelUpdateStateClearsFailedStateCoveredByCurrentVersion(t *te
 		Message:       "update_task_stopped",
 	}
 
-	reconciled, changed := reconcilePanelUpdateStateWithCurrentVersion(state, "v0.1.18", time.Now())
+	reconciled, changed, _ := reconcilePanelUpdateStateWithCurrentVersion(state, "v0.1.18", time.Now())
 
 	if !changed {
 		t.Fatal("expected stale failed update state to be cleared")
@@ -113,7 +113,7 @@ func TestReconcilePanelUpdateStateCompletesRunningStateCoveredByCurrentVersion(t
 		LogPath:       "/tmp/b-ui-panel-update.log",
 	}
 
-	reconciled, changed := reconcilePanelUpdateStateWithCurrentVersion(state, "v0.1.18", now)
+	reconciled, changed, _ := reconcilePanelUpdateStateWithCurrentVersion(state, "v0.1.18", now)
 
 	if !changed {
 		t.Fatal("expected running update state to be completed")
@@ -331,5 +331,47 @@ func TestPreflightReleaseAssetSucceedsOnRetry(t *testing.T) {
 	}
 	if attempt != 3 {
 		t.Fatalf("expected 3 attempts, got %d", attempt)
+	}
+}
+
+func TestReconcilePanelUpdateStateWithCurrentVersionReturnsRecovered(t *testing.T) {
+	now := time.Now()
+	state := &PanelUpdateState{
+		Phase:         "failed",
+		TargetVersion: "v0.1.17",
+		StartedAt:     now.Add(-10 * time.Minute).Unix(),
+		UpdatedAt:     now.Add(-9 * time.Minute).Unix(),
+		Message:       "install_failed",
+	}
+
+	reconciled, changed, recovered := reconcilePanelUpdateStateWithCurrentVersion(state, "v0.1.18", now)
+
+	if !changed {
+		t.Fatal("expected failed state to be cleared")
+	}
+	if reconciled != nil {
+		t.Fatalf("reconciled state = %#v, want nil", reconciled)
+	}
+	if !recovered {
+		t.Fatal("expected recovered = true when failed state is cleared by current version")
+	}
+}
+
+func TestReconcilePanelUpdateStateWithCurrentVersionNoRecoveryForRunning(t *testing.T) {
+	now := time.Now()
+	state := &PanelUpdateState{
+		Phase:         "running",
+		TargetVersion: "v0.1.18",
+		StartedAt:     now.Add(-2 * time.Minute).Unix(),
+		UpdatedAt:     now.Add(-2 * time.Minute).Unix(),
+	}
+
+	_, changed, recovered := reconcilePanelUpdateStateWithCurrentVersion(state, "v0.1.18", now)
+
+	if !changed {
+		t.Fatal("expected running state to be completed")
+	}
+	if recovered {
+		t.Fatal("expected recovered = false for running state completion")
 	}
 }

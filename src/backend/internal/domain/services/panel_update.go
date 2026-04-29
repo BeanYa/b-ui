@@ -69,7 +69,7 @@ func (s *PanelService) GetUpdateInfo() (*PanelUpdateInfo, error) {
 	}
 
 	currentVersion := canonicalizeReleaseTag(config.GetVersion())
-	if reconciledState, changed := reconcilePanelUpdateStateWithCurrentVersion(state, currentVersion, time.Now()); changed {
+	if reconciledState, changed, _ := reconcilePanelUpdateStateWithCurrentVersion(state, currentVersion, time.Now()); changed {
 		state = reconciledState
 		_ = saveOrClearPanelUpdateState(state)
 	}
@@ -381,25 +381,25 @@ func reconcilePanelUpdateState(state *PanelUpdateState, now time.Time, isUnitAct
 	return state, true
 }
 
-func reconcilePanelUpdateStateWithCurrentVersion(state *PanelUpdateState, currentVersion string, now time.Time) (*PanelUpdateState, bool) {
+func reconcilePanelUpdateStateWithCurrentVersion(state *PanelUpdateState, currentVersion string, now time.Time) (*PanelUpdateState, bool, bool) {
 	if state == nil || state.TargetVersion == "" || currentVersion == "" {
-		return state, false
+		return state, false, false
 	}
 
 	if compareReleaseTags(currentVersion, state.TargetVersion) == "older" {
-		return state, false
+		return state, false, false
 	}
 
 	switch state.Phase {
 	case "failed":
-		return nil, true
-	case "running":
+		return nil, true, true
+	case "running", "preflight":
 		state.Phase = "completed"
 		state.Message = "current_version_reached"
 		state.UpdatedAt = now.Unix()
-		return state, true
+		return state, true, false
 	default:
-		return state, false
+		return state, false, false
 	}
 }
 
