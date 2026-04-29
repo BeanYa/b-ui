@@ -10,6 +10,7 @@ import (
 	"net"
 	"net/http"
 	"net/url"
+	"strings"
 	"time"
 
 	database "github.com/BeanYa/b-ui/src/backend/internal/infra/db"
@@ -100,6 +101,13 @@ func (s *ClusterHubSyncer) SyncDomain(ctx context.Context, domain *model.Cluster
 		}
 		return err
 	}
+	existingMembers, _ := store.ListMembers()
+	existingByNodeID := make(map[string]*model.ClusterMember, len(existingMembers))
+	for i := range existingMembers {
+		if existingMembers[i].DomainID == domain.Id {
+			existingByNodeID[existingMembers[i].NodeID] = &existingMembers[i]
+		}
+	}
 	members := make([]model.ClusterMember, 0, len(snapshot.Members))
 	localNodePresent := false
 	for _, item := range snapshot.Members {
@@ -114,7 +122,7 @@ func (s *ClusterHubSyncer) SyncDomain(ctx context.Context, domain *model.Cluster
 				return err
 			}
 		}
-		members = append(members, model.ClusterMember{
+		member := model.ClusterMember{
 			NodeID:             item.EffectiveNodeID(),
 			Name:               item.Name,
 			DisplayName:        item.EffectiveDisplayName(),
@@ -125,7 +133,19 @@ func (s *ClusterHubSyncer) SyncDomain(ctx context.Context, domain *model.Cluster
 			LastVersion:        snapshot.Version,
 			PanelVersion:       item.EffectivePanelVersion(),
 			Status:             item.EffectiveStatus(),
-		})
+		}
+		if existing, ok := existingByNodeID[item.EffectiveNodeID()]; ok {
+			if item.EffectivePanelVersion() == "" && existing.PanelVersion != "" {
+				member.PanelVersion = existing.PanelVersion
+			}
+			if item.EffectiveDisplayName() == "" && existing.DisplayName != "" {
+				member.DisplayName = existing.DisplayName
+			}
+			if strings.TrimSpace(item.Status) == "" && existing.Status != "" {
+				member.Status = existing.Status
+			}
+		}
+		members = append(members, member)
 	}
 	if !localNodePresent {
 		if err := store.DeleteDomain(domain.Id); err != nil {

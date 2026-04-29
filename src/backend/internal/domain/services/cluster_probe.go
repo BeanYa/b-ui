@@ -153,12 +153,20 @@ func (s *ClusterPeerProbeService) probeMember(ctx context.Context, member model.
 	if err := json.NewDecoder(response.Body).Decode(&payload); err != nil {
 		return err
 	}
+	updated := false
 	if panelVersion, ok := payload.Details["panelVersion"].(string); ok && panelVersion != "" {
 		if member.PanelVersion != panelVersion {
 			member.PanelVersion = panelVersion
-			if saveErr := s.getStore().SaveMember(&member); saveErr != nil {
-				// version update failure should not fail the probe
-			}
+			updated = true
+		}
+	}
+	if payload.Success && member.Status != "online" {
+		member.Status = "online"
+		updated = true
+	}
+	if updated {
+		if saveErr := s.getStore().SaveMember(&member); saveErr != nil {
+			// member update failure should not fail the probe
 		}
 	}
 	if payload.Success {

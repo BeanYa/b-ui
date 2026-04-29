@@ -90,3 +90,6 @@ node_modules/
 .idea
 .vscode
 .worktrees/
+
+# Local-only superpowers docs
+docs/superpowers/
