@@ -267,6 +267,15 @@ func (s *ClusterSyncService) CheckAndBroadcastUpdate(ctx context.Context, domain
 	if currentVersion == "" {
 		currentVersion = canonicalizeReleaseTag(config.GetVersion())
 	}
+
+	if info.Recovered {
+		local, localErr := s.getLocalIdentity().GetOrCreate()
+		if localErr == nil {
+			_ = s.markLocalMemberOnline(ctx, domain, local.NodeID, currentVersion)
+			_ = s.publishPanelUpdateStatus(ctx, domain, ClusterPanelUpdateStatusOnline, "", currentVersion, local.NodeID)
+		}
+	}
+
 	latestVersion := canonicalizeReleaseTag(info.LatestVersion)
 	comparison := compareReleaseTags(currentVersion, latestVersion)
 	updateAvailable := latestVersion != "" && comparison == "older"
@@ -329,7 +338,18 @@ func (s *ClusterSyncService) HandlePanelUpdateAvailable(ctx context.Context, dom
 	if domain == nil {
 		return nil, errClusterDomainNotFound
 	}
+
+	info, infoErr := s.getPanelUpdater().GetUpdateInfo()
 	currentVersion := canonicalizeReleaseTag(config.GetVersion())
+
+	if infoErr == nil && info != nil && info.Recovered {
+		local, localErr := s.getLocalIdentity().GetOrCreate()
+		if localErr == nil {
+			_ = s.markLocalMemberOnline(ctx, domain, local.NodeID, currentVersion)
+			_ = s.publishPanelUpdateStatus(ctx, domain, ClusterPanelUpdateStatusOnline, "", currentVersion, local.NodeID)
+		}
+	}
+
 	latestVersion := canonicalizeReleaseTag(targetVersion)
 	comparison := compareReleaseTags(currentVersion, latestVersion)
 	updateAvailable := latestVersion != "" && comparison == "older"
