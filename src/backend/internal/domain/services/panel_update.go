@@ -38,6 +38,7 @@ type PanelUpdateInfo struct {
 	UpdateAvailable   bool              `json:"updateAvailable"`
 	ForceRequired     bool              `json:"forceRequired"`
 	UpdateState       *PanelUpdateState `json:"updateState,omitempty"`
+	Recovered         bool              `json:"recovered,omitempty"`
 }
 
 type PanelUpdateState struct {
@@ -69,8 +70,10 @@ func (s *PanelService) GetUpdateInfo() (*PanelUpdateInfo, error) {
 	}
 
 	currentVersion := canonicalizeReleaseTag(config.GetVersion())
-	if reconciledState, changed, _ := reconcilePanelUpdateStateWithCurrentVersion(state, currentVersion, time.Now()); changed {
+	var recovered bool
+	if reconciledState, changed, rec := reconcilePanelUpdateStateWithCurrentVersion(state, currentVersion, time.Now()); changed {
 		state = reconciledState
+		recovered = rec
 		_ = saveOrClearPanelUpdateState(state)
 	}
 
@@ -82,6 +85,7 @@ func (s *PanelService) GetUpdateInfo() (*PanelUpdateInfo, error) {
 		Comparison:        "unknown",
 		ForceRequired:     true,
 		UpdateState:       state,
+		Recovered:         recovered,
 	}
 	if !supported {
 		return info, nil
