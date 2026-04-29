@@ -553,8 +553,7 @@ const panelVersionButtonClass = (member: ClusterMember) => {
 const selectedPanelUpdateTargetVersion = computed(() => effectiveDomainLatestPanelVersion(selectedDomain.value))
 
 const memberPanelUpdateDisabled = (member: ClusterMember) => {
-  return memberPanelVersionState(member) !== 'outdated'
-    || member.status === 'updating'
+  return member.status === 'updating'
     || Boolean(panelUpdatePending.value[member.id])
 }
 
