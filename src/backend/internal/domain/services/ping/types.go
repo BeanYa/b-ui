@@ -64,6 +64,26 @@ type ExternalRunRequest struct {
 	SourceIDs []string `json:"source_ids"`
 }
 
+type PingPolicy struct {
+	Enabled        bool     `json:"enabled"`
+	Interval       int      `json:"interval"`        // seconds
+	Timeout        int      `json:"timeout"`         // seconds
+	AlertThreshold int      `json:"alert_threshold"` // ms, 0 = disabled
+	ProbeMethods   []string `json:"probe_methods"`
+	MaxConcurrent  int      `json:"max_concurrent"`
+}
+
+func DefaultPingPolicy() PingPolicy {
+	return PingPolicy{
+		Enabled:        false,
+		Interval:       60,
+		Timeout:        DefaultPingTimeout,
+		AlertThreshold: 300,
+		ProbeMethods:   []string{"icmp", "tcp", "http"},
+		MaxConcurrent:  5,
+	}
+}
+
 // pingResult holds the outcome of a single probe attempt (TCP or ICMP).
 type pingResult struct {
 	addr      string
