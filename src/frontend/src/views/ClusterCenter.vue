@@ -147,6 +147,22 @@
             >
               {{ $t('clusterCenter.actions.pingAll') }}
             </v-btn>
+            <v-btn
+              size="small"
+              variant="outlined"
+              :icon="true"
+              @click="openPingSettingsDialog"
+            >
+              <v-icon size="18">mdi-cog</v-icon>
+            </v-btn>
+            <span
+              v-if="pingPolicy.enabled"
+              class="cluster-center__auto-ping-indicator"
+              :title="`Auto ping: every ${pingPolicy.interval}s`"
+            >
+              <span class="cluster-center__auto-ping-dot"></span>
+              <span class="cluster-center__auto-ping-text">{{ formatAutoPingTime() }}</span>
+            </span>
           </div>
         </v-card-title>
         <v-card-text>
@@ -403,6 +419,65 @@
         </v-card-actions>
       </v-card>
     </v-dialog>
+
+    <v-dialog v-model="pingSettingsDialog" max-width="500">
+      <v-card>
+        <v-card-title>{{ $t('clusterCenter.pingSettings.title') }}</v-card-title>
+        <v-card-text>
+          <v-switch
+            v-model="pingPolicyForm.enabled"
+            :label="$t('clusterCenter.pingSettings.autoPing')"
+            color="primary"
+            hide-details
+            class="mb-4"
+          />
+          <template v-if="pingPolicyForm.enabled">
+            <v-select
+              v-model="pingPolicyForm.interval"
+              :items="PING_INTERVAL_OPTIONS"
+              item-title="label"
+              item-value="value"
+              :label="$t('clusterCenter.pingSettings.interval')"
+              class="mb-4"
+            />
+            <div class="mb-4">
+              <div class="text-body-2 mb-2">{{ $t('clusterCenter.pingSettings.probeMethods') }}</div>
+              <v-checkbox
+                v-for="method in ['icmp', 'tcp', 'http']"
+                :key="method"
+                v-model="pingPolicyForm.probe_methods"
+                :label="method.toUpperCase()"
+                :value="method"
+                density="compact"
+                hide-details
+              />
+            </div>
+            <v-slider
+              v-model="pingPolicyForm.alert_threshold"
+              :label="$t('clusterCenter.pingSettings.alertThreshold')"
+              :min="0"
+              :max="1000"
+              :step="50"
+              thumb-label
+              class="mb-4"
+            />
+            <v-slider
+              v-model="pingPolicyForm.max_concurrent"
+              :label="$t('clusterCenter.pingSettings.concurrency')"
+              :min="1"
+              :max="20"
+              :step="1"
+              thumb-label
+            />
+          </template>
+        </v-card-text>
+        <v-card-actions>
+          <v-spacer />
+          <v-btn @click="pingSettingsDialog = false">{{ $t('cancel') }}</v-btn>
+          <v-btn color="primary" :loading="pingSettingsSaving" @click="savePingSettings">{{ $t('save') }}</v-btn>
+        </v-card-actions>
+      </v-card>
+    </v-dialog>
   </div>
 </template>
 
@@ -417,7 +492,8 @@ import { i18n } from '@/locales'
 import HttpUtils from '@/plugins/httputil'
 import { usePingStore } from '@/store/modules/ping'
 import type { ClusterDomain, ClusterMember, ClusterOperationStatus, ClusterPanelMemberUpdateResult, ClusterPanelUpdateCheck } from '@/types/clusters'
-import type { MeshPairResult } from '@/types/ping'
+import type { MeshPairResult, PingPolicy } from '@/types/ping'
+import { DEFAULT_PING_POLICY, PING_INTERVAL_OPTIONS } from '@/types/ping'
 
 const router = useRouter()
 const globalLoading = inject<Ref<boolean>>('loading', ref(false))
@@ -483,6 +559,9 @@ const openDomainDetail = (domain: ClusterDomain) => {
   })()
   pingStore.loadMeshResult(domain.domain).then(result => {
     if (result) meshPingResults.value = result.results
+  })
+  pingStore.loadPingPolicy(domain.domain).then(p => {
+    pingPolicy.value = { ...p }
   })
 }
 
@@ -1045,6 +1124,48 @@ async function pingAllDomainMembers() {
     meshPingLoading.value = false
   }
 }
+
+const pingSettingsDialog = ref(false)
+const pingSettingsSaving = ref(false)
+const pingPolicy = ref<PingPolicy>({ ...DEFAULT_PING_POLICY })
+const pingPolicyForm = ref<PingPolicy>({ ...DEFAULT_PING_POLICY })
+
+async function openPingSettingsDialog() {
+  if (!selectedDomain.value) return
+  const policy = await pingStore.loadPingPolicy(selectedDomain.value.domain)
+  pingPolicy.value = { ...policy }
+  pingPolicyForm.value = { ...policy }
+  pingSettingsDialog.value = true
+}
+
+async function savePingSettings() {
+  if (!selectedDomain.value) return
+  pingSettingsSaving.value = true
+  try {
+    await pingStore.savePingPolicy(selectedDomain.value.domain, pingPolicyForm.value)
+    pingPolicy.value = { ...pingPolicyForm.value }
+    pingSettingsDialog.value = false
+    push.success({
+      title: i18n.global.t('success'),
+      message: i18n.global.t('clusterCenter.pingSettings.saved'),
+      duration: 3000,
+    })
+  } catch {
+    push.error({
+      title: i18n.global.t('failed'),
+      message: i18n.global.t('clusterCenter.pingSettings.saveFailed'),
+    })
+  } finally {
+    pingSettingsSaving.value = false
+  }
+}
+
+function formatAutoPingTime(): string {
+  const interval = pingPolicy.value.interval
+  if (interval < 60) return `${interval}s`
+  if (interval % 60 === 0) return `${interval / 60}min`
+  return `${interval}s`
+}
 </script>
 
 <style scoped>
@@ -1536,5 +1657,25 @@ async function pingAllDomainMembers() {
     gap: 6px;
     grid-template-columns: 1fr;
   }
+}
+
+.cluster-center__auto-ping-indicator {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 12px;
+  color: var(--app-text-2);
+}
+
+.cluster-center__auto-ping-dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: #28a745;
+  display: inline-block;
+}
+
+.cluster-center__auto-ping-text {
+  font-size: 11px;
 }
 </style>
