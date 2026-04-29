@@ -61,6 +61,7 @@ func (h *pingAPIHandler) triggerMeshPing(c *gin.Context) {
 		jsonMsg(c, "save mesh ping", err)
 		return
 	}
+	ping.SetMeshResult(domainID, result)
 	jsonObj(c, result, nil)
 }
 
@@ -131,6 +132,12 @@ func (h *pingAPIHandler) streamMeshPing(c *gin.Context) {
 		return
 	}
 
+	if !ping.AcquireMeshPingLock() {
+		c.JSON(http.StatusConflict, Msg{Success: false, Msg: "mesh ping already in progress"})
+		return
+	}
+	defer ping.ReleaseMeshPingLock()
+
 	pingMembers, localID, ok := h.collectMeshPingMembers(c, domainID)
 	if !ok {
 		return
@@ -175,6 +182,7 @@ func (h *pingAPIHandler) streamMeshPing(c *gin.Context) {
 		writeEvent(meshPingStreamEvent{Type: "error", Msg: "save mesh ping: " + err.Error()})
 		return
 	}
+	ping.SetMeshResult(domainID, result)
 	writeEvent(meshPingStreamEvent{Type: "done", Result: result})
 }
 
@@ -183,6 +191,12 @@ func (h *pingAPIHandler) getMeshPing(c *gin.Context) {
 		return
 	}
 	domainID := c.Param("domainId")
+
+	if cached := ping.GetLatestMeshResult(domainID); cached != nil {
+		jsonObj(c, cached, nil)
+		return
+	}
+
 	result, err := h.store.LoadMeshResult(domainID)
 	if err != nil {
 		if os.IsNotExist(err) {
