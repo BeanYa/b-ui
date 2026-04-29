@@ -401,7 +401,9 @@ func reconcilePanelUpdateStateWithCurrentVersion(state *PanelUpdateState, curren
 		state.Phase = "completed"
 		state.Message = "current_version_reached"
 		state.UpdatedAt = now.Unix()
-		return state, true, false
+		return state, true, true
+	case "completed":
+		return nil, true, true
 	default:
 		return state, false, false
 	}

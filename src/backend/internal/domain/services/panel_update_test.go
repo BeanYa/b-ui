@@ -357,7 +357,7 @@ func TestReconcilePanelUpdateStateWithCurrentVersionReturnsRecovered(t *testing.
 	}
 }
 
-func TestReconcilePanelUpdateStateWithCurrentVersionNoRecoveryForRunning(t *testing.T) {
+func TestReconcilePanelUpdateStateWithCurrentVersionRecoversRunning(t *testing.T) {
 	now := time.Now()
 	state := &PanelUpdateState{
 		Phase:         "running",
@@ -366,12 +366,38 @@ func TestReconcilePanelUpdateStateWithCurrentVersionNoRecoveryForRunning(t *test
 		UpdatedAt:     now.Add(-2 * time.Minute).Unix(),
 	}
 
-	_, changed, recovered := reconcilePanelUpdateStateWithCurrentVersion(state, "v0.1.18", now)
+	reconciled, changed, recovered := reconcilePanelUpdateStateWithCurrentVersion(state, "v0.1.18", now)
 
 	if !changed {
 		t.Fatal("expected running state to be completed")
 	}
-	if recovered {
-		t.Fatal("expected recovered = false for running state completion")
+	if !recovered {
+		t.Fatal("expected recovered = true for running state completion after process restart")
+	}
+	if reconciled == nil || reconciled.Phase != "completed" {
+		t.Fatalf("reconciled state = %#v, want phase=completed", reconciled)
+	}
+}
+
+func TestReconcilePanelUpdateStateWithCurrentVersionRecoversCompleted(t *testing.T) {
+	now := time.Now()
+	state := &PanelUpdateState{
+		Phase:         "completed",
+		TargetVersion: "v0.1.18",
+		StartedAt:     now.Add(-5 * time.Minute).Unix(),
+		UpdatedAt:     now.Add(-4 * time.Minute).Unix(),
+		Message:       "install_completed",
+	}
+
+	reconciled, changed, recovered := reconcilePanelUpdateStateWithCurrentVersion(state, "v0.1.18", now)
+
+	if !changed {
+		t.Fatal("expected completed state to be cleared")
+	}
+	if reconciled != nil {
+		t.Fatalf("reconciled state = %#v, want nil", reconciled)
+	}
+	if !recovered {
+		t.Fatal("expected recovered = true for completed state after process restart")
 	}
 }
