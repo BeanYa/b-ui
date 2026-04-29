@@ -23,6 +23,16 @@ func (s *stubClusterProbeStore) GetLocalNodeID() (string, error) {
 	return s.localNodeID, nil
 }
 
+func (s *stubClusterProbeStore) SaveMember(member *model.ClusterMember) error {
+	for i := range s.members {
+		if s.members[i].NodeID == member.NodeID {
+			s.members[i].PanelVersion = member.PanelVersion
+			return nil
+		}
+	}
+	return nil
+}
+
 func TestClusterPeerProbeServiceMarksIdlePeerReachableOnHeartbeatSuccess(t *testing.T) {
 	var receivedPath string
 	var receivedToken string

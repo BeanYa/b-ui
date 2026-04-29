@@ -15,6 +15,7 @@ import (
 type clusterProbeStore interface {
 	ListMembersWithDomain() ([]model.ClusterMember, error)
 	GetLocalNodeID() (string, error)
+	SaveMember(*model.ClusterMember) error
 }
 
 type ClusterPeerProbeService struct {
@@ -27,10 +28,11 @@ type ClusterPeerProbeService struct {
 var errInvalidPeerProtocolResponse = errors.New("invalid peer protocol response")
 
 type clusterProbeResponse struct {
-	Success bool   `json:"success"`
-	Status  string `json:"status"`
-	Code    string `json:"code"`
-	NodeID  string `json:"nodeId"`
+	Success bool           `json:"success"`
+	Status  string         `json:"status"`
+	Code    string         `json:"code"`
+	NodeID  string         `json:"nodeId"`
+	Details map[string]any `json:"details,omitempty"`
 }
 
 type DBClusterProbeStore struct{}
@@ -151,6 +153,14 @@ func (s *ClusterPeerProbeService) probeMember(ctx context.Context, member model.
 	if err := json.NewDecoder(response.Body).Decode(&payload); err != nil {
 		return err
 	}
+	if panelVersion, ok := payload.Details["panelVersion"].(string); ok && panelVersion != "" {
+		if member.PanelVersion != panelVersion {
+			member.PanelVersion = panelVersion
+			if saveErr := s.getStore().SaveMember(&member); saveErr != nil {
+				// version update failure should not fail the probe
+			}
+		}
+	}
 	if payload.Success {
 		return nil
 	}
@@ -226,4 +236,8 @@ func (s *DBClusterProbeStore) GetLocalNodeID() (string, error) {
 		return "", err
 	}
 	return localNode.NodeID, nil
+}
+
+func (s *DBClusterProbeStore) SaveMember(member *model.ClusterMember) error {
+	return database.GetDB().Save(member).Error
 }

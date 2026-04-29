@@ -890,7 +890,8 @@ func (s *ClusterService) Heartbeat(token string) (*ClusterPeerStatus, error) {
 			Code:   "ok",
 			NodeID: localIdentity.NodeID,
 			Details: map[string]any{
-				"observedAt": now,
+				"observedAt":   now,
+				"panelVersion": canonicalizeReleaseTag(config.GetVersion()),
 			},
 		}, nil
 	}
@@ -914,6 +915,7 @@ func (s *ClusterService) Heartbeat(token string) (*ClusterPeerStatus, error) {
 			"domainId":          domain.Domain,
 			"membershipVersion": domain.LastVersion,
 			"observedAt":        now,
+			"panelVersion":      canonicalizeReleaseTag(config.GetVersion()),
 			"memberId":          member.Id,
 		},
 	}, nil
@@ -929,7 +931,8 @@ func (s *ClusterService) Ping(string) (*ClusterPeerStatus, error) {
 		Code:   "ok",
 		NodeID: localIdentity.NodeID,
 		Details: map[string]any{
-			"observedAt": time.Now().Unix(),
+			"panelVersion": canonicalizeReleaseTag(config.GetVersion()),
+			"observedAt":   time.Now().Unix(),
 		},
 	}, nil
 }
