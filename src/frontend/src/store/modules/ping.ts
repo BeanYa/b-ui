@@ -1,6 +1,6 @@
 import { defineStore } from 'pinia'
 import { ref, computed } from 'vue'
-import axios from 'axios'
+import api from '@/plugins/api'
 import type {
   MeshResult,
   MeshPairResult,
@@ -26,7 +26,7 @@ export const usePingStore = defineStore('PingStore', () => {
     loading.value = true
     error.value = null
     try {
-      const { data } = await axios.post(`/api/ping/mesh/${encodeURIComponent(domainId)}`)
+      const { data } = await api.post(`api/ping/mesh/${encodeURIComponent(domainId)}`)
       if (data.success) {
         meshResult.value = data.obj
         return data.obj
@@ -58,7 +58,8 @@ export const usePingStore = defineStore('PingStore', () => {
     error.value = null
     meshResult.value = { domain_id: domainId, tested_at: 0, results: [] }
     try {
-      const response = await fetch(`/api/ping/mesh/${encodeURIComponent(domainId)}/stream`, {
+      const baseURL = (globalThis as any).window?.BASE_URL ?? '/'
+      const response = await fetch(`${baseURL}api/ping/mesh/${encodeURIComponent(domainId)}/stream`, {
         method: 'POST',
       })
       if (!response.ok) {
@@ -121,7 +122,7 @@ export const usePingStore = defineStore('PingStore', () => {
   async function loadMeshResult(domainId: string): Promise<MeshResult | null> {
     error.value = null
     try {
-      const { data } = await axios.get(`/api/ping/mesh/${encodeURIComponent(domainId)}`)
+      const { data } = await api.get(`api/ping/mesh/${encodeURIComponent(domainId)}`)
       if (data.success) {
         meshResult.value = data.obj
         return data.obj
@@ -142,7 +143,7 @@ export const usePingStore = defineStore('PingStore', () => {
     error.value = null
     try {
       const req: ExternalRunRequest = { source_ids: sourceIds }
-      const { data } = await axios.post('/api/ping/external', req)
+      const { data } = await api.post('api/ping/external', req)
       if (data.success) {
         externalResults.value = data.obj
         return data.obj
@@ -159,7 +160,7 @@ export const usePingStore = defineStore('PingStore', () => {
   async function loadExternalResults(): Promise<ExternalResultData | null> {
     error.value = null
     try {
-      const { data } = await axios.get('/api/ping/external/results')
+      const { data } = await api.get('api/ping/external/results')
       if (data.success) {
         externalResults.value = data.obj
         return data.obj
@@ -174,7 +175,7 @@ export const usePingStore = defineStore('PingStore', () => {
   async function loadExternalConfig(): Promise<ExternalConfig> {
     error.value = null
     try {
-      const { data } = await axios.get('/api/ping/external/config')
+      const { data } = await api.get('api/ping/external/config')
       if (data.success) {
         externalConfig.value = data.obj
         return data.obj
@@ -190,7 +191,7 @@ export const usePingStore = defineStore('PingStore', () => {
     loading.value = true
     error.value = null
     try {
-      const { data } = await axios.put('/api/ping/external/config', config)
+      const { data } = await api.put('api/ping/external/config', config)
       if (!data.success) throw new Error(data.msg)
       externalConfig.value = config
     } catch (e: any) {

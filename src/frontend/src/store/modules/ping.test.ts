@@ -2,6 +2,14 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { createPinia, setActivePinia } from 'pinia'
 import type { MeshPairResult, MeshResult } from '@/types/ping'
 
+vi.mock('@/plugins/api', () => ({
+  default: {
+    post: vi.fn(),
+    get: vi.fn(),
+    put: vi.fn(),
+  },
+}))
+
 function waitUntil(predicate: () => boolean): Promise<void> {
   return new Promise((resolve, reject) => {
     let attempts = 0
