@@ -138,13 +138,27 @@ func (s *PanelService) StartUpdate(targetVersion string, force bool) (*PanelUpda
 	}
 
 	state := &PanelUpdateState{
-		Phase:         "running",
+		Phase:         "preflight",
 		TargetVersion: resolvedVersion,
 		Force:         force,
 		StartedAt:     startedAt,
 		UpdatedAt:     startedAt,
 		LogPath:       logPath,
 	}
+	if err := savePanelUpdateState(state); err != nil {
+		return nil, err
+	}
+
+	if err := runPreflightCheck(state, resolvedVersion); err != nil {
+		state.Phase = "failed"
+		state.Message = "preflight_failed"
+		state.UpdatedAt = time.Now().Unix()
+		_ = savePanelUpdateState(state)
+		return nil, err
+	}
+
+	state.Phase = "running"
+	state.UpdatedAt = time.Now().Unix()
 	if err := savePanelUpdateState(state); err != nil {
 		return nil, err
 	}
@@ -165,6 +179,15 @@ func (s *PanelService) StartUpdate(targetVersion string, force bool) (*PanelUpda
 	}, nil
 }
 
+func runPreflightCheck(state *PanelUpdateState, targetVersion string) error {
+	arch, ok := panelUpdateAssetArch(runtime.GOARCH, os.Getenv("GOARM"))
+	if !ok {
+		return fmt.Errorf("preflight: unsupported architecture %s", runtime.GOARCH)
+	}
+	checker := newPreflightAssetChecker(&http.Client{Timeout: 15 * time.Second}, state)
+	return checker.check(targetVersion, arch)
+}
+
 func panelUpdateCapability() (bool, string) {
 	if runtime.GOOS != "linux" {
 		return false, "automatic panel update currently requires a Linux host"
@@ -181,7 +204,7 @@ func panelUpdateCapability() (bool, string) {
 	return true, ""
 }
 
-func launchDetachedPanelUpdate(targetVersion string, force bool, startedAt int64, logPath string) error {
+var launchDetachedPanelUpdate = func(targetVersion string, force bool, startedAt int64, logPath string) error {
 	cmd := buildPanelUpdateCommand(targetVersion, force, startedAt, logPath)
 	output, err := cmd.CombinedOutput()
 	if err != nil {
@@ -191,7 +214,6 @@ func launchDetachedPanelUpdate(targetVersion string, force bool, startedAt int64
 		}
 		return fmt.Errorf("start panel update: %w", err)
 	}
-
 	return nil
 }
 
@@ -415,11 +437,11 @@ func saveOrClearPanelUpdateState(state *PanelUpdateState) error {
 	return savePanelUpdateState(state)
 }
 
-func panelUpdateStateFilePath() string {
+var panelUpdateStateFilePath = func() string {
 	return filepath.Join(os.TempDir(), "b-ui-panel-update-state.json")
 }
 
-func panelUpdateLogFilePath() string {
+var panelUpdateLogFilePath = func() string {
 	return filepath.Join(os.TempDir(), "b-ui-panel-update.log")
 }
 
