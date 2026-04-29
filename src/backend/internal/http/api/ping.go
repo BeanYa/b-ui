@@ -2,6 +2,7 @@ package api
 
 import (
 	"encoding/json"
+	"fmt"
 	"net/http"
 	"os"
 	"strings"
@@ -34,6 +35,8 @@ func RegisterPingRoutes(g *gin.RouterGroup) {
 	g.GET("/ping/external/results", h.getExternalResults)
 	g.GET("/ping/external/config", h.getExternalConfig)
 	g.PUT("/ping/external/config", h.putExternalConfig)
+	g.GET("/ping/policy/:domainId", h.getPingPolicy)
+	g.PUT("/ping/policy/:domainId", h.putPingPolicy)
 }
 
 func (h *pingAPIHandler) triggerMeshPing(c *gin.Context) {
@@ -286,6 +289,85 @@ func (h *pingAPIHandler) putExternalConfig(c *gin.Context) {
 		return
 	}
 	jsonObj(c, Msg{Success: true, Msg: "config saved"}, nil)
+}
+
+func (h *pingAPIHandler) resolveDomainID(domainStr string) (uint, error) {
+	domains, err := h.clusterService.ListDomains()
+	if err != nil {
+		return 0, err
+	}
+	for _, d := range domains {
+		if d.Domain == domainStr {
+			return d.ID, nil
+		}
+	}
+	return 0, fmt.Errorf("domain not found: %s", domainStr)
+}
+
+func (h *pingAPIHandler) getPingPolicy(c *gin.Context) {
+	if !requireAdmin(c) {
+		return
+	}
+	domainStr := c.Param("domainId")
+	if domainStr == "" {
+		c.JSON(http.StatusBadRequest, Msg{Success: false, Msg: "domainId is required"})
+		return
+	}
+	domainID, err := h.resolveDomainID(domainStr)
+	if err != nil {
+		jsonMsg(c, "get ping policy", err)
+		return
+	}
+	domain, err := h.clusterService.GetDomain(domainID)
+	if err != nil {
+		jsonMsg(c, "get ping policy", err)
+		return
+	}
+	policy := domain.GetPingPolicy()
+	jsonObj(c, policy, nil)
+}
+
+func (h *pingAPIHandler) putPingPolicy(c *gin.Context) {
+	if !requireAdmin(c) {
+		return
+	}
+	domainStr := c.Param("domainId")
+	if domainStr == "" {
+		c.JSON(http.StatusBadRequest, Msg{Success: false, Msg: "domainId is required"})
+		return
+	}
+	domainID, err := h.resolveDomainID(domainStr)
+	if err != nil {
+		jsonMsg(c, "update ping policy", err)
+		return
+	}
+	domain, err := h.clusterService.GetDomain(domainID)
+	if err != nil {
+		jsonMsg(c, "update ping policy", err)
+		return
+	}
+	var policy ping.PingPolicy
+	if err := c.ShouldBindJSON(&policy); err != nil {
+		c.JSON(http.StatusBadRequest, Msg{Success: false, Msg: "invalid policy: " + err.Error()})
+		return
+	}
+	if policy.Enabled && policy.Interval < 10 {
+		c.JSON(http.StatusBadRequest, Msg{Success: false, Msg: "interval must be at least 10 seconds"})
+		return
+	}
+	if policy.Enabled && policy.MaxConcurrent < 1 {
+		c.JSON(http.StatusBadRequest, Msg{Success: false, Msg: "max_concurrent must be at least 1"})
+		return
+	}
+	if err := domain.SetPingPolicy(policy); err != nil {
+		jsonMsg(c, "update ping policy", err)
+		return
+	}
+	if err := h.clusterService.SaveDomain(domain); err != nil {
+		jsonMsg(c, "update ping policy", err)
+		return
+	}
+	jsonObj(c, policy, nil)
 }
 
 func requireAdmin(c *gin.Context) bool {

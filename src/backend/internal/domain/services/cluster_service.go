@@ -480,6 +480,14 @@ func (s *ClusterService) ListDomains() ([]ClusterDomainResponse, error) {
 	return response, nil
 }
 
+func (s *ClusterService) GetDomain(id uint) (*model.ClusterDomain, error) {
+	return s.getStore().GetDomain(id)
+}
+
+func (s *ClusterService) SaveDomain(domain *model.ClusterDomain) error {
+	return s.getStore().SaveDomain(domain)
+}
+
 func (s *ClusterService) ListMembers() ([]ClusterMemberResponse, error) {
 	members, err := s.getStore().ListMembers()
 	if err != nil {
