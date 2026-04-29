@@ -181,3 +181,41 @@ func TestHydratePanelUpdateStateReadsLogText(t *testing.T) {
 		t.Fatalf("LogText = %q, want hydrated log content", state.LogText)
 	}
 }
+
+func TestPanelUpdateAssetArch(t *testing.T) {
+	tests := []struct {
+		goarch string
+		goarm  string
+		want   string
+		wantOK bool
+	}{
+		{goarch: "amd64", want: "amd64", wantOK: true},
+		{goarch: "arm64", want: "arm64", wantOK: true},
+		{goarch: "386", want: "386", wantOK: true},
+		{goarch: "s390x", want: "s390x", wantOK: true},
+		{goarch: "arm", goarm: "7", want: "armv7", wantOK: true},
+		{goarch: "arm", goarm: "6", want: "armv6", wantOK: true},
+		{goarch: "arm", goarm: "5", want: "armv5", wantOK: true},
+		{goarch: "arm", goarm: "", want: "armv7", wantOK: true},
+		{goarch: "mips", want: "", wantOK: false},
+	}
+	for _, tc := range tests {
+		t.Run(tc.goarch+"/"+tc.goarm, func(t *testing.T) {
+			got, ok := panelUpdateAssetArch(tc.goarch, tc.goarm)
+			if ok != tc.wantOK {
+				t.Fatalf("ok = %v, want %v", ok, tc.wantOK)
+			}
+			if got != tc.want {
+				t.Fatalf("arch = %q, want %q", got, tc.want)
+			}
+		})
+	}
+}
+
+func TestReleaseAssetURL(t *testing.T) {
+	url := releaseAssetURL("v0.1.20", "amd64")
+	expected := "https://github.com/BeanYa/b-ui/releases/download/v0.1.20/b-ui-linux-amd64.tar.gz"
+	if url != expected {
+		t.Fatalf("url = %q, want %q", url, expected)
+	}
+}

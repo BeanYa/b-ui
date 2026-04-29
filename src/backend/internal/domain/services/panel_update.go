@@ -519,6 +519,35 @@ func panelInstallScriptURL() string {
 	return fmt.Sprintf("https://raw.githubusercontent.com/%s/%s/main/install.sh", panelUpdateRepoOwner, panelUpdateRepoName)
 }
 
+func panelUpdateAssetArch(goarch, goarm string) (string, bool) {
+	switch goarch {
+	case "amd64":
+		return "amd64", true
+	case "arm64":
+		return "arm64", true
+	case "386":
+		return "386", true
+	case "s390x":
+		return "s390x", true
+	case "arm":
+		switch goarm {
+		case "5":
+			return "armv5", true
+		case "6":
+			return "armv6", true
+		default:
+			return "armv7", true
+		}
+	default:
+		return "", false
+	}
+}
+
+func releaseAssetURL(targetVersion, arch string) string {
+	return fmt.Sprintf("https://github.com/%s/%s/releases/download/%s/b-ui-linux-%s.tar.gz",
+		panelUpdateRepoOwner, panelUpdateRepoName, targetVersion, arch)
+}
+
 func canonicalizeReleaseTag(version string) string {
 	normalized := normalizeReleaseVersion(version)
 	if normalized == "" {
