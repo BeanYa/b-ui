@@ -2,6 +2,101 @@
 
 基于 [b-ui](https://github.com/alireza0/b-ui) 的定制化 fork。当前仓库保留上游后端兼容安装布局，并持续维护 `BeanYa/b-ui` 的发布、安装脚本、前端源码与文档。
 
+## Architecture
+
+```
+┌──────────────────────────────────────────────────────────────┐
+│                         B-UI Binary                          │
+│  ┌──────────────────────┐  ┌──────────────────────────────┐ │
+│  │     Panel Server     │  │     Subscription Server      │ │
+│  │  (session auth API)  │  │  (separate port, link/subs)  │ │
+│  └──────────┬───────────┘  └──────────────────────────────┘ │
+│  ┌──────────▼───────────────────────────────────────────────┐│
+│  │                     HTTP Transport                       ││
+│  │  api/ (v1 + v2 handlers)  │  sub/  │  middleware/        ││
+│  └──────────────────────────────┬───────────────────────────┘│
+│  ┌──────────────────────────────▼───────────────────────────┐│
+│  │                    Domain Layer                          ││
+│  │  services/           │  core/        │  jobs/            ││
+│  │  cluster/*, panel,   │  sing-box     │  cron scheduler   ││
+│  │  client, inbound,    │  runtime      │  (10 scheduled    ││
+│  │  outbound, endpoint, │               │   jobs)           ││
+│  │  warp, stats, ...    │               │                   ││
+│  └──────────────────────────────────────────────────────────┘│
+│  ┌──────────────────────────────────────────────────────────┐│
+│  │                    Infrastructure                        ││
+│  │  infra/db/  │  infra/logging/  │  infra/network/  │web/ ││
+│  │  SQLite WAL │  structured log  │  HTTP client     │SPA  ││
+│  └──────────────────────────────────────────────────────────┘│
+│  ┌──────────────────────────────────────────────────────────┐│
+│  │  cli/  │  shared/  │  config/                          ││
+│  │ admin, │  helpers, │  settings,                         ││
+│  │ setting│  utils    │  TLS, certs                        ││
+│  └──────────────────────────────────────────────────────────┘│
+└──────────────────────────────────────────────────────────────┘
+
+┌──────────────────────────────────────────────────────────────┐
+│                   Frontend (Vue 3 SPA)                       │
+│  Vuetify 4.0 + Vite 8 + TypeScript 6                        │
+│  Pinia stores (auth, data, ping, remoteNode)                 │
+│  features/  │  views/  │  components/  │  locales/ (6 lang) │
+│  dashboard, │ cluster, │ shared UI    │  en, zh-CN, zh-TW,  │
+│  webterminal│ settings,│ components   │  ru, vi, fa          │
+│  panelUpdate│ clients, │              │                      │
+│  theme      │ outbounds│              │                      │
+└──────────────────────────────────────────────────────────────┘
+```
+
+### Backend architecture
+
+The Go backend follows a layered domain-driven design:
+
+- **`internal/domain/`** — Business logic with no framework dependencies
+  - `services/` — Domain services: client, inbound, outbound, endpoint, service,
+    TLS, WARP, stats, setting, user, panel update, cluster (membership, peer
+    messaging, reachability, mesh ping, hub client, sync, crypto)
+  - `core/` — sing-box runtime integration: live hot-reload of
+    inbounds/outbounds/endpoints/services without restart, connection tracking,
+    stats collection
+  - `jobs/` — Cron scheduler with 10 scheduled jobs (stats collection, client
+    depletion, core health check, WAL checkpoint, domain hints, cluster
+    version poll, reachability probe, mesh ping, peer schedule, old stats cleanup)
+  - `config/` — Application configuration models
+- **`internal/http/`** — HTTP transport layer
+  - `api/` — v1 (session auth) and v2 (Bearer token auth) API handlers
+  - `sub/` — Subscription server: raw links, base64, JSON, Clash YAML output formats
+  - `middleware/` — Session auth, token auth, CORS
+- **`internal/infra/`** — Infrastructure
+  - `db/` — SQLite with WAL mode, GORM models, migrations
+  - `logging/` — Structured logging
+  - `network/` — HTTP client utilities
+  - `web/` — Embedded SPA static assets
+- **`internal/cli/`** — CLI commands: `admin`, `setting`, `uri`, `migrate`
+- **`internal/app/`** — Application bootstrap and wiring
+- **`internal/shared/`** — Cross-cutting utilities
+
+The proxy engine is [sing-box](https://sing-box.sagernet.org/) v1.13, compiled
+with build tags for QUIC, gRPC, uTLS, ACME, gVisor, Naive outbound, and
+Tailscale support.
+
+### Frontend architecture
+
+- **Vue 3.5** + **Vuetify 4.0** + **Vite 8** + **TypeScript 6**
+- **Pinia** stores: `auth`, `data`, `ping`, `remoteNode`
+- **Feature-based organization**: `features/dashboard/`, `features/webterminal/`,
+  `features/panelUpdate/`, `features/theme/`, `features/settings/`, `features/data/`
+- **6-language i18n**: English, Simplified Chinese, Traditional Chinese, Russian,
+  Vietnamese, Persian
+- 10-second data polling interval for dashboard refresh
+
+### Build pipeline
+
+- **Linux**: Fully static binaries via musl libc, 7 architectures (amd64, arm64,
+  armv7, armv6, armv5, 386, s390x), cronet toolchain for Naive outbound
+- **Windows**: amd64 (CGO) and arm64 (pure Go), Windows service wrapper
+- **Docker**: Multi-arch images for 5 platforms pushed to GHCR
+- Release automation in `.github/workflows/release.yml`
+
 ## 安装与快速开始
 
 Linux 默认通过仓库根目录的 `install.sh` 进入 `scripts/release/install.sh` 完成安装。全新安装后，默认名称和路径如下：
@@ -52,16 +147,65 @@ IMAGE_REF=ghcr.io/beanya/b-ui:v0.1.14 bash ./scripts/release/install-docker.sh
 
 ## 功能速览
 
-- **集群管控平面（Cluster Center）**：提供多节点集群管理能力，支持 Hub 域注册、成员节点自动发现与手动同步、操作状态轮询与成员管理。可在同一面板内跨节点查看集群状态。
+### 核心代理管理
+
+- **多协议入站**：支持 VLESS、VMess、Trojan、Shadowsocks、Hysteria2、Naive、Tailscale 等多种入站协议，每个用户可绑定多个入站。
+- **出站管理**：独立的出站实体管理，支持延迟测试（URL-based latency check）。
+- **服务管理**：独立的服务实体（Services），支持 TLS 绑定和 sing-box 核心热重载。
+- **端点管理**：独立的端点实体（Endpoints），内置 Cloudflare WARP 集成（自动注册设备、生成 WireGuard 密钥、应用 License）。
+- **DNS 配置**：独立的 DNS 服务器配置视图。
+- **路由规则**：独立的路由规则管理视图。
+
+### 订阅系统
+
+- **多格式输出**：支持原始链接、Base64 编码、JSON、Clash YAML（内置 DNS/TUN/规则模板）。
+- **链接转换**：支持 VMess/VLESS/Trojan 等协议的链接格式转换。
+- **订阅转换**：支持订阅 URL 到多格式输出的转换。
+
+### TLS 与安全
+
+- **TLS 预设密钥对即时生成**：创建 TLS 预设时自动物化密钥对材料，无需创建后手动重新生成。
+- **Reality 域名探测**：自动探测候选域名（YouTube、Cloudflare、Apple 等）的 TLS 1.3 支持和 ALPN 协商，分类为推荐/可用/受限/失败。
+- **Reality 密钥对生成**：支持 Ed25519 Reality 密钥对的即时生成。
+
+### 集群管控平面
+
+- **Cluster Center**：提供多节点集群管理能力，支持 Hub 域注册、成员节点自动发现与手动同步、操作状态轮询与成员管理。可在同一面板内跨节点查看集群状态。
 - **一键加入集群**：支持 `buihub://` 协议 URI 解析，配合 Hub URL 协议选择（https/http），可快速将当前节点注册到指定 Hub 域。
-- **节点间通信协议**：节点通过 Hub 下发的成员表获取对端端点后直连通信，使用 HTTP 请求、事件队列、幂等去重和统一业务响应码保持行为一致。Hub 只负责域成员权威登记，不参与节点间消息转发。
-- **面板自更新**：Dashboard 面板内置自更新检测流程，可直接在面板内触发版本升级，无需 SSH 登录手动执行更新命令。
+- **节点间通信协议**：节点通过 Hub 下发的成员表获取对端端点后直连通信。支持 Ed25519 签名消息验证、多种路由模式（direct/multicast/broadcast/chain/scheduled_broadcast）、ACK 级别（none/node/quorum/all）、目标选择器（include/exclude/capability）和链式工作流（step-by-step with `continueOnFailure`）。Hub 只负责域成员权威登记，不参与节点间消息转发。
+- **节点可达性追踪**：完整的可达性状态机（unknown → reachable → suspect → unreachable），可配置探测间隔、失败阈值和退避策略。
+- **Mesh Ping**：集群成员间 ICMP/TCP/HTTP 多位置探测，30 秒间隔自动执行。
+- **集群面板更新编排**：支持跨域广播更新可用性、更新请求推送、更新状态追踪和协调更新。
+- **集群节点详情**：独立的集群节点详情视图。
+
+### 面板管理
+
+- **面板自更新**：内置自更新检测流程，支持 preflight 资源可用性检查（最多 30 次重试）、detached systemd-run 执行、日志追踪、版本协调和崩溃恢复。可直接在面板内触发版本升级，无需 SSH 登录手动执行更新命令。
+- **多管理员**：支持多管理员账户管理，区分 admin/non-admin 角色。
+- **API v2（机器访问）**：独立的 Bearer Token 认证 API 层，支持 Token 过期管理和 CRUD。
+- **数据库导出/导入**：支持数据库导出和导入操作。
+- **sing-box 配置导出**：支持导出完整 sing-box 运行配置。
+
+### 运维工具
+
 - **交互式 WebTerminal**：管理员可以在面板内直接打开 `/webterminal`，连接服务器本地 shell，进行实时键盘输入、光标交互、流式输出查看与终端窗口尺寸同步。
 - **更安全的终端连接流程**：WebTerminal 页面默认不会自动连入；需要先点击 `Connect` 并确认。离开页面、刷新页面或关闭标签页前会再次提醒，并在确认后主动中断当前终端会话。
+- **系统资源监控**：实时 CPU、内存、磁盘、磁盘 IO、交换空间、网络、数据库和 sing-box 状态监控。
+- **在线连接追踪**：实时在线用户/入站/出站追踪（10 秒刷新）。
+- **客户端到期/流量耗尽自动禁用**：每分钟检查客户端流量和到期时间，自动禁用超额客户端并重启受影响入站。
+
+### 部署与平台
+
 - **Docker 引导部署**：提供 `scripts/release/install-docker.sh` 作为交互式 Docker 引导入口，可直接生成 compose 文件、初始化面板并按需引导基础协议对象。
+- **Windows 原生支持**：Windows 服务包装器、批处理安装/卸载脚本，支持 amd64 和 arm64。
+- **SIGHUP 热重启**：Linux 下支持 SIGHUP 信号触发热重启，Windows 下使用进程重启。
 - **与上游兼容的安装布局**：默认安装根目录、数据库路径和服务运行方式继续兼容上游 `b-ui` 布局，便于迁移与运维。
+
+### 前端
+
 - **前端性能优化**：支持代码分割、资源按需加载、MDI 图标字体原生渲染，减少首屏资源开销。
-- **TLS 预设密钥对即时生成**：创建 TLS 预设时自动物化密钥对材料，无需创建后手动重新生成。
+- **6 语言国际化**：支持英语、简体中文、繁体中文、俄语、越南语、波斯语。
+- **暗色设计系统**：基于 Raycast 风格的暗色 UI 设计（详见 [`DESIGN.md`](./DESIGN.md)）。
 
 ## 文档导航
 
@@ -120,7 +264,11 @@ bash <(curl -Ls https://raw.githubusercontent.com/BeanYa/b-ui/main/install.sh) -
 ## 仓库结构
 
 - `src/backend/cmd/b-ui/`: Go 后端可执行入口
-- `src/backend/internal/`: Go 后端主体代码
+- `src/backend/internal/domain/`: 领域层（services, core, jobs, config）
+- `src/backend/internal/http/`: HTTP 传输层（api v1/v2, sub, middleware）
+- `src/backend/internal/infra/`: 基础设施层（db, logging, network, web）
+- `src/backend/internal/cli/`: CLI 命令（admin, setting, uri, migrate）
+- `src/backend/internal/shared/`: 跨层工具函数
 - `src/frontend/`: Vue 3 + Vuetify 前端源码
 - `src/services/`: systemd、Windows 服务等运行资产
 - `scripts/build/`, `scripts/dev/`, `scripts/release/`: 构建、开发、发布脚本
