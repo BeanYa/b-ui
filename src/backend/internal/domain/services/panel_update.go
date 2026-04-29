@@ -24,6 +24,9 @@ const (
 
 	panelUpdateRunningGracePeriod = 30 * time.Second
 	panelUpdateMaxLogBytes        = 128 * 1024
+
+	panelUpdatePreflightMaxAttempts = 30
+	panelUpdatePreflightInterval    = 30 * time.Second
 )
 
 type PanelUpdateInfo struct {
@@ -546,6 +549,43 @@ func panelUpdateAssetArch(goarch, goarm string) (string, bool) {
 func releaseAssetURL(targetVersion, arch string) string {
 	return fmt.Sprintf("https://github.com/%s/%s/releases/download/%s/b-ui-linux-%s.tar.gz",
 		panelUpdateRepoOwner, panelUpdateRepoName, targetVersion, arch)
+}
+
+type preflightAssetChecker struct {
+	client          *http.Client
+	state           *PanelUpdateState
+	baseDownloadURL string
+	maxAttempts     int
+	interval        time.Duration
+}
+
+func newPreflightAssetChecker(client *http.Client, state *PanelUpdateState) *preflightAssetChecker {
+	return &preflightAssetChecker{
+		client:          client,
+		state:           state,
+		baseDownloadURL: fmt.Sprintf("https://github.com/%s/%s/releases/download", panelUpdateRepoOwner, panelUpdateRepoName),
+		maxAttempts:     panelUpdatePreflightMaxAttempts,
+		interval:        panelUpdatePreflightInterval,
+	}
+}
+
+func (c *preflightAssetChecker) check(targetVersion, arch string) error {
+	assetURL := c.baseDownloadURL + "/" + targetVersion + "/b-ui-linux-" + arch + ".tar.gz"
+	for attempt := 1; attempt <= c.maxAttempts; attempt++ {
+		resp, err := c.client.Head(assetURL)
+		if err == nil {
+			resp.Body.Close()
+			if resp.StatusCode == http.StatusOK {
+				return nil
+			}
+		}
+		c.state.UpdatedAt = time.Now().Unix()
+		_ = savePanelUpdateState(c.state)
+		if attempt < c.maxAttempts {
+			time.Sleep(c.interval)
+		}
+	}
+	return fmt.Errorf("preflight: release asset not available after %d attempts", c.maxAttempts)
 }
 
 func canonicalizeReleaseTag(version string) string {

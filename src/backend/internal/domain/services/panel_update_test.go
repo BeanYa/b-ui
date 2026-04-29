@@ -1,6 +1,8 @@
 package service
 
 import (
+	"net/http"
+	"net/http/httptest"
 	"os"
 	"strings"
 	"testing"
@@ -217,5 +219,93 @@ func TestReleaseAssetURL(t *testing.T) {
 	expected := "https://github.com/BeanYa/b-ui/releases/download/v0.1.20/b-ui-linux-amd64.tar.gz"
 	if url != expected {
 		t.Fatalf("url = %q, want %q", url, expected)
+	}
+}
+
+func TestPreflightReleaseAssetReturnsImmediatelyOnSuccess(t *testing.T) {
+	handler := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.Method != http.MethodHead {
+			t.Errorf("expected HEAD request, got %s", r.Method)
+		}
+		w.WriteHeader(http.StatusOK)
+	})
+	server := httptest.NewServer(handler)
+	defer server.Close()
+
+	state := &PanelUpdateState{
+		Phase:         "preflight",
+		TargetVersion: "v0.1.20",
+		StartedAt:     time.Now().Unix(),
+		UpdatedAt:     time.Now().Unix(),
+	}
+
+	checker := newPreflightAssetChecker(server.Client(), state)
+	checker.baseDownloadURL = server.URL + "/download"
+
+	err := checker.check("v0.1.20", "amd64")
+	if err != nil {
+		t.Fatalf("expected no error, got %v", err)
+	}
+}
+
+func TestPreflightReleaseAssetFailsAfterMaxAttempts(t *testing.T) {
+	handler := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusNotFound)
+	})
+	server := httptest.NewServer(handler)
+	defer server.Close()
+
+	state := &PanelUpdateState{
+		Phase:         "preflight",
+		TargetVersion: "v0.1.20",
+		StartedAt:     time.Now().Unix(),
+		UpdatedAt:     time.Now().Unix(),
+	}
+
+	checker := newPreflightAssetChecker(server.Client(), state)
+	checker.baseDownloadURL = server.URL + "/download"
+	checker.maxAttempts = 3
+	checker.interval = 100 * time.Millisecond
+
+	err := checker.check("v0.1.20", "amd64")
+	if err == nil {
+		t.Fatal("expected error after max attempts, got nil")
+	}
+	if !strings.Contains(err.Error(), "preflight") {
+		t.Fatalf("error should mention preflight, got: %v", err)
+	}
+}
+
+func TestPreflightReleaseAssetSucceedsOnRetry(t *testing.T) {
+	attempt := 0
+	handler := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		attempt++
+		if attempt < 3 {
+			w.WriteHeader(http.StatusNotFound)
+			return
+		}
+		w.WriteHeader(http.StatusOK)
+	})
+	server := httptest.NewServer(handler)
+	defer server.Close()
+
+	state := &PanelUpdateState{
+		Phase:         "preflight",
+		TargetVersion: "v0.1.20",
+		StartedAt:     time.Now().Unix(),
+		UpdatedAt:     time.Now().Unix(),
+	}
+
+	checker := newPreflightAssetChecker(server.Client(), state)
+	checker.baseDownloadURL = server.URL + "/download"
+	checker.maxAttempts = 5
+	checker.interval = 100 * time.Millisecond
+
+	err := checker.check("v0.1.20", "amd64")
+	if err != nil {
+		t.Fatalf("expected no error, got %v", err)
+	}
+	if attempt != 3 {
+		t.Fatalf("expected 3 attempts, got %d", attempt)
 	}
 }
