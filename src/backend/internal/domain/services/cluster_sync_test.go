@@ -264,9 +264,17 @@ func TestClusterSyncServiceAutoPolicyWinsAcrossDomainsWhenHandlingUpdateEvent(t 
 			1: {Id: 1, Domain: "manual.example.com", UpdatePolicy: ClusterDomainUpdatePolicyManual},
 			2: {Id: 2, Domain: "auto.example.com", UpdatePolicy: ClusterDomainUpdatePolicyAuto},
 		},
+		members: map[string]*model.ClusterMember{
+			stubClusterSyncKey(1, "node-local"): {NodeID: "node-local", DomainID: 1, PanelVersion: "v1.0.0", Status: "online"},
+		},
 	}
 	panel := &stubClusterPanelUpdater{}
-	service := &ClusterSyncService{store: store, panelService: panel}
+	service := &ClusterSyncService{
+		store:         store,
+		panelService:  panel,
+		broadcaster:   &stubClusterBroadcaster{},
+		localIdentity: &ClusterLocalIdentityService{store: &stubClusterLocalNodeStore{node: &model.ClusterLocalNode{NodeID: "node-local"}}},
+	}
 
 	result, err := service.HandlePanelUpdateAvailable(context.Background(), store.domains[1], "v999.0.0")
 	if err != nil {
@@ -277,6 +285,81 @@ func TestClusterSyncServiceAutoPolicyWinsAcrossDomainsWhenHandlingUpdateEvent(t 
 	}
 	if panel.startCalls != 1 {
 		t.Fatalf("expected one automatic update start, got %d", panel.startCalls)
+	}
+}
+
+func TestClusterSyncServiceManualUpdateRequestMarksUpdatingAndBroadcastsStatus(t *testing.T) {
+	secret := []byte("panel-secret-for-cluster-tests")
+	store := &stubClusterSyncStore{
+		domains: map[uint]*model.ClusterDomain{
+			1: {
+				Id:             1,
+				Domain:         "edge.example.com",
+				HubURL:         "https://hub.example.com",
+				TokenEncrypted: mustEncryptClusterToken(t, string(secret), "domain-token"),
+				UpdatePolicy:   ClusterDomainUpdatePolicyManual,
+			},
+		},
+		members: map[string]*model.ClusterMember{
+			stubClusterSyncKey(1, "node-local"): {NodeID: "node-local", DomainID: 1, PanelVersion: "v1.0.0", Status: "online"},
+		},
+	}
+	panel := &stubClusterPanelUpdater{info: &PanelUpdateInfo{CurrentVersion: "v1.0.0", LatestVersion: "v999.0.0", Comparison: "older", UpdateAvailable: true}}
+	broadcaster := &stubClusterBroadcaster{}
+	hub := &stubClusterUpdateHubClient{}
+	service := &ClusterSyncService{
+		store:          store,
+		panelService:   panel,
+		broadcaster:    broadcaster,
+		hubClient:      hub,
+		secretProvider: stubClusterSecretProvider{secret: secret},
+		localIdentity:  &ClusterLocalIdentityService{store: &stubClusterLocalNodeStore{node: &model.ClusterLocalNode{NodeID: "node-local"}}},
+	}
+
+	result, err := service.HandlePanelUpdateRequest(context.Background(), store.domains[1], "v999.0.0")
+	if err != nil {
+		t.Fatalf("handle panel update request: %v", err)
+	}
+	if result == nil || !result.UpdateAvailable || !result.UpdateStarted {
+		t.Fatalf("expected update request to start, got %#v", result)
+	}
+	if panel.startCalls != 1 || panel.startedVersions[0] != "v999.0.0" || panel.startedForces[0] {
+		t.Fatalf("expected one non-force update start to v999.0.0, got calls=%d versions=%#v forces=%#v", panel.startCalls, panel.startedVersions, panel.startedForces)
+	}
+	if hub.setStatusCalls != 1 || hub.lastStatus != "offline" {
+		t.Fatalf("expected hub offline status before update, got calls=%d status=%q", hub.setStatusCalls, hub.lastStatus)
+	}
+	if member := store.members[stubClusterSyncKey(1, "node-local")]; member.Status != "updating" {
+		t.Fatalf("expected local member status updating, got %#v", member)
+	}
+	if broadcaster.statusCalls != 1 || broadcaster.statuses[0] != "updating" || broadcaster.statusTargetVersions[0] != "v999.0.0" {
+		t.Fatalf("expected updating status broadcast, got %#v", broadcaster)
+	}
+}
+
+func TestClusterSyncServicePanelUpdateStatusUpdatesSourceMember(t *testing.T) {
+	store := &stubClusterSyncStore{
+		domains: map[uint]*model.ClusterDomain{
+			1: {Id: 1, Domain: "edge.example.com"},
+		},
+		members: map[string]*model.ClusterMember{
+			stubClusterSyncKey(1, "node-peer"): {NodeID: "node-peer", DomainID: 1, PanelVersion: "v1.0.0", Status: "online"},
+		},
+	}
+	service := &ClusterSyncService{store: store}
+
+	if err := service.HandlePanelUpdateStatus(context.Background(), store.domains[1], "node-peer", "updating", "v999.0.0", "v1.0.0"); err != nil {
+		t.Fatalf("handle updating status: %v", err)
+	}
+	if member := store.members[stubClusterSyncKey(1, "node-peer")]; member.Status != "updating" || member.PanelVersion != "v1.0.0" {
+		t.Fatalf("expected updating member with original version, got %#v", member)
+	}
+
+	if err := service.HandlePanelUpdateStatus(context.Background(), store.domains[1], "node-peer", "online", "v999.0.0", "v999.0.0"); err != nil {
+		t.Fatalf("handle online status: %v", err)
+	}
+	if member := store.members[stubClusterSyncKey(1, "node-peer")]; member.Status != "online" || member.PanelVersion != "v999.0.0" {
+		t.Fatalf("expected online member with updated version, got %#v", member)
 	}
 }
 
@@ -389,6 +472,10 @@ type stubClusterBroadcaster struct {
 	updateCalls          int
 	updateTargetVersions []string
 	updateDomainIDs      []uint
+	statusCalls          int
+	statuses             []string
+	statusTargetVersions []string
+	statusPanelVersions  []string
 }
 
 func (s *stubClusterBroadcaster) BroadcastNotifyVersion(_ context.Context, version int64, excludeNodeID string) error {
@@ -402,6 +489,14 @@ func (s *stubClusterBroadcaster) BroadcastUpdateAvailable(_ context.Context, dom
 	s.updateCalls++
 	s.updateDomainIDs = append(s.updateDomainIDs, domainID)
 	s.updateTargetVersions = append(s.updateTargetVersions, targetVersion)
+	return nil
+}
+
+func (s *stubClusterBroadcaster) BroadcastUpdateStatus(_ context.Context, _ uint, _ string, status string, targetVersion string, panelVersion string, _ string) error {
+	s.statusCalls++
+	s.statuses = append(s.statuses, status)
+	s.statusTargetVersions = append(s.statusTargetVersions, targetVersion)
+	s.statusPanelVersions = append(s.statusPanelVersions, panelVersion)
 	return nil
 }
 

@@ -126,6 +126,23 @@ func TestClusterDomainPanelUpdateCheckRoute(t *testing.T) {
 	}
 }
 
+func TestClusterMemberPanelUpdateRoute(t *testing.T) {
+	router, cluster := newTestClusterRouter()
+	req := httptest.NewRequest(http.MethodPost, "/api/cluster/members/8/panel-update", bytes.NewBufferString(`{"targetVersion":"v999.0.0"}`))
+	req.Header.Set("Content-Type", "application/json")
+	req.Header.Set("Cookie", loginCookie(t, router, "admin"))
+	recorder := httptest.NewRecorder()
+
+	router.ServeHTTP(recorder, req)
+
+	if recorder.Code != http.StatusOK {
+		t.Fatalf("expected status %d, got %d", http.StatusOK, recorder.Code)
+	}
+	if cluster.memberPanelUpdateCalls != 1 || cluster.updatedMemberID != 8 || cluster.updatedTargetVersion != "v999.0.0" {
+		t.Fatalf("expected panel update for member 8, got calls=%d id=%d target=%q", cluster.memberPanelUpdateCalls, cluster.updatedMemberID, cluster.updatedTargetVersion)
+	}
+}
+
 func TestClusterAdminRoutesRequireFirstUserAdmin(t *testing.T) {
 	router, cluster := newTestClusterRouterWithUserService(stubUserService{
 		isFirstUser: func(username string) (bool, error) {
@@ -175,7 +192,7 @@ func TestClusterListsDomainsAndMembers(t *testing.T) {
 	if !bytes.Contains(domainsJSON, []byte(`"hubUrl":"https://hub.example.com"`)) {
 		t.Fatalf("expected hub URL in domains response, got %s", domainsJSON)
 	}
-	if !bytes.Contains(domainsJSON, []byte(`"supportedActions":["domain.cluster.changed","events","heartbeat","ping","info","action","domain.panel.update.available"]`)) {
+	if !bytes.Contains(domainsJSON, []byte(`"supportedActions":["domain.cluster.changed","events","heartbeat","ping","info","action","domain.panel.update.available","domain.panel.update.request","domain.panel.update.status"]`)) {
 		t.Fatalf("expected supported actions in domains response, got %s", domainsJSON)
 	}
 	if cluster.listMembersCalls != 1 {
@@ -530,10 +547,13 @@ type stubClusterAPIService struct {
 	listMembersCalls       int
 	manualSyncCalls        int
 	checkUpdateCalls       int
+	memberPanelUpdateCalls int
 	receiveCalls           int
 	deletedMemberID        uint
 	leftDomainID           uint
 	checkedDomainID        uint
+	updatedMemberID        uint
+	updatedTargetVersion   string
 	receivedToken          string
 	receivedEnvelope       *service.ClusterEnvelope
 	receivedPeerMessage    *service.PeerMessage
@@ -611,6 +631,18 @@ func (s *stubClusterAPIService) CheckDomainPanelUpdate(id uint) (*service.Cluste
 		Comparison:      "older",
 		UpdateAvailable: true,
 		UpdatePolicy:    "manual",
+	}, nil
+}
+
+func (s *stubClusterAPIService) RequestMemberPanelUpdate(id uint, targetVersion string) (*service.ClusterPanelMemberUpdateResult, error) {
+	s.memberPanelUpdateCalls++
+	s.updatedMemberID = id
+	s.updatedTargetVersion = targetVersion
+	return &service.ClusterPanelMemberUpdateResult{
+		NodeID:        "node-peer",
+		TargetVersion: targetVersion,
+		Status:        "updating",
+		UpdateStarted: true,
 	}, nil
 }
 

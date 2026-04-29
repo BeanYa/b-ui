@@ -298,11 +298,12 @@ export default {
       submit: "Подтвердить",
       delete: "Удалить",
       leave: "Покинуть домен",
-      back: "Назад",
-      manage: "Управлять",
-      pingAll: "Ping всех",
-      confirmRegister: "Подтвердить регистрацию",
-    },
+        back: "Назад",
+        manage: "Управлять",
+        pingAll: "Ping всех",
+        updatePanel: "Обновить панель",
+        confirmRegister: "Подтвердить регистрацию",
+      },
     joinUriHint: "URI начинается с buihub://, например buihub://hub.example.com/domain?id=example.com&domain_token=xxx",
     validation: {
       required: "URL Hub, ID домена и токен домена обязательны.",
@@ -319,11 +320,19 @@ export default {
     stepDomainInfo: "Информация о домене",
     stepDisplayName: "Отображаемое имя",
     updateAvailable: "Доступно обновление",
-    updatePolicies: {
-      auto: "Автообновление",
-      manual: "Вручную",
-    },
-    successRegistered: "Узел кластера присоединился к домену и успешно обновил состояние.",
+      updatePolicies: {
+        auto: "Автообновление",
+        manual: "Вручную",
+      },
+      statuses: {
+        updating: "Обновляется",
+      },
+      panelUpdate: {
+        confirmTitle: "Обновить панель кластера?",
+        confirmCopy: "Запрос обновления будет отправлен выбранному узлу. Строка будет заблокирована, пока узел сообщает о процессе обновления.",
+        requested: "Запрос обновления панели отправлен.",
+      },
+      successRegistered: "Узел кластера присоединился к домену и успешно обновил состояние.",
   },
   client: {
     name: "Имя",

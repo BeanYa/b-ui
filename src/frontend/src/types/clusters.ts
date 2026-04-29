@@ -47,3 +47,11 @@ export interface ClusterPanelUpdateCheck {
   autoUpdate: boolean
   updateStarted: boolean
 }
+
+export interface ClusterPanelMemberUpdateResult {
+  nodeId: string
+  currentVersion: string
+  targetVersion?: string
+  status: string
+  updateStarted: boolean
+}

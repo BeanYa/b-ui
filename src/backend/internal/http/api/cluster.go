@@ -22,6 +22,7 @@ type clusterAPIService interface {
 	SendMemberAction(string, clustertypes.ActionRequest) (*clustertypes.ActionResponse, error)
 	ManualSync() (*service.ClusterOperationStatus, error)
 	CheckDomainPanelUpdate(uint) (*service.ClusterPanelUpdateCheckResult, error)
+	RequestMemberPanelUpdate(uint, string) (*service.ClusterPanelMemberUpdateResult, error)
 	DeleteMember(uint) error
 	LeaveDomain(uint) error
 	ReceivePeerMessage(*service.PeerMessage, string) error
@@ -139,6 +140,26 @@ func (a *APIHandler) checkClusterDomainPanelUpdate(c *gin.Context) {
 		return
 	}
 	result, err := a.clusterService.CheckDomainPanelUpdate(uint(id))
+	jsonObj(c, result, err)
+}
+
+func (a *APIHandler) requestClusterMemberPanelUpdate(c *gin.Context) {
+	if !a.requireClusterAdmin(c) {
+		return
+	}
+	id, err := strconv.ParseUint(c.Param("id"), 10, 64)
+	if err != nil {
+		jsonMsg(c, "cluster member panel update", err)
+		return
+	}
+	var request struct {
+		TargetVersion string `json:"targetVersion"`
+	}
+	if err := c.ShouldBindJSON(&request); err != nil && err.Error() != "EOF" {
+		jsonMsg(c, "cluster member panel update", err)
+		return
+	}
+	result, err := a.clusterService.RequestMemberPanelUpdate(uint(id), strings.TrimSpace(request.TargetVersion))
 	jsonObj(c, result, err)
 }
 

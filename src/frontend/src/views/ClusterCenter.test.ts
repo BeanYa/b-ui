@@ -11,6 +11,7 @@ describe('ClusterCenter view source', () => {
     expect(source).toContain("HttpUtils.post('api/cluster/register'")
     expect(source).toContain("HttpUtils.post('api/cluster/sync'")
     expect(source).toContain('HttpUtils.post(`api/cluster/domains/${domain.id}/update-check`, {})')
+    expect(source).toContain('HttpUtils.post(`api/cluster/members/${member.id}/panel-update`, {')
     expect(source).toContain("HttpUtils.delete(`api/cluster/members/${member.id}`)")
     expect(source).toContain("HttpUtils.delete(`api/cluster/domains/${domain.id}`)")
     expect(source).toContain("HttpUtils.get(`api/cluster/operations/${operationId}`)")
@@ -148,14 +149,31 @@ describe('ClusterCenter view source', () => {
     expect(source).toContain('await checkDomainPanelUpdate(domain)')
   })
 
-  it('renders member panel versions as current or outdated badges against the latest version', () => {
+  it('renders member panel versions as update buttons with warning marks when outdated', () => {
     const source = readFileSync(fileURLToPath(new URL('./ClusterCenter.vue', import.meta.url)), 'utf8')
 
-    expect(source).toContain('class="cluster-center__panel-version-badge"')
-    expect(source).toContain(':class="panelVersionBadgeClass(member)"')
+    expect(source).toContain('class="cluster-center__panel-version-button"')
+    expect(source).toContain(':class="panelVersionButtonClass(member)"')
+    expect(source).toContain('@click="openPanelUpdateDialog(member)"')
+    expect(source).toContain("memberPanelVersionState(member) === 'outdated'")
+    expect(source).toContain('<template v-if="memberPanelVersionState(member) === \'outdated\'"> ⚠</template>')
     expect(source).toContain('memberPanelVersionState(member)')
     expect(source).toContain('effectiveDomainLatestPanelVersion(selectedDomain.value)')
     expect(source).toContain('comparePanelVersions')
+  })
+
+  it('confirms targeted panel updates and disables rows while update status is pending', () => {
+    const source = readFileSync(fileURLToPath(new URL('./ClusterCenter.vue', import.meta.url)), 'utf8')
+
+    expect(source).toContain('const panelUpdateDialog = ref(false)')
+    expect(source).toContain('const selectedPanelUpdateMember = ref<ClusterMember | null>(null)')
+    expect(source).toContain('const panelUpdatePending = ref<Record<number, boolean>>({})')
+    expect(source).toContain('const openPanelUpdateDialog = (member: ClusterMember) => {')
+    expect(source).toContain('const confirmPanelUpdate = async () => {')
+    expect(source).toContain('panelUpdatePending.value = { ...panelUpdatePending.value, [member.id]: true }')
+    expect(source).toContain('memberPanelUpdateDisabled(member)')
+    expect(source).toContain("member.status === 'updating'")
+    expect(source).toContain("member.status === 'updating' ? 'orange' : member.status === 'offline' ? 'red' : 'green'")
   })
 
   it('keeps member version, panel version, status, latency, and action columns aligned', () => {
@@ -174,7 +192,7 @@ describe('ClusterCenter view source', () => {
     const expectedCellOrder = [
       'formatClusterVersionLabel(member.lastVersion)',
       'formatPanelVersion(member.panelVersion)',
-      "member.status === 'offline'",
+      'memberStatusColor(member)',
       'memberLatency(member.nodeId)',
       'member.isLocal ? leaveDomain(selectedDomain) : deleteMember(member)',
     ]

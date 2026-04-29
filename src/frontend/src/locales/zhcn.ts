@@ -299,11 +299,12 @@ export default {
       submit: "确认",
       delete: "删除",
       leave: "退出域",
-      back: "后退",
-      manage: "管理",
-      pingAll: "Ping 全部",
-      confirmRegister: "确认注册",
-    },
+        back: "后退",
+        manage: "管理",
+        pingAll: "Ping 全部",
+        updatePanel: "更新面板",
+        confirmRegister: "确认注册",
+      },
     joinUriHint: "URI 以 buihub:// 开头，例如 buihub://hub.example.com/domain?id=example.com&domain_token=xxx。",
     validation: {
       required: "Hub 地址、域Id 和域认证令牌为必填项。",
@@ -320,11 +321,19 @@ export default {
     stepDomainInfo: "域信息",
     stepDisplayName: "显示名称",
     updateAvailable: "有新版本",
-    updatePolicies: {
-      auto: "自动更新",
-      manual: "手动更新",
-    },
-    successRegistered: "集群节点已加入域并完成信息刷新",
+      updatePolicies: {
+        auto: "自动更新",
+        manual: "手动更新",
+      },
+      statuses: {
+        updating: "更新中",
+      },
+      panelUpdate: {
+        confirmTitle: "更新集群面板？",
+        confirmCopy: "将向选中节点发送面板更新请求。节点上报更新中后，该行会暂时锁定。",
+        requested: "面板更新请求已发送。",
+      },
+      successRegistered: "集群节点已加入域并完成信息刷新",
   },
   client: {
     name: "名称",

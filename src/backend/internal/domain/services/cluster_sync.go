@@ -22,6 +22,14 @@ const (
 	ClusterDomainUpdatePolicyManual = "manual"
 )
 
+const (
+	ClusterPanelUpdateStatusUpdating = "updating"
+	ClusterPanelUpdateStatusOnline   = "online"
+
+	clusterPanelUpdateWatchInterval = 30 * time.Second
+	clusterPanelUpdateWatchTimeout  = 30 * time.Minute
+)
+
 type ClusterEnvelope struct {
 	SchemaVersion int    `json:"schemaVersion"`
 	MessageType   string `json:"messageType"`
@@ -103,6 +111,7 @@ type clusterSyncStore interface {
 type clusterBroadcaster interface {
 	BroadcastNotifyVersion(context.Context, int64, string) error
 	BroadcastUpdateAvailable(context.Context, uint, string, string, string) error
+	BroadcastUpdateStatus(context.Context, uint, string, string, string, string, string) error
 }
 
 type clusterHubSyncer interface {
@@ -128,6 +137,14 @@ type ClusterPanelUpdateCheckResult struct {
 	UpdatePolicy    string `json:"updatePolicy"`
 	AutoUpdate      bool   `json:"autoUpdate"`
 	UpdateStarted   bool   `json:"updateStarted"`
+}
+
+type ClusterPanelMemberUpdateResult struct {
+	NodeID         string `json:"nodeId"`
+	CurrentVersion string `json:"currentVersion"`
+	TargetVersion  string `json:"targetVersion,omitempty"`
+	Status         string `json:"status"`
+	UpdateStarted  bool   `json:"updateStarted"`
 }
 
 type ClusterSyncService struct {
@@ -295,11 +312,16 @@ func (s *ClusterSyncService) CheckAndBroadcastUpdate(ctx context.Context, domain
 	if !autoUpdate {
 		return result, nil
 	}
-	_ = s.markLocalMemberOffline(ctx, domain, localNodeID, currentVersion)
+	_ = s.markLocalMemberUpdating(ctx, domain, localNodeID, currentVersion)
+	_ = s.notifyHubMemberStatus(ctx, domain, localNodeID, "offline", currentVersion)
+	_ = s.publishPanelUpdateStatus(ctx, domain, ClusterPanelUpdateStatusUpdating, latestVersion, currentVersion, localNodeID)
 	if _, err := s.getPanelUpdater().StartUpdate(latestVersion, true); err != nil {
+		_ = s.markLocalMemberOnline(ctx, domain, localNodeID, currentVersion)
+		_ = s.publishPanelUpdateStatus(ctx, domain, ClusterPanelUpdateStatusOnline, latestVersion, currentVersion, localNodeID)
 		return result, err
 	}
 	result.UpdateStarted = true
+	s.startPanelUpdateCompletionWatch(domain, localNodeID, latestVersion)
 	return result, nil
 }
 
@@ -332,11 +354,105 @@ func (s *ClusterSyncService) HandlePanelUpdateAvailable(ctx context.Context, dom
 	if !autoUpdate {
 		return result, nil
 	}
+	local, err := s.getLocalIdentity().GetOrCreate()
+	if err != nil {
+		return nil, err
+	}
+	_ = s.markLocalMemberUpdating(ctx, domain, local.NodeID, currentVersion)
+	_ = s.notifyHubMemberStatus(ctx, domain, local.NodeID, "offline", currentVersion)
+	_ = s.publishPanelUpdateStatus(ctx, domain, ClusterPanelUpdateStatusUpdating, latestVersion, currentVersion, local.NodeID)
 	if _, err := s.getPanelUpdater().StartUpdate(latestVersion, true); err != nil {
+		_ = s.markLocalMemberOnline(ctx, domain, local.NodeID, currentVersion)
+		_ = s.publishPanelUpdateStatus(ctx, domain, ClusterPanelUpdateStatusOnline, latestVersion, currentVersion, local.NodeID)
 		return result, err
 	}
 	result.UpdateStarted = true
+	s.startPanelUpdateCompletionWatch(domain, local.NodeID, latestVersion)
 	return result, nil
+}
+
+func (s *ClusterSyncService) HandlePanelUpdateRequest(ctx context.Context, domain *model.ClusterDomain, targetVersion string) (*ClusterPanelUpdateCheckResult, error) {
+	if domain == nil {
+		return nil, errClusterDomainNotFound
+	}
+	info, err := s.getPanelUpdater().GetUpdateInfo()
+	if err != nil {
+		return nil, err
+	}
+	currentVersion := canonicalizeReleaseTag(info.CurrentVersion)
+	if currentVersion == "" {
+		currentVersion = canonicalizeReleaseTag(config.GetVersion())
+	}
+	latestVersion := canonicalizeReleaseTag(targetVersion)
+	if latestVersion == "" {
+		latestVersion = canonicalizeReleaseTag(info.LatestVersion)
+	}
+	comparison := compareReleaseTags(currentVersion, latestVersion)
+	updateAvailable := latestVersion != "" && comparison == "older"
+	result := &ClusterPanelUpdateCheckResult{
+		CurrentVersion:  currentVersion,
+		LatestVersion:   latestVersion,
+		Comparison:      comparison,
+		UpdateAvailable: updateAvailable,
+		UpdatePolicy:    effectiveClusterDomainUpdatePolicy(domain.UpdatePolicy),
+	}
+	if err := s.saveDomainPanelUpdateState(domain, latestVersion, updateAvailable); err != nil {
+		return nil, err
+	}
+
+	local, err := s.getLocalIdentity().GetOrCreate()
+	if err != nil {
+		return nil, err
+	}
+	if !updateAvailable {
+		_ = s.markLocalMemberOnline(ctx, domain, local.NodeID, currentVersion)
+		_ = s.publishPanelUpdateStatus(ctx, domain, ClusterPanelUpdateStatusOnline, latestVersion, currentVersion, local.NodeID)
+		return result, nil
+	}
+
+	if err := s.markLocalMemberUpdating(ctx, domain, local.NodeID, currentVersion); err != nil {
+		return nil, err
+	}
+	_ = s.notifyHubMemberStatus(ctx, domain, local.NodeID, "offline", currentVersion)
+	_ = s.publishPanelUpdateStatus(ctx, domain, ClusterPanelUpdateStatusUpdating, latestVersion, currentVersion, local.NodeID)
+	if _, err := s.getPanelUpdater().StartUpdate(latestVersion, false); err != nil {
+		_ = s.markLocalMemberOnline(ctx, domain, local.NodeID, currentVersion)
+		_ = s.publishPanelUpdateStatus(ctx, domain, ClusterPanelUpdateStatusOnline, latestVersion, currentVersion, local.NodeID)
+		return result, err
+	}
+	result.UpdateStarted = true
+	s.startPanelUpdateCompletionWatch(domain, local.NodeID, latestVersion)
+	return result, nil
+}
+
+func (s *ClusterSyncService) HandlePanelUpdateStatus(_ context.Context, domain *model.ClusterDomain, nodeID string, status string, targetVersion string, panelVersion string) error {
+	if domain == nil {
+		return errClusterDomainNotFound
+	}
+	status = strings.TrimSpace(status)
+	if status == "" {
+		return errors.New("invalid_payload_status")
+	}
+	if nodeID == "" {
+		return errClusterMemberNotFound
+	}
+	if s.store == nil {
+		return nil
+	}
+	member, err := s.store.GetMember(domain.Id, nodeID)
+	if err != nil {
+		return err
+	}
+	member.Status = status
+	if version := canonicalizeReleaseTag(panelVersion); version != "" {
+		member.PanelVersion = version
+	}
+	if target := canonicalizeReleaseTag(targetVersion); status == ClusterPanelUpdateStatusOnline && target != "" {
+		if member.PanelVersion == "" || compareReleaseTags(member.PanelVersion, target) == "older" {
+			member.PanelVersion = target
+		}
+	}
+	return s.store.SaveMember(member)
 }
 
 func (s *ClusterSyncService) claimDomainPanelUpdate(ctx context.Context, domain *model.ClusterDomain, targetVersion string) (bool, string, error) {
@@ -366,7 +482,36 @@ func (s *ClusterSyncService) claimDomainPanelUpdate(ctx context.Context, domain 
 	return claimResp.Proceed, claimedVersion, nil
 }
 
-func (s *ClusterSyncService) markLocalMemberOffline(ctx context.Context, domain *model.ClusterDomain, localNodeID string, currentVersion string) error {
+func (s *ClusterSyncService) markLocalMemberUpdating(ctx context.Context, domain *model.ClusterDomain, localNodeID string, currentVersion string) error {
+	return s.saveLocalMemberStatus(ctx, domain, localNodeID, ClusterPanelUpdateStatusUpdating, currentVersion)
+}
+
+func (s *ClusterSyncService) markLocalMemberOnline(ctx context.Context, domain *model.ClusterDomain, localNodeID string, panelVersion string) error {
+	if err := s.saveLocalMemberStatus(ctx, domain, localNodeID, ClusterPanelUpdateStatusOnline, panelVersion); err != nil {
+		return err
+	}
+	return s.notifyHubMemberStatus(ctx, domain, localNodeID, ClusterPanelUpdateStatusOnline, panelVersion)
+}
+
+func (s *ClusterSyncService) saveLocalMemberStatus(_ context.Context, domain *model.ClusterDomain, localNodeID string, status string, panelVersion string) error {
+	if s.store == nil || domain == nil || localNodeID == "" {
+		return nil
+	}
+	member, err := s.store.GetMember(domain.Id, localNodeID)
+	if err != nil {
+		if errors.Is(err, errClusterMemberNotFound) {
+			return nil
+		}
+		return err
+	}
+	member.Status = status
+	if version := canonicalizeReleaseTag(panelVersion); version != "" {
+		member.PanelVersion = version
+	}
+	return s.store.SaveMember(member)
+}
+
+func (s *ClusterSyncService) notifyHubMemberStatus(ctx context.Context, domain *model.ClusterDomain, localNodeID string, status string, panelVersion string) error {
 	if domain.HubURL == "" || domain.TokenEncrypted == "" || localNodeID == "" {
 		return nil
 	}
@@ -379,8 +524,50 @@ func (s *ClusterSyncService) markLocalMemberOffline(ctx context.Context, domain 
 		return err
 	}
 	requestID := fmt.Sprintf("update-status-%d", time.Now().UnixNano())
-	_, err = s.getUpdateHubClient().SetMemberStatus(ctx, domain.HubURL, domain.Domain, domainToken, requestID, localNodeID, "offline", currentVersion)
+	_, err = s.getUpdateHubClient().SetMemberStatus(ctx, domain.HubURL, domain.Domain, domainToken, requestID, localNodeID, status, panelVersion)
 	return err
+}
+
+func (s *ClusterSyncService) publishPanelUpdateStatus(ctx context.Context, domain *model.ClusterDomain, status string, targetVersion string, panelVersion string, excludeNodeID string) error {
+	if s.broadcaster == nil || domain == nil {
+		return nil
+	}
+	return s.broadcaster.BroadcastUpdateStatus(ctx, domain.Id, domain.Domain, status, targetVersion, panelVersion, excludeNodeID)
+}
+
+func (s *ClusterSyncService) startPanelUpdateCompletionWatch(domain *model.ClusterDomain, localNodeID string, targetVersion string) {
+	if domain == nil || localNodeID == "" || targetVersion == "" {
+		return
+	}
+	domainCopy := *domain
+	go func() {
+		ticker := time.NewTicker(clusterPanelUpdateWatchInterval)
+		defer ticker.Stop()
+		timeout := time.After(clusterPanelUpdateWatchTimeout)
+		for {
+			select {
+			case <-ticker.C:
+				info, err := s.getPanelUpdater().GetUpdateInfo()
+				if err != nil {
+					continue
+				}
+				currentVersion := canonicalizeReleaseTag(info.CurrentVersion)
+				if currentVersion == "" {
+					currentVersion = canonicalizeReleaseTag(config.GetVersion())
+				}
+				finished := currentVersion != "" && compareReleaseTags(currentVersion, targetVersion) != "older"
+				failed := info.UpdateState != nil && info.UpdateState.Phase == "failed"
+				if !finished && !failed {
+					continue
+				}
+				_ = s.markLocalMemberOnline(context.Background(), &domainCopy, localNodeID, currentVersion)
+				_ = s.publishPanelUpdateStatus(context.Background(), &domainCopy, ClusterPanelUpdateStatusOnline, targetVersion, currentVersion, localNodeID)
+				return
+			case <-timeout:
+				return
+			}
+		}
+	}()
 }
 
 func (s *ClusterSyncService) saveDomainPanelUpdateState(domain *model.ClusterDomain, latestVersion string, updateAvailable bool) error {

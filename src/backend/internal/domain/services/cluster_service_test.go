@@ -375,6 +375,73 @@ func TestClusterServiceSendMemberActionProxiesToPeerActionEndpoint(t *testing.T)
 	}
 }
 
+func TestClusterServiceRequestMemberPanelUpdateSendsDirectPeerMessage(t *testing.T) {
+	secret := []byte("panel-secret-for-cluster-tests")
+	local := newTestClusterLocalNode(t, "node-local")
+	peer := newTestClusterLocalNode(t, "node-peer")
+	var receivedPath string
+	var receivedToken string
+	var receivedMessage PeerMessage
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		receivedPath = r.URL.Path
+		receivedToken = r.Header.Get("X-Cluster-Token")
+		if err := json.NewDecoder(r.Body).Decode(&receivedMessage); err != nil {
+			t.Fatalf("decode peer update request: %v", err)
+		}
+		w.Header().Set("Content-Type", "application/json")
+		_, _ = w.Write([]byte(`{"success":true,"msg":"cluster message received"}`))
+	}))
+	defer server.Close()
+	store := &stubClusterServiceStore{
+		domains: map[string]*model.ClusterDomain{
+			"edge.example.com": {Id: 1, Domain: "edge.example.com", LastVersion: 12, LatestPanelVersion: "v999.0.0"},
+		},
+		members: map[string]*model.ClusterMember{
+			serviceMemberKey(1, "node-peer"): {
+				Id:                 8,
+				NodeID:             "node-peer",
+				DomainID:           1,
+				BaseURL:            server.URL + "/beanui/",
+				PublicKey:          peer.PublicKey,
+				PanelVersion:       "v1.0.0",
+				Status:             "online",
+				PeerTokenEncrypted: mustEncryptClusterToken(t, string(secret), "peer-token"),
+			},
+		},
+	}
+	service := &ClusterService{
+		secretProvider: stubClusterSecretProvider{secret: secret},
+		localIdentity:  ClusterLocalIdentityService{store: &stubClusterLocalNodeStore{node: local}},
+		store:          store,
+	}
+
+	result, err := service.RequestMemberPanelUpdate(8, "")
+	if err != nil {
+		t.Fatalf("request member panel update: %v", err)
+	}
+	if result == nil || result.NodeID != "node-peer" || !result.UpdateStarted || result.Status != "updating" {
+		t.Fatalf("expected update request result, got %#v", result)
+	}
+	if receivedPath != "/beanui/_cluster/v1/events" {
+		t.Fatalf("expected mounted peer events path, got %q", receivedPath)
+	}
+	if receivedToken != "peer-token" {
+		t.Fatalf("expected peer token header, got %q", receivedToken)
+	}
+	if receivedMessage.Action != PeerActionDomainPanelUpdateRequest || receivedMessage.Category != PeerCategoryCommand {
+		t.Fatalf("expected panel update request command, got action=%q category=%q", receivedMessage.Action, receivedMessage.Category)
+	}
+	if len(receivedMessage.Route.Targets) != 1 || receivedMessage.Route.Targets[0] != "node-peer" {
+		t.Fatalf("expected direct route to node-peer, got %#v", receivedMessage.Route)
+	}
+	if receivedMessage.Payload["target_version"] != "v999.0.0" {
+		t.Fatalf("expected target version payload, got %#v", receivedMessage.Payload)
+	}
+	if member := store.members[serviceMemberKey(1, "node-peer")]; member.Status != "updating" {
+		t.Fatalf("expected local mirror to mark remote updating, got %#v", member)
+	}
+}
+
 func TestClusterServiceRegisterDoesNotPersistDomainWhenHubRegistrationFails(t *testing.T) {
 	store := &stubClusterServiceStore{}
 	hub := &stubClusterHubClient{registerErr: errTestClusterHubFailure}
@@ -668,7 +735,7 @@ func TestClusterServiceListDomainsIncludesSupportedActions(t *testing.T) {
 	if domains[0].CommunicationProtocolVersion != "v1" {
 		t.Fatalf("expected protocol version, got %q", domains[0].CommunicationProtocolVersion)
 	}
-	expectedActions := []string{"domain.cluster.changed", "events", "heartbeat", "ping", "info", "action", "domain.panel.update.available"}
+	expectedActions := []string{"domain.cluster.changed", "events", "heartbeat", "ping", "info", "action", "domain.panel.update.available", "domain.panel.update.request", "domain.panel.update.status"}
 	if !reflect.DeepEqual(domains[0].SupportedActions, expectedActions) {
 		t.Fatalf("expected supported actions %#v, got %#v", expectedActions, domains[0].SupportedActions)
 	}

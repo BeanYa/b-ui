@@ -300,11 +300,12 @@ export default {
       submit: "Confirm",
       delete: "Delete",
       leave: "Leave Domain",
-      back: "Back",
-      manage: "Manage",
-      pingAll: "Ping All",
-      confirmRegister: "Confirm Registration",
-    },
+        back: "Back",
+        manage: "Manage",
+        pingAll: "Ping All",
+        updatePanel: "Update Panel",
+        confirmRegister: "Confirm Registration",
+      },
     joinUriHint: "URI starts with buihub://, for example buihub://hub.example.com/domain?id=example.com&domain_token=xxx",
     displayName: "Display Name",
     displayNameHint: "A human-readable label shown in management panels for this node.",
@@ -314,11 +315,19 @@ export default {
     stepDomainInfo: "Domain Info",
     stepDisplayName: "Display Name",
     updateAvailable: "Update available",
-    updatePolicies: {
-      auto: "Auto Update",
-      manual: "Manual",
-    },
-    validation: {
+      updatePolicies: {
+        auto: "Auto Update",
+        manual: "Manual",
+      },
+      statuses: {
+        updating: "Updating",
+      },
+      panelUpdate: {
+        confirmTitle: "Update cluster panel?",
+        confirmCopy: "This sends an update request to the selected node. The row is locked while that node reports an update in progress.",
+        requested: "Panel update request sent.",
+      },
+      validation: {
       required: "Hub URL, Domain Id, and Domain Token are required.",
       hubUrl: "Hub URL must be an absolute URL and use https unless it is localhost.",
       panelUrl: "The current panel URL must be an absolute URL and use https unless it is localhost.",

@@ -177,20 +177,26 @@
                   <td>{{ member.baseUrl || '-' }}</td>
                   <td>{{ formatClusterVersionLabel(member.lastVersion) }}</td>
                   <td>
-                    <span
-                      class="cluster-center__panel-version-badge"
-                      :class="panelVersionBadgeClass(member)"
+                    <v-btn
+                      class="cluster-center__panel-version-button"
+                      :class="panelVersionButtonClass(member)"
+                      size="small"
+                      variant="outlined"
+                      :disabled="memberPanelUpdateDisabled(member)"
+                      :loading="Boolean(panelUpdatePending[member.id])"
+                      @click="openPanelUpdateDialog(member)"
                     >
                       {{ formatPanelVersion(member.panelVersion) }}
-                    </span>
+                      <template v-if="memberPanelVersionState(member) === 'outdated'"> ⚠</template>
+                    </v-btn>
                   </td>
                   <td>
                     <v-chip
-                      :color="member.status === 'offline' ? 'red' : 'green'"
+                      :color="memberStatusColor(member)"
                       size="small"
                       variant="flat"
                     >
-                      {{ member.status === 'offline' ? $t('offline') : $t('online') }}
+                      {{ memberStatusLabel(member) }}
                     </v-chip>
                   </td>
                   <td>
@@ -352,6 +358,33 @@
         </v-card-actions>
       </v-card>
     </v-dialog>
+
+    <v-dialog v-model="panelUpdateDialog" class="app-dialog app-dialog--compact" max-width="460">
+      <v-card class="app-card-shell">
+        <v-card-title>{{ $t('clusterCenter.panelUpdate.confirmTitle') }}</v-card-title>
+        <v-card-text class="cluster-center__dialog-body">
+          <div class="cluster-center__step-indicator">
+            <span class="cluster-center__step-label">{{ $t('clusterCenter.table.node') }}</span>
+            <span class="cluster-center__step-value">{{ selectedPanelUpdateMember?.displayName || selectedPanelUpdateMember?.name || selectedPanelUpdateMember?.nodeId }}</span>
+          </div>
+          <div class="cluster-center__step-indicator">
+            <span class="cluster-center__step-label">{{ $t('clusterCenter.table.panelVersion') }}</span>
+            <span class="cluster-center__step-value">
+              {{ formatPanelVersion(selectedPanelUpdateMember?.panelVersion) }}
+              -> {{ formatPanelVersion(selectedPanelUpdateTargetVersion) }}
+            </span>
+          </div>
+          <p class="cluster-center__panel-update-copy">{{ $t('clusterCenter.panelUpdate.confirmCopy') }}</p>
+        </v-card-text>
+        <v-card-actions>
+          <v-spacer />
+          <v-btn variant="text" @click="panelUpdateDialog = false">{{ $t('clusterCenter.actions.cancel') }}</v-btn>
+          <v-btn color="warning" :loading="selectedPanelUpdateMember ? Boolean(panelUpdatePending[selectedPanelUpdateMember.id]) : false" @click="confirmPanelUpdate">
+            {{ $t('clusterCenter.actions.updatePanel') }}
+          </v-btn>
+        </v-card-actions>
+      </v-card>
+    </v-dialog>
   </div>
 </template>
 
@@ -365,7 +398,7 @@ import { parseClusterHubJoinUri } from '@/features/clusterHubUri'
 import { i18n } from '@/locales'
 import HttpUtils from '@/plugins/httputil'
 import { usePingStore } from '@/store/modules/ping'
-import type { ClusterDomain, ClusterMember, ClusterOperationStatus, ClusterPanelUpdateCheck } from '@/types/clusters'
+import type { ClusterDomain, ClusterMember, ClusterOperationStatus, ClusterPanelMemberUpdateResult, ClusterPanelUpdateCheck } from '@/types/clusters'
 import type { MeshPairResult } from '@/types/ping'
 
 const router = useRouter()
@@ -388,6 +421,10 @@ const members = ref<ClusterMember[]>([])
 const selectedDomainId = ref<number | null>(null)
 const deletingMemberId = ref<number | null>(null)
 const leavingDomainId = ref<number | null>(null)
+const panelUpdateDialog = ref(false)
+const selectedPanelUpdateMember = ref<ClusterMember | null>(null)
+const panelUpdatePending = ref<Record<number, boolean>>({})
+const panelUpdatePollTimers = new Map<number, number>()
 
 const form = ref({
   joinUri: '',
@@ -481,12 +518,84 @@ const memberPanelVersionState = (member: ClusterMember) => {
   return comparePanelVersions(member.panelVersion, latestVersion) === 'older' ? 'outdated' : 'current'
 }
 
-const panelVersionBadgeClass = (member: ClusterMember) => {
+const panelVersionButtonClass = (member: ClusterMember) => {
   const state = memberPanelVersionState(member)
   return {
-    'cluster-center__panel-version-badge--current': state === 'current',
-    'cluster-center__panel-version-badge--outdated': state === 'outdated',
-    'cluster-center__panel-version-badge--unknown': state === 'unknown',
+    'cluster-center__panel-version-button--current': state === 'current',
+    'cluster-center__panel-version-button--outdated': state === 'outdated',
+    'cluster-center__panel-version-button--unknown': state === 'unknown',
+  }
+}
+
+const selectedPanelUpdateTargetVersion = computed(() => effectiveDomainLatestPanelVersion(selectedDomain.value))
+
+const memberPanelUpdateDisabled = (member: ClusterMember) => {
+  return memberPanelVersionState(member) !== 'outdated'
+    || member.status === 'updating'
+    || Boolean(panelUpdatePending.value[member.id])
+}
+
+const memberStatusColor = (member: ClusterMember) => member.status === 'updating' ? 'orange' : member.status === 'offline' ? 'red' : 'green'
+
+const memberStatusLabel = (member: ClusterMember) => {
+  if (member.status === 'updating') return i18n.global.t('clusterCenter.statuses.updating')
+  if (member.status === 'offline') return i18n.global.t('offline')
+  return i18n.global.t('online')
+}
+
+const openPanelUpdateDialog = (member: ClusterMember) => {
+  if (memberPanelUpdateDisabled(member)) return
+  selectedPanelUpdateMember.value = member
+  panelUpdateDialog.value = true
+}
+
+const clearPanelUpdatePolling = (memberId: number) => {
+  const timer = panelUpdatePollTimers.get(memberId)
+  if (timer) {
+    window.clearTimeout(timer)
+    panelUpdatePollTimers.delete(memberId)
+  }
+}
+
+const startPanelUpdateStatusPolling = (memberId: number) => {
+  clearPanelUpdatePolling(memberId)
+  const poll = async () => {
+    await loadData()
+    const current = members.value.find((member) => member.id === memberId)
+    if (!current || current.status !== 'updating') {
+      panelUpdatePending.value = { ...panelUpdatePending.value, [memberId]: false }
+      clearPanelUpdatePolling(memberId)
+      return
+    }
+    const timer = window.setTimeout(poll, 5000)
+    panelUpdatePollTimers.set(memberId, timer)
+  }
+  const timer = window.setTimeout(poll, 5000)
+  panelUpdatePollTimers.set(memberId, timer)
+}
+
+const confirmPanelUpdate = async () => {
+  const member = selectedPanelUpdateMember.value
+  if (!member) return
+  const targetVersion = selectedPanelUpdateTargetVersion.value
+  panelUpdatePending.value = { ...panelUpdatePending.value, [member.id]: true }
+  const msg = await HttpUtils.post(`api/cluster/members/${member.id}/panel-update`, {
+    targetVersion,
+  })
+  if (msg.success) {
+    const result = msg.obj as ClusterPanelMemberUpdateResult
+    members.value = members.value.map((item) => item.id === member.id
+      ? { ...item, status: result.status || 'updating' }
+      : item)
+    panelUpdateDialog.value = false
+    startPanelUpdateStatusPolling(member.id)
+    push.success({
+      title: i18n.global.t('success'),
+      message: i18n.global.t('clusterCenter.panelUpdate.requested'),
+      duration: 5000,
+    })
+  } else {
+    panelUpdatePending.value = { ...panelUpdatePending.value, [member.id]: false }
   }
 }
 
@@ -741,6 +850,12 @@ const loadData = async () => {
     }
     if (membersMsg.success) {
       members.value = Array.isArray(membersMsg.obj) ? membersMsg.obj : []
+      for (const member of members.value) {
+        if (member.status !== 'updating' && panelUpdatePending.value[member.id]) {
+          panelUpdatePending.value = { ...panelUpdatePending.value, [member.id]: false }
+          clearPanelUpdatePolling(member.id)
+        }
+      }
     }
   } finally {
     pageLoading.value = false
@@ -817,6 +932,9 @@ onMounted(async () => {
 })
 
 onBeforeUnmount(() => {
+  for (const memberId of panelUpdatePollTimers.keys()) {
+    clearPanelUpdatePolling(memberId)
+  }
   globalLoading.value = false
 })
 
@@ -1052,7 +1170,7 @@ async function pingAllDomainMembers() {
 
 .cluster-center__policy-badge,
 .cluster-center__update-available-badge,
-.cluster-center__panel-version-badge {
+.cluster-center__panel-version-button {
   align-items: center;
   border: 1px solid var(--app-border-1);
   border-radius: 999px;
@@ -1066,24 +1184,28 @@ async function pingAllDomainMembers() {
   white-space: nowrap;
 }
 
+.cluster-center__panel-version-button {
+  text-transform: none;
+}
+
 .cluster-center__policy-badge {
   color: var(--app-state-info);
 }
 
 .cluster-center__update-available-badge,
-.cluster-center__panel-version-badge--outdated {
+.cluster-center__panel-version-button--outdated {
   background: color-mix(in srgb, #f5b51b 13%, transparent);
   border-color: color-mix(in srgb, #f5b51b 48%, var(--app-border-1));
   color: #8a5a00;
 }
 
-.cluster-center__panel-version-badge--current {
+.cluster-center__panel-version-button--current {
   background: color-mix(in srgb, #1a9f62 13%, transparent);
   border-color: color-mix(in srgb, #1a9f62 44%, var(--app-border-1));
   color: #0f7044;
 }
 
-.cluster-center__panel-version-badge--unknown {
+.cluster-center__panel-version-button--unknown {
   color: var(--app-text-3);
 }
 
@@ -1284,6 +1406,13 @@ async function pingAllDomainMembers() {
 .cluster-center__confirm-token {
   font-family: var(--app-font-mono, ui-monospace, monospace);
   letter-spacing: 0.06em;
+}
+
+.cluster-center__panel-update-copy {
+  color: var(--app-text-2);
+  font-size: 14px;
+  line-height: 1.5;
+  margin: 0;
 }
 
 @media (max-width: 960px) {

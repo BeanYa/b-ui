@@ -299,11 +299,12 @@ export default {
       submit: "確認",
       delete: "刪除",
       leave: "退出域",
-      back: "後退",
-      manage: "管理",
-      pingAll: "Ping 全部",
-      confirmRegister: "確認註冊",
-    },
+        back: "後退",
+        manage: "管理",
+        pingAll: "Ping 全部",
+        updatePanel: "更新面板",
+        confirmRegister: "確認註冊",
+      },
     joinUriHint: "URI 以 buihub:// 開頭，例如 buihub://hub.example.com/domain?id=example.com&domain_token=xxx。",
     validation: {
       required: "Hub 位址、域Id 與域認證令牌為必填欄位。",
@@ -320,11 +321,19 @@ export default {
     stepDomainInfo: "域資訊",
     stepDisplayName: "顯示名稱",
     updateAvailable: "有新版本",
-    updatePolicies: {
-      auto: "自動更新",
-      manual: "手動更新",
-    },
-    successRegistered: "叢集節點已加入域並完成資訊重新整理",
+      updatePolicies: {
+        auto: "自動更新",
+        manual: "手動更新",
+      },
+      statuses: {
+        updating: "更新中",
+      },
+      panelUpdate: {
+        confirmTitle: "更新叢集面板？",
+        confirmCopy: "將向選中節點發送面板更新請求。節點上報更新中後，該行會暫時鎖定。",
+        requested: "面板更新請求已發送。",
+      },
+      successRegistered: "叢集節點已加入域並完成資訊重新整理",
   },
   client: {
     name: "名稱",

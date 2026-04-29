@@ -19,6 +19,10 @@ const PeerActionDomainClusterChanged = "domain.cluster.changed"
 
 const PeerActionDomainPanelUpdateAvailable = "domain.panel.update.available"
 
+const PeerActionDomainPanelUpdateRequest = "domain.panel.update.request"
+
+const PeerActionDomainPanelUpdateStatus = "domain.panel.update.status"
+
 type ClusterPeerDispatcher struct {
 	eventStore       clusterPeerStore
 	syncService      *ClusterSyncService
@@ -108,6 +112,62 @@ func (d *ClusterPeerDispatcher) Dispatch(ctx context.Context, domain *model.Clus
 		return store.MarkEventState(state.MessageID, PeerEventStatusSucceeded, "")
 	}
 
+	if message.Category == PeerCategoryCommand && message.Action == PeerActionDomainPanelUpdateRequest {
+		if err := d.handleDomainPanelUpdateRequest(ctx, domain, source, message); err != nil {
+			forwardedNextStep, chainErr := d.completeChainStep(ctx, domain, message, PeerEventStatusFailed, err.Error())
+			if chainErr != nil {
+				_ = store.MarkEventState(state.MessageID, PeerEventStatusFailed, chainErr.Error())
+				return chainErr
+			}
+			status := PeerEventStatusFailed
+			errorMessage := err.Error()
+			if forwardedNextStep {
+				status = PeerEventStatusSucceeded
+				errorMessage = ""
+			}
+			if markErr := store.MarkEventState(state.MessageID, status, errorMessage); markErr != nil {
+				return markErr
+			}
+			if forwardedNextStep {
+				return nil
+			}
+			return err
+		}
+		if _, err := d.completeChainStep(ctx, domain, message, PeerEventStatusSucceeded, ""); err != nil {
+			_ = store.MarkEventState(state.MessageID, PeerEventStatusFailed, err.Error())
+			return err
+		}
+		return store.MarkEventState(state.MessageID, PeerEventStatusSucceeded, "")
+	}
+
+	if message.Category == PeerCategoryEvent && message.Action == PeerActionDomainPanelUpdateStatus {
+		if err := d.handleDomainPanelUpdateStatus(ctx, domain, source, message); err != nil {
+			forwardedNextStep, chainErr := d.completeChainStep(ctx, domain, message, PeerEventStatusFailed, err.Error())
+			if chainErr != nil {
+				_ = store.MarkEventState(state.MessageID, PeerEventStatusFailed, chainErr.Error())
+				return chainErr
+			}
+			status := PeerEventStatusFailed
+			errorMessage := err.Error()
+			if forwardedNextStep {
+				status = PeerEventStatusSucceeded
+				errorMessage = ""
+			}
+			if markErr := store.MarkEventState(state.MessageID, status, errorMessage); markErr != nil {
+				return markErr
+			}
+			if forwardedNextStep {
+				return nil
+			}
+			return err
+		}
+		if _, err := d.completeChainStep(ctx, domain, message, PeerEventStatusSucceeded, ""); err != nil {
+			_ = store.MarkEventState(state.MessageID, PeerEventStatusFailed, err.Error())
+			return err
+		}
+		return store.MarkEventState(state.MessageID, PeerEventStatusSucceeded, "")
+	}
+
 	if message.Category == PeerCategoryEvent {
 		if _, err := d.completeChainStep(ctx, domain, message, PeerEventStatusUnsupported, ""); err != nil {
 			_ = store.MarkEventState(state.MessageID, PeerEventStatusFailed, err.Error())
@@ -158,6 +218,25 @@ func (d *ClusterPeerDispatcher) handleDomainPanelUpdateAvailable(ctx context.Con
 	}
 	_, err := d.getSyncService().HandlePanelUpdateAvailable(ctx, domain, targetVersion)
 	return err
+}
+
+func (d *ClusterPeerDispatcher) handleDomainPanelUpdateRequest(ctx context.Context, domain *model.ClusterDomain, source *model.ClusterMember, message *PeerMessage) error {
+	targetVersion, ok := message.Payload["target_version"].(string)
+	if !ok || targetVersion == "" {
+		return errors.New("invalid_payload_target_version")
+	}
+	_, err := d.getSyncService().HandlePanelUpdateRequest(ctx, domain, targetVersion)
+	return err
+}
+
+func (d *ClusterPeerDispatcher) handleDomainPanelUpdateStatus(ctx context.Context, domain *model.ClusterDomain, source *model.ClusterMember, message *PeerMessage) error {
+	status, ok := message.Payload["status"].(string)
+	if !ok || status == "" {
+		return errors.New("invalid_payload_status")
+	}
+	targetVersion, _ := message.Payload["target_version"].(string)
+	panelVersion, _ := message.Payload["panel_version"].(string)
+	return d.getSyncService().HandlePanelUpdateStatus(ctx, domain, source.NodeID, status, targetVersion, panelVersion)
 }
 
 func (d *ClusterPeerDispatcher) validateInboundRouteTarget(message *PeerMessage) (bool, string, error) {

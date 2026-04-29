@@ -297,11 +297,12 @@ export default {
       submit: "تأیید",
       delete: "حذف",
       leave: "ترک دامنه",
-      back: "بازگشت",
-      manage: "مدیریت",
-      pingAll: "Ping همه",
-      confirmRegister: "تأیید ثبت‌نام",
-    },
+        back: "بازگشت",
+        manage: "مدیریت",
+        pingAll: "Ping همه",
+        updatePanel: "به‌روزرسانی پنل",
+        confirmRegister: "تأیید ثبت‌نام",
+      },
     joinUriHint: "URI با buihub:// شروع می‌شود؛ برای نمونه buihub://hub.example.com/domain?id=example.com&domain_token=xxx",
     validation: {
       required: "آدرس Hub، شناسه دامنه و توکن دامنه الزامی هستند.",
@@ -318,11 +319,19 @@ export default {
     stepDomainInfo: "اطلاعات دامنه",
     stepDisplayName: "نام نمایشی",
     updateAvailable: "به‌روزرسانی موجود است",
-    updatePolicies: {
-      auto: "به‌روزرسانی خودکار",
-      manual: "دستی",
-    },
-    successRegistered: "نود خوشه به دامنه پیوست و اطلاعات با موفقیت نوسازی شد.",
+      updatePolicies: {
+        auto: "به‌روزرسانی خودکار",
+        manual: "دستی",
+      },
+      statuses: {
+        updating: "در حال به‌روزرسانی",
+      },
+      panelUpdate: {
+        confirmTitle: "پنل خوشه به‌روزرسانی شود؟",
+        confirmCopy: "درخواست به‌روزرسانی به نود انتخاب‌شده ارسال می‌شود. تا وقتی نود وضعیت به‌روزرسانی را گزارش کند، این ردیف قفل می‌ماند.",
+        requested: "درخواست به‌روزرسانی پنل ارسال شد.",
+      },
+      successRegistered: "نود خوشه به دامنه پیوست و اطلاعات با موفقیت نوسازی شد.",
   },
   client: {
     name: "نام",

@@ -659,6 +659,118 @@ func (s *ClusterService) CheckDomainPanelUpdate(id uint) (*ClusterPanelUpdateChe
 	return syncService.CheckAndBroadcastUpdate(context.Background(), domain)
 }
 
+func (s *ClusterService) RequestMemberPanelUpdate(id uint, targetVersion string) (*ClusterPanelMemberUpdateResult, error) {
+	store := s.getStore()
+	member, err := store.GetMember(id)
+	if err != nil {
+		return nil, err
+	}
+	domain, err := store.GetDomain(member.DomainID)
+	if err != nil {
+		return nil, err
+	}
+	resolvedTarget := canonicalizeReleaseTag(targetVersion)
+	if resolvedTarget == "" {
+		resolvedTarget = canonicalizeReleaseTag(domain.LatestPanelVersion)
+	}
+	if resolvedTarget == "" {
+		return nil, errors.New("cluster panel update target version is required")
+	}
+
+	local, err := s.localIdentity.GetOrCreate()
+	if err != nil {
+		return nil, err
+	}
+	if member.NodeID == local.NodeID {
+		syncService := s.peerSyncService()
+		if syncService.panelService == nil {
+			syncService.panelService = &PanelService{}
+		}
+		if syncService.hubClient == nil {
+			syncService.hubClient = s.getHubClient()
+		}
+		if syncService.secretProvider == nil {
+			syncService.secretProvider = s.getSecretProvider()
+		}
+		if syncService.localIdentity == nil {
+			syncService.localIdentity = &s.localIdentity
+		}
+		if syncService.broadcaster == nil {
+			syncService.broadcaster = &ClusterHTTPBroadcaster{}
+		}
+		result, err := syncService.HandlePanelUpdateRequest(context.Background(), domain, resolvedTarget)
+		if err != nil {
+			return nil, err
+		}
+		status := ClusterPanelUpdateStatusOnline
+		if result.UpdateStarted {
+			status = ClusterPanelUpdateStatusUpdating
+		}
+		return &ClusterPanelMemberUpdateResult{
+			NodeID:         member.NodeID,
+			CurrentVersion: result.CurrentVersion,
+			TargetVersion:  result.LatestVersion,
+			Status:         status,
+			UpdateStarted:  result.UpdateStarted,
+		}, nil
+	}
+
+	if member.PeerTokenEncrypted == "" {
+		return nil, errClusterTokenRequired
+	}
+	secret, err := s.getSecretProvider().GetSecret()
+	if err != nil {
+		return nil, err
+	}
+	peerToken, err := DecryptClusterDomainToken(secret, member.PeerTokenEncrypted)
+	if err != nil {
+		return nil, err
+	}
+	message, err := NewClusterPeerMessage(domain.Domain, domain.LastVersion, local.NodeID, domain.LastVersion, PeerCategoryCommand, PeerActionDomainPanelUpdateRequest, map[string]interface{}{
+		"target_version": resolvedTarget,
+	})
+	if err != nil {
+		return nil, err
+	}
+	message.Route = RoutePlan{
+		Mode:    RouteModeDirect,
+		Targets: []string{member.NodeID},
+		Delivery: &DeliveryPolicy{
+			Ack:       DeliveryAckNode,
+			TimeoutMs: 10000,
+			Retry: &RetryPolicy{
+				MaxAttempts: 1,
+				BackoffMs:   1000,
+			},
+		},
+	}
+	message.IdempotencyKey = "panel-update-request:" + domain.Domain + ":" + member.NodeID + ":" + resolvedTarget
+	if err := SignClusterPeerMessage(local, message); err != nil {
+		return nil, err
+	}
+	delivery := &ClusterPeerDeliveryService{
+		HTTPClient: s.peerHTTPClient(),
+		saveAckAttempt: func(messageID string, targetNode string, status string, errorMessage string) error {
+			return nil
+		},
+	}
+	if err := delivery.Send(context.Background(), message, *member, peerToken); err != nil {
+		return nil, err
+	}
+
+	member.Status = ClusterPanelUpdateStatusUpdating
+	if err := store.SaveMember(member); err != nil {
+		return nil, err
+	}
+	return &ClusterPanelMemberUpdateResult{
+		NodeID:         member.NodeID,
+		CurrentVersion: canonicalizeReleaseTag(member.PanelVersion),
+		TargetVersion:  resolvedTarget,
+		Status:         ClusterPanelUpdateStatusUpdating,
+		UpdateStarted:  true,
+	}, nil
+}
+
 func (s *ClusterService) DeleteMember(id uint) error {
 	store := s.getStore()
 	member, err := store.GetMember(id)

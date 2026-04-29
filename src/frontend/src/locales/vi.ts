@@ -297,11 +297,12 @@ export default {
       submit: "Xác nhận",
       delete: "Xóa",
       leave: "Rời miền",
-      back: "Quay lại",
-      manage: "Quản lý",
-      pingAll: "Ping tất cả",
-      confirmRegister: "Xác nhận đăng ký",
-    },
+        back: "Quay lại",
+        manage: "Quản lý",
+        pingAll: "Ping tất cả",
+        updatePanel: "Cập nhật panel",
+        confirmRegister: "Xác nhận đăng ký",
+      },
     joinUriHint: "URI bắt đầu bằng buihub://, ví dụ buihub://hub.example.com/domain?id=example.com&domain_token=xxx",
     validation: {
       required: "URL Hub, ID miền và token miền là bắt buộc.",
@@ -318,11 +319,19 @@ export default {
     stepDomainInfo: "Thông tin miền",
     stepDisplayName: "Tên hiển thị",
     updateAvailable: "Có bản cập nhật",
-    updatePolicies: {
-      auto: "Tự động cập nhật",
-      manual: "Thủ công",
-    },
-    successRegistered: "Nút cụm đã tham gia miền và làm mới trạng thái thành công.",
+      updatePolicies: {
+        auto: "Tự động cập nhật",
+        manual: "Thủ công",
+      },
+      statuses: {
+        updating: "Đang cập nhật",
+      },
+      panelUpdate: {
+        confirmTitle: "Cập nhật panel cụm?",
+        confirmCopy: "Yêu cầu cập nhật sẽ được gửi tới nút đã chọn. Hàng này sẽ bị khóa trong khi nút báo đang cập nhật.",
+        requested: "Đã gửi yêu cầu cập nhật panel.",
+      },
+      successRegistered: "Nút cụm đã tham gia miền và làm mới trạng thái thành công.",
   },
   client: {
     name: "Tên",
