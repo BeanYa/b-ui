@@ -173,6 +173,31 @@ func TestClusterSyncServicePollChecksPanelUpdatesWhenHubVersionUnchanged(t *test
 	}
 }
 
+func TestClusterSyncServiceVersionPollRefreshesSnapshotWhenMemberIsUpdating(t *testing.T) {
+	store := &stubClusterSyncStore{
+		domains: map[uint]*model.ClusterDomain{
+			1: {Id: 1, Domain: "edge.example.com", HubURL: "https://hub.example.com", LastVersion: 9},
+		},
+		members: map[string]*model.ClusterMember{
+			stubClusterSyncKey(1, "node-local"): {NodeID: "node-local", DomainID: 1, DisplayName: "local", LastVersion: 9, Status: "online"},
+			stubClusterSyncKey(1, "node-peer"):  {NodeID: "node-peer", DomainID: 1, DisplayName: "peer", LastVersion: 9, Status: "updating", PanelVersion: "v1.0.0"},
+		},
+	}
+	hub := &stubClusterHubSyncer{latestVersions: []int64{9}}
+	panel := &stubClusterPanelUpdater{info: &PanelUpdateInfo{CurrentVersion: "v1.0.0", LatestVersion: "v1.0.0", Comparison: "same"}}
+	service := &ClusterSyncService{store: store, hubSyncer: hub, panelService: panel}
+
+	if err := service.PollAndNotifyVersion(context.Background()); err != nil {
+		t.Fatalf("poll and refresh updating member: %v", err)
+	}
+	if hub.syncCalls != 1 {
+		t.Fatalf("expected unchanged hub version to refresh snapshot for updating member, got %d syncs", hub.syncCalls)
+	}
+	if hub.syncedVersions[0] != 9 {
+		t.Fatalf("expected synced version 9, got %d", hub.syncedVersions[0])
+	}
+}
+
 func TestClusterSyncServiceManualPolicyBroadcastsUpdateAvailableWithoutStartingUpdate(t *testing.T) {
 	secret := []byte("panel-secret-for-cluster-tests")
 	store := &stubClusterSyncStore{

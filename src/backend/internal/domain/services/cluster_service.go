@@ -617,7 +617,7 @@ func (s *ClusterService) ManualSync() (*ClusterOperationStatus, error) {
 	if syncService.hubSyncer == nil {
 		syncService.hubSyncer = s.getHubSyncer()
 	}
-	if err := syncService.PollAndNotifyVersion(context.Background()); err != nil {
+	if err := syncService.SyncNow(context.Background()); err != nil {
 		var removedMirrorErr *clusterDomainMirrorRemovedError
 		if errors.As(err, &removedMirrorErr) {
 			status, statusErr := newClusterOperationStatus("completed", removedMirrorErr.Error())

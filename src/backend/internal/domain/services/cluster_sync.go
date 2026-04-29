@@ -195,6 +195,14 @@ func (s *ClusterSyncService) HandleIncomingNotifyVersion(ctx context.Context, do
 }
 
 func (s *ClusterSyncService) PollAndNotifyVersion(ctx context.Context) error {
+	return s.pollAndNotifyVersion(ctx, false)
+}
+
+func (s *ClusterSyncService) SyncNow(ctx context.Context) error {
+	return s.pollAndNotifyVersion(ctx, true)
+}
+
+func (s *ClusterSyncService) pollAndNotifyVersion(ctx context.Context, forceSnapshot bool) error {
 	if s.store == nil || s.hubSyncer == nil {
 		return nil
 	}
@@ -217,11 +225,11 @@ func (s *ClusterSyncService) PollAndNotifyVersion(ctx context.Context) error {
 				_, _ = s.CheckAndBroadcastUpdate(ctx, &domain)
 				continue
 			}
-			needsDisplayNameBackfill, err := s.domainNeedsDisplayNameBackfill(domain.Id)
+			needsSnapshotRefresh, err := s.domainNeedsSnapshotRefresh(domain.Id)
 			if err != nil {
 				return err
 			}
-			if !needsDisplayNameBackfill {
+			if !forceSnapshot && !needsSnapshotRefresh {
 				_, _ = s.CheckAndBroadcastUpdate(ctx, &domain)
 				continue
 			}
@@ -242,13 +250,17 @@ func (s *ClusterSyncService) PollAndNotifyVersion(ctx context.Context) error {
 	return removedMirrorErr
 }
 
-func (s *ClusterSyncService) domainNeedsDisplayNameBackfill(domainID uint) (bool, error) {
+func (s *ClusterSyncService) domainNeedsSnapshotRefresh(domainID uint) (bool, error) {
 	members, err := s.store.GetMembers(domainID)
 	if err != nil {
 		return false, err
 	}
 	for _, member := range members {
 		if strings.TrimSpace(member.DisplayName) == "" && strings.TrimSpace(member.Name) == "" {
+			return true, nil
+		}
+		status := strings.TrimSpace(member.Status)
+		if status != "" && status != ClusterPanelUpdateStatusOnline {
 			return true, nil
 		}
 	}

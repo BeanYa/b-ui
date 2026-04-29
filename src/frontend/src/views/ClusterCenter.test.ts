@@ -315,4 +315,15 @@ describe('ClusterCenter view source', () => {
     expect(source).toContain('meshPingResults.value = upsertMeshPairResult(meshPingResults.value, result)')
     expect(source).toContain('function upsertMeshPairResult(results: MeshPairResult[], result: MeshPairResult): MeshPairResult[]')
   })
+
+  it('refreshes cluster member state after Ping All finishes', () => {
+    const source = readFileSync(fileURLToPath(new URL('./ClusterCenter.vue', import.meta.url)), 'utf8')
+    const functionStart = source.indexOf('async function pingAllDomainMembers()')
+    const pingIndex = source.indexOf('await pingStore.triggerMeshPingStream', functionStart)
+    const syncIndex = source.indexOf('await syncClusterState()', pingIndex)
+
+    expect(functionStart).toBeGreaterThan(-1)
+    expect(pingIndex).toBeGreaterThan(functionStart)
+    expect(syncIndex).toBeGreaterThan(pingIndex)
+  })
 })

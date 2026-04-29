@@ -629,6 +629,70 @@ func TestClusterServiceManualSyncReturnsCleanupMessageWhenHubNoLongerContainsLoc
 	}
 }
 
+func TestClusterServiceManualSyncRefreshesSnapshotWhenHubVersionIsUnchanged(t *testing.T) {
+	secret := []byte("panel-secret-for-cluster-tests")
+	store := &stubClusterServiceStore{
+		domains: map[string]*model.ClusterDomain{
+			"edge.example.com": {
+				Id:             1,
+				Domain:         "edge.example.com",
+				HubURL:         "https://hub.example.com",
+				LastVersion:    5,
+				TokenEncrypted: mustEncryptClusterToken(t, string(secret), "domain-token"),
+			},
+		},
+		members: map[string]*model.ClusterMember{
+			serviceMemberKey(1, "node-local"): {Id: 7, NodeID: "node-local", DomainID: 1, DisplayName: "local", LastVersion: 5, Status: "online", PanelVersion: "v1.0.0"},
+			serviceMemberKey(1, "node-peer"):  {Id: 8, NodeID: "node-peer", DomainID: 1, DisplayName: "peer", LastVersion: 5, Status: "updating", PanelVersion: "v1.0.0"},
+		},
+	}
+	hub := &stubClusterHubClient{
+		latestVersionResponse: &ClusterHubVersionResponse{Version: 5},
+		snapshotResponse: &ClusterHubSnapshotResponse{
+			Version: 5,
+			Members: []ClusterHubMemberResponse{
+				{NodeID: "node-local", BaseURL: "https://local.example.com", PanelVersion: "v1.0.0", Status: "online"},
+				{NodeID: "node-peer", BaseURL: "https://peer.example.com", PanelVersion: "v2.0.0", Status: "online"},
+			},
+		},
+	}
+	service := &ClusterService{
+		secretProvider: stubClusterSecretProvider{secret: secret},
+		localIdentity:  ClusterLocalIdentityService{store: &stubClusterLocalNodeStore{node: &model.ClusterLocalNode{NodeID: "node-local"}}},
+		store:          store,
+		hubClient:      hub,
+		syncService: ClusterSyncService{
+			store:        &clusterSyncStoreAdapter{store: store},
+			panelService: &stubClusterPanelUpdater{info: &PanelUpdateInfo{CurrentVersion: "v1.0.0", LatestVersion: "v1.0.0", Comparison: "same"}},
+			hubSyncer: &ClusterHubSyncer{
+				client:         hub,
+				store:          store,
+				secretProvider: stubClusterSecretProvider{secret: secret},
+				localIdentity:  &ClusterLocalIdentityService{store: &stubClusterLocalNodeStore{node: &model.ClusterLocalNode{NodeID: "node-local"}}},
+				reachability:   newTestClusterRuntimeReachabilityService(10),
+			},
+		},
+	}
+
+	status, err := service.ManualSync()
+	if err != nil {
+		t.Fatalf("manual sync: %v", err)
+	}
+	if status == nil || status.State != "completed" {
+		t.Fatalf("expected completed manual sync status, got %#v", status)
+	}
+	if hub.snapshotCalls != 1 {
+		t.Fatalf("expected manual sync to refresh hub snapshot, got %d snapshot calls", hub.snapshotCalls)
+	}
+	peer := store.members[serviceMemberKey(1, "node-peer")]
+	if peer == nil {
+		t.Fatalf("expected peer member to remain stored, members=%#v", store.members)
+	}
+	if peer.PanelVersion != "v2.0.0" || peer.Status != "online" {
+		t.Fatalf("expected peer status/version from refreshed snapshot, got %#v", peer)
+	}
+}
+
 func TestClusterServiceListMembersMarksLocalNode(t *testing.T) {
 	store := &stubClusterServiceStore{
 		members: map[string]*model.ClusterMember{

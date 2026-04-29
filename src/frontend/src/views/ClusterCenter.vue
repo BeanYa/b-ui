@@ -1037,6 +1037,11 @@ async function pingAllDomainMembers() {
   } catch {
     // error handled by store
   } finally {
+    try {
+      await syncClusterState()
+    } catch {
+      // refresh errors are surfaced by the shared HTTP layer
+    }
     meshPingLoading.value = false
   }
 }
