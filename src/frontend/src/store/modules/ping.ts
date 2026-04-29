@@ -8,7 +8,9 @@ import type {
   ExternalResultData,
   ExternalRunRequest,
   ExternalSource,
+  PingPolicy,
 } from '@/types/ping'
+import { DEFAULT_PING_POLICY } from '@/types/ping'
 
 type MeshStreamEvent =
   | { type: 'result'; result: MeshPairResult }
@@ -19,6 +21,7 @@ export const usePingStore = defineStore('PingStore', () => {
   const meshResult = ref<MeshResult | null>(null)
   const externalConfig = ref<ExternalConfig | null>(null)
   const externalResults = ref<ExternalResultData | null>(null)
+  const pingPolicy = ref<PingPolicy>({ ...DEFAULT_PING_POLICY })
   const loading = ref(false)
   const error = ref<string | null>(null)
 
@@ -210,8 +213,41 @@ export const usePingStore = defineStore('PingStore', () => {
     externalConfig.value?.sources.filter(s => s.direction === 'outbound') ?? []
   )
 
+  async function loadPingPolicy(domainId: string): Promise<PingPolicy> {
+    error.value = null
+    try {
+      const { data } = await api.get(`api/ping/policy/${encodeURIComponent(domainId)}`)
+      if (data.success) {
+        pingPolicy.value = data.obj
+        return data.obj
+      }
+      pingPolicy.value = { ...DEFAULT_PING_POLICY }
+      return pingPolicy.value
+    } catch (e: any) {
+      pingPolicy.value = { ...DEFAULT_PING_POLICY }
+      error.value = e.message
+      return pingPolicy.value
+    }
+  }
+
+  async function savePingPolicy(domainId: string, policy: PingPolicy): Promise<void> {
+    loading.value = true
+    error.value = null
+    try {
+      const { data } = await api.put(`api/ping/policy/${encodeURIComponent(domainId)}`, policy)
+      if (!data.success) throw new Error(data.msg)
+      pingPolicy.value = policy
+    } catch (e: any) {
+      error.value = e.message
+      throw e
+    } finally {
+      loading.value = false
+    }
+  }
+
   return {
     meshResult, externalConfig, externalResults, loading, error,
+    pingPolicy, loadPingPolicy, savePingPolicy,
     inboundSources, outboundSources,
     triggerMeshPing, triggerMeshPingStream, loadMeshResult,
     triggerExternalPing, loadExternalResults,

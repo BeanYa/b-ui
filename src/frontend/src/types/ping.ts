@@ -69,3 +69,29 @@ export function sortedByLatency(results: MeshPairResult[]): MeshPairResult[] {
     .filter(r => r.success && r.latency_ms !== null)
     .sort((a, b) => (a.latency_ms ?? Infinity) - (b.latency_ms ?? Infinity))
 }
+
+export interface PingPolicy {
+  enabled: boolean
+  interval: number       // seconds
+  timeout: number        // seconds
+  alert_threshold: number // ms, 0 = disabled
+  probe_methods: string[]
+  max_concurrent: number
+}
+
+export const DEFAULT_PING_POLICY: PingPolicy = {
+  enabled: false,
+  interval: 60,
+  timeout: 2,
+  alert_threshold: 300,
+  probe_methods: ['icmp', 'tcp', 'http'],
+  max_concurrent: 5,
+}
+
+export const PING_INTERVAL_OPTIONS = [
+  { label: '30s', value: 30 },
+  { label: '1min', value: 60 },
+  { label: '2min', value: 120 },
+  { label: '5min', value: 300 },
+  { label: '10min', value: 600 },
+]
