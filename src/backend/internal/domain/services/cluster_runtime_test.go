@@ -60,7 +60,7 @@ func TestClusterHubSyncerSyncDomainPersistsDisplayNameFromSnapshot(t *testing.T)
 			Members: []ClusterHubMemberResponse{{
 				NodeID:         "node-local",
 				DisplayNameAlt: "JP Bean Tokyo",
-				BaseURL:        "https://jp.whoisbean.com:10443/beanui/",
+				BaseURL:        "https://node-a.test:8443/panel/",
 				PeerToken:      "peer-token-local",
 			}},
 		}},
