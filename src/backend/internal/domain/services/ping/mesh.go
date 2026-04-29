@@ -12,10 +12,40 @@ import (
 	"runtime"
 	"strconv"
 	"strings"
+	"sync"
 	"time"
 )
 
 var ErrHubUnreachable = fmt.Errorf("hub unreachable")
+
+var (
+	meshResultCache sync.Map // map[string]*MeshResult
+	meshPingMu      sync.Mutex
+)
+
+// SetMeshResult stores a mesh result in the in-memory cache.
+func SetMeshResult(domainID string, result *MeshResult) {
+	meshResultCache.Store(domainID, result)
+}
+
+// GetLatestMeshResult returns the most recent mesh result from memory.
+func GetLatestMeshResult(domainID string) *MeshResult {
+	val, ok := meshResultCache.Load(domainID)
+	if !ok {
+		return nil
+	}
+	return val.(*MeshResult)
+}
+
+// AcquireMeshPingLock tries to acquire the mesh ping mutex. Returns true on success.
+func AcquireMeshPingLock() bool {
+	return meshPingMu.TryLock()
+}
+
+// ReleaseMeshPingLock releases the mesh ping mutex.
+func ReleaseMeshPingLock() {
+	meshPingMu.Unlock()
+}
 
 type MeshMember struct {
 	MemberID  string
@@ -95,7 +125,7 @@ func (s *MeshService) probePair(ctx context.Context, src, tgt MeshMember) MeshPa
 	// 1. ICMP ping (preferred — lightest, no auth required)
 	target := tgt.Address
 	if target == "" && tgt.BaseURL != "" {
-		target = extractHostFromBaseURL(tgt.BaseURL)
+		target = ExtractHostFromBaseURL(tgt.BaseURL)
 	}
 	if target != "" {
 		latency, err := s.icmpPing(ctx, target)
@@ -270,7 +300,7 @@ func measureTCPConnectLatency(dialer *net.Dialer, addr string) (float64, error) 
 	return float64(time.Since(start).Microseconds()) / 1000.0, nil
 }
 
-func extractHostFromBaseURL(baseURL string) string {
+func ExtractHostFromBaseURL(baseURL string) string {
 	s := strings.TrimSpace(baseURL)
 	s = strings.TrimPrefix(s, "https://")
 	s = strings.TrimPrefix(s, "http://")
