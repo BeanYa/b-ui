@@ -1,6 +1,10 @@
 package model
 
-import "encoding/json"
+import (
+	"encoding/json"
+
+	ping "github.com/BeanYa/b-ui/src/backend/internal/domain/services/ping"
+)
 
 type Setting struct {
 	Id    uint   `json:"id" form:"id" gorm:"primaryKey;autoIncrement"`
@@ -90,6 +94,27 @@ type ClusterDomain struct {
 	UpdatePolicy                 string `json:"updatePolicy" gorm:"default:auto"`
 	LatestPanelVersion           string `json:"latestPanelVersion"`
 	PanelUpdateAvailable         bool   `json:"panelUpdateAvailable" gorm:"default:false"`
+	PingPolicyJSON               string `json:"pingPolicyJson" gorm:"column:ping_policy_json;type:text;default:'{\"enabled\":false,\"interval\":60,\"timeout\":2,\"alert_threshold\":300,\"probe_methods\":[\"icmp\",\"tcp\",\"http\"],\"max_concurrent\":5}'"`
+}
+
+func (d *ClusterDomain) GetPingPolicy() ping.PingPolicy {
+	if d.PingPolicyJSON == "" {
+		return ping.DefaultPingPolicy()
+	}
+	var p ping.PingPolicy
+	if err := json.Unmarshal([]byte(d.PingPolicyJSON), &p); err != nil {
+		return ping.DefaultPingPolicy()
+	}
+	return p
+}
+
+func (d *ClusterDomain) SetPingPolicy(p ping.PingPolicy) error {
+	data, err := json.Marshal(p)
+	if err != nil {
+		return err
+	}
+	d.PingPolicyJSON = string(data)
+	return nil
 }
 
 type ClusterMember struct {
