@@ -64,7 +64,7 @@
           variant="outlined"
           color="error"
           :loading="leavingDomainId === selectedDomain.id"
-          @click="leaveDomain(selectedDomain)"
+          @click="requestLeaveDomain()"
         >
           {{ $t('clusterCenter.actions.leave') }}
         </v-btn>
@@ -220,7 +220,7 @@
                         :color="member.isLocal ? 'error' : 'warning'"
                         variant="outlined"
                         :loading="member.isLocal ? leavingDomainId === selectedDomain?.id : deletingMemberId === member.id"
-                        @click="member.isLocal ? leaveDomain(selectedDomain) : deleteMember(member)"
+                        @click="member.isLocal ? requestLeaveDomain() : requestDeleteMember(member)"
                       >
                         {{ member.isLocal ? $t('clusterCenter.actions.leave') : $t('clusterCenter.actions.delete') }}
                       </v-btn>
@@ -385,6 +385,26 @@
         </v-card-actions>
       </v-card>
     </v-dialog>
+
+    <v-dialog v-model="confirmActionDialog" class="app-dialog app-dialog--compact" max-width="460">
+      <v-card class="app-card-shell">
+        <v-card-title>{{ pendingAction === 'leave' ? $t('clusterCenter.confirmLeaveTitle') : $t('clusterCenter.confirmDeleteTitle') }}</v-card-title>
+        <v-card-text class="cluster-center__dialog-body">
+          <div class="cluster-center__step-indicator">
+            <span class="cluster-center__step-label">{{ $t('clusterCenter.table.node') }}</span>
+            <span class="cluster-center__step-value">{{ pendingActionTarget?.displayName || pendingActionTarget?.name || pendingActionTarget?.nodeId }}</span>
+          </div>
+          <p class="cluster-center__panel-update-copy">{{ pendingAction === 'leave' ? $t('clusterCenter.confirmLeaveDomain') : $t('clusterCenter.confirmDeleteMember') }}</p>
+        </v-card-text>
+        <v-card-actions>
+          <v-spacer />
+          <v-btn variant="text" @click="confirmActionDialog = false">{{ $t('clusterCenter.actions.cancel') }}</v-btn>
+          <v-btn :color="pendingAction === 'leave' ? 'error' : 'warning'" :loading="actionLoading" @click="confirmAction">
+            {{ $t('clusterCenter.actions.confirmDelete') }}
+          </v-btn>
+        </v-card-actions>
+      </v-card>
+    </v-dialog>
   </div>
 </template>
 
@@ -425,6 +445,9 @@ const panelUpdateDialog = ref(false)
 const selectedPanelUpdateMember = ref<ClusterMember | null>(null)
 const panelUpdatePending = ref<Record<number, boolean>>({})
 const panelUpdatePollTimers = new Map<number, number>()
+const confirmActionDialog = ref(false)
+const pendingAction = ref<'delete' | 'leave' | null>(null)
+const pendingActionTarget = ref<ClusterMember | null>(null)
 
 const form = ref({
   joinUri: '',
@@ -897,6 +920,29 @@ const manualSync = async () => {
   } finally {
     actionLoading.value = false
   }
+}
+
+const requestDeleteMember = (member: ClusterMember) => {
+  pendingAction.value = 'delete'
+  pendingActionTarget.value = member
+  confirmActionDialog.value = true
+}
+
+const requestLeaveDomain = () => {
+  pendingAction.value = 'leave'
+  pendingActionTarget.value = selectedDomainMembers.value.find(m => m.isLocal) ?? null
+  confirmActionDialog.value = true
+}
+
+const confirmAction = async () => {
+  confirmActionDialog.value = false
+  if (pendingAction.value === 'delete' && pendingActionTarget.value) {
+    await deleteMember(pendingActionTarget.value)
+  } else if (pendingAction.value === 'leave') {
+    await leaveDomain(selectedDomain.value)
+  }
+  pendingAction.value = null
+  pendingActionTarget.value = null
 }
 
 const deleteMember = async (member: ClusterMember) => {

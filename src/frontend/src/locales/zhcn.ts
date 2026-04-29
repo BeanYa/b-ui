@@ -304,7 +304,12 @@ export default {
         pingAll: "Ping 全部",
         updatePanel: "更新面板",
         confirmRegister: "确认注册",
+        confirmDelete: "确认删除",
       },
+      confirmDeleteTitle: "确认删除",
+      confirmDeleteMember: "确认将该成员从域中移除？",
+      confirmLeaveTitle: "确认退出域",
+      confirmLeaveDomain: "确认退出当前域？本机节点将离开此域。",
     joinUriHint: "URI 以 buihub:// 开头，例如 buihub://hub.example.com/domain?id=example.com&domain_token=xxx。",
     validation: {
       required: "Hub 地址、域Id 和域认证令牌为必填项。",

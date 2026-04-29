@@ -302,7 +302,12 @@ export default {
         pingAll: "Ping همه",
         updatePanel: "به‌روزرسانی پنل",
         confirmRegister: "تأیید ثبت‌نام",
+        confirmDelete: "تأیید حذف",
       },
+      confirmDeleteTitle: "تأیید حذف",
+      confirmDeleteMember: "این عضو از دامنه حذف شود؟",
+      confirmLeaveTitle: "تأیید ترک دامنه",
+      confirmLeaveDomain: "دامنه جاری ترک شود؟ نود محلی شما از این دامنه حذف خواهد شد.",
     joinUriHint: "URI با buihub:// شروع می‌شود؛ برای نمونه buihub://hub.example.com/domain?id=example.com&domain_token=xxx",
     validation: {
       required: "آدرس Hub، شناسه دامنه و توکن دامنه الزامی هستند.",

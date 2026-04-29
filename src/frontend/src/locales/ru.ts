@@ -303,7 +303,12 @@ export default {
         pingAll: "Ping всех",
         updatePanel: "Обновить панель",
         confirmRegister: "Подтвердить регистрацию",
+        confirmDelete: "Подтвердить удаление",
       },
+      confirmDeleteTitle: "Подтвердить удаление",
+      confirmDeleteMember: "Удалить этого участника из домена?",
+      confirmLeaveTitle: "Подтвердить выход из домена",
+      confirmLeaveDomain: "Покинуть текущий домен? Ваш локальный узел будет удалён из этого домена.",
     joinUriHint: "URI начинается с buihub://, например buihub://hub.example.com/domain?id=example.com&domain_token=xxx",
     validation: {
       required: "URL Hub, ID домена и токен домена обязательны.",

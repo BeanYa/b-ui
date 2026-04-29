@@ -12,7 +12,7 @@ import zhtw from './zhtw'
 describe('cluster center locale copy', () => {
   const locales = [en, fa, ru, vi, zhcn, zhtw]
 
-  it('defines the join-domain dialog and toast copy in every locale', () => {
+  it('defines the required dialog and toast copy in every locale', () => {
     const requiredKeys = [
       'displayName',
       'displayNameHint',
@@ -22,9 +22,13 @@ describe('cluster center locale copy', () => {
       'stepDomainInfo',
       'stepDisplayName',
       'successRegistered',
+      'confirmDeleteTitle',
+      'confirmDeleteMember',
+      'confirmLeaveTitle',
+      'confirmLeaveDomain',
     ] as const
     const requiredFieldKeys = ['joinUri', 'localBaseUrl'] as const
-    const requiredActionKeys = ['manage', 'pingAll', 'confirmRegister'] as const
+    const requiredActionKeys = ['manage', 'pingAll', 'confirmRegister', 'confirmDelete'] as const
 
     for (const messages of locales) {
       for (const key of requiredKeys) {
@@ -66,6 +70,11 @@ describe('cluster center locale copy', () => {
     expect(source).toContain("$t('clusterCenter.actions.pingAll')")
     expect(source).toContain("$t('clusterCenter.fields.localBaseUrl')")
     expect(source).toContain("$t('clusterCenter.actions.confirmRegister')")
+    expect(source).toContain("$t('clusterCenter.actions.confirmDelete')")
+    expect(source).toContain("$t('clusterCenter.confirmDeleteTitle')")
+    expect(source).toContain("$t('clusterCenter.confirmDeleteMember')")
+    expect(source).toContain("$t('clusterCenter.confirmLeaveTitle')")
+    expect(source).toContain("$t('clusterCenter.confirmLeaveDomain')")
     expect(source).not.toContain('Hub 地址')
     expect(source).not.toContain('本机地址')
     expect(source).not.toContain('确认注册')

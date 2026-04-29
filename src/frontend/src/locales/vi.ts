@@ -302,7 +302,12 @@ export default {
         pingAll: "Ping tất cả",
         updatePanel: "Cập nhật panel",
         confirmRegister: "Xác nhận đăng ký",
+        confirmDelete: "Xác nhận xóa",
       },
+      confirmDeleteTitle: "Xác nhận xóa",
+      confirmDeleteMember: "Xóa thành viên này khỏi miền?",
+      confirmLeaveTitle: "Xác nhận rời miền",
+      confirmLeaveDomain: "Rời miền hiện tại? Nút cục bộ của bạn sẽ bị xóa khỏi miền này.",
     joinUriHint: "URI bắt đầu bằng buihub://, ví dụ buihub://hub.example.com/domain?id=example.com&domain_token=xxx",
     validation: {
       required: "URL Hub, ID miền và token miền là bắt buộc.",

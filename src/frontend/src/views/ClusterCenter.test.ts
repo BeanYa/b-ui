@@ -194,7 +194,7 @@ describe('ClusterCenter view source', () => {
       'formatPanelVersion(member.panelVersion)',
       'memberStatusColor(member)',
       'memberLatency(member.nodeId)',
-      'member.isLocal ? leaveDomain(selectedDomain) : deleteMember(member)',
+      'member.isLocal ? requestLeaveDomain() : requestDeleteMember(member)',
     ]
 
     let lastIndex = -1
@@ -258,7 +258,7 @@ describe('ClusterCenter view source', () => {
 
     expect(toolbarSource).not.toContain("{{ $t('clusterCenter.actions.leave') }}")
     expect(source).toContain('cluster-center__detail-actions')
-    expect(source).toContain('@click="leaveDomain(selectedDomain)"')
+    expect(source).toContain('@click="requestLeaveDomain()"')
     expect(source).toContain(':loading="leavingDomainId === selectedDomain.id"')
   })
 
@@ -277,9 +277,24 @@ describe('ClusterCenter view source', () => {
 
     expect(source).toContain('member.isLocal')
     expect(source).toContain("{{ $t('clusterCenter.localNode') }}")
-    expect(source).toContain("member.isLocal ? leaveDomain(selectedDomain) : deleteMember(member)")
+    expect(source).toContain("member.isLocal ? requestLeaveDomain() : requestDeleteMember(member)")
     expect(source).toContain("member.isLocal ? $t('clusterCenter.actions.leave') : $t('clusterCenter.actions.delete')")
     expect(source).toContain('member.isLocal ? leavingDomainId === selectedDomain?.id : deletingMemberId === member.id')
+  })
+
+  it('shows a confirmation dialog before deleting a member or leaving a domain', () => {
+    const source = readFileSync(fileURLToPath(new URL('./ClusterCenter.vue', import.meta.url)), 'utf8')
+
+    expect(source).toContain('const confirmActionDialog = ref(false)')
+    expect(source).toContain("const pendingAction = ref<'delete' | 'leave' | null>(null)")
+    expect(source).toContain('const requestDeleteMember = (member: ClusterMember) => {')
+    expect(source).toContain('const requestLeaveDomain = () => {')
+    expect(source).toContain('const confirmAction = async () => {')
+    expect(source).toContain("$t('clusterCenter.confirmDeleteTitle')")
+    expect(source).toContain("$t('clusterCenter.confirmDeleteMember')")
+    expect(source).toContain("$t('clusterCenter.confirmLeaveTitle')")
+    expect(source).toContain("$t('clusterCenter.confirmLeaveDomain')")
+    expect(source).toContain("$t('clusterCenter.actions.confirmDelete')")
   })
 
   it('opens node management with id query only so connection details are resolved server-side', () => {
