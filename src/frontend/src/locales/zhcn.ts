@@ -279,6 +279,7 @@ export default {
       communicationProtocol: "通信协议",
       communicationEndpoint: "域内 Endpoint",
       supportedActions: "支持动作",
+      updatePolicy: "更新策略",
     },
     table: {
       node: "节点",
@@ -318,6 +319,11 @@ export default {
     pullDomain: "拉取并映射",
     stepDomainInfo: "域信息",
     stepDisplayName: "显示名称",
+    updateAvailable: "有新版本",
+    updatePolicies: {
+      auto: "自动更新",
+      manual: "手动更新",
+    },
     successRegistered: "集群节点已加入域并完成信息刷新",
   },
   client: {

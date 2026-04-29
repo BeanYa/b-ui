@@ -278,6 +278,7 @@ export default {
       communicationProtocol: "Протокол связи",
       communicationEndpoint: "Endpoint домена",
       supportedActions: "Поддерживаемые действия",
+      updatePolicy: "Политика обновлений",
     },
     table: {
       node: "Узел",
@@ -317,6 +318,11 @@ export default {
     pullDomain: "Получить и сопоставить",
     stepDomainInfo: "Информация о домене",
     stepDisplayName: "Отображаемое имя",
+    updateAvailable: "Доступно обновление",
+    updatePolicies: {
+      auto: "Автообновление",
+      manual: "Вручную",
+    },
     successRegistered: "Узел кластера присоединился к домену и успешно обновил состояние.",
   },
   client: {

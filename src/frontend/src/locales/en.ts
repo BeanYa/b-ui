@@ -280,6 +280,7 @@ export default {
       communicationProtocol: "Communication Protocol",
       communicationEndpoint: "Domain Endpoint",
       supportedActions: "Supported Actions",
+      updatePolicy: "Update Policy",
     },
     table: {
       node: "Node",
@@ -312,6 +313,11 @@ export default {
     pullDomain: "Pull and Map",
     stepDomainInfo: "Domain Info",
     stepDisplayName: "Display Name",
+    updateAvailable: "Update available",
+    updatePolicies: {
+      auto: "Auto Update",
+      manual: "Manual",
+    },
     validation: {
       required: "Hub URL, Domain Id, and Domain Token are required.",
       hubUrl: "Hub URL must be an absolute URL and use https unless it is localhost.",

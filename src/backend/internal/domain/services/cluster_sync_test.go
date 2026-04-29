@@ -152,6 +152,134 @@ func TestClusterSyncServiceManualPollSyncsFromHubWhenRemoteVersionNewer(t *testi
 	}
 }
 
+func TestClusterSyncServicePollChecksPanelUpdatesWhenHubVersionUnchanged(t *testing.T) {
+	store := &stubClusterSyncStore{
+		domains: map[uint]*model.ClusterDomain{
+			1: {Id: 1, Domain: "edge.example.com", HubURL: "https://hub.example.com", LastVersion: 9, UpdatePolicy: ClusterDomainUpdatePolicyAuto},
+		},
+	}
+	hub := &stubClusterHubSyncer{latestVersions: []int64{9}}
+	panel := &stubClusterPanelUpdater{info: &PanelUpdateInfo{CurrentVersion: "v1.0.0", LatestVersion: "v1.0.0", Comparison: "same"}}
+	service := &ClusterSyncService{store: store, hubSyncer: hub, panelService: panel}
+
+	if err := service.PollAndNotifyVersion(context.Background()); err != nil {
+		t.Fatalf("poll and check panel update: %v", err)
+	}
+	if hub.syncCalls != 0 {
+		t.Fatalf("expected unchanged hub version to skip snapshot sync, got %d syncs", hub.syncCalls)
+	}
+	if panel.infoCalls != 1 {
+		t.Fatalf("expected panel update check even when hub version is unchanged, got %d checks", panel.infoCalls)
+	}
+}
+
+func TestClusterSyncServiceManualPolicyBroadcastsUpdateAvailableWithoutStartingUpdate(t *testing.T) {
+	secret := []byte("panel-secret-for-cluster-tests")
+	store := &stubClusterSyncStore{
+		domains: map[uint]*model.ClusterDomain{
+			1: {
+				Id:             1,
+				Domain:         "edge.example.com",
+				HubURL:         "https://hub.example.com",
+				TokenEncrypted: mustEncryptClusterToken(t, string(secret), "domain-token"),
+				UpdatePolicy:   ClusterDomainUpdatePolicyManual,
+			},
+		},
+	}
+	panel := &stubClusterPanelUpdater{info: &PanelUpdateInfo{CurrentVersion: "v1.0.0", LatestVersion: "v999.0.0", Comparison: "older", UpdateAvailable: true}}
+	broadcaster := &stubClusterBroadcaster{}
+	hub := &stubClusterUpdateHubClient{}
+	service := &ClusterSyncService{
+		store:          store,
+		panelService:   panel,
+		broadcaster:    broadcaster,
+		hubClient:      hub,
+		secretProvider: stubClusterSecretProvider{secret: secret},
+		localIdentity:  &ClusterLocalIdentityService{store: &stubClusterLocalNodeStore{node: &model.ClusterLocalNode{NodeID: "node-local"}}},
+	}
+
+	result, err := service.CheckAndBroadcastUpdate(context.Background(), store.domains[1])
+	if err != nil {
+		t.Fatalf("manual check update: %v", err)
+	}
+	if result == nil || !result.UpdateAvailable || result.AutoUpdate {
+		t.Fatalf("expected manual update availability without auto update, got %#v", result)
+	}
+	if panel.startCalls != 0 {
+		t.Fatalf("expected manual policy not to start update, got %d starts", panel.startCalls)
+	}
+	if broadcaster.updateCalls != 1 {
+		t.Fatalf("expected one update available broadcast, got %d", broadcaster.updateCalls)
+	}
+	if hub.claimCalls != 1 {
+		t.Fatalf("expected one hub update claim, got %d", hub.claimCalls)
+	}
+	if saved := store.domains[1]; !saved.PanelUpdateAvailable || saved.LatestPanelVersion != "v999.0.0" {
+		t.Fatalf("expected saved update availability, got %#v", saved)
+	}
+}
+
+func TestClusterSyncServiceAutoPolicyStartsUpdateAndMarksOffline(t *testing.T) {
+	secret := []byte("panel-secret-for-cluster-tests")
+	store := &stubClusterSyncStore{
+		domains: map[uint]*model.ClusterDomain{
+			1: {
+				Id:             1,
+				Domain:         "edge.example.com",
+				HubURL:         "https://hub.example.com",
+				TokenEncrypted: mustEncryptClusterToken(t, string(secret), "domain-token"),
+				UpdatePolicy:   ClusterDomainUpdatePolicyAuto,
+			},
+		},
+	}
+	panel := &stubClusterPanelUpdater{info: &PanelUpdateInfo{CurrentVersion: "v1.0.0", LatestVersion: "v999.0.0", Comparison: "older", UpdateAvailable: true}}
+	hub := &stubClusterUpdateHubClient{}
+	service := &ClusterSyncService{
+		store:          store,
+		panelService:   panel,
+		broadcaster:    &stubClusterBroadcaster{},
+		hubClient:      hub,
+		secretProvider: stubClusterSecretProvider{secret: secret},
+		localIdentity:  &ClusterLocalIdentityService{store: &stubClusterLocalNodeStore{node: &model.ClusterLocalNode{NodeID: "node-local"}}},
+	}
+
+	result, err := service.CheckAndBroadcastUpdate(context.Background(), store.domains[1])
+	if err != nil {
+		t.Fatalf("auto check update: %v", err)
+	}
+	if result == nil || !result.UpdateAvailable || !result.AutoUpdate || !result.UpdateStarted {
+		t.Fatalf("expected automatic update to start, got %#v", result)
+	}
+	if panel.startCalls != 1 || panel.startedVersions[0] != "v999.0.0" {
+		t.Fatalf("expected one automatic update to v999.0.0, got calls=%d versions=%#v", panel.startCalls, panel.startedVersions)
+	}
+	if hub.setStatusCalls != 1 || hub.lastStatus != "offline" {
+		t.Fatalf("expected local member to be marked offline, got calls=%d status=%q", hub.setStatusCalls, hub.lastStatus)
+	}
+}
+
+func TestClusterSyncServiceAutoPolicyWinsAcrossDomainsWhenHandlingUpdateEvent(t *testing.T) {
+	store := &stubClusterSyncStore{
+		domains: map[uint]*model.ClusterDomain{
+			1: {Id: 1, Domain: "manual.example.com", UpdatePolicy: ClusterDomainUpdatePolicyManual},
+			2: {Id: 2, Domain: "auto.example.com", UpdatePolicy: ClusterDomainUpdatePolicyAuto},
+		},
+	}
+	panel := &stubClusterPanelUpdater{}
+	service := &ClusterSyncService{store: store, panelService: panel}
+
+	result, err := service.HandlePanelUpdateAvailable(context.Background(), store.domains[1], "v999.0.0")
+	if err != nil {
+		t.Fatalf("handle update event: %v", err)
+	}
+	if result == nil || !result.AutoUpdate || !result.UpdateStarted {
+		t.Fatalf("expected auto policy in another domain to trigger update, got %#v", result)
+	}
+	if panel.startCalls != 1 {
+		t.Fatalf("expected one automatic update start, got %d", panel.startCalls)
+	}
+}
+
 func TestClusterSyncServiceUsesDomainScopedMemberLookup(t *testing.T) {
 	store := &stubClusterSyncStore{
 		domains: map[uint]*model.ClusterDomain{
@@ -255,9 +383,12 @@ func (s *stubClusterSyncRunner) SyncMember(_ context.Context, nodeID string, ver
 }
 
 type stubClusterBroadcaster struct {
-	calls    int
-	versions []int64
-	excludes []string
+	calls                int
+	versions             []int64
+	excludes             []string
+	updateCalls          int
+	updateTargetVersions []string
+	updateDomainIDs      []uint
 }
 
 func (s *stubClusterBroadcaster) BroadcastNotifyVersion(_ context.Context, version int64, excludeNodeID string) error {
@@ -267,8 +398,69 @@ func (s *stubClusterBroadcaster) BroadcastNotifyVersion(_ context.Context, versi
 	return nil
 }
 
-func (s *stubClusterBroadcaster) BroadcastUpdateAvailable(_ context.Context, _ uint, _ string, _ string, _ string) error {
+func (s *stubClusterBroadcaster) BroadcastUpdateAvailable(_ context.Context, domainID uint, _ string, targetVersion string, _ string) error {
+	s.updateCalls++
+	s.updateDomainIDs = append(s.updateDomainIDs, domainID)
+	s.updateTargetVersions = append(s.updateTargetVersions, targetVersion)
 	return nil
+}
+
+type stubClusterPanelUpdater struct {
+	info            *PanelUpdateInfo
+	infoErr         error
+	infoCalls       int
+	startCalls      int
+	startedVersions []string
+	startedForces   []bool
+}
+
+func (s *stubClusterPanelUpdater) GetUpdateInfo() (*PanelUpdateInfo, error) {
+	s.infoCalls++
+	if s.infoErr != nil {
+		return nil, s.infoErr
+	}
+	if s.info != nil {
+		return s.info, nil
+	}
+	return &PanelUpdateInfo{CurrentVersion: "v1.0.0", LatestVersion: "v999.0.0", Comparison: "older", UpdateAvailable: true}, nil
+}
+
+func (s *stubClusterPanelUpdater) StartUpdate(targetVersion string, force bool) (*PanelUpdateStartResult, error) {
+	s.startCalls++
+	s.startedVersions = append(s.startedVersions, targetVersion)
+	s.startedForces = append(s.startedForces, force)
+	return &PanelUpdateStartResult{TargetVersion: targetVersion, Force: force}, nil
+}
+
+type stubClusterUpdateHubClient struct {
+	claimCalls         int
+	setStatusCalls     int
+	lastClaimTarget    string
+	lastStatus         string
+	claimResponse      *ClusterHubClaimUpdateResponse
+	claimErr           error
+	setMemberStatusErr error
+}
+
+func (s *stubClusterUpdateHubClient) ClaimUpdate(_ context.Context, _ string, _ string, _ string, _ string, targetVersion string) (*ClusterHubClaimUpdateResponse, error) {
+	s.claimCalls++
+	s.lastClaimTarget = targetVersion
+	if s.claimErr != nil {
+		return nil, s.claimErr
+	}
+	if s.claimResponse != nil {
+		return s.claimResponse, nil
+	}
+	return &ClusterHubClaimUpdateResponse{Proceed: true, TargetVersion: targetVersion}, nil
+}
+
+func (s *stubClusterUpdateHubClient) SetMemberStatus(_ context.Context, _ string, _ string, _ string, _ string, _ string, status string, _ string) (*ClusterHubMemberStatusResponse, error) {
+	s.setStatusCalls++
+	s.lastStatus = status
+	if s.setMemberStatusErr != nil {
+		return nil, s.setMemberStatusErr
+	}
+	return &ClusterHubMemberStatusResponse{OK: true}, nil
 }
 
 type stubClusterVersionSource struct {

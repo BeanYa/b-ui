@@ -5,6 +5,9 @@ export interface ClusterDomain {
   communicationEndpointPath: string
   communicationProtocolVersion: string
   lastVersion: number
+  updatePolicy: 'auto' | 'manual'
+  latestPanelVersion?: string
+  panelUpdateAvailable?: boolean
   supportedActions: string[]
 }
 
@@ -33,4 +36,14 @@ export interface ClusterOperationStatus {
   id: string
   state: string
   message?: string
+}
+
+export interface ClusterPanelUpdateCheck {
+  currentVersion: string
+  latestVersion?: string
+  comparison: string
+  updateAvailable: boolean
+  updatePolicy: 'auto' | 'manual'
+  autoUpdate: boolean
+  updateStarted: boolean
 }

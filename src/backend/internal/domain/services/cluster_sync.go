@@ -17,6 +17,11 @@ import (
 var errClusterMemberNotFound = errors.New("cluster member not found")
 var errClusterDomainNotFound = errors.New("cluster domain not found")
 
+const (
+	ClusterDomainUpdatePolicyAuto   = "auto"
+	ClusterDomainUpdatePolicyManual = "manual"
+)
+
 type ClusterEnvelope struct {
 	SchemaVersion int    `json:"schemaVersion"`
 	MessageType   string `json:"messageType"`
@@ -105,18 +110,43 @@ type clusterHubSyncer interface {
 	SyncDomain(context.Context, *model.ClusterDomain, int64) error
 }
 
+type clusterPanelUpdater interface {
+	GetUpdateInfo() (*PanelUpdateInfo, error)
+	StartUpdate(targetVersion string, force bool) (*PanelUpdateStartResult, error)
+}
+
+type clusterUpdateHubClient interface {
+	ClaimUpdate(context.Context, string, string, string, string, string) (*ClusterHubClaimUpdateResponse, error)
+	SetMemberStatus(context.Context, string, string, string, string, string, string, string) (*ClusterHubMemberStatusResponse, error)
+}
+
+type ClusterPanelUpdateCheckResult struct {
+	CurrentVersion  string `json:"currentVersion"`
+	LatestVersion   string `json:"latestVersion,omitempty"`
+	Comparison      string `json:"comparison"`
+	UpdateAvailable bool   `json:"updateAvailable"`
+	UpdatePolicy    string `json:"updatePolicy"`
+	AutoUpdate      bool   `json:"autoUpdate"`
+	UpdateStarted   bool   `json:"updateStarted"`
+}
+
 type ClusterSyncService struct {
-	store        clusterSyncStore
-	hubSyncer    clusterHubSyncer
-	broadcaster  clusterBroadcaster
-	panelService *PanelService
+	store          clusterSyncStore
+	hubSyncer      clusterHubSyncer
+	broadcaster    clusterBroadcaster
+	panelService   clusterPanelUpdater
+	hubClient      clusterUpdateHubClient
+	secretProvider clusterSecretProvider
+	localIdentity  clusterLocalIdentityProvider
 }
 
 func NewRuntimeClusterSyncService() ClusterSyncService {
 	return ClusterSyncService{
 		store:        &dbClusterSyncStore{},
 		hubSyncer:    &ClusterHubSyncer{localIdentity: &ClusterLocalIdentityService{}},
+		broadcaster:  &ClusterHTTPBroadcaster{},
 		panelService: &PanelService{},
+		hubClient:    &ClusterHubClient{},
 	}
 }
 
@@ -167,6 +197,7 @@ func (s *ClusterSyncService) PollAndNotifyVersion(ctx context.Context) error {
 		}
 		if version <= domain.LastVersion {
 			if version < domain.LastVersion {
+				_, _ = s.CheckAndBroadcastUpdate(ctx, &domain)
 				continue
 			}
 			needsDisplayNameBackfill, err := s.domainNeedsDisplayNameBackfill(domain.Id)
@@ -174,6 +205,7 @@ func (s *ClusterSyncService) PollAndNotifyVersion(ctx context.Context) error {
 				return err
 			}
 			if !needsDisplayNameBackfill {
+				_, _ = s.CheckAndBroadcastUpdate(ctx, &domain)
 				continue
 			}
 		}
@@ -188,7 +220,7 @@ func (s *ClusterSyncService) PollAndNotifyVersion(ctx context.Context) error {
 			return err
 		}
 
-		_ = s.CheckAndBroadcastUpdate(ctx, &domain)
+		_, _ = s.CheckAndBroadcastUpdate(ctx, &domain)
 	}
 	return removedMirrorErr
 }
@@ -206,27 +238,139 @@ func (s *ClusterSyncService) domainNeedsDisplayNameBackfill(domainID uint) (bool
 	return false, nil
 }
 
-func (s *ClusterSyncService) CheckAndBroadcastUpdate(ctx context.Context, domain *model.ClusterDomain) error {
-	members, err := s.store.GetMembers(domain.Id)
+func (s *ClusterSyncService) CheckAndBroadcastUpdate(ctx context.Context, domain *model.ClusterDomain) (*ClusterPanelUpdateCheckResult, error) {
+	if domain == nil {
+		return nil, errClusterDomainNotFound
+	}
+	info, err := s.getPanelUpdater().GetUpdateInfo()
 	if err != nil {
-		return err
+		return nil, err
+	}
+	currentVersion := canonicalizeReleaseTag(info.CurrentVersion)
+	if currentVersion == "" {
+		currentVersion = canonicalizeReleaseTag(config.GetVersion())
+	}
+	latestVersion := canonicalizeReleaseTag(info.LatestVersion)
+	comparison := compareReleaseTags(currentVersion, latestVersion)
+	updateAvailable := latestVersion != "" && comparison == "older"
+	result := &ClusterPanelUpdateCheckResult{
+		CurrentVersion:  currentVersion,
+		LatestVersion:   latestVersion,
+		Comparison:      comparison,
+		UpdateAvailable: updateAvailable,
+		UpdatePolicy:    effectiveClusterDomainUpdatePolicy(domain.UpdatePolicy),
+	}
+	if err := s.saveDomainPanelUpdateState(domain, latestVersion, updateAvailable); err != nil {
+		return nil, err
+	}
+	if !updateAvailable {
+		return result, nil
+	}
+	if claimProceed, claimedVersion, err := s.claimDomainPanelUpdate(ctx, domain, latestVersion); err != nil {
+		return nil, err
+	} else if !claimProceed {
+		return result, nil
+	} else if claimedVersion != "" {
+		latestVersion = claimedVersion
+		result.LatestVersion = latestVersion
 	}
 
-	currentVersion := canonicalizeReleaseTag(config.GetVersion())
-	maxVersion := currentVersion
-	for _, member := range members {
-		mv := canonicalizeReleaseTag(member.PanelVersion)
-		if compareReleaseTags(mv, maxVersion) == "newer" {
-			maxVersion = mv
+	autoUpdate, err := s.shouldAutoUpdate(domain)
+	if err != nil {
+		return nil, err
+	}
+	result.AutoUpdate = autoUpdate
+
+	localNodeID := ""
+	if s.broadcaster != nil || autoUpdate {
+		local, err := s.getLocalIdentity().GetOrCreate()
+		if err != nil {
+			return nil, err
 		}
+		localNodeID = local.NodeID
 	}
+	if s.broadcaster != nil {
+		_ = s.broadcaster.BroadcastUpdateAvailable(ctx, domain.Id, domain.Domain, latestVersion, localNodeID)
+	}
+	if !autoUpdate {
+		return result, nil
+	}
+	_ = s.markLocalMemberOffline(ctx, domain, localNodeID, currentVersion)
+	if _, err := s.getPanelUpdater().StartUpdate(latestVersion, true); err != nil {
+		return result, err
+	}
+	result.UpdateStarted = true
+	return result, nil
+}
 
-	if compareReleaseTags(currentVersion, maxVersion) != "older" {
+func (s *ClusterSyncService) HandlePanelUpdateAvailable(ctx context.Context, domain *model.ClusterDomain, targetVersion string) (*ClusterPanelUpdateCheckResult, error) {
+	if domain == nil {
+		return nil, errClusterDomainNotFound
+	}
+	currentVersion := canonicalizeReleaseTag(config.GetVersion())
+	latestVersion := canonicalizeReleaseTag(targetVersion)
+	comparison := compareReleaseTags(currentVersion, latestVersion)
+	updateAvailable := latestVersion != "" && comparison == "older"
+	result := &ClusterPanelUpdateCheckResult{
+		CurrentVersion:  currentVersion,
+		LatestVersion:   latestVersion,
+		Comparison:      comparison,
+		UpdateAvailable: updateAvailable,
+		UpdatePolicy:    effectiveClusterDomainUpdatePolicy(domain.UpdatePolicy),
+	}
+	if err := s.saveDomainPanelUpdateState(domain, latestVersion, updateAvailable); err != nil {
+		return nil, err
+	}
+	if !updateAvailable {
+		return result, nil
+	}
+	autoUpdate, err := s.shouldAutoUpdate(domain)
+	if err != nil {
+		return nil, err
+	}
+	result.AutoUpdate = autoUpdate
+	if !autoUpdate {
+		return result, nil
+	}
+	if _, err := s.getPanelUpdater().StartUpdate(latestVersion, true); err != nil {
+		return result, err
+	}
+	result.UpdateStarted = true
+	return result, nil
+}
+
+func (s *ClusterSyncService) claimDomainPanelUpdate(ctx context.Context, domain *model.ClusterDomain, targetVersion string) (bool, string, error) {
+	if domain.HubURL == "" || domain.TokenEncrypted == "" {
+		return true, targetVersion, nil
+	}
+	secret, err := s.getSecretProvider().GetSecret()
+	if err != nil {
+		return false, "", err
+	}
+	domainToken, err := DecryptClusterDomainToken(secret, domain.TokenEncrypted)
+	if err != nil {
+		return false, "", err
+	}
+	requestID := fmt.Sprintf("update-%d", time.Now().UnixNano())
+	claimResp, err := s.getUpdateHubClient().ClaimUpdate(ctx, domain.HubURL, domain.Domain, domainToken, requestID, targetVersion)
+	if err != nil {
+		return false, "", err
+	}
+	if claimResp == nil {
+		return true, targetVersion, nil
+	}
+	claimedVersion := canonicalizeReleaseTag(claimResp.TargetVersion)
+	if claimedVersion == "" {
+		claimedVersion = targetVersion
+	}
+	return claimResp.Proceed, claimedVersion, nil
+}
+
+func (s *ClusterSyncService) markLocalMemberOffline(ctx context.Context, domain *model.ClusterDomain, localNodeID string, currentVersion string) error {
+	if domain.HubURL == "" || domain.TokenEncrypted == "" || localNodeID == "" {
 		return nil
 	}
-
-	hubClient := &ClusterHubClient{}
-	secret, err := (&SettingService{}).GetSecret()
+	secret, err := s.getSecretProvider().GetSecret()
 	if err != nil {
 		return err
 	}
@@ -234,27 +378,78 @@ func (s *ClusterSyncService) CheckAndBroadcastUpdate(ctx context.Context, domain
 	if err != nil {
 		return err
 	}
-	requestID := fmt.Sprintf("update-%d", time.Now().UnixNano())
-	claimResp, err := hubClient.ClaimUpdate(ctx, domain.HubURL, domain.Domain, domainToken, requestID, maxVersion)
-	if err != nil {
-		return err
+	requestID := fmt.Sprintf("update-status-%d", time.Now().UnixNano())
+	_, err = s.getUpdateHubClient().SetMemberStatus(ctx, domain.HubURL, domain.Domain, domainToken, requestID, localNodeID, "offline", currentVersion)
+	return err
+}
+
+func (s *ClusterSyncService) saveDomainPanelUpdateState(domain *model.ClusterDomain, latestVersion string, updateAvailable bool) error {
+	domain.UpdatePolicy = effectiveClusterDomainUpdatePolicy(domain.UpdatePolicy)
+	if latestVersion != "" {
+		domain.LatestPanelVersion = latestVersion
 	}
-	if !claimResp.Proceed {
+	domain.PanelUpdateAvailable = updateAvailable
+	if s.store == nil {
 		return nil
 	}
+	return s.store.SaveDomain(domain)
+}
 
-	local, err := (&ClusterLocalIdentityService{}).GetOrCreate()
+func (s *ClusterSyncService) shouldAutoUpdate(domain *model.ClusterDomain) (bool, error) {
+	if s.store == nil {
+		return effectiveClusterDomainUpdatePolicy(domain.UpdatePolicy) == ClusterDomainUpdatePolicyAuto, nil
+	}
+	domains, err := s.store.ListDomains()
 	if err != nil {
-		return err
+		return false, err
 	}
-	_, _ = hubClient.SetMemberStatus(ctx, domain.HubURL, domain.Domain, domainToken, requestID+"-status", local.NodeID, "offline", currentVersion)
-
-	if s.broadcaster != nil {
-		_ = s.broadcaster.BroadcastUpdateAvailable(ctx, domain.Id, domain.Domain, maxVersion, local.NodeID)
+	if len(domains) == 0 {
+		return effectiveClusterDomainUpdatePolicy(domain.UpdatePolicy) == ClusterDomainUpdatePolicyAuto, nil
 	}
+	for _, item := range domains {
+		if effectiveClusterDomainUpdatePolicy(item.UpdatePolicy) == ClusterDomainUpdatePolicyAuto {
+			return true, nil
+		}
+	}
+	return false, nil
+}
 
-	_, err = s.panelService.StartUpdate(maxVersion, true)
-	return err
+func effectiveClusterDomainUpdatePolicy(value string) string {
+	if strings.TrimSpace(value) == ClusterDomainUpdatePolicyManual {
+		return ClusterDomainUpdatePolicyManual
+	}
+	return ClusterDomainUpdatePolicyAuto
+}
+
+func (s *ClusterSyncService) getPanelUpdater() clusterPanelUpdater {
+	if s.panelService != nil {
+		return s.panelService
+	}
+	s.panelService = &PanelService{}
+	return s.panelService
+}
+
+func (s *ClusterSyncService) getUpdateHubClient() clusterUpdateHubClient {
+	if s.hubClient != nil {
+		return s.hubClient
+	}
+	s.hubClient = &ClusterHubClient{}
+	return s.hubClient
+}
+
+func (s *ClusterSyncService) getSecretProvider() clusterSecretProvider {
+	if s.secretProvider != nil {
+		return s.secretProvider
+	}
+	return &SettingService{}
+}
+
+func (s *ClusterSyncService) getLocalIdentity() clusterLocalIdentityProvider {
+	if s.localIdentity != nil {
+		return s.localIdentity
+	}
+	s.localIdentity = &ClusterLocalIdentityService{}
+	return s.localIdentity
 }
 
 func clusterEnvelopePayload(envelope *ClusterEnvelope) ([]byte, error) {

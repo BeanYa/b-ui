@@ -91,6 +91,20 @@
                 <strong class="cluster-center__meta-value">{{ selectedDomain.hubUrl || '-' }}</strong>
               </div>
               <div class="cluster-center__meta-row">
+                <span class="cluster-center__meta-label">{{ $t('clusterCenter.fields.updatePolicy') }}</span>
+                <strong class="cluster-center__meta-value cluster-center__policy-badges">
+                  <span class="cluster-center__policy-badge">
+                    {{ formatDomainUpdatePolicy(selectedDomain.updatePolicy) }}
+                  </span>
+                  <span
+                    v-if="manualUpdateAvailable(selectedDomain)"
+                    class="cluster-center__update-available-badge"
+                  >
+                    {{ $t('clusterCenter.updateAvailable') }}
+                  </span>
+                </strong>
+              </div>
+              <div class="cluster-center__meta-row">
                 <span class="cluster-center__meta-label">{{ $t('clusterCenter.table.version') }}</span>
                 <strong class="cluster-center__meta-value">{{ formatClusterVersionLabel(selectedDomain.lastVersion) }}</strong>
               </div>
@@ -162,7 +176,14 @@
                   <td>{{ member.displayName || member.name || '-' }}</td>
                   <td>{{ member.baseUrl || '-' }}</td>
                   <td>{{ formatClusterVersionLabel(member.lastVersion) }}</td>
-                  <td><span class="mono-copy">{{ member.panelVersion || '-' }}</span></td>
+                  <td>
+                    <span
+                      class="cluster-center__panel-version-badge"
+                      :class="panelVersionBadgeClass(member)"
+                    >
+                      {{ formatPanelVersion(member.panelVersion) }}
+                    </span>
+                  </td>
                   <td>
                     <v-chip
                       :color="member.status === 'offline' ? 'red' : 'green'"
@@ -344,7 +365,7 @@ import { parseClusterHubJoinUri } from '@/features/clusterHubUri'
 import { i18n } from '@/locales'
 import HttpUtils from '@/plugins/httputil'
 import { usePingStore } from '@/store/modules/ping'
-import type { ClusterDomain, ClusterMember, ClusterOperationStatus } from '@/types/clusters'
+import type { ClusterDomain, ClusterMember, ClusterOperationStatus, ClusterPanelUpdateCheck } from '@/types/clusters'
 import type { MeshPairResult } from '@/types/ping'
 
 const router = useRouter()
@@ -392,12 +413,16 @@ const existingDomainData = ref<{ domain: string; hubUrl: string }>({ domain: '',
 
 const selectedDomain = computed(() => domains.value.find((domain) => domain.id === selectedDomainId.value) ?? null)
 const selectedDomainMembers = computed(() => members.value.filter((member) => member.domainId === selectedDomainId.value))
+const domainUpdateChecks = ref<Record<number, ClusterPanelUpdateCheck>>({})
 
 const domainMemberCount = (domainId: number) => members.value.filter((member) => member.domainId === domainId).length
 const formatClusterVersionLabel = (version: number) => `version-${version}`
 
 const openDomainDetail = (domain: ClusterDomain) => {
   selectedDomainId.value = domain.id
+  ;(async () => {
+    await checkDomainPanelUpdate(domain)
+  })()
   pingStore.loadMeshResult(domain.domain).then(result => {
     if (result) meshPingResults.value = result.results
   })
@@ -405,6 +430,83 @@ const openDomainDetail = (domain: ClusterDomain) => {
 
 const backToClusterCenter = () => {
   selectedDomainId.value = null
+}
+
+const effectiveDomainUpdatePolicy = (policy?: string) => policy === 'manual' ? 'manual' : 'auto'
+
+const formatDomainUpdatePolicy = (policy?: string) => {
+  return effectiveDomainUpdatePolicy(policy) === 'manual'
+    ? i18n.global.t('clusterCenter.updatePolicies.manual')
+    : i18n.global.t('clusterCenter.updatePolicies.auto')
+}
+
+const effectiveDomainLatestPanelVersion = (domain: ClusterDomain | null) => {
+  if (!domain) return ''
+  return domainUpdateChecks.value[domain.id]?.latestVersion || domain.latestPanelVersion || ''
+}
+
+const manualUpdateAvailable = (domain: ClusterDomain | null) => {
+  if (!domain || effectiveDomainUpdatePolicy(domain.updatePolicy) !== 'manual') return false
+  const check = domainUpdateChecks.value[domain.id]
+  return Boolean(check?.updateAvailable || domain.panelUpdateAvailable)
+}
+
+const formatPanelVersion = (version?: string) => version?.trim() || '-'
+
+const normalizePanelVersion = (version?: string) => {
+  const trimmed = version?.trim() ?? ''
+  return trimmed.replace(/^[vV]/, '')
+}
+
+const comparePanelVersions = (left?: string, right?: string) => {
+  const leftNormalized = normalizePanelVersion(left)
+  const rightNormalized = normalizePanelVersion(right)
+  if (!leftNormalized || !rightNormalized) return 'unknown'
+  const leftParts = leftNormalized.split(/[.-]/)
+  const rightParts = rightNormalized.split(/[.-]/)
+  const maxParts = Math.max(leftParts.length, rightParts.length)
+  for (let index = 0; index < maxParts; index += 1) {
+    const leftValue = Number.parseInt(leftParts[index] ?? '0', 10)
+    const rightValue = Number.parseInt(rightParts[index] ?? '0', 10)
+    if (Number.isNaN(leftValue) || Number.isNaN(rightValue)) break
+    if (leftValue < rightValue) return 'older'
+    if (leftValue > rightValue) return 'newer'
+  }
+  return 'same'
+}
+
+const memberPanelVersionState = (member: ClusterMember) => {
+  const latestVersion = effectiveDomainLatestPanelVersion(selectedDomain.value)
+  if (!member.panelVersion || !latestVersion) return 'unknown'
+  return comparePanelVersions(member.panelVersion, latestVersion) === 'older' ? 'outdated' : 'current'
+}
+
+const panelVersionBadgeClass = (member: ClusterMember) => {
+  const state = memberPanelVersionState(member)
+  return {
+    'cluster-center__panel-version-badge--current': state === 'current',
+    'cluster-center__panel-version-badge--outdated': state === 'outdated',
+    'cluster-center__panel-version-badge--unknown': state === 'unknown',
+  }
+}
+
+const checkDomainPanelUpdate = async (domain: ClusterDomain) => {
+  const msg = await HttpUtils.post(`api/cluster/domains/${domain.id}/update-check`, {})
+  if (!msg.success || !msg.obj) return null
+  const result = msg.obj as ClusterPanelUpdateCheck
+  domainUpdateChecks.value = {
+    ...domainUpdateChecks.value,
+    [domain.id]: result,
+  }
+  domains.value = domains.value.map((item) => item.id === domain.id
+    ? {
+        ...item,
+        updatePolicy: result.updatePolicy,
+        latestPanelVersion: result.latestVersion || item.latestPanelVersion,
+        panelUpdateAvailable: result.updateAvailable,
+      }
+    : item)
+  return result
 }
 
 const isUsableAbsoluteUrl = (value: string) => {
@@ -939,6 +1041,50 @@ async function pingAllDomainMembers() {
 .cluster-center__meta-value {
   font-size: 14px;
   overflow-wrap: anywhere;
+}
+
+.cluster-center__policy-badges {
+  align-items: center;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.cluster-center__policy-badge,
+.cluster-center__update-available-badge,
+.cluster-center__panel-version-badge {
+  align-items: center;
+  border: 1px solid var(--app-border-1);
+  border-radius: 999px;
+  display: inline-flex;
+  font-family: var(--app-font-mono, ui-monospace, monospace);
+  font-size: 12px;
+  font-weight: 700;
+  line-height: 1;
+  min-height: 24px;
+  padding: 5px 8px;
+  white-space: nowrap;
+}
+
+.cluster-center__policy-badge {
+  color: var(--app-state-info);
+}
+
+.cluster-center__update-available-badge,
+.cluster-center__panel-version-badge--outdated {
+  background: color-mix(in srgb, #f5b51b 13%, transparent);
+  border-color: color-mix(in srgb, #f5b51b 48%, var(--app-border-1));
+  color: #8a5a00;
+}
+
+.cluster-center__panel-version-badge--current {
+  background: color-mix(in srgb, #1a9f62 13%, transparent);
+  border-color: color-mix(in srgb, #1a9f62 44%, var(--app-border-1));
+  color: #0f7044;
+}
+
+.cluster-center__panel-version-badge--unknown {
+  color: var(--app-text-3);
 }
 
 .cluster-center__actions-tree {

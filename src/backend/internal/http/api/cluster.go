@@ -21,6 +21,7 @@ type clusterAPIService interface {
 	GetMemberInfo(string) (*clustertypes.InfoResponse, error)
 	SendMemberAction(string, clustertypes.ActionRequest) (*clustertypes.ActionResponse, error)
 	ManualSync() (*service.ClusterOperationStatus, error)
+	CheckDomainPanelUpdate(uint) (*service.ClusterPanelUpdateCheckResult, error)
 	DeleteMember(uint) error
 	LeaveDomain(uint) error
 	ReceivePeerMessage(*service.PeerMessage, string) error
@@ -126,6 +127,19 @@ func (a *APIHandler) manualClusterSync(c *gin.Context) {
 	}
 	status, err := a.clusterService.ManualSync()
 	jsonObj(c, status, err)
+}
+
+func (a *APIHandler) checkClusterDomainPanelUpdate(c *gin.Context) {
+	if !a.requireClusterAdmin(c) {
+		return
+	}
+	id, err := strconv.ParseUint(c.Param("id"), 10, 64)
+	if err != nil {
+		jsonMsg(c, "cluster domain update check", err)
+		return
+	}
+	result, err := a.clusterService.CheckDomainPanelUpdate(uint(id))
+	jsonObj(c, result, err)
 }
 
 func (a *APIHandler) deleteClusterMember(c *gin.Context) {

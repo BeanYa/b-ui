@@ -90,9 +90,14 @@ type ClusterHubCommunicationResponse struct {
 type ClusterHubSnapshotResponse struct {
 	DomainID            string                          `json:"domain_id"`
 	Version             int64                           `json:"version"`
+	UpdatePolicy        string                          `json:"update_policy"`
 	Communication       ClusterHubCommunicationResponse `json:"communication"`
 	Members             []ClusterHubMemberResponse      `json:"members"`
 	UpdateTargetVersion string                          `json:"update_target_version,omitempty"`
+}
+
+func (s ClusterHubSnapshotResponse) EffectiveUpdatePolicy() string {
+	return effectiveClusterDomainUpdatePolicy(s.UpdatePolicy)
 }
 
 func (s ClusterHubSnapshotResponse) EffectiveCommunicationEndpointPath() string {

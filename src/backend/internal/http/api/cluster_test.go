@@ -109,6 +109,23 @@ func TestClusterRegisterAcceptsFormEncodedRequest(t *testing.T) {
 	}
 }
 
+func TestClusterDomainPanelUpdateCheckRoute(t *testing.T) {
+	router, cluster := newTestClusterRouter()
+	req := httptest.NewRequest(http.MethodPost, "/api/cluster/domains/7/update-check", bytes.NewBufferString(`{}`))
+	req.Header.Set("Content-Type", "application/json")
+	req.Header.Set("Cookie", loginCookie(t, router, "admin"))
+	recorder := httptest.NewRecorder()
+
+	router.ServeHTTP(recorder, req)
+
+	if recorder.Code != http.StatusOK {
+		t.Fatalf("expected status %d, got %d", http.StatusOK, recorder.Code)
+	}
+	if cluster.checkUpdateCalls != 1 || cluster.checkedDomainID != 7 {
+		t.Fatalf("expected update check for domain 7, got calls=%d id=%d", cluster.checkUpdateCalls, cluster.checkedDomainID)
+	}
+}
+
 func TestClusterAdminRoutesRequireFirstUserAdmin(t *testing.T) {
 	router, cluster := newTestClusterRouterWithUserService(stubUserService{
 		isFirstUser: func(username string) (bool, error) {
@@ -512,9 +529,11 @@ type stubClusterAPIService struct {
 	listDomainsCalls       int
 	listMembersCalls       int
 	manualSyncCalls        int
+	checkUpdateCalls       int
 	receiveCalls           int
 	deletedMemberID        uint
 	leftDomainID           uint
+	checkedDomainID        uint
 	receivedToken          string
 	receivedEnvelope       *service.ClusterEnvelope
 	receivedPeerMessage    *service.PeerMessage
@@ -581,6 +600,18 @@ func (s *stubClusterAPIService) SendMemberAction(nodeID string, req clustertypes
 func (s *stubClusterAPIService) ManualSync() (*service.ClusterOperationStatus, error) {
 	s.manualSyncCalls++
 	return &service.ClusterOperationStatus{ID: "op-sync", State: "completed"}, nil
+}
+
+func (s *stubClusterAPIService) CheckDomainPanelUpdate(id uint) (*service.ClusterPanelUpdateCheckResult, error) {
+	s.checkUpdateCalls++
+	s.checkedDomainID = id
+	return &service.ClusterPanelUpdateCheckResult{
+		CurrentVersion:  "v1.0.0",
+		LatestVersion:   "v1.0.1",
+		Comparison:      "older",
+		UpdateAvailable: true,
+		UpdatePolicy:    "manual",
+	}, nil
 }
 
 func (s *stubClusterAPIService) DeleteMember(id uint) error {

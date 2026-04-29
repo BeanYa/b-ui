@@ -279,6 +279,7 @@ export default {
       communicationProtocol: "通信協議",
       communicationEndpoint: "域內 Endpoint",
       supportedActions: "支援動作",
+      updatePolicy: "更新策略",
     },
     table: {
       node: "節點",
@@ -318,6 +319,11 @@ export default {
     pullDomain: "拉取並映射",
     stepDomainInfo: "域資訊",
     stepDisplayName: "顯示名稱",
+    updateAvailable: "有新版本",
+    updatePolicies: {
+      auto: "自動更新",
+      manual: "手動更新",
+    },
     successRegistered: "叢集節點已加入域並完成資訊重新整理",
   },
   client: {

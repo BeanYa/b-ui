@@ -531,6 +531,35 @@ func TestPeerDispatcherRetriesSuccessfulChainStepWhenNextStepDeliveryFails(t *te
 	}
 }
 
+func TestPeerDispatcherManualDomainRecordsPanelUpdateWithoutStartingUpdate(t *testing.T) {
+	store := &stubPeerDispatcherSyncStore{
+		domain: &model.ClusterDomain{Id: 1, Domain: "edge.example.com", UpdatePolicy: ClusterDomainUpdatePolicyManual},
+	}
+	panel := &stubClusterPanelUpdater{}
+	dispatcher := ClusterPeerDispatcher{
+		eventStore:  newMemoryPeerStore(),
+		syncService: &ClusterSyncService{store: store, panelService: panel},
+	}
+	message := &PeerMessage{
+		MessageID:    "msg-panel-update-available",
+		DomainID:     "edge.example.com",
+		SourceNodeID: "node-source",
+		Category:     PeerCategoryEvent,
+		Action:       PeerActionDomainPanelUpdateAvailable,
+		Payload:      map[string]interface{}{"target_version": "v999.0.0"},
+	}
+
+	if err := dispatcher.Dispatch(context.Background(), store.domain, &model.ClusterMember{NodeID: "node-source"}, message); err != nil {
+		t.Fatalf("dispatch panel update available: %v", err)
+	}
+	if panel.startCalls != 0 {
+		t.Fatalf("expected manual domain not to start panel update, got %d starts", panel.startCalls)
+	}
+	if !store.domain.PanelUpdateAvailable || store.domain.LatestPanelVersion != "v999.0.0" {
+		t.Fatalf("expected domain update badge state to be recorded, got %#v", store.domain)
+	}
+}
+
 func TestPeerDispatcherChainFailureContinuationRequiresContinueOnFailure(t *testing.T) {
 	tests := []struct {
 		name              string

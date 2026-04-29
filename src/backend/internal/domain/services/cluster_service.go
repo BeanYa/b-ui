@@ -49,6 +49,9 @@ type ClusterDomainResponse struct {
 	CommunicationEndpointPath    string   `json:"communicationEndpointPath"`
 	CommunicationProtocolVersion string   `json:"communicationProtocolVersion"`
 	LastVersion                  int64    `json:"lastVersion"`
+	UpdatePolicy                 string   `json:"updatePolicy"`
+	LatestPanelVersion           string   `json:"latestPanelVersion,omitempty"`
+	PanelUpdateAvailable         bool     `json:"panelUpdateAvailable"`
 	SupportedActions             []string `json:"supportedActions"`
 }
 
@@ -216,6 +219,11 @@ func (s *ClusterService) Register(request ClusterRegisterRequest) (*ClusterOpera
 	}
 	domain.CommunicationEndpointPath = snapshot.EffectiveCommunicationEndpointPath()
 	domain.CommunicationProtocolVersion = snapshot.EffectiveCommunicationProtocolVersion()
+	domain.UpdatePolicy = snapshot.EffectiveUpdatePolicy()
+	if snapshot.UpdateTargetVersion != "" {
+		domain.LatestPanelVersion = canonicalizeReleaseTag(snapshot.UpdateTargetVersion)
+		domain.PanelUpdateAvailable = true
+	}
 	if err := store.SaveDomain(domain); err != nil {
 		return nil, err
 	}
@@ -463,6 +471,9 @@ func (s *ClusterService) ListDomains() ([]ClusterDomainResponse, error) {
 			CommunicationEndpointPath:    effectiveClusterCommunicationEndpointPath(domain.CommunicationEndpointPath),
 			CommunicationProtocolVersion: effectiveClusterCommunicationProtocolVersion(domain.CommunicationProtocolVersion),
 			LastVersion:                  domain.LastVersion,
+			UpdatePolicy:                 effectiveClusterDomainUpdatePolicy(domain.UpdatePolicy),
+			LatestPanelVersion:           domain.LatestPanelVersion,
+			PanelUpdateAvailable:         domain.PanelUpdateAvailable,
 			SupportedActions:             ClusterCommunicationSupportedActions(),
 		})
 	}
@@ -622,6 +633,30 @@ func (s *ClusterService) ManualSync() (*ClusterOperationStatus, error) {
 		return nil, err
 	}
 	return status, nil
+}
+
+func (s *ClusterService) CheckDomainPanelUpdate(id uint) (*ClusterPanelUpdateCheckResult, error) {
+	domain, err := s.getStore().GetDomain(id)
+	if err != nil {
+		return nil, err
+	}
+	syncService := s.peerSyncService()
+	if syncService.panelService == nil {
+		syncService.panelService = &PanelService{}
+	}
+	if syncService.hubClient == nil {
+		syncService.hubClient = s.getHubClient()
+	}
+	if syncService.secretProvider == nil {
+		syncService.secretProvider = s.getSecretProvider()
+	}
+	if syncService.localIdentity == nil {
+		syncService.localIdentity = &s.localIdentity
+	}
+	if syncService.broadcaster == nil {
+		syncService.broadcaster = &ClusterHTTPBroadcaster{}
+	}
+	return syncService.CheckAndBroadcastUpdate(context.Background(), domain)
 }
 
 func (s *ClusterService) DeleteMember(id uint) error {

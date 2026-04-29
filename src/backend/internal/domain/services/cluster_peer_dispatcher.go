@@ -4,7 +4,6 @@ import (
 	"context"
 	"errors"
 
-	"github.com/BeanYa/b-ui/src/backend/internal/domain/config"
 	"github.com/BeanYa/b-ui/src/backend/internal/infra/db/model"
 	"github.com/gofrs/uuid/v5"
 )
@@ -157,14 +156,7 @@ func (d *ClusterPeerDispatcher) handleDomainPanelUpdateAvailable(ctx context.Con
 	if !ok || targetVersion == "" {
 		return errors.New("invalid_payload_target_version")
 	}
-
-	currentVersion := config.GetVersion()
-	if compareReleaseTags(currentVersion, targetVersion) != "older" {
-		return nil // already at or above target, ignore
-	}
-
-	panelSvc := &PanelService{}
-	_, err := panelSvc.StartUpdate(targetVersion, true)
+	_, err := d.getSyncService().HandlePanelUpdateAvailable(ctx, domain, targetVersion)
 	return err
 }
 

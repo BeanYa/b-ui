@@ -277,6 +277,7 @@ export default {
       communicationProtocol: "Giao thức liên lạc",
       communicationEndpoint: "Endpoint miền",
       supportedActions: "Hành động hỗ trợ",
+      updatePolicy: "Chính sách cập nhật",
     },
     table: {
       node: "Nút",
@@ -316,6 +317,11 @@ export default {
     pullDomain: "Kéo và ánh xạ",
     stepDomainInfo: "Thông tin miền",
     stepDisplayName: "Tên hiển thị",
+    updateAvailable: "Có bản cập nhật",
+    updatePolicies: {
+      auto: "Tự động cập nhật",
+      manual: "Thủ công",
+    },
     successRegistered: "Nút cụm đã tham gia miền và làm mới trạng thái thành công.",
   },
   client: {

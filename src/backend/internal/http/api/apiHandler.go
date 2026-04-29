@@ -40,6 +40,7 @@ func (a *APIHandler) initRouter(g *gin.RouterGroup) {
 	g.GET("/cluster/member-info", a.getClusterMemberInfo)
 	g.POST("/cluster/member-action", a.sendClusterMemberAction)
 	g.POST("/cluster/sync", a.manualClusterSync)
+	g.POST("/cluster/domains/:id/update-check", a.checkClusterDomainPanelUpdate)
 	g.DELETE("/cluster/domains/:id", a.leaveClusterDomain)
 	g.DELETE("/cluster/members/:id", a.deleteClusterMember)
 	g.POST("/:postAction", a.postHandler)

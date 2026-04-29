@@ -87,6 +87,9 @@ type ClusterDomain struct {
 	CommunicationEndpointPath    string `json:"communicationEndpointPath" gorm:"default:/_cluster"`
 	CommunicationProtocolVersion string `json:"communicationProtocolVersion" gorm:"default:v1"`
 	LastVersion                  int64  `json:"lastVersion" gorm:"default:0"`
+	UpdatePolicy                 string `json:"updatePolicy" gorm:"default:auto"`
+	LatestPanelVersion           string `json:"latestPanelVersion"`
+	PanelUpdateAvailable         bool   `json:"panelUpdateAvailable" gorm:"default:false"`
 }
 
 type ClusterMember struct {

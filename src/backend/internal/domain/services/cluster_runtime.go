@@ -142,6 +142,11 @@ func (s *ClusterHubSyncer) SyncDomain(ctx context.Context, domain *model.Cluster
 	}
 	domain.CommunicationEndpointPath = snapshot.EffectiveCommunicationEndpointPath()
 	domain.CommunicationProtocolVersion = snapshot.EffectiveCommunicationProtocolVersion()
+	domain.UpdatePolicy = snapshot.EffectiveUpdatePolicy()
+	if snapshot.UpdateTargetVersion != "" {
+		domain.LatestPanelVersion = canonicalizeReleaseTag(snapshot.UpdateTargetVersion)
+		domain.PanelUpdateAvailable = true
+	}
 	domain.LastVersion = snapshot.Version
 	if domain.LastVersion == 0 {
 		domain.LastVersion = version

@@ -277,6 +277,7 @@ export default {
       communicationProtocol: "پروتکل ارتباطی",
       communicationEndpoint: "Endpoint دامنه",
       supportedActions: "عملیات پشتیبانی‌شده",
+      updatePolicy: "سیاست به‌روزرسانی",
     },
     table: {
       node: "نود",
@@ -316,6 +317,11 @@ export default {
     pullDomain: "دریافت و نگاشت",
     stepDomainInfo: "اطلاعات دامنه",
     stepDisplayName: "نام نمایشی",
+    updateAvailable: "به‌روزرسانی موجود است",
+    updatePolicies: {
+      auto: "به‌روزرسانی خودکار",
+      manual: "دستی",
+    },
     successRegistered: "نود خوشه به دامنه پیوست و اطلاعات با موفقیت نوسازی شد.",
   },
   client: {

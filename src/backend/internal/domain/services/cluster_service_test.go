@@ -109,6 +109,38 @@ func TestClusterServiceRegisterPersistsMemberPanelVersionAndStatus(t *testing.T)
 	}
 }
 
+func TestClusterServiceRegisterPersistsDomainUpdatePolicy(t *testing.T) {
+	store := &stubClusterServiceStore{}
+	hub := &stubClusterHubClient{
+		registerResponse: &ClusterHubOperationResponse{OperationID: "op-register", Status: "completed"},
+		snapshotResponse: &ClusterHubSnapshotResponse{
+			Version:      4,
+			UpdatePolicy: ClusterDomainUpdatePolicyManual,
+			Members:      []ClusterHubMemberResponse{{NodeID: "node-a", BaseURL: "https://node-a.example.com", PeerToken: "peer-token-a"}},
+		},
+	}
+	service := &ClusterService{
+		secretProvider: stubClusterSecretProvider{secret: []byte("panel-secret-for-cluster-tests")},
+		localIdentity:  ClusterLocalIdentityService{store: &stubClusterLocalNodeStore{}},
+		store:          store,
+		hubClient:      hub,
+	}
+
+	_, err := service.Register(ClusterRegisterRequest{
+		HubURL:  "https://hub.example.com",
+		Domain:  "edge.example.com",
+		Token:   "cluster-token",
+		BaseURL: "https://panel.example.com/app/",
+	})
+	if err != nil {
+		t.Fatalf("register cluster domain: %v", err)
+	}
+	lastDomain := store.savedDomains[len(store.savedDomains)-1]
+	if lastDomain.UpdatePolicy != ClusterDomainUpdatePolicyManual {
+		t.Fatalf("expected manual update policy from snapshot, got %q", lastDomain.UpdatePolicy)
+	}
+}
+
 func TestClusterServiceRegisterParsesJoinURI(t *testing.T) {
 	store := &stubClusterServiceStore{}
 	hub := &stubClusterHubClient{
@@ -169,12 +201,12 @@ func TestClusterServiceRegisterDefaultsDisplayNameFromBaseURL(t *testing.T) {
 		HubURL:  "https://hub.example.com",
 		Domain:  "edge.example.com",
 		Token:   "cluster-token",
-		BaseURL: "https://jp.whoisbean.com:10443/beanui/",
+		BaseURL: "https://node-a.test:8443/panel/",
 	})
 	if err != nil {
 		t.Fatalf("register cluster domain: %v", err)
 	}
-	if hub.lastRegisterRequest.Member.DisplayName != "jp.whoisbean.com" {
+	if hub.lastRegisterRequest.Member.DisplayName != "node-a.test" {
 		t.Fatalf("expected display name from base URL host, got %q", hub.lastRegisterRequest.Member.DisplayName)
 	}
 }
@@ -185,8 +217,8 @@ func TestClusterServiceRegisterMapsExistingBaseURLToLocalIdentity(t *testing.T) 
 	hub := &stubClusterHubClient{
 		registerResponse: &ClusterHubOperationResponse{OperationID: "op-register", Status: "completed"},
 		snapshotResponse: &ClusterHubSnapshotResponse{Version: 4, Members: []ClusterHubMemberResponse{
-			{NodeID: "node-existing", BaseURL: "https://JP.whoisbean.com:10443/beanui", PeerToken: "peer-token-a"},
-			{NodeID: "node-local", BaseURL: "https://jp.whoisbean.com:10443/beanui/", PublicKey: local.PublicKey, PeerToken: "peer-token-a"},
+			{NodeID: "node-existing", BaseURL: "https://NODE-A.test:8443/panel", PeerToken: "peer-token-a"},
+			{NodeID: "node-local", BaseURL: "https://node-a.test:8443/panel/", PublicKey: local.PublicKey, PeerToken: "peer-token-a"},
 		}},
 	}
 	service := &ClusterService{
@@ -200,7 +232,7 @@ func TestClusterServiceRegisterMapsExistingBaseURLToLocalIdentity(t *testing.T) 
 		HubURL:  "https://hub.example.com",
 		Domain:  "edge.example.com",
 		Token:   "cluster-token",
-		BaseURL: "https://jp.whoisbean.com:10443/beanui/",
+		BaseURL: "https://node-a.test:8443/panel/",
 	})
 	if err != nil {
 		t.Fatalf("register cluster domain: %v", err)
@@ -639,6 +671,36 @@ func TestClusterServiceListDomainsIncludesSupportedActions(t *testing.T) {
 	expectedActions := []string{"domain.cluster.changed", "events", "heartbeat", "ping", "info", "action", "domain.panel.update.available"}
 	if !reflect.DeepEqual(domains[0].SupportedActions, expectedActions) {
 		t.Fatalf("expected supported actions %#v, got %#v", expectedActions, domains[0].SupportedActions)
+	}
+}
+
+func TestClusterServiceListDomainsIncludesUpdatePolicyAndPanelUpdateState(t *testing.T) {
+	store := &stubClusterServiceStore{
+		domains: map[string]*model.ClusterDomain{
+			"edge.example.com": {
+				Id:                   1,
+				Domain:               "edge.example.com",
+				HubURL:               "https://hub.example.com",
+				UpdatePolicy:         ClusterDomainUpdatePolicyManual,
+				LatestPanelVersion:   "v999.0.0",
+				PanelUpdateAvailable: true,
+			},
+		},
+	}
+	service := &ClusterService{store: store}
+
+	domains, err := service.ListDomains()
+	if err != nil {
+		t.Fatalf("list cluster domains: %v", err)
+	}
+	if len(domains) != 1 {
+		t.Fatalf("expected one domain, got %#v", domains)
+	}
+	if domains[0].UpdatePolicy != ClusterDomainUpdatePolicyManual {
+		t.Fatalf("expected manual update policy, got %q", domains[0].UpdatePolicy)
+	}
+	if domains[0].LatestPanelVersion != "v999.0.0" || !domains[0].PanelUpdateAvailable {
+		t.Fatalf("expected panel update availability state, got %#v", domains[0])
 	}
 }
 

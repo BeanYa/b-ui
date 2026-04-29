@@ -10,6 +10,7 @@ describe('ClusterCenter view source', () => {
     expect(source).toContain("HttpUtils.get('api/cluster/members')")
     expect(source).toContain("HttpUtils.post('api/cluster/register'")
     expect(source).toContain("HttpUtils.post('api/cluster/sync'")
+    expect(source).toContain('HttpUtils.post(`api/cluster/domains/${domain.id}/update-check`, {})')
     expect(source).toContain("HttpUtils.delete(`api/cluster/members/${member.id}`)")
     expect(source).toContain("HttpUtils.delete(`api/cluster/domains/${domain.id}`)")
     expect(source).toContain("HttpUtils.get(`api/cluster/operations/${operationId}`)")
@@ -136,6 +137,27 @@ describe('ClusterCenter view source', () => {
     expect(source).toContain('const backToClusterCenter = () => {')
   })
 
+  it('shows domain update policy and manual update availability in the detail metadata', () => {
+    const source = readFileSync(fileURLToPath(new URL('./ClusterCenter.vue', import.meta.url)), 'utf8')
+
+    expect(source).toContain("$t('clusterCenter.fields.updatePolicy')")
+    expect(source).toContain('formatDomainUpdatePolicy(selectedDomain.updatePolicy)')
+    expect(source).toContain('manualUpdateAvailable(selectedDomain)')
+    expect(source).toContain("$t('clusterCenter.updateAvailable')")
+    expect(source).toContain('const domainUpdateChecks = ref<Record<number, ClusterPanelUpdateCheck>>({})')
+    expect(source).toContain('await checkDomainPanelUpdate(domain)')
+  })
+
+  it('renders member panel versions as current or outdated badges against the latest version', () => {
+    const source = readFileSync(fileURLToPath(new URL('./ClusterCenter.vue', import.meta.url)), 'utf8')
+
+    expect(source).toContain('class="cluster-center__panel-version-badge"')
+    expect(source).toContain(':class="panelVersionBadgeClass(member)"')
+    expect(source).toContain('memberPanelVersionState(member)')
+    expect(source).toContain('effectiveDomainLatestPanelVersion(selectedDomain.value)')
+    expect(source).toContain('comparePanelVersions')
+  })
+
   it('keeps member version, panel version, status, latency, and action columns aligned', () => {
     const source = readFileSync(fileURLToPath(new URL('./ClusterCenter.vue', import.meta.url)), 'utf8')
     const tableStart = source.indexOf('<table class="cluster-center__member-table">')
@@ -151,7 +173,7 @@ describe('ClusterCenter view source', () => {
     ]
     const expectedCellOrder = [
       'formatClusterVersionLabel(member.lastVersion)',
-      'member.panelVersion ||',
+      'formatPanelVersion(member.panelVersion)',
       "member.status === 'offline'",
       'memberLatency(member.nodeId)',
       'member.isLocal ? leaveDomain(selectedDomain) : deleteMember(member)',
