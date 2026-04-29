@@ -33,6 +33,41 @@
         </v-col>
       </v-row>
 
+      <v-card v-if="nodeConnection" class="app-card-shell node-detail__info-card">
+        <v-card-text>
+          <div class="node-detail__info-grid">
+            <div class="node-detail__info-row">
+              <span class="node-detail__info-label">Node ID</span>
+              <strong class="node-detail__info-value node-detail__info-value--mono">{{ nodeConnection.nodeId }}</strong>
+            </div>
+            <div class="node-detail__info-row">
+              <span class="node-detail__info-label">Panel URL</span>
+              <strong class="node-detail__info-value">{{ nodeConnection.baseUrl }}</strong>
+            </div>
+            <div v-if="nodeMember" class="node-detail__info-row">
+              <span class="node-detail__info-label">Status</span>
+              <strong class="node-detail__info-value">
+                <v-chip
+                  size="small"
+                  variant="flat"
+                  :color="nodeMember.status === 'updating' ? 'orange' : nodeMember.status === 'offline' ? 'red' : 'green'"
+                >
+                  {{ nodeMember.status === 'updating' ? $t('clusterCenter.statuses.updating') : nodeMember.status === 'offline' ? $t('offline') : $t('online') }}
+                </v-chip>
+              </strong>
+            </div>
+            <div v-if="nodeMember" class="node-detail__info-row">
+              <span class="node-detail__info-label">Version</span>
+              <strong class="node-detail__info-value">{{ `version-${nodeMember.lastVersion}` }}</strong>
+            </div>
+            <div v-if="nodeMember" class="node-detail__info-row">
+              <span class="node-detail__info-label">Panel Version</span>
+              <strong class="node-detail__info-value">{{ nodeMember.panelVersion || '-' }}</strong>
+            </div>
+          </div>
+        </v-card-text>
+      </v-card>
+
       <template v-if="supportsPanelExperience">
         <v-tabs v-model="activeTab" class="node-detail__tabs" color="primary">
           <v-tab value="inbounds">{{ $t('pages.inbounds') }}</v-tab>
@@ -123,7 +158,7 @@ import { computed, onMounted, onUnmounted, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import HttpUtils from '@/plugins/httputil'
 import { useRemoteNodeStore } from '@/store/modules/remoteNode'
-import type { ClusterMemberConnection } from '@/types/clusters'
+import type { ClusterMember, ClusterMemberConnection } from '@/types/clusters'
 import Data from '@/store/modules/data'
 import InboundsView from '@/views/Inbounds.vue'
 import ClientsView from '@/views/Clients.vue'
@@ -139,6 +174,7 @@ const remoteNode = useRemoteNodeStore()
 
 const pageSize = 10
 const nodeConnection = ref<ClusterMemberConnection | null>(null)
+const nodeMember = ref<ClusterMember | null>(null)
 const panelLoading = ref(false)
 const panelReady = ref(false)
 
@@ -226,6 +262,17 @@ async function loadNodeConnection(nodeId: string) {
   return connection
 }
 
+async function loadNodeMember(nodeId: string) {
+  try {
+    const msg = await HttpUtils.get('api/cluster/members')
+    if (msg.success && Array.isArray(msg.obj)) {
+      nodeMember.value = msg.obj.find((m: ClusterMember) => m.nodeId === nodeId) ?? null
+    }
+  } catch {
+    // non-blocking: member detail is supplementary
+  }
+}
+
 async function tryEnterRemotePanel() {
   if (!nodeConnection.value) return false
   panelLoading.value = true
@@ -258,6 +305,7 @@ onMounted(async () => {
 
   try {
     nodeConnection.value = await loadNodeConnection(nodeId)
+    await loadNodeMember(nodeId)
     await remoteNode.init(nodeConnection.value.nodeId, nodeConnection.value.baseUrl)
     if (remoteNode.pageError) return
     if (advertisesPanelExperience.value || nodeActions.value.length === 0) {
@@ -295,6 +343,46 @@ onUnmounted(() => {
 <style scoped>
 .node-detail__error {
   margin-bottom: 16px;
+}
+
+.node-detail__info-card {
+  margin-bottom: 16px;
+}
+
+.node-detail__info-grid {
+  display: grid;
+  gap: 8px;
+}
+
+.node-detail__info-row {
+  align-items: start;
+  border-bottom: 1px solid var(--app-border-1);
+  display: grid;
+  gap: 10px;
+  grid-template-columns: 120px minmax(0, 1fr);
+  padding-bottom: 8px;
+}
+
+.node-detail__info-row:last-child {
+  border-bottom: none;
+  padding-bottom: 0;
+}
+
+.node-detail__info-label {
+  color: var(--app-text-3);
+  font-size: 12px;
+  letter-spacing: 0.04em;
+}
+
+.node-detail__info-value {
+  font-size: 14px;
+  overflow-wrap: anywhere;
+}
+
+.node-detail__info-value--mono {
+  font-family: var(--app-font-mono, ui-monospace, monospace);
+  font-size: 13px;
+  letter-spacing: 0.02em;
 }
 
 .node-detail__tabs {
@@ -341,5 +429,11 @@ onUnmounted(() => {
   justify-content: center;
   margin-top: 12px;
   padding-bottom: 16px;
+}
+
+@media (max-width: 640px) {
+  .node-detail__info-row {
+    grid-template-columns: 1fr;
+  }
 }
 </style>

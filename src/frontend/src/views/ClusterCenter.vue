@@ -155,7 +155,6 @@
             <table class="cluster-center__member-table">
               <thead>
                 <tr>
-                  <th>{{ $t('clusterCenter.table.node') }}</th>
                   <th>{{ $t('clusterCenter.table.name') }}</th>
                   <th>{{ $t('clusterCenter.table.baseUrl') }}</th>
                   <th>{{ $t('clusterCenter.table.version') }}</th>
@@ -169,11 +168,10 @@
                 <tr v-for="member in selectedDomainMembers" :key="member.id">
                   <td>
                     <div class="cluster-center__member-node">
-                      <span>{{ member.nodeId }}</span>
+                      <span>{{ member.displayName || member.name || '-' }}</span>
                       <span v-if="member.isLocal" class="cluster-center__local-badge">{{ $t('clusterCenter.localNode') }}</span>
                     </div>
                   </td>
-                  <td>{{ member.displayName || member.name || '-' }}</td>
                   <td>{{ member.baseUrl || '-' }}</td>
                   <td>{{ formatClusterVersionLabel(member.lastVersion) }}</td>
                   <td>
