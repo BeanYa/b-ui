@@ -358,7 +358,7 @@ func readPanelUpdateLogTail(path string, maxBytes int64) (string, error) {
 }
 
 func reconcilePanelUpdateState(state *PanelUpdateState, now time.Time, isUnitActive func() (bool, error)) (*PanelUpdateState, bool) {
-	if state == nil || state.Phase != "running" {
+	if state == nil || (state.Phase != "running" && state.Phase != "preflight") {
 		return state, false
 	}
 

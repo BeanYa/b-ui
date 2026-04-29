@@ -59,6 +59,30 @@ func TestReconcilePanelUpdateStateMarksInactiveRunningTaskFailed(t *testing.T) {
 	}
 }
 
+func TestReconcilePanelUpdateStateMarksInactivePreflightTaskFailed(t *testing.T) {
+	startedAt := time.Now().Add(-20 * time.Minute).Unix()
+	state := &PanelUpdateState{
+		Phase:         "preflight",
+		TargetVersion: "v0.1.20",
+		StartedAt:     startedAt,
+		UpdatedAt:     startedAt,
+	}
+
+	reconciled, changed := reconcilePanelUpdateState(state, time.Now(), func() (bool, error) {
+		return false, nil
+	})
+
+	if !changed {
+		t.Fatal("expected stale preflight state to be changed")
+	}
+	if reconciled.Phase != "failed" {
+		t.Fatalf("phase = %q, want failed", reconciled.Phase)
+	}
+	if reconciled.Message != "update_task_stopped" {
+		t.Fatalf("message = %q, want update_task_stopped", reconciled.Message)
+	}
+}
+
 func TestReconcilePanelUpdateStateClearsFailedStateCoveredByCurrentVersion(t *testing.T) {
 	state := &PanelUpdateState{
 		Phase:         "failed",
