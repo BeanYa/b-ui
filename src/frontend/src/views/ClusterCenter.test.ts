@@ -292,4 +292,12 @@ describe('ClusterCenter view source', () => {
     expect(source).not.toContain('token: getPeerToken(member)')
     expect(source).not.toContain('baseUrl: member.baseUrl')
   })
+
+  it('streams Ping All results into the member latency table as each node result arrives', () => {
+    const source = readFileSync(fileURLToPath(new URL('./ClusterCenter.vue', import.meta.url)), 'utf8')
+
+    expect(source).toContain('await pingStore.triggerMeshPingStream(selectedDomain.value.domain, result => {')
+    expect(source).toContain('meshPingResults.value = upsertMeshPairResult(meshPingResults.value, result)')
+    expect(source).toContain('function upsertMeshPairResult(results: MeshPairResult[], result: MeshPairResult): MeshPairResult[]')
+  })
 })

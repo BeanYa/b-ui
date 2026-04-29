@@ -42,15 +42,23 @@ func NewMeshService() *MeshService {
 }
 
 func (s *MeshService) Run(ctx context.Context, domainID string, members []MeshMember, localNodeID string) (*MeshResult, error) {
+	return s.RunWithProgress(ctx, domainID, members, localNodeID, nil)
+}
+
+func (s *MeshService) RunWithProgress(ctx context.Context, domainID string, members []MeshMember, localNodeID string, onResult func(MeshPairResult)) (*MeshResult, error) {
 	result := &MeshResult{
 		DomainID: domainID,
 		TestedAt: nowUnix(),
-		Results:  s.runMesh(ctx, domainID, members, localNodeID),
+		Results:  s.runMeshWithProgress(ctx, domainID, members, localNodeID, onResult),
 	}
 	return result, nil
 }
 
 func (s *MeshService) runMesh(ctx context.Context, domainID string, members []MeshMember, localNodeID string) []MeshPairResult {
+	return s.runMeshWithProgress(ctx, domainID, members, localNodeID, nil)
+}
+
+func (s *MeshService) runMeshWithProgress(ctx context.Context, domainID string, members []MeshMember, localNodeID string, onResult func(MeshPairResult)) []MeshPairResult {
 	if len(members) <= 1 {
 		return nil
 	}
@@ -67,6 +75,9 @@ func (s *MeshService) runMesh(ctx context.Context, domainID string, members []Me
 			}
 			pairResult := s.probePair(ctx, src, tgt)
 			results = append(results, pairResult)
+			if onResult != nil {
+				onResult(pairResult)
+			}
 		}
 	}
 

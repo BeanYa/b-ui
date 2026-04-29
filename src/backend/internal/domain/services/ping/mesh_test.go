@@ -31,8 +31,8 @@ func TestMeshServiceHTTPPing(t *testing.T) {
 				},
 			},
 		},
-		tcpDialer:  &net.Dialer{},
-		tcpPort:    DefaultTCPPort,
+		tcpDialer: &net.Dialer{},
+		tcpPort:   DefaultTCPPort,
 		icmpPinger: func(context.Context, string) (float64, error) {
 			return 0, errors.New("icmp disabled for http fallback test")
 		},
@@ -69,6 +69,46 @@ func TestMeshServiceSingleNode(t *testing.T) {
 	results := svc.runMesh(context.Background(), "test.example.com", members, "n1")
 	if len(results) != 0 {
 		t.Fatalf("expected 0 results for single-node domain, got %d", len(results))
+	}
+}
+
+func TestMeshServiceRunWithProgressEmitsEachPairResult(t *testing.T) {
+	svc := &MeshService{
+		icmpPinger: func(ctx context.Context, target string) (float64, error) {
+			switch target {
+			case "10.0.0.2":
+				return 21, nil
+			case "10.0.0.3":
+				return 34, nil
+			default:
+				return 0, errors.New("unexpected target")
+			}
+		},
+	}
+	members := []MeshMember{
+		{MemberID: "local-1", NodeID: "local-1", Name: "local", Address: "10.0.0.1"},
+		{MemberID: "peer-1", NodeID: "peer-1", Name: "peer one", Address: "10.0.0.2"},
+		{MemberID: "peer-2", NodeID: "peer-2", Name: "peer two", Address: "10.0.0.3"},
+	}
+	var progress []MeshPairResult
+
+	result, err := svc.RunWithProgress(context.Background(), "test.example.com", members, "local-1", func(r MeshPairResult) {
+		progress = append(progress, r)
+	})
+	if err != nil {
+		t.Fatalf("RunWithProgress: %v", err)
+	}
+
+	if len(progress) != 2 {
+		t.Fatalf("expected 2 progress callbacks, got %d", len(progress))
+	}
+	if len(result.Results) != len(progress) {
+		t.Fatalf("expected final results to match progress callbacks, got %d and %d", len(result.Results), len(progress))
+	}
+	for i := range progress {
+		if progress[i].TargetMemberID != result.Results[i].TargetMemberID {
+			t.Fatalf("progress result %d target = %s, final target = %s", i, progress[i].TargetMemberID, result.Results[i].TargetMemberID)
+		}
 	}
 }
 

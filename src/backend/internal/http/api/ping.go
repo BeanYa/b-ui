@@ -1,6 +1,7 @@
 package api
 
 import (
+	"encoding/json"
 	"net/http"
 	"os"
 	"strings"
@@ -28,6 +29,7 @@ func RegisterPingRoutes(g *gin.RouterGroup) {
 
 	g.POST("/ping/mesh/:domainId", h.triggerMeshPing)
 	g.GET("/ping/mesh/:domainId", h.getMeshPing)
+	g.POST("/ping/mesh/:domainId/stream", h.streamMeshPing)
 	g.POST("/ping/external", h.triggerExternalPing)
 	g.GET("/ping/external/results", h.getExternalResults)
 	g.GET("/ping/external/config", h.getExternalConfig)
@@ -44,10 +46,29 @@ func (h *pingAPIHandler) triggerMeshPing(c *gin.Context) {
 		return
 	}
 
+	pingMembers, localID, ok := h.collectMeshPingMembers(c, domainID)
+	if !ok {
+		return
+	}
+
+	result, err := h.meshService.Run(c.Request.Context(), domainID, pingMembers, localID)
+	if err != nil {
+		c.JSON(http.StatusBadGateway, Msg{Success: false, Msg: "mesh ping failed: " + err.Error()})
+		return
+	}
+
+	if err := h.store.SaveMeshResult(result); err != nil {
+		jsonMsg(c, "save mesh ping", err)
+		return
+	}
+	jsonObj(c, result, nil)
+}
+
+func (h *pingAPIHandler) collectMeshPingMembers(c *gin.Context, domainID string) ([]ping.MeshMember, string, bool) {
 	domains, err := h.clusterService.ListDomains()
 	if err != nil {
 		jsonMsg(c, "trigger mesh ping", err)
-		return
+		return nil, "", false
 	}
 
 	var targetDomain *service.ClusterDomainResponse
@@ -59,13 +80,13 @@ func (h *pingAPIHandler) triggerMeshPing(c *gin.Context) {
 	}
 	if targetDomain == nil {
 		c.JSON(http.StatusNotFound, Msg{Success: false, Msg: "domain not found"})
-		return
+		return nil, "", false
 	}
 
 	members, err := h.clusterService.ListMembers()
 	if err != nil {
 		jsonMsg(c, "trigger mesh ping", err)
-		return
+		return nil, "", false
 	}
 
 	pingMembers := make([]ping.MeshMember, 0)
@@ -91,18 +112,70 @@ func (h *pingAPIHandler) triggerMeshPing(c *gin.Context) {
 	}
 
 	localID, _ := getLocalNodeID(h.clusterService)
+	return pingMembers, localID, true
+}
 
-	result, err := h.meshService.Run(c.Request.Context(), domainID, pingMembers, localID)
+type meshPingStreamEvent struct {
+	Type   string `json:"type"`
+	Result any    `json:"result,omitempty"`
+	Msg    string `json:"msg,omitempty"`
+}
+
+func (h *pingAPIHandler) streamMeshPing(c *gin.Context) {
+	if !requireAdmin(c) {
+		return
+	}
+	domainID := c.Param("domainId")
+	if domainID == "" {
+		c.JSON(http.StatusBadRequest, Msg{Success: false, Msg: "domainId is required"})
+		return
+	}
+
+	pingMembers, localID, ok := h.collectMeshPingMembers(c, domainID)
+	if !ok {
+		return
+	}
+
+	flusher, ok := c.Writer.(http.Flusher)
+	if !ok {
+		c.JSON(http.StatusInternalServerError, Msg{Success: false, Msg: "streaming is not supported"})
+		return
+	}
+
+	c.Writer.Header().Set("Content-Type", "application/x-ndjson")
+	c.Writer.Header().Set("Cache-Control", "no-cache")
+	c.Writer.Header().Set("X-Accel-Buffering", "no")
+	c.Status(http.StatusOK)
+	flusher.Flush()
+
+	encoder := json.NewEncoder(c.Writer)
+	writeFailed := false
+	writeEvent := func(event meshPingStreamEvent) {
+		if writeFailed {
+			return
+		}
+		if err := encoder.Encode(event); err != nil {
+			writeFailed = true
+			return
+		}
+		flusher.Flush()
+	}
+
+	result, err := h.meshService.RunWithProgress(c.Request.Context(), domainID, pingMembers, localID, func(pairResult ping.MeshPairResult) {
+		writeEvent(meshPingStreamEvent{Type: "result", Result: pairResult})
+	})
+	if writeFailed {
+		return
+	}
 	if err != nil {
-		c.JSON(http.StatusBadGateway, Msg{Success: false, Msg: "mesh ping failed: " + err.Error()})
+		writeEvent(meshPingStreamEvent{Type: "error", Msg: "mesh ping failed: " + err.Error()})
 		return
 	}
-
 	if err := h.store.SaveMeshResult(result); err != nil {
-		jsonMsg(c, "save mesh ping", err)
+		writeEvent(meshPingStreamEvent{Type: "error", Msg: "save mesh ping: " + err.Error()})
 		return
 	}
-	jsonObj(c, result, nil)
+	writeEvent(meshPingStreamEvent{Type: "done", Result: result})
 }
 
 func (h *pingAPIHandler) getMeshPing(c *gin.Context) {

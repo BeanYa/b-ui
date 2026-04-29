@@ -972,11 +972,24 @@ function memberLatencyStyle(nodeId: string): Record<string, string> {
   return { color: '#721c24', fontWeight: '600' }
 }
 
+function upsertMeshPairResult(results: MeshPairResult[], result: MeshPairResult): MeshPairResult[] {
+  const index = results.findIndex(r =>
+    r.source_member_id === result.source_member_id && r.target_member_id === result.target_member_id
+  )
+  if (index === -1) return [...results, result]
+  const next = [...results]
+  next[index] = result
+  return next
+}
+
 async function pingAllDomainMembers() {
   if (!selectedDomain.value) return
   meshPingLoading.value = true
+  meshPingResults.value = []
   try {
-    const result = await pingStore.triggerMeshPing(selectedDomain.value.domain)
+    const result = await pingStore.triggerMeshPingStream(selectedDomain.value.domain, result => {
+      meshPingResults.value = upsertMeshPairResult(meshPingResults.value, result)
+    })
     meshPingResults.value = result.results
   } catch {
     // error handled by store
