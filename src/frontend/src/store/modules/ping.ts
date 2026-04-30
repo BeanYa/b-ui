@@ -146,7 +146,9 @@ export const usePingStore = defineStore('PingStore', () => {
     error.value = null
     try {
       const req: ExternalRunRequest = { source_ids: sourceIds }
-      const { data } = await api.post('api/ping/external', req)
+      const { data } = await api.post('api/ping/external', req, {
+        headers: { 'Content-Type': 'application/json' },
+      })
       if (data.success) {
         externalResults.value = data.obj
         return data.obj
