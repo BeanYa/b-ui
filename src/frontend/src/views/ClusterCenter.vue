@@ -143,7 +143,7 @@
         </v-card-title>
         <v-card-text>
           <div v-if="clusterLogs.length === 0" class="cluster-center__empty">{{ $t('clusterCenter.logs.empty') }}</div>
-          <div v-else ref="logContainer" class="cluster-center__log-container">
+          <div v-else ref="logContainer" class="cluster-center__log-container" @scroll="onLogContainerScroll">
             <div v-for="(entry, idx) in clusterLogs" :key="idx" class="cluster-center__log-line" :class="'cluster-center__log-line--' + entry.level.toLowerCase()">
               <span class="cluster-center__log-time">{{ entry.time }}</span>
               <span class="cluster-center__log-dir">{{ entry.direction }}</span>
@@ -1093,6 +1093,14 @@ interface ClusterLogEntry {
 const clusterLogs = ref<ClusterLogEntry[]>([])
 const logContainer = ref<HTMLElement | null>(null)
 let clusterLogTimer: ReturnType<typeof setInterval> | null = null
+const userScrolledUp = ref(false)
+
+function onLogContainerScroll() {
+  const el = logContainer.value
+  if (!el) return
+  const atBottom = el.scrollHeight - el.scrollTop - el.clientHeight < 5
+  userScrolledUp.value = !atBottom
+}
 
 function formatLogFields(fields: Record<string, unknown>): string {
   if (!fields) return ''
@@ -1116,6 +1124,7 @@ async function loadClusterLogs() {
 }
 
 function scrollLogToBottom() {
+  if (userScrolledUp.value) return
   const el = logContainer.value
   if (el) el.scrollTop = el.scrollHeight
 }
@@ -1135,6 +1144,7 @@ function stopClusterLogPoll() {
 
 watch(selectedDomainId, (id) => {
   clusterLogs.value = []
+  userScrolledUp.value = false
   if (id) {
     startClusterLogPoll()
   } else {
