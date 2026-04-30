@@ -12,6 +12,8 @@ import (
 	"net/url"
 	"strings"
 	"time"
+
+	logger "github.com/BeanYa/b-ui/src/backend/internal/infra/logging"
 )
 
 type clusterHubClient interface {
@@ -178,58 +180,86 @@ type ClusterHubClient struct {
 }
 
 func (c *ClusterHubClient) RegisterNode(ctx context.Context, hubURL string, request ClusterHubRegisterNodeRequest) (*ClusterHubOperationResponse, error) {
+	start := time.Now()
 	if err := validateClusterHubURL(hubURL); err != nil {
+		c.logHubCall("register_node", request.DomainID, start, err)
 		return nil, err
 	}
 	response := &ClusterHubOperationResponse{}
 	if err := c.postJSON(ctx, strings.TrimRight(hubURL, "/")+"/v1/domains/register", request, response); err != nil {
+		c.logHubCall("register_node", request.DomainID, start, err)
 		return nil, err
 	}
+	c.logHubCall("register_node", request.DomainID, start, nil)
 	return response, nil
 }
 
 func (c *ClusterHubClient) GetLatestVersion(ctx context.Context, hubURL string, domain string, domainToken string) (*ClusterHubVersionResponse, error) {
+	start := time.Now()
 	if err := validateClusterHubURL(hubURL); err != nil {
+		c.logHubCall("latest_version", domain, start, err)
 		return nil, err
 	}
 	request, err := http.NewRequestWithContext(ctx, http.MethodGet, strings.TrimRight(hubURL, "/")+"/v1/domains/"+url.PathEscape(domain)+"/version", nil)
 	if err != nil {
+		c.logHubCall("latest_version", domain, start, err)
 		return nil, err
 	}
 	request.Header.Set("X-Domain-Token", domainToken)
 	if err := c.attachReadIdentity(request); err != nil {
+		c.logHubCall("latest_version", domain, start, err)
 		return nil, err
 	}
 	response, err := c.httpClient().Do(request)
 	if err != nil {
+		c.logHubCall("latest_version", domain, start, err)
 		return nil, err
 	}
 	defer response.Body.Close()
-	return decodeClusterHubReadResponse[ClusterHubVersionResponse](response, "hub latest version")
+	result, err := decodeClusterHubReadResponse[ClusterHubVersionResponse](response, "hub latest version")
+	if err != nil {
+		c.logHubCall("latest_version", domain, start, err)
+		return nil, err
+	}
+	c.logHubCall("latest_version", domain, start, nil)
+	return result, nil
 }
 
 func (c *ClusterHubClient) GetSnapshot(ctx context.Context, hubURL string, domain string, domainToken string) (*ClusterHubSnapshotResponse, error) {
+	start := time.Now()
 	if err := validateClusterHubURL(hubURL); err != nil {
+		c.logHubCall("snapshot", domain, start, err)
 		return nil, err
 	}
 	request, err := http.NewRequestWithContext(ctx, http.MethodGet, strings.TrimRight(hubURL, "/")+"/v1/domains/"+url.PathEscape(domain)+"/snapshot", nil)
 	if err != nil {
+		c.logHubCall("snapshot", domain, start, err)
 		return nil, err
 	}
 	request.Header.Set("X-Domain-Token", domainToken)
 	if err := c.attachReadIdentity(request); err != nil {
+		c.logHubCall("snapshot", domain, start, err)
 		return nil, err
 	}
 	response, err := c.httpClient().Do(request)
 	if err != nil {
+		c.logHubCall("snapshot", domain, start, err)
 		return nil, err
 	}
 	defer response.Body.Close()
-	return decodeClusterHubReadResponse[ClusterHubSnapshotResponse](response, "hub snapshot")
+	result, err := decodeClusterHubReadResponse[ClusterHubSnapshotResponse](response, "hub snapshot")
+	if err != nil {
+		c.logHubCall("snapshot", domain, start, err)
+		return nil, err
+	}
+	c.logHubCall("snapshot", domain, start, nil)
+	return result, nil
 }
 
 func (c *ClusterHubClient) DeleteMember(ctx context.Context, hubURL string, domain string, domainToken string, memberID string) (*ClusterHubOperationResponse, error) {
+	start := time.Now()
 	if err := validateClusterHubURL(hubURL); err != nil {
+		c.logHubCall("delete_member", domain, start, err)
 		return nil, err
 	}
 	payload := map[string]string{
@@ -238,30 +268,38 @@ func (c *ClusterHubClient) DeleteMember(ctx context.Context, hubURL string, doma
 	}
 	body, err := json.Marshal(payload)
 	if err != nil {
+		c.logHubCall("delete_member", domain, start, err)
 		return nil, err
 	}
 	request, err := http.NewRequestWithContext(ctx, http.MethodDelete, strings.TrimRight(hubURL, "/")+"/v1/domains/"+url.PathEscape(domain)+"/members/"+url.PathEscape(memberID), bytes.NewReader(body))
 	if err != nil {
+		c.logHubCall("delete_member", domain, start, err)
 		return nil, err
 	}
 	request.Header.Set("Content-Type", "application/json")
 	response, err := c.httpClient().Do(request)
 	if err != nil {
+		c.logHubCall("delete_member", domain, start, err)
 		return nil, err
 	}
 	defer response.Body.Close()
 	if err := requireHTTPSuccess(response, "hub delete member"); err != nil {
+		c.logHubCall("delete_member", domain, start, err)
 		return nil, err
 	}
 	decoded := &ClusterHubOperationResponse{}
 	if err := json.NewDecoder(response.Body).Decode(decoded); err != nil {
+		c.logHubCall("delete_member", domain, start, err)
 		return nil, err
 	}
+	c.logHubCall("delete_member", domain, start, nil)
 	return decoded, nil
 }
 
 func (c *ClusterHubClient) ClaimUpdate(ctx context.Context, hubURL string, domain string, domainToken string, requestID string, targetVersion string) (*ClusterHubClaimUpdateResponse, error) {
+	start := time.Now()
 	if err := validateClusterHubURL(hubURL); err != nil {
+		c.logHubCall("claim_update", domain, start, err)
 		return nil, err
 	}
 	payload := map[string]string{
@@ -271,13 +309,17 @@ func (c *ClusterHubClient) ClaimUpdate(ctx context.Context, hubURL string, domai
 	}
 	response := &ClusterHubClaimUpdateResponse{}
 	if err := c.postJSON(ctx, strings.TrimRight(hubURL, "/")+"/v1/domains/"+url.PathEscape(domain)+"/claim-update", payload, response); err != nil {
+		c.logHubCall("claim_update", domain, start, err)
 		return nil, err
 	}
+	c.logHubCall("claim_update", domain, start, nil)
 	return response, nil
 }
 
 func (c *ClusterHubClient) SetMemberStatus(ctx context.Context, hubURL string, domain string, domainToken string, requestID string, memberID string, status string, panelVersion string) (*ClusterHubMemberStatusResponse, error) {
+	start := time.Now()
 	if err := validateClusterHubURL(hubURL); err != nil {
+		c.logHubCall("set_member_status", domain, start, err)
 		return nil, err
 	}
 	payload := map[string]string{
@@ -291,8 +333,10 @@ func (c *ClusterHubClient) SetMemberStatus(ctx context.Context, hubURL string, d
 	}
 	response := &ClusterHubMemberStatusResponse{}
 	if err := c.postJSON(ctx, strings.TrimRight(hubURL, "/")+"/v1/domains/"+url.PathEscape(domain)+"/member-status", payload, response); err != nil {
+		c.logHubCall("set_member_status", domain, start, err)
 		return nil, err
 	}
+	c.logHubCall("set_member_status", domain, start, nil)
 	return response, nil
 }
 
@@ -422,4 +466,21 @@ func (c *ClusterHubClient) httpClient() *http.Client {
 		return c.HTTPClient
 	}
 	return &http.Client{Timeout: 10 * time.Second}
+}
+
+func (c *ClusterHubClient) logHubCall(operation, domain string, start time.Time, err error) {
+	latency := logger.ClusterLatency(start)
+	fields := map[string]interface{}{
+		"operation": operation,
+		"domain":    domain,
+		"latency":   latency,
+	}
+	if err != nil {
+		fields["status"] = "failed"
+		fields["error"] = err.Error()
+		logger.ClusterError(logger.ClusterHub, operation, fields)
+	} else {
+		fields["status"] = "ok"
+		logger.ClusterInfo(logger.ClusterHub, operation, fields)
+	}
 }
