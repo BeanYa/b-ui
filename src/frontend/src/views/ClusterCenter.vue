@@ -1107,7 +1107,7 @@ function formatLogFields(fields: Record<string, unknown>): string {
 
 async function loadClusterLogs() {
   if (!selectedDomainId.value) return
-  const msg = await HttpUtils.get('api/cluster/logs', { domain_id: selectedDomainId.value, count: 80 })
+  const msg = await HttpUtils.get('api/cluster/logs', { domain_id: selectedDomainId.value, count: 200 })
   if (msg.success && Array.isArray(msg.obj)) {
     clusterLogs.value = msg.obj
     await nextTick()

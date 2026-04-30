@@ -193,11 +193,14 @@ func (a *APIHandler) getClusterLogs(c *gin.Context) {
 		return
 	}
 	domainIDStr := c.Query("domain_id")
-	count := 50
+	count := 200
 	if c := c.Query("count"); c != "" {
 		if n, err := strconv.Atoi(c); err == nil && n > 0 {
 			count = n
 		}
+	}
+	if count > 200 {
+		count = 200
 	}
 
 	var domainName string
