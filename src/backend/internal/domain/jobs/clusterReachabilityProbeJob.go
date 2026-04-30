@@ -19,6 +19,12 @@ func NewClusterReachabilityProbeJob() *ClusterReachabilityProbeJob {
 
 func (j *ClusterReachabilityProbeJob) Run() {
 	if err := j.prober.ProbeIdlePeers(context.Background()); err != nil {
-		logger.Warning("Cluster reachability probe failed: ", err)
+		logger.ClusterError(logger.ClusterCron, "reachability_probe", map[string]interface{}{
+			"error": err.Error(),
+		})
+		return
 	}
+	logger.ClusterInfo(logger.ClusterCron, "reachability_probe", map[string]interface{}{
+		"status": "completed",
+	})
 }

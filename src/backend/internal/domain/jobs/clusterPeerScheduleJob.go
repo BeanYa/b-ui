@@ -1,6 +1,9 @@
 package cronjob
 
-import service "github.com/BeanYa/b-ui/src/backend/internal/domain/services"
+import (
+	service "github.com/BeanYa/b-ui/src/backend/internal/domain/services"
+	logger "github.com/BeanYa/b-ui/src/backend/internal/infra/logging"
+)
 
 type ClusterPeerScheduleJob struct {
 	service service.ClusterPeerScheduleService
@@ -11,5 +14,13 @@ func NewClusterPeerScheduleJob() *ClusterPeerScheduleJob {
 }
 
 func (j *ClusterPeerScheduleJob) Run() {
-	_ = j.service.RunDueSchedules()
+	if err := j.service.RunDueSchedules(); err != nil {
+		logger.ClusterError(logger.ClusterCron, "peer_schedule", map[string]interface{}{
+			"error": err.Error(),
+		})
+		return
+	}
+	logger.ClusterInfo(logger.ClusterCron, "peer_schedule", map[string]interface{}{
+		"status": "completed",
+	})
 }
