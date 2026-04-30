@@ -254,20 +254,6 @@ func (b *ClusterHTTPBroadcaster) BroadcastNotifyVersion(ctx context.Context, ver
 		if member.NodeID == excludeNodeID || member.NodeID == identity.NodeID || member.BaseURL == "" || member.Domain == nil {
 			continue
 		}
-		entry, err := reachability.load(member.DomainID, member.NodeID)
-		if err != nil {
-			appendFailure(err)
-			continue
-		}
-		if entry.State == ClusterReachabilityUnreachable {
-			shouldRetry, err := reachability.shouldProbeWithError(entry)
-			if err != nil {
-				appendFailure(err)
-			}
-			if !shouldRetry {
-				continue
-			}
-		}
 		token, err := DecryptClusterDomainToken(secret, member.PeerTokenEncrypted)
 		if err != nil {
 			appendFailure(err)
@@ -298,6 +284,9 @@ func (b *ClusterHTTPBroadcaster) BroadcastNotifyVersion(ctx context.Context, ver
 		sentCount++
 		domainCounts[member.Domain.Domain]++
 		if err := delivery.Send(ctx, message, member, token); err != nil {
+			if _, recordErr := reachability.RecordTransportFailure(member.DomainID, member.NodeID, "business"); recordErr != nil {
+				appendFailure(recordErr)
+			}
 			envelope, legacyErr := SignClusterNotifyVersionEnvelope(identity, member.Domain.Domain, version, message.CreatedAt)
 			if legacyErr != nil {
 				return legacyErr
@@ -307,6 +296,10 @@ func (b *ClusterHTTPBroadcaster) BroadcastNotifyVersion(ctx context.Context, ver
 			}
 			if ackErr := b.getAckAttemptSaver()(message.MessageID, member.NodeID, PeerAckStatusSucceeded, ""); ackErr != nil {
 				return ackErr
+			}
+		} else {
+			if _, recordErr := reachability.RecordTransportSuccess(member.DomainID, member.NodeID, "business"); recordErr != nil {
+				appendFailure(recordErr)
 			}
 		}
 	}
@@ -346,16 +339,6 @@ func (b *ClusterHTTPBroadcaster) BroadcastUpdateAvailable(ctx context.Context, d
 		if member.NodeID == excludeNodeID || member.NodeID == identity.NodeID || member.BaseURL == "" {
 			continue
 		}
-		entry, err := reachability.load(member.DomainID, member.NodeID)
-		if err != nil {
-			continue
-		}
-		if entry.State == ClusterReachabilityUnreachable {
-			shouldRetry, err := reachability.shouldProbeWithError(entry)
-			if err != nil || !shouldRetry {
-				continue
-			}
-		}
 		token, err := DecryptClusterDomainToken(secret, member.PeerTokenEncrypted)
 		if err != nil {
 			continue
@@ -382,7 +365,13 @@ func (b *ClusterHTTPBroadcaster) BroadcastUpdateAvailable(ctx context.Context, d
 		}
 		delivery := &ClusterPeerDeliveryService{HTTPClient: b.httpClient(), saveAckAttempt: b.getAckAttemptSaver()}
 		sentCount++
-		_ = delivery.Send(ctx, message, member, token)
+		if err := delivery.Send(ctx, message, member, token); err != nil {
+			if _, recordErr := reachability.RecordTransportFailure(member.DomainID, member.NodeID, "business"); recordErr != nil {
+				continue
+			}
+		} else {
+			_, _ = reachability.RecordTransportSuccess(member.DomainID, member.NodeID, "business")
+		}
 	}
 	logger.ClusterInfo(logger.ClusterOutbound, "domain.panel.update.available", map[string]interface{}{
 		"domain":        domainName,
@@ -414,16 +403,6 @@ func (b *ClusterHTTPBroadcaster) BroadcastUpdateStatus(ctx context.Context, doma
 		if member.NodeID == excludeNodeID || member.NodeID == identity.NodeID || member.BaseURL == "" {
 			continue
 		}
-		entry, err := reachability.load(member.DomainID, member.NodeID)
-		if err != nil {
-			continue
-		}
-		if entry.State == ClusterReachabilityUnreachable {
-			shouldRetry, err := reachability.shouldProbeWithError(entry)
-			if err != nil || !shouldRetry {
-				continue
-			}
-		}
 		token, err := DecryptClusterDomainToken(secret, member.PeerTokenEncrypted)
 		if err != nil {
 			continue
@@ -452,7 +431,13 @@ func (b *ClusterHTTPBroadcaster) BroadcastUpdateStatus(ctx context.Context, doma
 		}
 		delivery := &ClusterPeerDeliveryService{HTTPClient: b.httpClient(), saveAckAttempt: b.getAckAttemptSaver()}
 		sentCount++
-		_ = delivery.Send(ctx, message, member, token)
+		if err := delivery.Send(ctx, message, member, token); err != nil {
+			if _, recordErr := reachability.RecordTransportFailure(member.DomainID, member.NodeID, "business"); recordErr != nil {
+				continue
+			}
+		} else {
+			_, _ = reachability.RecordTransportSuccess(member.DomainID, member.NodeID, "business")
+		}
 	}
 	logger.ClusterInfo(logger.ClusterOutbound, PeerActionDomainPanelUpdateStatus, map[string]interface{}{
 		"domain":       domainName,

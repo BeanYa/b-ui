@@ -411,7 +411,7 @@ func TestClusterHTTPBroadcasterSkipsLocalIdentityNode(t *testing.T) {
 	}
 }
 
-func TestClusterHTTPBroadcasterSkipsRoutineFanoutToKnownUnreachablePeersAndContinuesOthers(t *testing.T) {
+func TestClusterHTTPBroadcasterDoesNotSkipUnreachablePeersAndContinuesOthers(t *testing.T) {
 	var hits int
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		hits++
@@ -423,7 +423,7 @@ func TestClusterHTTPBroadcasterSkipsRoutineFanoutToKnownUnreachablePeersAndConti
 	reachabilityStore := newStubClusterReachabilityStore()
 	if err := reachabilityStore.SaveReachability(&model.ClusterPeerReachability{
 		DomainID:       1,
-		TargetNodeID:   "node-skip",
+		TargetNodeID:   "node-formerly-skipped",
 		State:          ClusterReachabilityUnreachable,
 		LastObservedAt: 20,
 		NextProbeAt:    40,
@@ -443,10 +443,10 @@ func TestClusterHTTPBroadcasterSkipsRoutineFanoutToKnownUnreachablePeersAndConti
 		},
 		store: &stubClusterBroadcastStore{members: []model.ClusterMember{
 			{
-				NodeID:             "node-skip",
-				BaseURL:            "http://example.com/panel/",
+				NodeID:             "node-formerly-skipped",
+				BaseURL:            server.URL + "/panel/",
 				DomainID:           1,
-				PeerTokenEncrypted: mustEncryptClusterToken(t, "panel-secret-for-cluster-tests", "peer-token-skip"),
+				PeerTokenEncrypted: mustEncryptClusterToken(t, "panel-secret-for-cluster-tests", "peer-token-formerly-skipped"),
 				Domain:             &model.ClusterDomain{Id: 1, Domain: "edge.example.com", CommunicationEndpointPath: "/_cluster", CommunicationProtocolVersion: "v1"},
 			},
 			{
@@ -463,8 +463,8 @@ func TestClusterHTTPBroadcasterSkipsRoutineFanoutToKnownUnreachablePeersAndConti
 	if err := broadcaster.BroadcastNotifyVersion(context.Background(), 9, ""); err != nil {
 		t.Fatalf("broadcast notify version: %v", err)
 	}
-	if hits != 1 {
-		t.Fatalf("expected exactly one outbound hit, got %d", hits)
+	if hits != 2 {
+		t.Fatalf("expected exactly two outbound hits (both peers), got %d", hits)
 	}
 }
 
