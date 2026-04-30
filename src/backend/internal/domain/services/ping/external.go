@@ -101,6 +101,7 @@ func (s *ExternalService) RunInbound(ctx context.Context, sourceIDs []string, me
 			for _, member := range members {
 				latency, err := s.meshSvc.icmpPing(ctx, member.Address)
 				r := ExternalTestResult{
+					SourceMemberID: "",
 					SourceLabel:    tgt.Label,
 					Direction:      "inbound",
 					TargetMemberID: member.MemberID,
@@ -155,6 +156,7 @@ func (s *ExternalService) RunOutbound(ctx context.Context, sourceIDs []string, m
 
 func probeExternalTarget(ctx context.Context, meshSvc *MeshService, dialer *net.Dialer, sourceID string, member MeshMember, tgt externalTarget) ExternalTestResult {
 	r := ExternalTestResult{
+		SourceMemberID: member.MemberID,
 		SourceLabel:    member.Name,
 		Direction:      "outbound",
 		TargetMemberID: tgt.Label,
@@ -221,6 +223,7 @@ func (s *ExternalService) RunRIPEAtlas(ctx context.Context, apiKey string, membe
 			continue
 		}
 		r := ExternalTestResult{
+			SourceMemberID: "",
 			SourceLabel:    "RIPE Atlas",
 			Direction:      "inbound",
 			TargetMemberID: member.MemberID,

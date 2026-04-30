@@ -50,6 +50,7 @@ type ExternalResultData struct {
 }
 
 type ExternalTestResult struct {
+	SourceMemberID string  `json:"source_member_id"`
 	SourceLabel    string  `json:"source_label"`
 	Direction      string  `json:"direction"`
 	TargetMemberID string  `json:"target_member_id"`
