@@ -54,7 +54,8 @@ func (h *pingAPIHandler) triggerMeshPing(c *gin.Context) {
 		return
 	}
 
-	result, err := h.meshService.Run(c.Request.Context(), domainID, pingMembers, localID)
+	policy := h.loadPingPolicyForDomain(domainID)
+	result, err := h.meshService.Run(c.Request.Context(), domainID, pingMembers, localID, policy.MaxConcurrent)
 	if err != nil {
 		c.JSON(http.StatusBadGateway, Msg{Success: false, Msg: "mesh ping failed: " + err.Error()})
 		return
@@ -171,9 +172,10 @@ func (h *pingAPIHandler) streamMeshPing(c *gin.Context) {
 		flusher.Flush()
 	}
 
+	policy := h.loadPingPolicyForDomain(domainID)
 	result, err := h.meshService.RunWithProgress(c.Request.Context(), domainID, pingMembers, localID, func(pairResult ping.MeshPairResult) {
 		writeEvent(meshPingStreamEvent{Type: "result", Result: pairResult})
-	})
+	}, policy.MaxConcurrent)
 	if writeFailed {
 		return
 	}
@@ -302,6 +304,18 @@ func (h *pingAPIHandler) resolveDomainID(domainStr string) (uint, error) {
 		}
 	}
 	return 0, fmt.Errorf("domain not found: %s", domainStr)
+}
+
+func (h *pingAPIHandler) loadPingPolicyForDomain(domainStr string) ping.PingPolicy {
+	domainID, err := h.resolveDomainID(domainStr)
+	if err != nil {
+		return ping.DefaultPingPolicy()
+	}
+	domain, err := h.clusterService.GetDomain(domainID)
+	if err != nil {
+		return ping.DefaultPingPolicy()
+	}
+	return domain.GetPingPolicy()
 }
 
 func (h *pingAPIHandler) getPingPolicy(c *gin.Context) {

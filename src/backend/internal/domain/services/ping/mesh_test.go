@@ -6,6 +6,7 @@ import (
 	"net"
 	"net/http"
 	"net/http/httptest"
+	"sync"
 	"testing"
 	"time"
 )
@@ -43,7 +44,7 @@ func TestMeshServiceHTTPPing(t *testing.T) {
 		{MemberID: "peer-1", NodeID: "peer-1", Name: "peer", BaseURL: "http://mesh-http.invalid", PeerToken: ""},
 	}
 
-	results := svc.runMesh(context.Background(), "test.example.com", members, "local-1")
+	results := svc.runMesh(context.Background(), "test.example.com", members, "local-1", 1)
 
 	if len(results) != 1 {
 		t.Fatalf("expected 1 pair (local->peer), got %d", len(results))
@@ -66,7 +67,7 @@ func TestMeshServiceSingleNode(t *testing.T) {
 	members := []MeshMember{
 		{MemberID: "n1", NodeID: "n1", Name: "only", BaseURL: "http://localhost:9999", PeerToken: ""},
 	}
-	results := svc.runMesh(context.Background(), "test.example.com", members, "n1")
+	results := svc.runMesh(context.Background(), "test.example.com", members, "n1", 1)
 	if len(results) != 0 {
 		t.Fatalf("expected 0 results for single-node domain, got %d", len(results))
 	}
@@ -94,7 +95,7 @@ func TestMeshServiceRunWithProgressEmitsEachPairResult(t *testing.T) {
 
 	result, err := svc.RunWithProgress(context.Background(), "test.example.com", members, "local-1", func(r MeshPairResult) {
 		progress = append(progress, r)
-	})
+	}, 1)
 	if err != nil {
 		t.Fatalf("RunWithProgress: %v", err)
 	}
@@ -174,5 +175,105 @@ func TestTCPConnectLatency(t *testing.T) {
 	}
 	if lat < 0 {
 		t.Fatalf("expected non-negative latency, got %f", lat)
+	}
+}
+
+func TestMeshServiceConcurrentProbing(t *testing.T) {
+	var mu sync.Mutex
+	var started []string
+
+	svc := &MeshService{
+		icmpPinger: func(ctx context.Context, target string) (float64, error) {
+			mu.Lock()
+			started = append(started, target)
+			mu.Unlock()
+			// simulate work so goroutines overlap
+			time.Sleep(50 * time.Millisecond)
+			switch target {
+			case "10.0.0.2":
+				return 10, nil
+			case "10.0.0.3":
+				return 20, nil
+			case "10.0.0.4":
+				return 30, nil
+			default:
+				return 0, errors.New("unexpected target")
+			}
+		},
+	}
+	members := []MeshMember{
+		{MemberID: "local-1", NodeID: "local-1", Name: "local", Address: "10.0.0.1"},
+		{MemberID: "peer-1", NodeID: "peer-1", Name: "peer one", Address: "10.0.0.2"},
+		{MemberID: "peer-2", NodeID: "peer-2", Name: "peer two", Address: "10.0.0.3"},
+		{MemberID: "peer-3", NodeID: "peer-3", Name: "peer three", Address: "10.0.0.4"},
+	}
+
+	start := time.Now()
+	results := svc.runMeshWithProgress(context.Background(), "test.example.com", members, "local-1", nil, 3)
+	elapsed := time.Since(start)
+
+	if len(results) != 3 {
+		t.Fatalf("expected 3 results, got %d", len(results))
+	}
+	for _, r := range results {
+		if !r.Success {
+			t.Errorf("expected success for %s->%s, got error: %v", r.SourceName, r.TargetName, r.Error)
+		}
+	}
+
+	// With 3 targets and maxConcurrent=3, all probes run in parallel
+	// so total time should be ~50ms, not ~150ms
+	if elapsed > 200*time.Millisecond {
+		t.Fatalf("concurrent probes took too long (%v), likely not running in parallel", elapsed)
+	}
+
+	// Verify all targets were probed
+	mu.Lock()
+	defer mu.Unlock()
+	if len(started) != 3 {
+		t.Fatalf("expected 3 probes started, got %d", len(started))
+	}
+}
+
+func TestMeshServiceConcurrencySemaphore(t *testing.T) {
+	var mu sync.Mutex
+	activeCount := 0
+	maxActive := 0
+
+	svc := &MeshService{
+		icmpPinger: func(ctx context.Context, target string) (float64, error) {
+			mu.Lock()
+			activeCount++
+			if activeCount > maxActive {
+				maxActive = activeCount
+			}
+			mu.Unlock()
+
+			time.Sleep(50 * time.Millisecond)
+
+			mu.Lock()
+			activeCount--
+			mu.Unlock()
+			return 10, nil
+		},
+	}
+	members := []MeshMember{
+		{MemberID: "local-1", NodeID: "local-1", Name: "local", Address: "10.0.0.1"},
+		{MemberID: "peer-1", NodeID: "peer-1", Name: "peer one", Address: "10.0.0.2"},
+		{MemberID: "peer-2", NodeID: "peer-2", Name: "peer two", Address: "10.0.0.3"},
+		{MemberID: "peer-3", NodeID: "peer-3", Name: "peer three", Address: "10.0.0.4"},
+		{MemberID: "peer-4", NodeID: "peer-4", Name: "peer four", Address: "10.0.0.5"},
+	}
+
+	results := svc.runMeshWithProgress(context.Background(), "test.example.com", members, "local-1", nil, 2)
+
+	if len(results) != 4 {
+		t.Fatalf("expected 4 results, got %d", len(results))
+	}
+
+	mu.Lock()
+	defer mu.Unlock()
+	if maxActive > 2 {
+		t.Fatalf("max concurrent probes was %d, expected at most 2", maxActive)
 	}
 }

@@ -53,11 +53,11 @@ func (j *ClusterMeshPingJob) Run() {
 			continue
 		}
 
-		j.runPing(domain.Domain, domain.ID, members)
+		j.runPing(domain.Domain, domain.ID, members, policy.MaxConcurrent)
 	}
 }
 
-func (j *ClusterMeshPingJob) runPing(domainStr string, domainID uint, members []service.ClusterMemberResponse) {
+func (j *ClusterMeshPingJob) runPing(domainStr string, domainID uint, members []service.ClusterMemberResponse, maxConcurrent int) {
 	if !ping.AcquireMeshPingLock() {
 		return
 	}
@@ -100,7 +100,7 @@ func (j *ClusterMeshPingJob) runPing(domainStr string, domainID uint, members []
 	}
 
 	meshSvc := ping.NewMeshService()
-	result, err := meshSvc.Run(ctx, domainStr, pingMembers, local.NodeID)
+	result, err := meshSvc.Run(ctx, domainStr, pingMembers, local.NodeID, maxConcurrent)
 	if err != nil {
 		logger.Warning("ClusterMeshPingJob: mesh ping failed for ", domainStr, ": ", err)
 		return

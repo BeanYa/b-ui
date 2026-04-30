@@ -71,45 +71,100 @@ func NewMeshService() *MeshService {
 	}
 }
 
-func (s *MeshService) Run(ctx context.Context, domainID string, members []MeshMember, localNodeID string) (*MeshResult, error) {
-	return s.RunWithProgress(ctx, domainID, members, localNodeID, nil)
+func (s *MeshService) Run(ctx context.Context, domainID string, members []MeshMember, localNodeID string, maxConcurrent int) (*MeshResult, error) {
+	return s.RunWithProgress(ctx, domainID, members, localNodeID, nil, maxConcurrent)
 }
 
-func (s *MeshService) RunWithProgress(ctx context.Context, domainID string, members []MeshMember, localNodeID string, onResult func(MeshPairResult)) (*MeshResult, error) {
+func (s *MeshService) RunWithProgress(ctx context.Context, domainID string, members []MeshMember, localNodeID string, onResult func(MeshPairResult), maxConcurrent int) (*MeshResult, error) {
 	result := &MeshResult{
 		DomainID: domainID,
 		TestedAt: nowUnix(),
-		Results:  s.runMeshWithProgress(ctx, domainID, members, localNodeID, onResult),
+		Results:  s.runMeshWithProgress(ctx, domainID, members, localNodeID, onResult, maxConcurrent),
 	}
 	return result, nil
 }
 
-func (s *MeshService) runMesh(ctx context.Context, domainID string, members []MeshMember, localNodeID string) []MeshPairResult {
-	return s.runMeshWithProgress(ctx, domainID, members, localNodeID, nil)
+func (s *MeshService) runMesh(ctx context.Context, domainID string, members []MeshMember, localNodeID string, maxConcurrent int) []MeshPairResult {
+	return s.runMeshWithProgress(ctx, domainID, members, localNodeID, nil, maxConcurrent)
 }
 
-func (s *MeshService) runMeshWithProgress(ctx context.Context, domainID string, members []MeshMember, localNodeID string, onResult func(MeshPairResult)) []MeshPairResult {
+func (s *MeshService) runMeshWithProgress(ctx context.Context, domainID string, members []MeshMember, localNodeID string, onResult func(MeshPairResult), maxConcurrent int) []MeshPairResult {
 	if len(members) <= 1 {
 		return nil
 	}
 
-	results := make([]MeshPairResult, 0, len(members)*len(members))
-
-	for _, src := range members {
-		if src.MemberID != localNodeID {
-			continue
+	// Collect local source and remote targets
+	var local MeshMember
+	targets := make([]MeshMember, 0, len(members)-1)
+	for _, m := range members {
+		if m.MemberID == localNodeID {
+			local = m
+		} else {
+			targets = append(targets, m)
 		}
-		for _, tgt := range members {
-			if tgt.MemberID == localNodeID {
-				continue
-			}
-			pairResult := s.probePair(ctx, src, tgt)
+	}
+	if local.MemberID == "" || len(targets) == 0 {
+		return nil
+	}
+
+	// Clamp concurrency: treat 0 as sequential (1)
+	if maxConcurrent < 1 {
+		maxConcurrent = 1
+	}
+	if maxConcurrent > len(targets) {
+		maxConcurrent = len(targets)
+	}
+
+	// Fast path: sequential (no goroutine overhead for single target or maxConcurrent=1)
+	if maxConcurrent == 1 {
+		results := make([]MeshPairResult, 0, len(targets))
+		for _, tgt := range targets {
+			pairResult := s.probePair(ctx, local, tgt)
 			results = append(results, pairResult)
 			if onResult != nil {
 				onResult(pairResult)
 			}
 		}
+		return results
 	}
+
+	// Concurrent path: bounded goroutine pool with semaphore
+	results := make([]MeshPairResult, len(targets))
+	var wg sync.WaitGroup
+	sem := make(chan struct{}, maxConcurrent)
+
+	for i, tgt := range targets {
+		select {
+		case <-ctx.Done():
+			results[i] = MeshPairResult{
+				SourceMemberID: local.MemberID,
+				SourceName:     local.Name,
+				TargetMemberID: tgt.MemberID,
+				TargetName:     tgt.Name,
+				Success:        false,
+				Error:          errorPtr("cancelled"),
+			}
+			if onResult != nil {
+				onResult(results[i])
+			}
+			continue
+		default:
+		}
+
+		wg.Add(1)
+		go func(idx int, src, tgt MeshMember) {
+			defer wg.Done()
+			sem <- struct{}{}
+			defer func() { <-sem }()
+
+			r := s.probePair(ctx, src, tgt)
+			results[idx] = r
+			if onResult != nil {
+				onResult(r)
+			}
+		}(i, local, tgt)
+	}
+	wg.Wait()
 
 	return results
 }
