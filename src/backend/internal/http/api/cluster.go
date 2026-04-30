@@ -283,16 +283,9 @@ func RegisterClusterMessageRoute(router gin.IRoutes, clusterService clusterAPISe
 		clusterService.Info(c)
 	})
 	router.POST(ClusterActionPath("/"), func(c *gin.Context) {
-		remoteIP := c.ClientIP()
-		var req clustertypes.ActionRequest
-		if err := c.ShouldBindJSON(&req); err == nil {
-			logger.ClusterInfo(logger.ClusterInbound, req.Action, map[string]interface{}{
-				"msg_type":     "ActionRequest",
-				"action":       req.Action,
-				"remote_ip":    remoteIP,
-				"payload_keys": logger.PayloadKeys(req.Payload),
-			})
-		}
+		logger.ClusterInfo(logger.ClusterInbound, "action", map[string]interface{}{
+			"remote_ip": c.ClientIP(),
+		})
 		clusterService.HandleAction(c)
 	})
 }
