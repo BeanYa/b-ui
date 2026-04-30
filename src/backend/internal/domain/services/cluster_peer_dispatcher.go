@@ -5,6 +5,7 @@ import (
 	"errors"
 
 	"github.com/BeanYa/b-ui/src/backend/internal/infra/db/model"
+	logger "github.com/BeanYa/b-ui/src/backend/internal/infra/logging"
 	"github.com/gofrs/uuid/v5"
 )
 
@@ -33,12 +34,32 @@ type ClusterPeerDispatcher struct {
 }
 
 func (d *ClusterPeerDispatcher) Dispatch(ctx context.Context, domain *model.ClusterDomain, source *model.ClusterMember, message *PeerMessage) error {
+	resultFields := map[string]interface{}{
+		"action":    message.Action,
+		"category":  message.Category,
+		"source":    message.SourceNodeID,
+		"domain":    message.DomainID,
+		"route":     message.Route.Mode,
+		"messageId": message.MessageID,
+	}
+	defer func() {
+		if _, ok := resultFields["status"]; ok {
+			if status, _ := resultFields["status"].(string); status == PeerEventStatusFailed {
+				logger.ClusterError(logger.ClusterInbound, message.Action, resultFields)
+			} else {
+				logger.ClusterInfo(logger.ClusterInbound, message.Action, resultFields)
+			}
+		}
+	}()
+
 	store := d.getStore()
 	state, err := store.RecordReceived(message)
 	if err != nil {
 		return err
 	}
 	if isTerminalPeerEventState(state.Status) {
+		resultFields["status"] = string(state.Status)
+		resultFields["reason"] = "already_processed"
 		return nil
 	}
 	claimed, err := store.ClaimProcessing(state.MessageID)
@@ -46,14 +67,21 @@ func (d *ClusterPeerDispatcher) Dispatch(ctx context.Context, domain *model.Clus
 		return err
 	}
 	if !claimed {
+		resultFields["status"] = PeerEventStatusIgnored
+		resultFields["reason"] = "already_claimed"
 		return nil
 	}
 
 	if validTarget, reason, err := d.validateInboundRouteTarget(message); err != nil {
 		_ = store.MarkEventState(state.MessageID, PeerEventStatusFailed, err.Error())
+		resultFields["status"] = PeerEventStatusFailed
+		resultFields["error"] = err.Error()
 		return err
 	} else if !validTarget {
-		return store.MarkEventState(state.MessageID, PeerEventStatusIgnored, reason)
+		_ = store.MarkEventState(state.MessageID, PeerEventStatusIgnored, reason)
+		resultFields["status"] = PeerEventStatusIgnored
+		resultFields["reason"] = reason
+		return nil
 	}
 
 	if message.Category == PeerCategoryEvent && message.Action == PeerActionDomainClusterChanged {
@@ -61,6 +89,8 @@ func (d *ClusterPeerDispatcher) Dispatch(ctx context.Context, domain *model.Clus
 			forwardedNextStep, chainErr := d.completeChainStep(ctx, domain, message, PeerEventStatusFailed, err.Error())
 			if chainErr != nil {
 				_ = store.MarkEventState(state.MessageID, PeerEventStatusFailed, chainErr.Error())
+				resultFields["status"] = PeerEventStatusFailed
+				resultFields["error"] = chainErr.Error()
 				return chainErr
 			}
 			status := PeerEventStatusFailed
@@ -72,6 +102,10 @@ func (d *ClusterPeerDispatcher) Dispatch(ctx context.Context, domain *model.Clus
 			if markErr := store.MarkEventState(state.MessageID, status, errorMessage); markErr != nil {
 				return markErr
 			}
+			resultFields["status"] = status
+			if errorMessage != "" {
+				resultFields["error"] = errorMessage
+			}
 			if forwardedNextStep {
 				return nil
 			}
@@ -79,8 +113,11 @@ func (d *ClusterPeerDispatcher) Dispatch(ctx context.Context, domain *model.Clus
 		}
 		if _, err := d.completeChainStep(ctx, domain, message, PeerEventStatusSucceeded, ""); err != nil {
 			_ = store.MarkEventState(state.MessageID, PeerEventStatusFailed, err.Error())
+			resultFields["status"] = PeerEventStatusFailed
+			resultFields["error"] = err.Error()
 			return err
 		}
+		resultFields["status"] = PeerEventStatusSucceeded
 		return store.MarkEventState(state.MessageID, PeerEventStatusSucceeded, "")
 	}
 
@@ -89,6 +126,8 @@ func (d *ClusterPeerDispatcher) Dispatch(ctx context.Context, domain *model.Clus
 			forwardedNextStep, chainErr := d.completeChainStep(ctx, domain, message, PeerEventStatusFailed, err.Error())
 			if chainErr != nil {
 				_ = store.MarkEventState(state.MessageID, PeerEventStatusFailed, chainErr.Error())
+				resultFields["status"] = PeerEventStatusFailed
+				resultFields["error"] = chainErr.Error()
 				return chainErr
 			}
 			status := PeerEventStatusFailed
@@ -100,6 +139,10 @@ func (d *ClusterPeerDispatcher) Dispatch(ctx context.Context, domain *model.Clus
 			if markErr := store.MarkEventState(state.MessageID, status, errorMessage); markErr != nil {
 				return markErr
 			}
+			resultFields["status"] = status
+			if errorMessage != "" {
+				resultFields["error"] = errorMessage
+			}
 			if forwardedNextStep {
 				return nil
 			}
@@ -107,8 +150,11 @@ func (d *ClusterPeerDispatcher) Dispatch(ctx context.Context, domain *model.Clus
 		}
 		if _, err := d.completeChainStep(ctx, domain, message, PeerEventStatusSucceeded, ""); err != nil {
 			_ = store.MarkEventState(state.MessageID, PeerEventStatusFailed, err.Error())
+			resultFields["status"] = PeerEventStatusFailed
+			resultFields["error"] = err.Error()
 			return err
 		}
+		resultFields["status"] = PeerEventStatusSucceeded
 		return store.MarkEventState(state.MessageID, PeerEventStatusSucceeded, "")
 	}
 
@@ -117,6 +163,8 @@ func (d *ClusterPeerDispatcher) Dispatch(ctx context.Context, domain *model.Clus
 			forwardedNextStep, chainErr := d.completeChainStep(ctx, domain, message, PeerEventStatusFailed, err.Error())
 			if chainErr != nil {
 				_ = store.MarkEventState(state.MessageID, PeerEventStatusFailed, chainErr.Error())
+				resultFields["status"] = PeerEventStatusFailed
+				resultFields["error"] = chainErr.Error()
 				return chainErr
 			}
 			status := PeerEventStatusFailed
@@ -128,6 +176,10 @@ func (d *ClusterPeerDispatcher) Dispatch(ctx context.Context, domain *model.Clus
 			if markErr := store.MarkEventState(state.MessageID, status, errorMessage); markErr != nil {
 				return markErr
 			}
+			resultFields["status"] = status
+			if errorMessage != "" {
+				resultFields["error"] = errorMessage
+			}
 			if forwardedNextStep {
 				return nil
 			}
@@ -135,8 +187,11 @@ func (d *ClusterPeerDispatcher) Dispatch(ctx context.Context, domain *model.Clus
 		}
 		if _, err := d.completeChainStep(ctx, domain, message, PeerEventStatusSucceeded, ""); err != nil {
 			_ = store.MarkEventState(state.MessageID, PeerEventStatusFailed, err.Error())
+			resultFields["status"] = PeerEventStatusFailed
+			resultFields["error"] = err.Error()
 			return err
 		}
+		resultFields["status"] = PeerEventStatusSucceeded
 		return store.MarkEventState(state.MessageID, PeerEventStatusSucceeded, "")
 	}
 
@@ -145,6 +200,8 @@ func (d *ClusterPeerDispatcher) Dispatch(ctx context.Context, domain *model.Clus
 			forwardedNextStep, chainErr := d.completeChainStep(ctx, domain, message, PeerEventStatusFailed, err.Error())
 			if chainErr != nil {
 				_ = store.MarkEventState(state.MessageID, PeerEventStatusFailed, chainErr.Error())
+				resultFields["status"] = PeerEventStatusFailed
+				resultFields["error"] = chainErr.Error()
 				return chainErr
 			}
 			status := PeerEventStatusFailed
@@ -156,6 +213,10 @@ func (d *ClusterPeerDispatcher) Dispatch(ctx context.Context, domain *model.Clus
 			if markErr := store.MarkEventState(state.MessageID, status, errorMessage); markErr != nil {
 				return markErr
 			}
+			resultFields["status"] = status
+			if errorMessage != "" {
+				resultFields["error"] = errorMessage
+			}
 			if forwardedNextStep {
 				return nil
 			}
@@ -163,20 +224,28 @@ func (d *ClusterPeerDispatcher) Dispatch(ctx context.Context, domain *model.Clus
 		}
 		if _, err := d.completeChainStep(ctx, domain, message, PeerEventStatusSucceeded, ""); err != nil {
 			_ = store.MarkEventState(state.MessageID, PeerEventStatusFailed, err.Error())
+			resultFields["status"] = PeerEventStatusFailed
+			resultFields["error"] = err.Error()
 			return err
 		}
+		resultFields["status"] = PeerEventStatusSucceeded
 		return store.MarkEventState(state.MessageID, PeerEventStatusSucceeded, "")
 	}
 
 	if message.Category == PeerCategoryEvent {
 		if _, err := d.completeChainStep(ctx, domain, message, PeerEventStatusUnsupported, ""); err != nil {
 			_ = store.MarkEventState(state.MessageID, PeerEventStatusFailed, err.Error())
+			resultFields["status"] = PeerEventStatusFailed
+			resultFields["error"] = err.Error()
 			return err
 		}
+		resultFields["status"] = PeerEventStatusUnsupported
 		return store.MarkEventState(state.MessageID, PeerEventStatusUnsupported, "")
 	}
 
 	if message.Category == PeerCategoryResponse {
+		resultFields["status"] = PeerEventStatusIgnored
+		resultFields["reason"] = "response_unhandled"
 		return store.MarkEventState(state.MessageID, PeerEventStatusIgnored, "response_unhandled")
 	}
 
@@ -184,6 +253,8 @@ func (d *ClusterPeerDispatcher) Dispatch(ctx context.Context, domain *model.Clus
 	forwardedNextStep, chainErr := d.completeChainStep(ctx, domain, message, PeerEventStatusFailed, err.Error())
 	if chainErr != nil {
 		_ = store.MarkEventState(state.MessageID, PeerEventStatusFailed, chainErr.Error())
+		resultFields["status"] = PeerEventStatusFailed
+		resultFields["error"] = chainErr.Error()
 		return chainErr
 	}
 	status := PeerEventStatusFailed
@@ -194,6 +265,10 @@ func (d *ClusterPeerDispatcher) Dispatch(ctx context.Context, domain *model.Clus
 	}
 	if markErr := store.MarkEventState(state.MessageID, status, errorMessage); markErr != nil {
 		return markErr
+	}
+	resultFields["status"] = status
+	if errorMessage != "" {
+		resultFields["error"] = errorMessage
 	}
 	if forwardedNextStep {
 		return nil
