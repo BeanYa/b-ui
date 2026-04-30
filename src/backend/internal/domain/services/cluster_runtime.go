@@ -10,6 +10,7 @@ import (
 	"net"
 	"net/http"
 	"net/url"
+	"sort"
 	"strings"
 	"time"
 
@@ -248,6 +249,7 @@ func (b *ClusterHTTPBroadcaster) BroadcastNotifyVersion(ctx context.Context, ver
 		}
 	}
 	sentCount := 0
+	domainCounts := map[string]int{}
 	for _, member := range members {
 		if member.NodeID == excludeNodeID || member.NodeID == identity.NodeID || member.BaseURL == "" || member.Domain == nil {
 			continue
@@ -294,6 +296,7 @@ func (b *ClusterHTTPBroadcaster) BroadcastNotifyVersion(ctx context.Context, ver
 		}
 		delivery := &ClusterPeerDeliveryService{HTTPClient: b.httpClient(), saveAckAttempt: b.getAckAttemptSaver()}
 		sentCount++
+		domainCounts[member.Domain.Domain]++
 		if err := delivery.Send(ctx, message, member, token); err != nil {
 			envelope, legacyErr := SignClusterNotifyVersionEnvelope(identity, member.Domain.Domain, version, message.CreatedAt)
 			if legacyErr != nil {
@@ -307,9 +310,16 @@ func (b *ClusterHTTPBroadcaster) BroadcastNotifyVersion(ctx context.Context, ver
 			}
 		}
 	}
+	domainList := make([]string, 0, len(domainCounts))
+	for d := range domainCounts {
+		domainList = append(domainList, d)
+	}
+	sort.Strings(domainList)
 	logger.ClusterInfo(logger.ClusterOutbound, PeerActionDomainClusterChanged, map[string]interface{}{
-		"version":      version,
-		"target_count": sentCount,
+		"version":       version,
+		"target_count":  sentCount,
+		"domains":       domainList,
+		"domain_counts": domainCounts,
 	})
 	return nil
 }
@@ -375,6 +385,7 @@ func (b *ClusterHTTPBroadcaster) BroadcastUpdateAvailable(ctx context.Context, d
 		_ = delivery.Send(ctx, message, member, token)
 	}
 	logger.ClusterInfo(logger.ClusterOutbound, "domain.panel.update.available", map[string]interface{}{
+		"domain":        domainName,
 		"target_count":  sentCount,
 		"targetVersion": targetVersion,
 	})
@@ -444,6 +455,7 @@ func (b *ClusterHTTPBroadcaster) BroadcastUpdateStatus(ctx context.Context, doma
 		_ = delivery.Send(ctx, message, member, token)
 	}
 	logger.ClusterInfo(logger.ClusterOutbound, PeerActionDomainPanelUpdateStatus, map[string]interface{}{
+		"domain":       domainName,
 		"target_count": sentCount,
 		"status":       status,
 	})

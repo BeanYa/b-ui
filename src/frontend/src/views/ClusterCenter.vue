@@ -134,6 +134,26 @@
         </v-card-text>
       </v-card>
 
+      <v-card class="app-card-shell cluster-center__logs">
+        <v-card-title>
+          <div class="cluster-center__card-title">
+            <span>{{ $t('clusterCenter.logs.title') }}</span>
+            <span class="cluster-center__log-count">{{ clusterLogs.length }}</span>
+          </div>
+        </v-card-title>
+        <v-card-text>
+          <div v-if="clusterLogs.length === 0" class="cluster-center__empty">{{ $t('clusterCenter.logs.empty') }}</div>
+          <div v-else ref="logContainer" class="cluster-center__log-container">
+            <div v-for="(entry, idx) in clusterLogs" :key="idx" class="cluster-center__log-line" :class="'cluster-center__log-line--' + entry.level.toLowerCase()">
+              <span class="cluster-center__log-time">{{ entry.time }}</span>
+              <span class="cluster-center__log-dir">{{ entry.direction }}</span>
+              <span class="cluster-center__log-action">{{ entry.action }}</span>
+              <span class="cluster-center__log-fields">{{ formatLogFields(entry.fields) }}</span>
+            </div>
+          </div>
+        </v-card-text>
+      </v-card>
+
       <v-card class="app-card-shell cluster-center__members" :loading="pageLoading">
         <v-card-title>
           <div style="display: flex; align-items: center; gap: 16px;">
@@ -482,7 +502,7 @@
 </template>
 
 <script lang="ts" setup>
-import { computed, inject, onBeforeUnmount, onMounted, ref, type Ref } from 'vue'
+import { computed, inject, nextTick, onBeforeUnmount, onMounted, ref, watch, type Ref } from 'vue'
 import { useRouter } from 'vue-router'
 import { push } from 'notivue'
 
@@ -1057,7 +1077,69 @@ onBeforeUnmount(() => {
   for (const memberId of panelUpdatePollTimers.keys()) {
     clearPanelUpdatePolling(memberId)
   }
+  stopClusterLogPoll()
   globalLoading.value = false
+})
+
+// --- Cluster logs ---
+interface ClusterLogEntry {
+  time: string
+  level: string
+  direction: string
+  action: string
+  fields: Record<string, unknown>
+}
+
+const clusterLogs = ref<ClusterLogEntry[]>([])
+const logContainer = ref<HTMLElement | null>(null)
+let clusterLogTimer: ReturnType<typeof setInterval> | null = null
+
+function formatLogFields(fields: Record<string, unknown>): string {
+  if (!fields) return ''
+  const parts = Object.entries(fields)
+    .filter(([k]) => k !== 'domain')
+    .map(([k, v]) => {
+      if (Array.isArray(v)) return `${k}=[${v.join(',')}]`
+      return `${k}=${v}`
+    })
+  return parts.join(' ')
+}
+
+async function loadClusterLogs() {
+  if (!selectedDomainId.value) return
+  const msg = await HttpUtils.get('api/cluster/logs', { domain_id: selectedDomainId.value, count: 80 })
+  if (msg.success && Array.isArray(msg.obj)) {
+    clusterLogs.value = msg.obj
+    await nextTick()
+    scrollLogToBottom()
+  }
+}
+
+function scrollLogToBottom() {
+  const el = logContainer.value
+  if (el) el.scrollTop = el.scrollHeight
+}
+
+function startClusterLogPoll() {
+  stopClusterLogPoll()
+  loadClusterLogs()
+  clusterLogTimer = setInterval(loadClusterLogs, 5000)
+}
+
+function stopClusterLogPoll() {
+  if (clusterLogTimer) {
+    clearInterval(clusterLogTimer)
+    clusterLogTimer = null
+  }
+}
+
+watch(selectedDomainId, (id) => {
+  clusterLogs.value = []
+  if (id) {
+    startClusterLogPoll()
+  } else {
+    stopClusterLogPoll()
+  }
 })
 
 const pingStore = usePingStore()
@@ -1236,6 +1318,87 @@ function formatAutoPingTime(): string {
   flex-wrap: wrap;
   gap: 12px;
   justify-content: flex-start;
+}
+
+.cluster-center__logs {
+  height: 100%;
+}
+
+.cluster-center__log-count {
+  background: color-mix(in srgb, var(--app-state-info) 16%, transparent);
+  border-radius: 999px;
+  color: var(--app-state-info);
+  font-size: 12px;
+  font-weight: 700;
+  line-height: 1;
+  padding: 4px 8px;
+}
+
+.cluster-center__log-container {
+  background: color-mix(in srgb, var(--app-surface-1) 90%, transparent);
+  border: 1px solid var(--app-border-1);
+  border-radius: 14px;
+  font-family: var(--app-font-mono, ui-monospace, monospace);
+  font-size: 12px;
+  line-height: 1.7;
+  max-height: 260px;
+  overflow-y: auto;
+  padding: 12px 14px;
+}
+
+.cluster-center__log-line {
+  align-items: baseline;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  padding: 2px 0;
+}
+
+.cluster-center__log-time {
+  color: var(--app-text-3);
+  flex-shrink: 0;
+  font-size: 11px;
+}
+
+.cluster-center__log-dir {
+  border-radius: 4px;
+  flex-shrink: 0;
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  padding: 1px 5px;
+}
+
+.cluster-center__log-line--info .cluster-center__log-dir {
+  background: color-mix(in srgb, #55b3ff 14%, transparent);
+  color: #55b3ff;
+}
+
+.cluster-center__log-line--error .cluster-center__log-dir {
+  background: color-mix(in srgb, #e55353 14%, transparent);
+  color: #e55353;
+}
+
+.cluster-center__log-line--warn .cluster-center__log-dir {
+  background: color-mix(in srgb, #f5b51b 14%, transparent);
+  color: #f5b51b;
+}
+
+.cluster-center__log-line--debug .cluster-center__log-dir {
+  background: color-mix(in srgb, var(--app-text-3) 10%, transparent);
+  color: var(--app-text-3);
+}
+
+.cluster-center__log-action {
+  color: var(--app-text-1);
+  font-weight: 600;
+}
+
+.cluster-center__log-fields {
+  color: var(--app-text-3);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .cluster-center__domains,

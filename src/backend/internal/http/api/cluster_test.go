@@ -474,7 +474,7 @@ func TestClusterHeartbeatReturnsProtocolPayloadWithDomainContext(t *testing.T) {
 		},
 	}
 
-	req := httptest.NewRequest(http.MethodGet, "/_cluster/v1/heartbeat", nil)
+	req := httptest.NewRequest(http.MethodGet, "/_cluster/v1/heartbeat?node_id=node-remote", nil)
 	req.Header.Set("X-Cluster-Token", "peer-token")
 	recorder := httptest.NewRecorder()
 
@@ -497,7 +497,7 @@ func TestClusterHeartbeatReturnsRejectedCodeForUnknownToken(t *testing.T) {
 		Code:   "invalid_token",
 	}
 
-	req := httptest.NewRequest(http.MethodGet, "/_cluster/v1/heartbeat", nil)
+	req := httptest.NewRequest(http.MethodGet, "/_cluster/v1/heartbeat?node_id=node-remote", nil)
 	req.Header.Set("X-Cluster-Token", "wrong-token")
 	recorder := httptest.NewRecorder()
 
@@ -677,14 +677,14 @@ func (s *stubClusterAPIService) ReceivePeerMessage(message *service.PeerMessage,
 	return nil
 }
 
-func (s *stubClusterAPIService) Heartbeat(string) (*service.ClusterPeerStatus, error) {
+func (s *stubClusterAPIService) Heartbeat(remoteNodeID string, token string) (*service.ClusterPeerStatus, error) {
 	if s.heartbeatResponse != nil {
 		return s.heartbeatResponse, nil
 	}
 	return &service.ClusterPeerStatus{Status: "processed", Code: "ok", NodeID: "node-local"}, nil
 }
 
-func (s *stubClusterAPIService) Ping(string) (*service.ClusterPeerStatus, error) {
+func (s *stubClusterAPIService) Ping(remoteNodeID string, token string) (*service.ClusterPeerStatus, error) {
 	if s.pingResponse != nil {
 		return s.pingResponse, nil
 	}

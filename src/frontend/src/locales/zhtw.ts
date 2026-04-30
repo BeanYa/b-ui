@@ -266,6 +266,10 @@ export default {
     selectDomain: "選擇一個域",
     inspectPrompt: "選擇一個域以查看其鏡像成員。",
     noMembers: "此域目前沒有鏡像成員。",
+    logs: {
+      title: "叢集日誌",
+      empty: "暫無叢集日誌。",
+    },
     mirroredMembers: "鏡像成員",
     registeredServers: "已註冊的集群伺服器",
     localNode: "本機",

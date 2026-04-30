@@ -266,6 +266,10 @@ export default {
     selectDomain: "选择一个域",
     inspectPrompt: "选择一个域以查看它的镜像成员。",
     noMembers: "当前域还没有镜像成员。",
+    logs: {
+      title: "集群日志",
+      empty: "暂无集群日志。",
+    },
     mirroredMembers: "镜像成员",
     registeredServers: "已注册的集群服务器",
     localNode: "本机",

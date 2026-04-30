@@ -886,13 +886,13 @@ func (s *ClusterService) ReceiveMessage(envelope *ClusterEnvelope, token string)
 	return s.getStore().SaveDomain(domain)
 }
 
-func (s *ClusterService) Heartbeat(token string) (*ClusterPeerStatus, error) {
+func (s *ClusterService) Heartbeat(remoteNodeID string, token string) (*ClusterPeerStatus, error) {
 	localIdentity, err := s.localIdentity.GetOrCreate()
 	if err != nil {
 		return nil, err
 	}
 	now := time.Now().Unix()
-	if token == "" {
+	if remoteNodeID == "" || token == "" || remoteNodeID == localIdentity.NodeID {
 		return &ClusterPeerStatus{
 			Status: "processed",
 			Code:   "ok",
@@ -904,15 +904,22 @@ func (s *ClusterService) Heartbeat(token string) (*ClusterPeerStatus, error) {
 		}, nil
 	}
 
-	member, domain, err := s.findLocalMemberByPeerToken(token)
+	member, domain, err := s.findLocalMemberByRemoteNodeID(remoteNodeID, localIdentity.NodeID)
 	if err != nil {
 		return nil, err
 	}
 	if member == nil || domain == nil {
 		return &ClusterPeerStatus{
 			Status:  "rejected",
+			Code:    "invalid_domain_or_member",
+			Message: "local member not found for domain",
+		}, nil
+	}
+	if err := s.validateClusterPeerToken(member, token); err != nil {
+		return &ClusterPeerStatus{
+			Status:  "rejected",
 			Code:    "invalid_token",
-			Message: "cluster peer token not found",
+			Message: err.Error(),
 		}, nil
 	}
 	return &ClusterPeerStatus{
@@ -929,18 +936,52 @@ func (s *ClusterService) Heartbeat(token string) (*ClusterPeerStatus, error) {
 	}, nil
 }
 
-func (s *ClusterService) Ping(string) (*ClusterPeerStatus, error) {
+func (s *ClusterService) Ping(remoteNodeID string, token string) (*ClusterPeerStatus, error) {
 	localIdentity, err := s.localIdentity.GetOrCreate()
 	if err != nil {
 		return nil, err
+	}
+	now := time.Now().Unix()
+	if remoteNodeID == "" || token == "" || remoteNodeID == localIdentity.NodeID {
+		return &ClusterPeerStatus{
+			Status: "processed",
+			Code:   "ok",
+			NodeID: localIdentity.NodeID,
+			Details: map[string]any{
+				"panelVersion": canonicalizeReleaseTag(config.GetVersion()),
+				"observedAt":   now,
+			},
+		}, nil
+	}
+
+	member, domain, err := s.findLocalMemberByRemoteNodeID(remoteNodeID, localIdentity.NodeID)
+	if err != nil {
+		return nil, err
+	}
+	if member == nil || domain == nil {
+		return &ClusterPeerStatus{
+			Status:  "rejected",
+			Code:    "invalid_domain_or_member",
+			Message: "local member not found for domain",
+		}, nil
+	}
+	if err := s.validateClusterPeerToken(member, token); err != nil {
+		return &ClusterPeerStatus{
+			Status:  "rejected",
+			Code:    "invalid_token",
+			Message: err.Error(),
+		}, nil
 	}
 	return &ClusterPeerStatus{
 		Status: "processed",
 		Code:   "ok",
 		NodeID: localIdentity.NodeID,
 		Details: map[string]any{
-			"panelVersion": canonicalizeReleaseTag(config.GetVersion()),
-			"observedAt":   time.Now().Unix(),
+			"domainId":          domain.Domain,
+			"membershipVersion": domain.LastVersion,
+			"observedAt":        now,
+			"panelVersion":      canonicalizeReleaseTag(config.GetVersion()),
+			"memberId":          member.Id,
 		},
 	}, nil
 }
@@ -1071,38 +1112,33 @@ func (s *ClusterService) validateClusterPeerToken(member *model.ClusterMember, t
 	return nil
 }
 
-func (s *ClusterService) findLocalMemberByPeerToken(token string) (*model.ClusterMember, *model.ClusterDomain, error) {
-	localIdentity, err := s.localIdentity.GetOrCreate()
-	if err != nil {
-		return nil, nil, err
-	}
+func (s *ClusterService) findLocalMemberByRemoteNodeID(remoteNodeID string, localNodeID string) (*model.ClusterMember, *model.ClusterDomain, error) {
 	members, err := s.getStore().ListMembers()
 	if err != nil {
 		return nil, nil, err
 	}
-	secret, err := s.getSecretProvider().GetSecret()
+	var domainID uint
+	for _, m := range members {
+		if m.NodeID == remoteNodeID {
+			domainID = m.DomainID
+			break
+		}
+	}
+	if domainID == 0 {
+		return nil, nil, nil
+	}
+	localMember, err := findClusterMemberByDomainNodeID(s.getStore(), domainID, localNodeID)
 	if err != nil {
 		return nil, nil, err
 	}
-	for _, member := range members {
-		if member.NodeID != localIdentity.NodeID || member.PeerTokenEncrypted == "" {
-			continue
-		}
-		decrypted, err := DecryptClusterDomainToken(secret, member.PeerTokenEncrypted)
-		if err != nil {
-			return nil, nil, err
-		}
-		if decrypted != token {
-			continue
-		}
-		domain, err := s.getStore().GetDomain(member.DomainID)
-		if err != nil {
-			return nil, nil, err
-		}
-		copy := member
-		return &copy, domain, nil
+	if localMember == nil {
+		return nil, nil, nil
 	}
-	return nil, nil, nil
+	domain, err := s.getStore().GetDomain(domainID)
+	if err != nil {
+		return nil, nil, err
+	}
+	return localMember, domain, nil
 }
 
 func newClusterOperationStatus(state string, message string) (*ClusterOperationStatus, error) {

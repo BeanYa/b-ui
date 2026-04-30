@@ -12,6 +12,7 @@ import (
 
 	"github.com/BeanYa/b-ui/src/backend/internal/domain/config"
 	"github.com/BeanYa/b-ui/src/backend/internal/infra/db/model"
+	logger "github.com/BeanYa/b-ui/src/backend/internal/infra/logging"
 )
 
 var errClusterMemberNotFound = errors.New("cluster member not found")
@@ -187,6 +188,7 @@ func (s *ClusterSyncService) HandleIncomingNotifyVersion(ctx context.Context, do
 		}
 		if domain.HubURL != "" {
 			if err := s.hubSyncer.SyncDomain(ctx, domain, version); err != nil {
+			logger.ClusterError(logger.ClusterCron, "version_poll.sync_domain", map[string]interface{}{"domain": domain.Domain, "version": version, "error": err.Error()})
 				return false, err
 			}
 		}
@@ -218,6 +220,7 @@ func (s *ClusterSyncService) pollAndNotifyVersion(ctx context.Context, forceSnap
 		}
 		version, err := s.hubSyncer.LatestVersion(ctx, &domain)
 		if err != nil {
+			logger.ClusterError(logger.ClusterCron, "version_poll.latest_version", map[string]interface{}{"domain": domain.Domain, "error": err.Error()})
 			return err
 		}
 		if version <= domain.LastVersion {
@@ -236,6 +239,7 @@ func (s *ClusterSyncService) pollAndNotifyVersion(ctx context.Context, forceSnap
 		}
 		if err := s.hubSyncer.SyncDomain(ctx, &domain, version); err != nil {
 			var mirrorErr *clusterDomainMirrorRemovedError
+			logger.ClusterError(logger.ClusterCron, "version_poll.sync_domain", map[string]interface{}{"domain": domain.Domain, "version": version, "error": err.Error()})
 			if errors.As(err, &mirrorErr) {
 				if removedMirrorErr == nil {
 					removedMirrorErr = mirrorErr

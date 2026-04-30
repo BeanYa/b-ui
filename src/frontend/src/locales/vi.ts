@@ -264,6 +264,10 @@ export default {
     selectDomain: "Chọn một miền",
     inspectPrompt: "Chọn một miền để xem các nút được phản chiếu.",
     noMembers: "Miền này chưa có nút được phản chiếu.",
+    logs: {
+      title: "Nhật ký cụm",
+      empty: "Chưa có nhật ký cụm.",
+    },
     mirroredMembers: "nút phản chiếu",
     registeredServers: "Máy chủ cụm đã đăng ký",
     localNode: "Cục bộ",

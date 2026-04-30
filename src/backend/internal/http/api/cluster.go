@@ -28,8 +28,8 @@ type clusterAPIService interface {
 	LeaveDomain(uint) error
 	ReceivePeerMessage(*service.PeerMessage, string) error
 	ReceiveMessage(*service.ClusterEnvelope, string) error
-	Heartbeat(string) (*service.ClusterPeerStatus, error)
-	Ping(string) (*service.ClusterPeerStatus, error)
+	Heartbeat(remoteNodeID string, token string) (*service.ClusterPeerStatus, error)
+	Ping(remoteNodeID string, token string) (*service.ClusterPeerStatus, error)
 	HandleAction(c *gin.Context)
 	Info(c *gin.Context)
 }
@@ -188,6 +188,42 @@ func (a *APIHandler) leaveClusterDomain(c *gin.Context) {
 	jsonMsg(c, "leave cluster domain", a.clusterService.LeaveDomain(uint(id)))
 }
 
+func (a *APIHandler) getClusterLogs(c *gin.Context) {
+	if !a.requireClusterAdmin(c) {
+		return
+	}
+	domainIDStr := c.Query("domain_id")
+	count := 50
+	if c := c.Query("count"); c != "" {
+		if n, err := strconv.Atoi(c); err == nil && n > 0 {
+			count = n
+		}
+	}
+
+	var domainName string
+	if domainIDStr != "" {
+		id, err := strconv.ParseUint(domainIDStr, 10, 64)
+		if err != nil {
+			jsonMsg(c, "cluster logs", err)
+			return
+		}
+		domains, err := a.clusterService.ListDomains()
+		if err != nil {
+			jsonMsg(c, "cluster logs", err)
+			return
+		}
+		for _, d := range domains {
+			if d.ID == uint(id) {
+				domainName = d.Domain
+				break
+			}
+		}
+	}
+
+	logs := logger.GetClusterLogs(count, domainName)
+	jsonObj(c, logs, nil)
+}
+
 const maxClusterMessageBytes = 1 << 20
 
 func RegisterClusterMessageRoute(router gin.IRoutes, clusterService clusterAPIService) {
@@ -237,6 +273,7 @@ func RegisterClusterMessageRoute(router gin.IRoutes, clusterService clusterAPISe
 		}
 		if err != nil {
 			logger.ClusterError(logger.ClusterInbound, "events.receive_failed", map[string]interface{}{
+				"domain":    extractDomainFromBody(fields),
 				"remote_ip": remoteIP,
 				"error":     err.Error(),
 			})
@@ -247,35 +284,41 @@ func RegisterClusterMessageRoute(router gin.IRoutes, clusterService clusterAPISe
 	})
 	router.GET(ClusterHeartbeatPath("/"), func(c *gin.Context) {
 		remoteIP := c.ClientIP()
-		status, err := clusterService.Heartbeat(c.GetHeader("X-Cluster-Token"))
+		remoteNodeID := c.Query("node_id")
+		status, err := clusterService.Heartbeat(remoteNodeID, c.GetHeader("X-Cluster-Token"))
 		if err != nil {
 			logger.ClusterError(logger.ClusterInbound, "heartbeat", map[string]interface{}{
-				"remote_ip": remoteIP,
-				"error":     err.Error(),
+				"remote_node_id": remoteNodeID,
+				"remote_ip":      remoteIP,
+				"error":          err.Error(),
 			})
 			c.JSON(http.StatusInternalServerError, gin.H{"status": "failed", "code": "internal_error", "message": err.Error()})
 			return
 		}
 		logger.ClusterDebug(logger.ClusterInbound, "heartbeat", map[string]interface{}{
-			"remote_ip": remoteIP,
-			"status":    status.Status,
+			"remote_node_id": remoteNodeID,
+			"remote_ip":      remoteIP,
+			"status":         status.Status,
 		})
 		c.JSON(http.StatusOK, status)
 	})
 	router.GET(ClusterPingPath("/"), func(c *gin.Context) {
 		remoteIP := c.ClientIP()
-		status, err := clusterService.Ping(c.GetHeader("X-Cluster-Token"))
+		remoteNodeID := c.Query("node_id")
+		status, err := clusterService.Ping(remoteNodeID, c.GetHeader("X-Cluster-Token"))
 		if err != nil {
 			logger.ClusterError(logger.ClusterInbound, "ping", map[string]interface{}{
-				"remote_ip": remoteIP,
-				"error":     err.Error(),
+				"remote_node_id": remoteNodeID,
+				"remote_ip":      remoteIP,
+				"error":          err.Error(),
 			})
 			c.JSON(http.StatusInternalServerError, gin.H{"status": "failed", "code": "internal_error", "message": err.Error()})
 			return
 		}
 		logger.ClusterDebug(logger.ClusterInbound, "ping", map[string]interface{}{
-			"remote_ip": remoteIP,
-			"status":    status.Status,
+			"remote_node_id": remoteNodeID,
+			"remote_ip":      remoteIP,
+			"status":         status.Status,
 		})
 		c.JSON(http.StatusOK, status)
 	})
@@ -288,6 +331,22 @@ func RegisterClusterMessageRoute(router gin.IRoutes, clusterService clusterAPISe
 		})
 		clusterService.HandleAction(c)
 	})
+}
+
+func extractDomainFromBody(fields map[string]json.RawMessage) string {
+	if raw, ok := fields["domain"]; ok {
+		var domain string
+		if err := json.Unmarshal(raw, &domain); err == nil && domain != "" {
+			return domain
+		}
+	}
+	if raw, ok := fields["domainId"]; ok {
+		var domain string
+		if err := json.Unmarshal(raw, &domain); err == nil && domain != "" {
+			return domain
+		}
+	}
+	return ""
 }
 
 func ClusterMessagePath(basePath string) string {

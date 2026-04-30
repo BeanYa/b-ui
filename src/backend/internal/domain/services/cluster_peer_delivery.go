@@ -20,8 +20,13 @@ func (s *ClusterPeerDeliveryService) Send(ctx context.Context, message *PeerMess
 	start := time.Now()
 	err := s.sendJSON(ctx, message, member, token)
 	latency := logger.ClusterLatency(start)
+	domainName := ""
+	if member.Domain != nil {
+		domainName = member.Domain.Domain
+	}
 	fields := map[string]interface{}{
 		"targetNode": member.NodeID,
+		"domain":     domainName,
 		"action":     message.Action,
 		"route":      message.Route.Mode,
 		"latency":    latency,
@@ -52,8 +57,13 @@ func (s *ClusterPeerDeliveryService) SendEnvelope(ctx context.Context, envelope 
 	start := time.Now()
 	err := s.sendJSON(ctx, envelope, member, token)
 	latency := logger.ClusterLatency(start)
+	domainName := ""
+	if member.Domain != nil {
+		domainName = member.Domain.Domain
+	}
 	fields := map[string]interface{}{
 		"targetNode": member.NodeID,
+		"domain":     domainName,
 		"latency":    latency,
 	}
 	if err != nil {

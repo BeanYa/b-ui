@@ -5,6 +5,7 @@ import (
 	"path/filepath"
 	"sort"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/BeanYa/b-ui/src/backend/internal/domain/config"
@@ -17,9 +18,23 @@ const (
 	ClusterOutbound = "OUTBOUND"
 	ClusterHub      = "HUB"
 	ClusterCron     = "CRON"
+
+	clusterLogBufMax = 2048
 )
 
-var clusterLogger *logging.Logger
+type ClusterLogEntry struct {
+	Time      string                 `json:"time"`
+	Level     string                 `json:"level"`
+	Direction string                 `json:"direction"`
+	Action    string                 `json:"action"`
+	Fields    map[string]interface{} `json:"fields"`
+}
+
+var (
+	clusterLogger *logging.Logger
+	clusterBufMu  sync.RWMutex
+	clusterBuf    []ClusterLogEntry
+)
 
 func InitClusterLogger() {
 	logPath := filepath.Join(config.GetDBFolderPath(), "cluster.log")
@@ -45,6 +60,7 @@ func ClusterDebug(direction, action string, fields map[string]interface{}) {
 		return
 	}
 	clusterLogger.Debug(formatClusterEntry(direction, action, fields))
+	addClusterBuf("DEBUG", direction, action, fields)
 }
 
 func ClusterInfo(direction, action string, fields map[string]interface{}) {
@@ -52,6 +68,7 @@ func ClusterInfo(direction, action string, fields map[string]interface{}) {
 		return
 	}
 	clusterLogger.Info(formatClusterEntry(direction, action, fields))
+	addClusterBuf("INFO", direction, action, fields)
 }
 
 func ClusterWarn(direction, action string, fields map[string]interface{}) {
@@ -59,6 +76,7 @@ func ClusterWarn(direction, action string, fields map[string]interface{}) {
 		return
 	}
 	clusterLogger.Warning(formatClusterEntry(direction, action, fields))
+	addClusterBuf("WARN", direction, action, fields)
 }
 
 func ClusterError(direction, action string, fields map[string]interface{}) {
@@ -66,6 +84,42 @@ func ClusterError(direction, action string, fields map[string]interface{}) {
 		return
 	}
 	clusterLogger.Error(formatClusterEntry(direction, action, fields))
+	addClusterBuf("ERROR", direction, action, fields)
+}
+
+func addClusterBuf(level, direction, action string, fields map[string]interface{}) {
+	entry := ClusterLogEntry{
+		Time:      time.Now().Format("2006/01/02 15:04:05"),
+		Level:     level,
+		Direction: direction,
+		Action:    action,
+		Fields:    fields,
+	}
+	clusterBufMu.Lock()
+	if len(clusterBuf) >= clusterLogBufMax {
+		clusterBuf = clusterBuf[1:]
+	}
+	clusterBuf = append(clusterBuf, entry)
+	clusterBufMu.Unlock()
+}
+
+// GetClusterLogs returns the last count entries filtered by domain name.
+// If domain is empty, returns all entries.
+func GetClusterLogs(count int, domain string) []ClusterLogEntry {
+	clusterBufMu.RLock()
+	defer clusterBufMu.RUnlock()
+
+	var result []ClusterLogEntry
+	for i := len(clusterBuf) - 1; i >= 0 && len(result) < count; i-- {
+		e := clusterBuf[i]
+		if domain != "" {
+			if dv, ok := e.Fields["domain"]; !ok || fmt.Sprintf("%v", dv) != domain {
+				continue
+			}
+		}
+		result = append(result, e)
+	}
+	return result
 }
 
 func PayloadKeys(payload map[string]interface{}) []string {

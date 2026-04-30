@@ -264,6 +264,10 @@ export default {
     selectDomain: "یک دامنه را انتخاب کنید",
     inspectPrompt: "برای دیدن اعضای آینه‌شده، یک دامنه را انتخاب کنید.",
     noMembers: "برای این دامنه هنوز عضوی آینه نشده است.",
+    logs: {
+      title: "لاگ‌های خوشه",
+      empty: "هنوز لاگ خوشه‌ای وجود ندارد.",
+    },
     mirroredMembers: "عضو آینه‌شده",
     registeredServers: "سرورهای خوشه ثبت‌شده",
     localNode: "محلی",

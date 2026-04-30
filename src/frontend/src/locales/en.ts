@@ -267,6 +267,10 @@ export default {
     selectDomain: "Select a domain",
     inspectPrompt: "Choose a domain to inspect its mirrored members.",
     noMembers: "No mirrored members for this domain yet.",
+    logs: {
+      title: "Cluster Logs",
+      empty: "No cluster logs yet.",
+    },
     mirroredMembers: "mirrored members",
     registeredServers: "Registered Cluster Servers",
     localNode: "Local",

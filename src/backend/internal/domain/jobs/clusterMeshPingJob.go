@@ -25,13 +25,17 @@ func (j *ClusterMeshPingJob) Run() {
 	cs := &service.ClusterService{}
 	domains, err := cs.ListDomains()
 	if err != nil {
-		logger.Warning("ClusterMeshPingJob: list domains failed: ", err)
+		logger.ClusterError(logger.ClusterCron, "mesh_ping.list_domains", map[string]interface{}{
+			"error": err.Error(),
+		})
 		return
 	}
 
 	members, err := cs.ListMembers()
 	if err != nil {
-		logger.Warning("ClusterMeshPingJob: list members failed: ", err)
+		logger.ClusterError(logger.ClusterCron, "mesh_ping.list_members", map[string]interface{}{
+			"error": err.Error(),
+		})
 		return
 	}
 
@@ -95,14 +99,20 @@ func (j *ClusterMeshPingJob) runPing(domainStr string, domainID uint, members []
 	identity := service.ClusterLocalIdentityService{}
 	local, err := identity.GetOrCreate()
 	if err != nil {
-		logger.Warning("ClusterMeshPingJob: get local node ID failed: ", err)
+		logger.ClusterError(logger.ClusterCron, "mesh_ping.get_identity", map[string]interface{}{
+			"domain": domainStr,
+			"error":  err.Error(),
+		})
 		return
 	}
 
 	meshSvc := ping.NewMeshService()
 	result, err := meshSvc.Run(ctx, domainStr, pingMembers, local.NodeID, maxConcurrent)
 	if err != nil {
-		logger.Warning("ClusterMeshPingJob: mesh ping failed for ", domainStr, ": ", err)
+		logger.ClusterError(logger.ClusterCron, "mesh_ping.run_failed", map[string]interface{}{
+			"domain": domainStr,
+			"error":  err.Error(),
+		})
 		return
 	}
 
@@ -110,7 +120,10 @@ func (j *ClusterMeshPingJob) runPing(domainStr string, domainID uint, members []
 
 	store := ping.NewStore()
 	if err := store.SaveMeshResult(result); err != nil {
-		logger.Warning("ClusterMeshPingJob: save failed: ", err)
+		logger.ClusterError(logger.ClusterCron, "mesh_ping.save_failed", map[string]interface{}{
+			"domain": domainStr,
+			"error":  err.Error(),
+		})
 	}
 
 	j.mu.Lock()

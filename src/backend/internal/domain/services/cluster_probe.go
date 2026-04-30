@@ -10,6 +10,7 @@ import (
 
 	database "github.com/BeanYa/b-ui/src/backend/internal/infra/db"
 	"github.com/BeanYa/b-ui/src/backend/internal/infra/db/model"
+	logger "github.com/BeanYa/b-ui/src/backend/internal/infra/logging"
 )
 
 type clusterProbeStore interface {
@@ -71,17 +72,23 @@ func (s *ClusterPeerProbeService) ProbeIdlePeers(ctx context.Context) error {
 		if !clusterProbeDomainHasLocalMember(domainMembers, localNodeID) {
 			continue
 		}
+		domainName := domainMembers[0].Domain.Domain
 		targetNodeIDs := make([]string, 0, len(domainMembers))
 		for _, member := range domainMembers {
 			targetNodeIDs = append(targetNodeIDs, member.NodeID)
 		}
 		if err := s.getReachability().ReconcileMembers(domainID, targetNodeIDs); err != nil {
+			logger.ClusterError(logger.ClusterCron, "reachability_probe.reconcile", map[string]interface{}{
+				"domain": domainName,
+				"error":  err.Error(),
+			})
 			rememberErr(err)
 			continue
 		}
 		if len(domainMembers) <= 1 {
 			continue
 		}
+		domainProbeCount := 0
 		for _, member := range domainMembers {
 			if member.NodeID == localNodeID || member.BaseURL == "" || member.Domain == nil {
 				continue
@@ -98,21 +105,31 @@ func (s *ClusterPeerProbeService) ProbeIdlePeers(ctx context.Context) error {
 			if !shouldProbe {
 				continue
 			}
-			if err := s.probeMember(ctx, member); err != nil {
+			if err := s.probeMember(ctx, member, localNodeID); err != nil {
+				logger.ClusterError(logger.ClusterCron, "reachability_probe.member_failed", map[string]interface{}{
+					"domain":     domainName,
+					"targetNode": member.NodeID,
+					"error":      err.Error(),
+				})
 				if _, recordErr := s.getReachability().RecordTransportFailure(member.DomainID, member.NodeID, "probe"); recordErr != nil {
 					rememberErr(recordErr)
 				}
 				continue
 			}
+			domainProbeCount++
 			if _, err := s.getReachability().RecordTransportSuccess(member.DomainID, member.NodeID, "probe"); err != nil {
 				rememberErr(err)
 			}
 		}
+		logger.ClusterDebug(logger.ClusterCron, "reachability_probe.domain_done", map[string]interface{}{
+			"domain":       domainName,
+			"probed_count": domainProbeCount,
+		})
 	}
 	return firstErr
 }
 
-func (s *ClusterPeerProbeService) probeMember(ctx context.Context, member model.ClusterMember) error {
+func (s *ClusterPeerProbeService) probeMember(ctx context.Context, member model.ClusterMember, localNodeID string) error {
 	peerToken := ""
 	if member.PeerTokenEncrypted != "" {
 		secret, err := s.getSecretProvider().GetSecret()
@@ -132,6 +149,9 @@ func (s *ClusterPeerProbeService) probeMember(ctx context.Context, member model.
 	)
 	if err != nil {
 		return err
+	}
+	if localNodeID != "" {
+		heartbeatURL += "?node_id=" + url.QueryEscape(localNodeID)
 	}
 	request, err := http.NewRequestWithContext(ctx, http.MethodGet, heartbeatURL, nil)
 	if err != nil {
