@@ -116,6 +116,7 @@ func (a *APP) initLog() {
 	default:
 		log.Fatal("unknown log level:", config.GetLogLevel())
 	}
+	logger.InitClusterLogger()
 }
 
 func (a *APP) RestartApp() {
