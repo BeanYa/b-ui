@@ -15,6 +15,7 @@ import (
 
 	database "github.com/BeanYa/b-ui/src/backend/internal/infra/db"
 	"github.com/BeanYa/b-ui/src/backend/internal/infra/db/model"
+	logger "github.com/BeanYa/b-ui/src/backend/internal/infra/logging"
 )
 
 const ClusterCommunicationEndpointPath = "/_cluster"
@@ -246,6 +247,7 @@ func (b *ClusterHTTPBroadcaster) BroadcastNotifyVersion(ctx context.Context, ver
 			failures = append(failures, err.Error())
 		}
 	}
+	sentCount := 0
 	for _, member := range members {
 		if member.NodeID == excludeNodeID || member.NodeID == identity.NodeID || member.BaseURL == "" || member.Domain == nil {
 			continue
@@ -291,6 +293,7 @@ func (b *ClusterHTTPBroadcaster) BroadcastNotifyVersion(ctx context.Context, ver
 			return err
 		}
 		delivery := &ClusterPeerDeliveryService{HTTPClient: b.httpClient(), saveAckAttempt: b.getAckAttemptSaver()}
+		sentCount++
 		if err := delivery.Send(ctx, message, member, token); err != nil {
 			envelope, legacyErr := SignClusterNotifyVersionEnvelope(identity, member.Domain.Domain, version, message.CreatedAt)
 			if legacyErr != nil {
@@ -304,6 +307,10 @@ func (b *ClusterHTTPBroadcaster) BroadcastNotifyVersion(ctx context.Context, ver
 			}
 		}
 	}
+	logger.ClusterInfo(logger.ClusterOutbound, PeerActionDomainClusterChanged, map[string]interface{}{
+		"version":      version,
+		"target_count": sentCount,
+	})
 	return nil
 }
 
@@ -321,6 +328,7 @@ func (b *ClusterHTTPBroadcaster) BroadcastUpdateAvailable(ctx context.Context, d
 		return err
 	}
 	reachability := b.getReachability()
+	sentCount := 0
 	for _, member := range members {
 		if member.Domain == nil || member.Domain.Id != domainID {
 			continue
@@ -363,8 +371,13 @@ func (b *ClusterHTTPBroadcaster) BroadcastUpdateAvailable(ctx context.Context, d
 			continue
 		}
 		delivery := &ClusterPeerDeliveryService{HTTPClient: b.httpClient(), saveAckAttempt: b.getAckAttemptSaver()}
+		sentCount++
 		_ = delivery.Send(ctx, message, member, token)
 	}
+	logger.ClusterInfo(logger.ClusterOutbound, "domain.panel.update.available", map[string]interface{}{
+		"target_count":  sentCount,
+		"targetVersion": targetVersion,
+	})
 	return nil
 }
 
@@ -382,6 +395,7 @@ func (b *ClusterHTTPBroadcaster) BroadcastUpdateStatus(ctx context.Context, doma
 		return err
 	}
 	reachability := b.getReachability()
+	sentCount := 0
 	for _, member := range members {
 		if member.Domain == nil || member.Domain.Id != domainID {
 			continue
@@ -426,8 +440,13 @@ func (b *ClusterHTTPBroadcaster) BroadcastUpdateStatus(ctx context.Context, doma
 			continue
 		}
 		delivery := &ClusterPeerDeliveryService{HTTPClient: b.httpClient(), saveAckAttempt: b.getAckAttemptSaver()}
+		sentCount++
 		_ = delivery.Send(ctx, message, member, token)
 	}
+	logger.ClusterInfo(logger.ClusterOutbound, PeerActionDomainPanelUpdateStatus, map[string]interface{}{
+		"target_count": sentCount,
+		"status":       status,
+	})
 	return nil
 }
 
