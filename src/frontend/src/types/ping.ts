@@ -77,6 +77,17 @@ export function sortedExternalByLatency(results: ExternalTestResult[]): External
     .sort((a, b) => (a.latency_ms ?? Infinity) - (b.latency_ms ?? Infinity))
 }
 
+export function latencyCSSColor(ms: number | null, success: boolean): string {
+  const name = latencyColor(ms, success)
+  switch (name) {
+    case 'green': return '#4caf50'
+    case 'yellow': return '#f9a825'
+    case 'orange': return '#ff9800'
+    case 'red': return '#f44336'
+    default: return '#9e9e9e'
+  }
+}
+
 export interface PingPolicy {
   enabled: boolean
   interval: number       // seconds

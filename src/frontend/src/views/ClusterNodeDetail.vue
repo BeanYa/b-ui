@@ -130,7 +130,7 @@
             <div v-if="nodeInboundResults.length > 0" class="node-detail__latency-detail">
               <div class="node-detail__latency-detail-title">{{ $t('ping.inboundDetail') }}</div>
               <div class="node-detail__latency-detail-rows">
-                <div v-for="r in nodeInboundResults" :key="r.source_label" class="node-detail__latency-detail-row">
+                <div v-for="r in nodeInboundResults" :key="r.source_label + '-' + r.target_member_id" class="node-detail__latency-detail-row">
                   <span class="node-detail__latency-detail-name">{{ r.source_label }}</span>
                   <span
                     class="node-detail__latency-detail-value"
@@ -259,7 +259,7 @@ import RulesView from '@/views/Rules.vue'
 import OutboundsView from '@/views/Outbounds.vue'
 import EndpointsView from '@/views/Endpoints.vue'
 import { usePingStore } from '@/store/modules/ping'
-import { latencyColor, latencyText, sortedExternalByLatency } from '@/types/ping'
+import { latencyColor, latencyCSSColor, latencyText, sortedExternalByLatency } from '@/types/ping'
 
 const route = useRoute()
 const router = useRouter()
@@ -306,17 +306,6 @@ const outboundAvg = computed(() => {
 
 const hasLatencyData = computed(() => nodeInboundResults.value.length > 0 || nodeOutboundResults.value.length > 0)
 const nodeOffline = computed(() => nodeMember.value?.status === 'offline')
-
-function latencyCSSColor(ms: number | null, success: boolean): string {
-  const name = latencyColor(ms, success)
-  switch (name) {
-    case 'green': return '#4caf50'
-    case 'yellow': return '#ffeb3b'
-    case 'orange': return '#ff9800'
-    case 'red': return '#f44336'
-    default: return '#9e9e9e'
-  }
-}
 
 async function runLatencyTest() {
   latencyTesting.value = true
