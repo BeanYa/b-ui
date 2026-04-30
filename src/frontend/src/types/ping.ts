@@ -30,6 +30,7 @@ export interface ExternalConfig {
 }
 
 export interface ExternalTestResult {
+  source_member_id: string
   source_label: string
   direction: 'inbound' | 'outbound'
   target_member_id: string
@@ -65,6 +66,12 @@ export function latencyText(r: MeshPairResult | ExternalTestResult): string {
 }
 
 export function sortedByLatency(results: MeshPairResult[]): MeshPairResult[] {
+  return [...results]
+    .filter(r => r.success && r.latency_ms !== null)
+    .sort((a, b) => (a.latency_ms ?? Infinity) - (b.latency_ms ?? Infinity))
+}
+
+export function sortedExternalByLatency(results: ExternalTestResult[]): ExternalTestResult[] {
   return [...results]
     .filter(r => r.success && r.latency_ms !== null)
     .sort((a, b) => (a.latency_ms ?? Infinity) - (b.latency_ms ?? Infinity))
