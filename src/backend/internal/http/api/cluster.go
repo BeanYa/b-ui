@@ -8,6 +8,7 @@ import (
 
 	service "github.com/BeanYa/b-ui/src/backend/internal/domain/services"
 	clustertypes "github.com/BeanYa/b-ui/src/backend/internal/domain/services/cluster/types"
+	logger "github.com/BeanYa/b-ui/src/backend/internal/infra/logging"
 
 	"github.com/gin-gonic/gin"
 )
@@ -203,12 +204,22 @@ func RegisterClusterMessageRoute(router gin.IRoutes, clusterService clusterAPISe
 			return
 		}
 		token := c.GetHeader("X-Cluster-Token")
+		remoteIP := c.ClientIP()
 		if _, ok := fields["protocolVersion"]; ok {
 			var message service.PeerMessage
 			if err := json.Unmarshal(body, &message); err != nil {
 				c.JSON(http.StatusBadRequest, Msg{Success: false, Msg: "cluster message: " + err.Error()})
 				return
 			}
+			logger.ClusterInfo(logger.ClusterInbound, message.Action, map[string]interface{}{
+				"msg_type":     "PeerMessage",
+				"category":     message.Category,
+				"sourceNode":   message.SourceNodeID,
+				"domain":       message.DomainID,
+				"route":        message.Route.Mode,
+				"remote_ip":    remoteIP,
+				"payload_keys": logger.PayloadKeys(message.Payload),
+			})
 			err = clusterService.ReceivePeerMessage(&message, token)
 		} else {
 			var envelope service.ClusterEnvelope
@@ -216,34 +227,72 @@ func RegisterClusterMessageRoute(router gin.IRoutes, clusterService clusterAPISe
 				c.JSON(http.StatusBadRequest, Msg{Success: false, Msg: "cluster message: " + err.Error()})
 				return
 			}
+			logger.ClusterInfo(logger.ClusterInbound, "sync.notify_version", map[string]interface{}{
+				"msg_type":   "Envelope",
+				"sourceNode": envelope.SourceNodeID,
+				"domain":     envelope.Domain,
+				"remote_ip":  remoteIP,
+			})
 			err = clusterService.ReceiveMessage(&envelope, token)
 		}
 		if err != nil {
+			logger.ClusterError(logger.ClusterInbound, "events.receive_failed", map[string]interface{}{
+				"remote_ip": remoteIP,
+				"error":     err.Error(),
+			})
 			c.JSON(http.StatusUnauthorized, Msg{Success: false, Msg: clusterMessage(err)})
 			return
 		}
 		c.JSON(http.StatusOK, Msg{Success: true, Msg: clusterMessage(nil)})
 	})
 	router.GET(ClusterHeartbeatPath("/"), func(c *gin.Context) {
+		remoteIP := c.ClientIP()
 		status, err := clusterService.Heartbeat(c.GetHeader("X-Cluster-Token"))
 		if err != nil {
+			logger.ClusterError(logger.ClusterInbound, "heartbeat", map[string]interface{}{
+				"remote_ip": remoteIP,
+				"error":     err.Error(),
+			})
 			c.JSON(http.StatusInternalServerError, gin.H{"status": "failed", "code": "internal_error", "message": err.Error()})
 			return
 		}
+		logger.ClusterDebug(logger.ClusterInbound, "heartbeat", map[string]interface{}{
+			"remote_ip": remoteIP,
+			"status":    status.Status,
+		})
 		c.JSON(http.StatusOK, status)
 	})
 	router.GET(ClusterPingPath("/"), func(c *gin.Context) {
+		remoteIP := c.ClientIP()
 		status, err := clusterService.Ping(c.GetHeader("X-Cluster-Token"))
 		if err != nil {
+			logger.ClusterError(logger.ClusterInbound, "ping", map[string]interface{}{
+				"remote_ip": remoteIP,
+				"error":     err.Error(),
+			})
 			c.JSON(http.StatusInternalServerError, gin.H{"status": "failed", "code": "internal_error", "message": err.Error()})
 			return
 		}
+		logger.ClusterDebug(logger.ClusterInbound, "ping", map[string]interface{}{
+			"remote_ip": remoteIP,
+			"status":    status.Status,
+		})
 		c.JSON(http.StatusOK, status)
 	})
 	router.GET(ClusterInfoPath("/"), func(c *gin.Context) {
 		clusterService.Info(c)
 	})
 	router.POST(ClusterActionPath("/"), func(c *gin.Context) {
+		remoteIP := c.ClientIP()
+		var req clustertypes.ActionRequest
+		if err := c.ShouldBindJSON(&req); err == nil {
+			logger.ClusterInfo(logger.ClusterInbound, req.Action, map[string]interface{}{
+				"msg_type":     "ActionRequest",
+				"action":       req.Action,
+				"remote_ip":    remoteIP,
+				"payload_keys": logger.PayloadKeys(req.Payload),
+			})
+		}
 		clusterService.HandleAction(c)
 	})
 }
