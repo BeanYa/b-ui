@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"github.com/BeanYa/b-ui/src/backend/internal/infra/db/model"
+	logger "github.com/BeanYa/b-ui/src/backend/internal/infra/logging"
 )
 
 type ClusterPeerDeliveryService struct {
@@ -16,7 +17,23 @@ type ClusterPeerDeliveryService struct {
 }
 
 func (s *ClusterPeerDeliveryService) Send(ctx context.Context, message *PeerMessage, member model.ClusterMember, token string) error {
+	start := time.Now()
 	err := s.sendJSON(ctx, message, member, token)
+	latency := logger.ClusterLatency(start)
+	fields := map[string]interface{}{
+		"targetNode": member.NodeID,
+		"action":     message.Action,
+		"route":      message.Route.Mode,
+		"latency":    latency,
+	}
+	if err != nil {
+		fields["status"] = "failed"
+		fields["error"] = err.Error()
+		logger.ClusterError(logger.ClusterOutbound, message.Action, fields)
+	} else {
+		fields["status"] = "ok"
+		logger.ClusterInfo(logger.ClusterOutbound, message.Action, fields)
+	}
 	if shouldRecordPeerAck(message, member) {
 		status := PeerAckStatusSucceeded
 		errorMessage := ""
@@ -32,7 +49,22 @@ func (s *ClusterPeerDeliveryService) Send(ctx context.Context, message *PeerMess
 }
 
 func (s *ClusterPeerDeliveryService) SendEnvelope(ctx context.Context, envelope *ClusterEnvelope, member model.ClusterMember, token string) error {
-	return s.sendJSON(ctx, envelope, member, token)
+	start := time.Now()
+	err := s.sendJSON(ctx, envelope, member, token)
+	latency := logger.ClusterLatency(start)
+	fields := map[string]interface{}{
+		"targetNode": member.NodeID,
+		"latency":    latency,
+	}
+	if err != nil {
+		fields["status"] = "failed"
+		fields["error"] = err.Error()
+		logger.ClusterError(logger.ClusterOutbound, "envelope.send", fields)
+	} else {
+		fields["status"] = "ok"
+		logger.ClusterInfo(logger.ClusterOutbound, "envelope.send", fields)
+	}
+	return err
 }
 
 func (s *ClusterPeerDeliveryService) sendJSON(ctx context.Context, payload interface{}, member model.ClusterMember, token string) error {
