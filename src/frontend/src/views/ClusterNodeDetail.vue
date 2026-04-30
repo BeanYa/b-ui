@@ -68,6 +68,97 @@
         </v-card-text>
       </v-card>
 
+      <v-card class="app-card-shell node-detail__latency-card">
+        <v-card-text>
+          <div class="node-detail__latency-header">
+            <span class="node-detail__latency-title">{{ $t('ping.nodeCardTitle') }}</span>
+            <div class="node-detail__latency-actions">
+              <v-btn
+                variant="outlined"
+                size="small"
+                :loading="latencyTesting"
+                :disabled="latencyTesting || nodeOffline"
+                @click="runLatencyTest"
+              >
+                <v-tooltip v-if="nodeOffline" activator="parent" location="top">
+                  {{ $t('ping.nodeOffline') }}
+                </v-tooltip>
+                {{ latencyTesting ? $t('ping.testing') : $t('ping.runTest') }}
+              </v-btn>
+              <v-btn
+                v-if="hasLatencyData"
+                icon
+                variant="text"
+                size="small"
+                @click="latencyExpanded = !latencyExpanded"
+              >
+                <v-icon>{{ latencyExpanded ? 'mdi-chevron-up' : 'mdi-chevron-down' }}</v-icon>
+              </v-btn>
+            </div>
+          </div>
+
+          <v-progress-linear v-if="latencyTesting" indeterminate color="primary" class="mt-2 mb-2" />
+
+          <div v-if="!hasLatencyData && !latencyTesting" class="node-detail__latency-empty">
+            {{ $t('ping.noData') }}
+          </div>
+
+          <div v-if="hasLatencyData" class="node-detail__latency-summary">
+            <div class="node-detail__latency-stat">
+              <div class="node-detail__latency-stat-label">{{ $t('ping.inbound') }}</div>
+              <div
+                class="node-detail__latency-stat-value"
+                :style="{ color: latencyCSSColor(inboundAvg, true) }"
+              >
+                {{ inboundAvg !== null ? `${inboundAvg}ms` : '-' }}
+              </div>
+              <div class="node-detail__latency-stat-sub">{{ nodeInboundResults.length }}{{ $t('ping.sources') }}</div>
+            </div>
+            <div class="node-detail__latency-stat">
+              <div class="node-detail__latency-stat-label">{{ $t('ping.outbound') }}</div>
+              <div
+                class="node-detail__latency-stat-value"
+                :style="{ color: latencyCSSColor(outboundAvg, true) }"
+              >
+                {{ outboundAvg !== null ? `${outboundAvg}ms` : '-' }}
+              </div>
+              <div class="node-detail__latency-stat-sub">{{ nodeOutboundResults.length }}{{ $t('ping.targets') }}</div>
+            </div>
+          </div>
+
+          <template v-if="latencyExpanded">
+            <div v-if="nodeInboundResults.length > 0" class="node-detail__latency-detail">
+              <div class="node-detail__latency-detail-title">{{ $t('ping.inboundDetail') }}</div>
+              <div class="node-detail__latency-detail-rows">
+                <div v-for="r in nodeInboundResults" :key="r.source_label" class="node-detail__latency-detail-row">
+                  <span class="node-detail__latency-detail-name">{{ r.source_label }}</span>
+                  <span
+                    class="node-detail__latency-detail-value"
+                    :style="{ color: latencyCSSColor(r.latency_ms, r.success) }"
+                  >
+                    {{ latencyText(r) }}
+                  </span>
+                </div>
+              </div>
+            </div>
+            <div v-if="nodeOutboundResults.length > 0" class="node-detail__latency-detail">
+              <div class="node-detail__latency-detail-title">{{ $t('ping.outboundDetail') }}</div>
+              <div class="node-detail__latency-detail-rows">
+                <div v-for="r in nodeOutboundResults" :key="r.target_member_id + '-' + r.target_name" class="node-detail__latency-detail-row">
+                  <span class="node-detail__latency-detail-name">{{ r.target_member_id }}</span>
+                  <span
+                    class="node-detail__latency-detail-value"
+                    :style="{ color: latencyCSSColor(r.latency_ms, r.success) }"
+                  >
+                    {{ latencyText(r) }}
+                  </span>
+                </div>
+              </div>
+            </div>
+          </template>
+        </v-card-text>
+      </v-card>
+
       <template v-if="supportsPanelExperience">
         <v-tabs v-model="activeTab" class="node-detail__tabs" color="primary">
           <v-tab value="inbounds">{{ $t('pages.inbounds') }}</v-tab>
@@ -167,10 +258,15 @@ import ServicesView from '@/views/Services.vue'
 import RulesView from '@/views/Rules.vue'
 import OutboundsView from '@/views/Outbounds.vue'
 import EndpointsView from '@/views/Endpoints.vue'
+import { usePingStore } from '@/store/modules/ping'
+import { latencyColor, latencyText, sortedExternalByLatency } from '@/types/ping'
 
 const route = useRoute()
 const router = useRouter()
 const remoteNode = useRemoteNodeStore()
+const pingStore = usePingStore()
+const latencyExpanded = ref(false)
+const latencyTesting = ref(false)
 
 const pageSize = 10
 const nodeConnection = ref<ClusterMemberConnection | null>(null)
@@ -183,6 +279,57 @@ const nodeActions = computed(() => remoteNode.info?.actions ?? [])
 const advertisesPanelExperience = computed(() => nodeActions.value.includes('panel.load') && nodeActions.value.includes('panel.save'))
 const supportsPanelExperience = computed(() => panelReady.value || advertisesPanelExperience.value)
 const isPageLoading = computed(() => remoteNode.pageLoading || panelLoading.value)
+
+const currentNodeId = computed(() => nodeConnection.value?.nodeId ?? '')
+
+const nodeInboundResults = computed(() => {
+  const results = pingStore.externalResults?.results ?? []
+  return sortedExternalByLatency(results.filter(r => r.direction === 'inbound' && r.target_member_id === currentNodeId.value))
+})
+
+const nodeOutboundResults = computed(() => {
+  const results = pingStore.externalResults?.results ?? []
+  return sortedExternalByLatency(results.filter(r => r.direction === 'outbound' && r.source_member_id === currentNodeId.value))
+})
+
+const inboundAvg = computed(() => {
+  if (nodeInboundResults.value.length === 0) return null
+  const sum = nodeInboundResults.value.reduce((a, r) => a + (r.latency_ms ?? 0), 0)
+  return Math.round(sum / nodeInboundResults.value.length)
+})
+
+const outboundAvg = computed(() => {
+  if (nodeOutboundResults.value.length === 0) return null
+  const sum = nodeOutboundResults.value.reduce((a, r) => a + (r.latency_ms ?? 0), 0)
+  return Math.round(sum / nodeOutboundResults.value.length)
+})
+
+const hasLatencyData = computed(() => nodeInboundResults.value.length > 0 || nodeOutboundResults.value.length > 0)
+const nodeOffline = computed(() => nodeMember.value?.status === 'offline')
+
+function latencyCSSColor(ms: number | null, success: boolean): string {
+  const name = latencyColor(ms, success)
+  switch (name) {
+    case 'green': return '#4caf50'
+    case 'yellow': return '#ffeb3b'
+    case 'orange': return '#ff9800'
+    case 'red': return '#f44336'
+    default: return '#9e9e9e'
+  }
+}
+
+async function runLatencyTest() {
+  latencyTesting.value = true
+  try {
+    await pingStore.loadExternalConfig()
+    const allSourceIds = pingStore.externalConfig?.sources.map(s => s.id) ?? []
+    if (allSourceIds.length > 0) {
+      await pingStore.triggerExternalPing(allSourceIds)
+    }
+  } finally {
+    latencyTesting.value = false
+  }
+}
 
 const activeTab = ref('inbounds')
 
@@ -305,6 +452,7 @@ onMounted(async () => {
 
   try {
     nodeConnection.value = await loadNodeConnection(nodeId)
+    pingStore.loadExternalResults().catch(() => {})
     await loadNodeMember(nodeId)
     await remoteNode.init(nodeConnection.value.nodeId, nodeConnection.value.baseUrl)
     if (remoteNode.pageError) return
@@ -433,6 +581,116 @@ onUnmounted(() => {
 
 @media (max-width: 640px) {
   .node-detail__info-row {
+    grid-template-columns: 1fr;
+  }
+}
+
+.node-detail__latency-card {
+  margin-bottom: 16px;
+}
+
+.node-detail__latency-header {
+  align-items: center;
+  display: flex;
+  justify-content: space-between;
+}
+
+.node-detail__latency-title {
+  font-size: 14px;
+  font-weight: 600;
+}
+
+.node-detail__latency-actions {
+  display: flex;
+  gap: 4px;
+}
+
+.node-detail__latency-empty {
+  color: var(--app-text-3);
+  font-size: 13px;
+  padding: 16px 0;
+  text-align: center;
+}
+
+.node-detail__latency-summary {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 12px;
+  margin-top: 12px;
+}
+
+.node-detail__latency-stat {
+  background: rgba(128, 128, 128, 0.08);
+  border-radius: 8px;
+  padding: 12px;
+  text-align: center;
+}
+
+.node-detail__latency-stat-label {
+  color: var(--app-text-3);
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+}
+
+.node-detail__latency-stat-value {
+  font-size: 24px;
+  font-weight: 700;
+  line-height: 1.2;
+  margin: 4px 0;
+}
+
+.node-detail__latency-stat-sub {
+  color: var(--app-text-3);
+  font-size: 11px;
+}
+
+.node-detail__latency-detail {
+  border-top: 1px solid var(--app-border-1);
+  margin-top: 12px;
+  padding-top: 8px;
+}
+
+.node-detail__latency-detail-title {
+  color: var(--app-text-3);
+  font-size: 11px;
+  font-weight: 600;
+  margin-bottom: 6px;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+}
+
+.node-detail__latency-detail-rows {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+}
+
+.node-detail__latency-detail-row {
+  align-items: center;
+  display: flex;
+  font-size: 12px;
+  justify-content: space-between;
+  padding: 2px 0;
+}
+
+.node-detail__latency-detail-name {
+  color: var(--app-text-2);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.node-detail__latency-detail-value {
+  font-family: var(--app-font-mono, ui-monospace, monospace);
+  font-size: 12px;
+  font-weight: 600;
+  margin-left: 12px;
+  white-space: nowrap;
+}
+
+@media (max-width: 480px) {
+  .node-detail__latency-summary {
     grid-template-columns: 1fr;
   }
 }
