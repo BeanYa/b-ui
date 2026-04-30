@@ -86,6 +86,11 @@ node_modules/
 # Claude Code
 .claude/
 
+# Tool configs
+.codex/
+.gitnexus/
+.superpowers/
+
 # Editor directories and files
 .idea
 .vscode
