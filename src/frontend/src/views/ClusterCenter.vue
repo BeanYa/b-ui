@@ -550,7 +550,7 @@ const selectedDomainMembers = computed(() => members.value.filter((member) => me
 const domainUpdateChecks = ref<Record<number, ClusterPanelUpdateCheck>>({})
 
 const domainMemberCount = (domainId: number) => members.value.filter((member) => member.domainId === domainId).length
-const formatClusterVersionLabel = (version: number) => `version-${version}`
+const formatClusterVersionLabel = (version: number) => `${version}`
 
 const openDomainDetail = (domain: ClusterDomain) => {
   selectedDomainId.value = domain.id

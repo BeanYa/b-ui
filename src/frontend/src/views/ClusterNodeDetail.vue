@@ -58,7 +58,7 @@
             </div>
             <div v-if="nodeMember" class="node-detail__info-row">
               <span class="node-detail__info-label">Version</span>
-              <strong class="node-detail__info-value">{{ `version-${nodeMember.lastVersion}` }}</strong>
+              <strong class="node-detail__info-value">{{ nodeMember.lastVersion }}</strong>
             </div>
             <div v-if="nodeMember" class="node-detail__info-row">
               <span class="node-detail__info-label">Panel Version</span>
