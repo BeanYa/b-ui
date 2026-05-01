@@ -28,23 +28,6 @@ tun:
   auto-detect-interface: true
   dns-hijack:
     - any:53
-dns:
-  enable: true
-  ipv6: false
-  enhanced-mode: fake-ip
-  fake-ip-range: 198.18.0.1/16
-  default-nameserver:
-    - 8.8.8.8
-    - 1.1.1.1
-  nameserver:
-    - https://doh.pub/dns-query
-    - https://1.0.0.1/dns-query
-  fallback:
-    - tcp://9.9.9.9:53
-  fake-ip-filter:
-    - "*.lan"
-    - localhost
-    - "*.local"
 rules:
   - GEOIP,Private,DIRECT
   - MATCH,Proxy
