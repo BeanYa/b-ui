@@ -1,7 +1,7 @@
 import RandomUtil from '@/plugins/randomUtil'
 import type { tls } from '@/types/tls'
 
-export type TlsPresetKey = 'standard' | 'hysteria2' | 'reality'
+export type TlsPresetKey = 'standard' | 'hysteria2' | 'reality' | 'standard-cert' | 'hysteria2-cert'
 
 const clone = <T>(value: T): T => JSON.parse(JSON.stringify(value))
 
@@ -13,6 +13,10 @@ export const getTlsPresetBaseName = (preset: TlsPresetKey): string => {
       return 'hysteria2-template'
     case 'reality':
       return 'reality-template'
+    case 'standard-cert':
+      return 'tls-cert-template'
+    case 'hysteria2-cert':
+      return 'hysteria2-cert-template'
   }
 }
 
@@ -80,6 +84,25 @@ const presets: Record<TlsPresetKey, Omit<tls, 'name' | 'id'>> = {
         short_id: '',
       },
     },
+  },
+  'standard-cert': {
+    server: {
+      enabled: true,
+      server_name: '',
+      alpn: ['h2', 'http/1.1'],
+      certificate_path: '',
+      key_path: '',
+    },
+    client: {},
+  },
+  'hysteria2-cert': {
+    server: {
+      enabled: true,
+      server_name: '',
+      certificate_path: '',
+      key_path: '',
+    },
+    client: {},
   },
 }
 

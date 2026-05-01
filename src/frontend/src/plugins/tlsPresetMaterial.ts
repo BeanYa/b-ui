@@ -5,6 +5,7 @@ export interface TlsPresetMaterialProvider {
   generateTlsKeypair(serverName: string): Promise<string[]>
   generateRealityKeypair(): Promise<string[]>
   getTlsDomainHints?(): Promise<unknown[]>
+  getPanelCertSettings?(): Promise<{ webDomain: string, webCertFile: string, webKeyFile: string }>
 }
 
 const clone = <T>(value: T): T => JSON.parse(JSON.stringify(value))
@@ -152,6 +153,17 @@ const getDefaultMaterialProvider = async (): Promise<TlsPresetMaterialProvider> 
       }
       return msg.obj.items as unknown[]
     },
+    async getPanelCertSettings() {
+      const msg = await HttpUtils.get('api/settings')
+      if (!msg.success || !msg.obj) {
+        return { webDomain: '', webCertFile: '', webKeyFile: '' }
+      }
+      return {
+        webDomain: String(msg.obj.webDomain ?? ''),
+        webCertFile: String(msg.obj.webCertFile ?? ''),
+        webKeyFile: String(msg.obj.webKeyFile ?? ''),
+      }
+    },
   }
 }
 
@@ -169,7 +181,7 @@ export const materializeTlsPreset = async (
       const serverName = normalizeOptionalServerName(next.server.server_name)
       if (serverName.length > 0) {
         next.server.server_name = serverName
-      } else if (preset === 'hysteria2') {
+      } else {
         const hintedServerName = await firstTlsDomainHint(resolvedProvider)
         if (hintedServerName.length > 0) {
           next.server.server_name = hintedServerName
@@ -191,6 +203,24 @@ export const materializeTlsPreset = async (
       }
       next.server.reality.private_key = material.privateKey
       ensureRealityClient(next.client).public_key = material.publicKey
+      return next
+    }
+    case 'standard-cert':
+    case 'hysteria2-cert': {
+      const certSettings = await resolvedProvider.getPanelCertSettings?.()
+      const certFile = certSettings?.webCertFile?.trim() ?? ''
+      const keyFile = certSettings?.webKeyFile?.trim() ?? ''
+      const domain = certSettings?.webDomain?.trim() ?? ''
+
+      if (!certFile || !keyFile) {
+        throw new Error('Panel TLS certificate is not configured. Please configure a certificate for the panel domain in Settings first.')
+      }
+
+      next.server.server_name = domain
+      next.server.certificate_path = certFile
+      next.server.key_path = keyFile
+      delete next.server.certificate
+      delete next.server.key
       return next
     }
   }

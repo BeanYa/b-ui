@@ -721,6 +721,8 @@ export default {
       standard: "TLS",
       hysteria2: "Hysteria2",
       reality: "Reality",
+      standardCert: "TLS-证书",
+      hysteria2Cert: "Hysteria2-证书",
     },
     status: {
       builtin: "内置",

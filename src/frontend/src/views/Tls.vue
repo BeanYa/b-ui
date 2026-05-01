@@ -141,6 +141,8 @@ const presetItems: { title: string, value: TlsPresetKey }[] = [
   { title: i18n.global.t('tls.presets.standard').toString(), value: 'standard' },
   { title: i18n.global.t('tls.presets.hysteria2').toString(), value: 'hysteria2' },
   { title: i18n.global.t('tls.presets.reality').toString(), value: 'reality' },
+  { title: i18n.global.t('tls.presets.standardCert').toString(), value: 'standard-cert' },
+  { title: i18n.global.t('tls.presets.hysteria2Cert').toString(), value: 'hysteria2-cert' },
 ]
 
 const delOverlay = ref(new Array<boolean>(tlsConfigs.value.length).fill(false))

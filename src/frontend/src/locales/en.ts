@@ -724,6 +724,8 @@ export default {
       standard: "TLS",
       hysteria2: "Hysteria2",
       reality: "Reality",
+      standardCert: "TLS-Cert",
+      hysteria2Cert: "Hysteria2-Cert",
     },
     status: {
       builtin: "Built-in",
