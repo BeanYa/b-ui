@@ -98,6 +98,7 @@ type ClusterService struct {
 	secretProvider clusterSecretProvider
 	actionRouter   *router.ActionRouter
 	runtime        *cluster.Runtime
+	proxyReport    *ClusterProxyReportService
 }
 
 func NewClusterService() *ClusterService {
@@ -268,6 +269,9 @@ func (s *ClusterService) Register(request ClusterRegisterRequest) (*ClusterOpera
 	domain.LastVersion = snapshot.Version
 	if err := store.SaveDomain(domain); err != nil {
 		return nil, err
+	}
+	if s.proxyReport != nil {
+		s.proxyReport.ReportProxyConfigs(domain.Id)
 	}
 	status, err := newClusterOperationStatus("completed", "registered")
 	if err != nil {
@@ -635,6 +639,9 @@ func (s *ClusterService) ManualSync() (*ClusterOperationStatus, error) {
 			return status, nil
 		}
 		return nil, err
+	}
+	if s.proxyReport != nil {
+		s.proxyReport.ReportForAllDomains()
 	}
 	status, err := newClusterOperationStatus("completed", "")
 	if err != nil {
@@ -1009,6 +1016,10 @@ func (s *ClusterService) HandleAction(c *gin.Context) {
 
 // SetRuntime sets the runtime with wired handlers. When set, Info and HandleAction
 // will use the runtime's router instead of the bare actionRouter.
+func (s *ClusterService) SetProxyReportService(report *ClusterProxyReportService) {
+	s.proxyReport = report
+}
+
 func (s *ClusterService) SetRuntime(rt *cluster.Runtime) {
 	s.runtime = rt
 }

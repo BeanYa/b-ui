@@ -23,6 +23,7 @@ type clusterHubClient interface {
 	DeleteMember(context.Context, string, string, string, string) (*ClusterHubOperationResponse, error)
 	ClaimUpdate(context.Context, string, string, string, string, string) (*ClusterHubClaimUpdateResponse, error)
 	SetMemberStatus(context.Context, string, string, string, string, string, string, string) (*ClusterHubMemberStatusResponse, error)
+	ReportProxyConfigs(ctx context.Context, hubURL string, domain string, body ClusterHubReportProxyConfigsRequest) error
 }
 
 type ClusterHubRegisterNodeRequest struct {
@@ -82,6 +83,25 @@ type ClusterHubClaimUpdateResponse struct {
 
 type ClusterHubMemberStatusResponse struct {
 	OK bool `json:"ok"`
+}
+
+type ClusterHubReportProxyConfigsRequest struct {
+	RequestID   string                      `json:"request_id"`
+	NodeID      string                      `json:"node_id"`
+	MemberID    string                      `json:"member_id"`
+	DomainToken string                      `json:"domain_token"`
+	Signature   string                      `json:"signature"`
+	Configs     []ClusterHubProxyConfigItem `json:"configs"`
+}
+
+type ClusterHubProxyConfigItem struct {
+	InboundID  uint            `json:"inbound_id"`
+	Type       string          `json:"type"`
+	Tag        string          `json:"tag"`
+	ListenPort int             `json:"listen_port"`
+	Address    string          `json:"address"`
+	Options    json.RawMessage `json:"options"`
+	TLSConfig  json.RawMessage `json:"tls_config,omitempty"`
 }
 
 type ClusterHubCommunicationResponse struct {
@@ -338,6 +358,37 @@ func (c *ClusterHubClient) SetMemberStatus(ctx context.Context, hubURL string, d
 	}
 	c.logHubCall("set_member_status", domain, start, nil)
 	return response, nil
+}
+
+func (c *ClusterHubClient) ReportProxyConfigs(ctx context.Context, hubURL string, domain string, body ClusterHubReportProxyConfigsRequest) error {
+	start := time.Now()
+	if err := validateClusterHubURL(hubURL); err != nil {
+		c.logHubCall("report_proxy_configs", domain, start, err)
+		return err
+	}
+	payload, err := json.Marshal(body)
+	if err != nil {
+		c.logHubCall("report_proxy_configs", domain, start, err)
+		return err
+	}
+	request, err := http.NewRequestWithContext(ctx, http.MethodPut, strings.TrimRight(hubURL, "/")+"/v1/domains/"+url.PathEscape(domain)+"/proxy-configs", bytes.NewReader(payload))
+	if err != nil {
+		c.logHubCall("report_proxy_configs", domain, start, err)
+		return err
+	}
+	request.Header.Set("Content-Type", "application/json")
+	response, err := c.httpClient().Do(request)
+	if err != nil {
+		c.logHubCall("report_proxy_configs", domain, start, err)
+		return err
+	}
+	defer response.Body.Close()
+	if err := requireHTTPSuccess(response, "hub report proxy configs"); err != nil {
+		c.logHubCall("report_proxy_configs", domain, start, err)
+		return err
+	}
+	c.logHubCall("report_proxy_configs", domain, start, nil)
+	return nil
 }
 
 func (c *ClusterHubClient) postJSON(ctx context.Context, url string, requestBody interface{}, target interface{}) error {
