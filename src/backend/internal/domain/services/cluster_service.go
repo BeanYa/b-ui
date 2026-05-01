@@ -1020,6 +1020,14 @@ func (s *ClusterService) SetProxyReportService(report *ClusterProxyReportService
 	s.proxyReport = report
 }
 
+// InitProxyReport creates the ClusterProxyReportService, wires it into this
+// ClusterService and the provided InboundService.
+func (s *ClusterService) InitProxyReport(inboundSvc *InboundService) {
+	report := NewClusterProxyReportService(s.getHubClient(), inboundSvc, s, s)
+	s.proxyReport = report
+	inboundSvc.SetProxyReportService(report)
+}
+
 func (s *ClusterService) SetRuntime(rt *cluster.Runtime) {
 	s.runtime = rt
 }
@@ -1416,4 +1424,51 @@ func (a *clusterSyncStoreAdapter) SaveDomain(domain *model.ClusterDomain) error 
 
 func (a *clusterSyncStoreAdapter) ListDomains() ([]model.ClusterDomain, error) {
 	return a.store.ListDomains()
+}
+
+// GetAllDomains returns domain info needed for proxy config reporting.
+// Satisfies clusterMemberProvider interface for ClusterProxyReportService.
+func (s *ClusterService) GetAllDomains() ([]clusterDomainInfo, error) {
+	domains, err := s.getStore().ListDomains()
+	if err != nil {
+		return nil, err
+	}
+	localIdentity, err := s.localIdentity.GetOrCreate()
+	if err != nil {
+		return nil, err
+	}
+	secret, err := s.getSecretProvider().GetSecret()
+	if err != nil {
+		return nil, err
+	}
+	var result []clusterDomainInfo
+	for _, domain := range domains {
+		domainToken, err := DecryptClusterDomainToken(secret, domain.TokenEncrypted)
+		if err != nil {
+			continue
+		}
+		localMember, err := findClusterMemberByDomainNodeID(s.getStore(), domain.Id, localIdentity.NodeID)
+		if err != nil || localMember == nil {
+			continue
+		}
+		result = append(result, clusterDomainInfo{
+			ID:          domain.Id,
+			Name:        domain.Domain,
+			MemberID:    localIdentity.NodeID,
+			BaseURL:     localMember.BaseURL,
+			HubURL:      domain.HubURL,
+			DomainToken: domainToken,
+		})
+	}
+	return result, nil
+}
+
+// GetLocalNodeID returns the local node's ID.
+// Satisfies clusterIdentityProvider interface for ClusterProxyReportService.
+func (s *ClusterService) GetLocalNodeID() string {
+	local, err := s.localIdentity.GetOrCreate()
+	if err != nil {
+		return ""
+	}
+	return local.NodeID
 }

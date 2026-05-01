@@ -17,10 +17,13 @@ type APIHandler struct {
 }
 
 func NewAPIHandler(g *gin.RouterGroup, a2 *APIv2Handler) {
+	clusterSvc := service.NewClusterService()
+
 	a := &APIHandler{
 		apiv2:          a2,
-		clusterService: service.NewClusterService(),
+		clusterService: clusterSvc,
 	}
+	clusterSvc.InitProxyReport(&a.ApiService.InboundService)
 	a.initRouter(g)
 }
 

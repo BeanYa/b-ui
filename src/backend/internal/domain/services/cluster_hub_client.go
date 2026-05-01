@@ -377,6 +377,7 @@ func (c *ClusterHubClient) ReportProxyConfigs(ctx context.Context, hubURL string
 		return err
 	}
 	request.Header.Set("Content-Type", "application/json")
+	request.Header.Set("X-Domain-Token", body.DomainToken)
 	response, err := c.httpClient().Do(request)
 	if err != nil {
 		c.logHubCall("report_proxy_configs", domain, start, err)

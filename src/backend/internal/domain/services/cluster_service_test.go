@@ -1263,6 +1263,10 @@ func (s *stubClusterHubClient) SetMemberStatus(_ context.Context, _ string, _ st
 	return &ClusterHubMemberStatusResponse{OK: true}, nil
 }
 
+func (s *stubClusterHubClient) ReportProxyConfigs(_ context.Context, _ string, _ string, _ ClusterHubReportProxyConfigsRequest) error {
+	return nil
+}
+
 type stubClusterSecretProvider struct{ secret []byte }
 
 func (s stubClusterSecretProvider) GetSecret() ([]byte, error) { return s.secret, nil }

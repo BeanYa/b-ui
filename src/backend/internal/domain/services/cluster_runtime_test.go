@@ -265,6 +265,10 @@ func (s *stubClusterRuntimeHubClient) SetMemberStatus(context.Context, string, s
 	return &ClusterHubMemberStatusResponse{OK: true}, nil
 }
 
+func (s *stubClusterRuntimeHubClient) ReportProxyConfigs(context.Context, string, string, ClusterHubReportProxyConfigsRequest) error {
+	return nil
+}
+
 type stubClusterRuntimeStore struct {
 	replaceCalls      []stubClusterRuntimeReplaceCall
 	membersByDomain   map[uint][]model.ClusterMember
