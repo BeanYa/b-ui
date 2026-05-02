@@ -100,6 +100,12 @@ const routes = [
         meta: { requiresAdmin: true },
         component: () => import('@/views/MultiLocationPing.vue'),
       },
+      {
+        path: '/cluster/tasks/:domainId/:taskId',
+        name: 'pages.clusterScatterTaskResult',
+        meta: { requiresAdmin: true },
+        component: () => import('@/views/ClusterScatterTaskResult.vue'),
+      },
     ],
   },
 ]

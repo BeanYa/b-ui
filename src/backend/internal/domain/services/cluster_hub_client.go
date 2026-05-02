@@ -24,6 +24,7 @@ type clusterHubClient interface {
 	ClaimUpdate(context.Context, string, string, string, string, string) (*ClusterHubClaimUpdateResponse, error)
 	SetMemberStatus(context.Context, string, string, string, string, string, string, string) (*ClusterHubMemberStatusResponse, error)
 	ReportProxyConfigs(ctx context.Context, hubURL string, domain string, body ClusterHubReportProxyConfigsRequest) error
+	ReportDomainReport(ctx context.Context, hubURL string, domain string, report ClusterHubReportRequest) error
 }
 
 type ClusterHubRegisterNodeRequest struct {
@@ -102,6 +103,14 @@ type ClusterHubProxyConfigItem struct {
 	Address    string          `json:"address"`
 	Options    json.RawMessage `json:"options"`
 	TLSConfig  json.RawMessage `json:"tls_config,omitempty"`
+}
+
+type ClusterHubReportRequest struct {
+	RequestID   string `json:"request_id"`
+	DomainToken string `json:"domain_token"`
+	ReportType  string `json:"report_type"`
+	GeneratedAt string `json:"generated_at"`
+	Data        any    `json:"data"`
 }
 
 type ClusterHubCommunicationResponse struct {
@@ -389,6 +398,40 @@ func (c *ClusterHubClient) ReportProxyConfigs(ctx context.Context, hubURL string
 		return err
 	}
 	c.logHubCall("report_proxy_configs", domain, start, nil)
+	return nil
+}
+
+func (c *ClusterHubClient) ReportDomainReport(ctx context.Context, hubURL string, domain string, report ClusterHubReportRequest) error {
+	start := time.Now()
+	if err := validateClusterHubURL(hubURL); err != nil {
+		c.logHubCall("report_domain", domain, start, err)
+		return err
+	}
+	payload, err := json.Marshal(report)
+	if err != nil {
+		c.logHubCall("report_domain", domain, start, err)
+		return err
+	}
+	request, err := http.NewRequestWithContext(ctx, http.MethodPut,
+		strings.TrimRight(hubURL, "/")+"/v1/domains/"+url.PathEscape(domain)+"/reports/"+url.PathEscape(report.ReportType),
+		bytes.NewReader(payload))
+	if err != nil {
+		c.logHubCall("report_domain", domain, start, err)
+		return err
+	}
+	request.Header.Set("Content-Type", "application/json")
+	request.Header.Set("X-Domain-Token", report.DomainToken)
+	response, err := c.httpClient().Do(request)
+	if err != nil {
+		c.logHubCall("report_domain", domain, start, err)
+		return err
+	}
+	defer response.Body.Close()
+	if err := requireHTTPSuccess(response, "hub report domain"); err != nil {
+		c.logHubCall("report_domain", domain, start, err)
+		return err
+	}
+	c.logHubCall("report_domain", domain, start, nil)
 	return nil
 }
 

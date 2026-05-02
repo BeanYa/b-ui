@@ -55,3 +55,21 @@ export interface ClusterPanelMemberUpdateResult {
   status: string
   updateStarted: boolean
 }
+
+export interface ScatterTaskSummary {
+  taskId: string
+  taskType: string
+  status: string
+  scope: string
+  progress: string
+  createdAt: string
+  completedAt?: string
+}
+
+export interface ScatterTaskResultDetail {
+  taskId: string
+  taskType: string
+  status: string
+  result: any
+  generatedAt?: string
+}

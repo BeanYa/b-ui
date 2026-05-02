@@ -1267,6 +1267,10 @@ func (s *stubClusterHubClient) ReportProxyConfigs(_ context.Context, _ string, _
 	return nil
 }
 
+func (s *stubClusterHubClient) ReportDomainReport(_ context.Context, _ string, _ string, _ ClusterHubReportRequest) error {
+	return nil
+}
+
 type stubClusterSecretProvider struct{ secret []byte }
 
 func (s stubClusterSecretProvider) GetSecret() ([]byte, error) { return s.secret, nil }

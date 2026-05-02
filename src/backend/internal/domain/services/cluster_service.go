@@ -5,6 +5,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"net"
 	"net/http"
 	"net/url"
@@ -99,6 +100,7 @@ type ClusterService struct {
 	actionRouter   *router.ActionRouter
 	runtime        *cluster.Runtime
 	proxyReport    *ClusterProxyReportService
+	scatterManager *ScatterGatherManager
 }
 
 func NewClusterService() *ClusterService {
@@ -1088,9 +1090,10 @@ func (s *ClusterService) ReceivePeerMessage(message *PeerMessage, token string) 
 	}
 	syncService := s.peerSyncService()
 	dispatcher := ClusterPeerDispatcher{
-		syncService:    &syncService,
-		identity:       s.localIdentity,
-		secretProvider: s.getSecretProvider(),
+		syncService:         &syncService,
+		identity:            s.localIdentity,
+		secretProvider:      s.getSecretProvider(),
+		scatterGatherManager: s.getScatterManager(),
 	}
 	return dispatcher.Dispatch(context.Background(), domain, member, message)
 }
@@ -1370,6 +1373,167 @@ func (s *ClusterService) getHubClient() clusterHubClient {
 
 func (s *ClusterService) getHubSyncer() clusterHubSyncer {
 	return &ClusterHubSyncer{client: s.getHubClient(), store: s.getStore(), secretProvider: s.getSecretProvider(), localIdentity: &s.localIdentity}
+}
+
+func (s *ClusterService) getScatterManager() *ScatterGatherManager {
+	if s.scatterManager != nil {
+		return s.scatterManager
+	}
+	syncStore := &clusterSyncStoreAdapter{store: s.getStore()}
+	secretProvider := s.getSecretProvider()
+	identity := s.localIdentity
+	hubClient := s.getHubClient()
+
+	mgr := NewScatterGatherManager(
+		database.GetDB(),
+		&ClusterPeerDeliveryService{},
+		identity,
+		syncStore,
+		secretProvider,
+	)
+
+	// Resolve hub URL from the first domain that has one
+	domains, err := syncStore.ListDomains()
+	if err == nil {
+		for _, d := range domains {
+			if d.HubURL != "" {
+				mgr.SetHubClient(hubClient, d.HubURL)
+				break
+			}
+		}
+	}
+
+	NewMeshLatencyHandler(identity, syncStore, secretProvider)
+	s.scatterManager = mgr
+	return mgr
+}
+
+func (s *ClusterService) ListScatterTasks(domainID string) ([]TaskSummary, error) {
+	tasks, err := GetScatterTasksByDomain(database.GetDB(), domainID)
+	if err != nil {
+		return nil, err
+	}
+	mgr := s.getScatterManager().GetOrCreateDomainManager(domainID)
+	activeTasks := mgr.GetActiveTasks()
+
+	seen := map[string]bool{}
+	result := make([]TaskSummary, 0, len(tasks)+len(activeTasks))
+
+	for _, t := range activeTasks {
+		seen[t.TaskID] = true
+		completed := len(t.Results)
+		progress := fmt.Sprintf("%d/%d", completed, t.TotalNodes)
+		result = append(result, TaskSummary{
+			TaskID:    t.TaskID,
+			TaskType:  t.TaskType,
+			Status:    string(t.Status),
+			Scope:     t.Scope,
+			Progress:  progress,
+			CreatedAt: t.CreatedAt.Format(time.RFC3339),
+		})
+	}
+
+	for _, t := range tasks {
+		if seen[t.TaskID] {
+			continue
+		}
+		completedAt := ""
+		if t.CompletedAt != nil {
+			completedAt = t.CompletedAt.Format(time.RFC3339)
+		}
+		result = append(result, TaskSummary{
+			TaskID:      t.TaskID,
+			TaskType:    t.TaskType,
+			Status:      t.Status,
+			Scope:       t.Scope,
+			CreatedAt:   t.CreatedAt.Format(time.RFC3339),
+			CompletedAt: completedAt,
+		})
+	}
+
+	return result, nil
+}
+
+func (s *ClusterService) CreateScatterTask(domainID string, taskType string, scope string, params map[string]any) (*TaskSummary, error) {
+	if _, ok := GetScatterHandler(taskType); !ok {
+		return nil, fmt.Errorf("unknown task type: %s", taskType)
+	}
+
+	mgr := s.getScatterManager().GetOrCreateDomainManager(domainID)
+	taskID := uuid.Must(uuid.NewV4()).String()
+	correlationID := uuid.Must(uuid.NewV4()).String()
+
+	if params == nil {
+		params = map[string]any{}
+	}
+
+	task := &ScatterGatherTask{
+		TaskID:        taskID,
+		DomainID:      domainID,
+		TaskType:      taskType,
+		Scope:         scope,
+		Params:        params,
+		CorrelationID: correlationID,
+		TimeoutMs:     60000,
+		CreatedAt:     time.Now(),
+		Results:       make(map[string]NodeResult),
+		ResultChan:    make(chan NodeResult, 100),
+	}
+	task.Ctx, task.Cancel = context.WithTimeout(context.Background(), 120*time.Second)
+
+	members, err := s.resolveDomainMemberCount(domainID)
+	if err != nil {
+		return nil, err
+	}
+	task.TotalNodes = members
+
+	mgr.Enqueue(task)
+	return &TaskSummary{
+		TaskID:    taskID,
+		TaskType:  taskType,
+		Status:    string(task.Status),
+		Scope:     scope,
+		CreatedAt: task.CreatedAt.Format(time.RFC3339),
+	}, nil
+}
+
+func (s *ClusterService) resolveDomainMemberCount(domainID string) (int, error) {
+	domains, err := s.getScatterManager().syncStore.ListDomains()
+	if err != nil {
+		return 0, err
+	}
+	for _, d := range domains {
+		if d.Domain == domainID {
+			members, err := s.getScatterManager().syncStore.GetMembers(d.Id)
+			if err != nil {
+				return 0, err
+			}
+			return len(members), nil
+		}
+	}
+	return 0, nil
+}
+
+func (s *ClusterService) GetScatterTaskResult(domainID string, taskID string) (*TaskResultDetail, error) {
+	task, err := GetScatterTaskByID(database.GetDB(), taskID)
+	if err != nil {
+		return nil, err
+	}
+	detail := &TaskResultDetail{
+		TaskID:   task.TaskID,
+		TaskType: task.TaskType,
+		Status:   task.Status,
+	}
+	if task.Status == string(TaskStatusCompleted) {
+		result, err := GetScatterResultByTaskID(database.GetDB(), taskID)
+		if err == nil {
+			var data any
+			json.Unmarshal([]byte(result.ReportJSON), &data)
+			detail.Result = data
+			detail.GeneratedAt = result.GeneratedAt.Format(time.RFC3339)
+		}
+	}
+	return detail, nil
 }
 
 func findClusterMemberByDomainNodeID(store clusterServiceStore, domainID uint, nodeID string) (*model.ClusterMember, error) {

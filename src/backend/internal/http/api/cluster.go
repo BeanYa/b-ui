@@ -32,6 +32,9 @@ type clusterAPIService interface {
 	Ping(remoteNodeID string, token string) (*service.ClusterPeerStatus, error)
 	HandleAction(c *gin.Context)
 	Info(c *gin.Context)
+	ListScatterTasks(domainID string) ([]service.TaskSummary, error)
+	CreateScatterTask(domainID string, taskType string, scope string, params map[string]any) (*service.TaskSummary, error)
+	GetScatterTaskResult(domainID string, taskID string) (*service.TaskResultDetail, error)
 }
 
 func (a *APIHandler) requireClusterAdmin(c *gin.Context) bool {
@@ -333,6 +336,27 @@ func RegisterClusterMessageRoute(router gin.IRoutes, clusterService clusterAPISe
 			"remote_ip": c.ClientIP(),
 		})
 		clusterService.HandleAction(c)
+	})
+	router.GET("/_cluster/v1/domains/:domainId/tasks", func(c *gin.Context) {
+		tasks, err := clusterService.ListScatterTasks(c.Param("domainId"))
+		jsonObj(c, tasks, err)
+	})
+	router.POST("/_cluster/v1/domains/:domainId/tasks", func(c *gin.Context) {
+		var req struct {
+			TaskType string         `json:"taskType"`
+			Scope    string         `json:"scope"`
+			Params   map[string]any `json:"params"`
+		}
+		if err := c.ShouldBindJSON(&req); err != nil {
+			jsonMsg(c, "create scatter task", err)
+			return
+		}
+		result, err := clusterService.CreateScatterTask(c.Param("domainId"), req.TaskType, req.Scope, req.Params)
+		jsonObj(c, result, err)
+	})
+	router.GET("/_cluster/v1/domains/:domainId/tasks/:taskId/result", func(c *gin.Context) {
+		result, err := clusterService.GetScatterTaskResult(c.Param("domainId"), c.Param("taskId"))
+		jsonObj(c, result, err)
 	})
 }
 

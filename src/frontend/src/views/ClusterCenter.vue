@@ -134,6 +134,70 @@
         </v-card-text>
       </v-card>
 
+      <v-card class="app-card-shell cluster-center__jobs" :loading="clusterStore.tasksLoading">
+        <v-card-title>
+          <div style="display: flex; align-items: center; gap: 16px;">
+            <span>{{ $t('clusterCenter.processingJobs.title') }}</span>
+            <v-btn
+              size="small"
+              variant="outlined"
+              color="primary"
+              @click="showRunTaskDialog = true"
+            >
+              {{ $t('clusterCenter.processingJobs.runTask') }}
+            </v-btn>
+          </div>
+        </v-card-title>
+        <v-card-text>
+          <div v-if="clusterStore.tasks.length === 0" class="cluster-center__empty">
+            {{ $t('clusterCenter.processingJobs.empty') }}
+          </div>
+          <div v-else class="cluster-center__member-table-wrap">
+            <table class="cluster-center__member-table">
+              <thead>
+                <tr>
+                  <th>{{ $t('clusterCenter.processingJobs.table.taskType') }}</th>
+                  <th>{{ $t('clusterCenter.processingJobs.table.status') }}</th>
+                  <th>{{ $t('clusterCenter.processingJobs.table.scope') }}</th>
+                  <th>{{ $t('clusterCenter.processingJobs.table.progress') }}</th>
+                  <th>{{ $t('clusterCenter.processingJobs.table.created') }}</th>
+                  <th>{{ $t('clusterCenter.table.action') }}</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr v-for="task in clusterStore.tasks" :key="task.taskId">
+                  <td>
+                    <span class="cluster-center__task-type">{{ task.taskType }}</span>
+                  </td>
+                  <td>
+                    <v-chip
+                      :color="taskStatusColor(task.status)"
+                      size="small"
+                      variant="flat"
+                    >
+                      {{ task.status }}
+                    </v-chip>
+                  </td>
+                  <td>{{ task.scope }}</td>
+                  <td>{{ task.progress }}</td>
+                  <td>{{ task.createdAt }}</td>
+                  <td>
+                    <v-btn
+                      v-if="task.status === 'completed'"
+                      size="small"
+                      variant="tonal"
+                      @click="goToTaskResult(task.taskId)"
+                    >
+                      {{ $t('clusterCenter.processingJobs.viewResult') }}
+                    </v-btn>
+                  </td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+        </v-card-text>
+      </v-card>
+
       <v-card class="app-card-shell cluster-center__logs">
         <v-card-title>
           <div class="cluster-center__card-title">
@@ -498,6 +562,38 @@
         </v-card-actions>
       </v-card>
     </v-dialog>
+
+    <v-dialog v-model="showRunTaskDialog" class="app-dialog app-dialog--compact" max-width="460">
+      <v-card class="app-card-shell">
+        <v-card-title>{{ $t('clusterCenter.processingJobs.dialogTitle') }}</v-card-title>
+        <v-card-text class="cluster-center__dialog-body">
+          <v-select
+            v-model="runTaskForm.taskType"
+            :items="availableTaskTypes"
+            item-title="label"
+            item-value="value"
+            :label="$t('clusterCenter.processingJobs.taskTypeLabel')"
+          />
+          <v-select
+            v-model="runTaskForm.scope"
+            :items="[
+              { label: $t('clusterCenter.processingJobs.scopeDomain'), value: 'domain' },
+              { label: $t('clusterCenter.processingJobs.scopeSingle'), value: 'single' },
+            ]"
+            item-title="label"
+            item-value="value"
+            :label="$t('clusterCenter.processingJobs.scopeLabel')"
+          />
+        </v-card-text>
+        <v-card-actions>
+          <v-spacer />
+          <v-btn variant="text" @click="showRunTaskDialog = false">{{ $t('clusterCenter.actions.cancel') }}</v-btn>
+          <v-btn color="primary" :loading="runTaskLoading" @click="submitRunTask">
+            {{ $t('clusterCenter.processingJobs.startTask') }}
+          </v-btn>
+        </v-card-actions>
+      </v-card>
+    </v-dialog>
   </div>
 </template>
 
@@ -511,6 +607,7 @@ import { parseClusterHubJoinUri } from '@/features/clusterHubUri'
 import { i18n } from '@/locales'
 import HttpUtils from '@/plugins/httputil'
 import { usePingStore } from '@/store/modules/ping'
+import { useClusterStore } from '@/store/modules/cluster'
 import type { ClusterDomain, ClusterMember, ClusterOperationStatus, ClusterPanelMemberUpdateResult, ClusterPanelUpdateCheck } from '@/types/clusters'
 import type { MeshPairResult, PingPolicy } from '@/types/ping'
 import { DEFAULT_PING_POLICY, PING_INTERVAL_OPTIONS } from '@/types/ping'
@@ -583,6 +680,7 @@ const openDomainDetail = (domain: ClusterDomain) => {
   pingStore.loadPingPolicy(domain.domain).then(p => {
     pingPolicy.value = { ...p }
   })
+  clusterStore.fetchScatterTasks(domain.domain)
 }
 
 const backToClusterCenter = () => {
@@ -1078,6 +1176,7 @@ onBeforeUnmount(() => {
     clearPanelUpdatePolling(memberId)
   }
   stopClusterLogPoll()
+  clusterStore.stopPolling()
   globalLoading.value = false
 })
 
@@ -1147,12 +1246,75 @@ watch(selectedDomainId, (id) => {
   userScrolledUp.value = false
   if (id) {
     startClusterLogPoll()
+    clusterStore.startPolling(selectedDomain.value?.domain ?? '')
   } else {
     stopClusterLogPoll()
+    clusterStore.stopPolling()
   }
 })
 
 const pingStore = usePingStore()
+const clusterStore = useClusterStore()
+const showRunTaskDialog = ref(false)
+const runTaskLoading = ref(false)
+const runTaskForm = ref({
+  taskType: 'mesh.latency',
+  scope: 'domain',
+})
+
+const availableTaskTypes = [
+  { label: 'Mesh Latency', value: 'mesh.latency' },
+]
+
+const goToTaskResult = (taskId: string) => {
+  if (!selectedDomainId.value) return
+  router.push({
+    name: 'pages.clusterScatterTaskResult',
+    params: { domainId: String(selectedDomainId.value), taskId },
+  })
+}
+
+const taskStatusColor = (status: string) => {
+  switch (status) {
+    case 'completed': return 'green'
+    case 'failed': return 'red'
+    case 'timeout': return 'orange'
+    case 'dispatching':
+    case 'collecting':
+    case 'aggregating': return 'blue'
+    default: return 'grey'
+  }
+}
+
+const submitRunTask = async () => {
+  if (!selectedDomain.value) return
+  runTaskLoading.value = true
+  try {
+    const result = await clusterStore.createScatterTask(
+      selectedDomain.value.domain,
+      runTaskForm.value.taskType,
+      runTaskForm.value.scope,
+      {},
+    )
+    if (result) {
+      showRunTaskDialog.value = false
+      await clusterStore.fetchScatterTasks(selectedDomain.value.domain)
+      push.success({
+        title: i18n.global.t('success'),
+        message: i18n.global.t('clusterCenter.processingJobs.taskStarted'),
+        duration: 3000,
+      })
+    } else {
+      push.error({
+        title: i18n.global.t('failed'),
+        message: i18n.global.t('clusterCenter.processingJobs.taskFailed'),
+      })
+    }
+  } finally {
+    runTaskLoading.value = false
+  }
+}
+
 const meshPingLoading = ref(false)
 const meshPingResults = ref<MeshPairResult[]>([])
 
@@ -1850,5 +2012,15 @@ function formatAutoPingTime(): string {
 
 .cluster-center__auto-ping-text {
   font-size: 11px;
+}
+
+.cluster-center__task-type {
+  font-family: var(--app-font-mono, ui-monospace, monospace);
+  font-size: 12px;
+  font-weight: 600;
+}
+
+.cluster-center__jobs {
+  height: 100%;
 }
 </style>

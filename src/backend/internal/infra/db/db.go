@@ -126,6 +126,8 @@ func InitDB(dbPath string) error {
 		&model.ClusterPeerAckState{},
 		&model.ClusterPeerWorkflowState{},
 		&model.ClusterPeerSchedule{},
+		&model.ClusterScatterTask{},
+		&model.ClusterScatterResult{},
 	)
 	if err != nil {
 		return err

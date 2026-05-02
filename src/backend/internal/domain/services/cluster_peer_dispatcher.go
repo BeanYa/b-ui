@@ -24,6 +24,9 @@ const PeerActionDomainPanelUpdateRequest = "domain.panel.update.request"
 
 const PeerActionDomainPanelUpdateStatus = "domain.panel.update.status"
 
+const PeerActionTaskScatter = "task.scatter"
+const PeerActionTaskScatterResult = "task.scatter.result"
+
 type ClusterPeerDispatcher struct {
 	eventStore       clusterPeerStore
 	syncService      *ClusterSyncService
@@ -31,6 +34,11 @@ type ClusterPeerDispatcher struct {
 	secretProvider   clusterSecretProvider
 	delivery         *ClusterPeerDeliveryService
 	saveWorkflowStep func(workflowID string, stepID string, domainID string, nodeID string, status string, resultHash string, errorMessage string) error
+	scatterGatherManager *ScatterGatherManager
+}
+
+func (d *ClusterPeerDispatcher) SetScatterGatherManager(mgr *ScatterGatherManager) {
+	d.scatterGatherManager = mgr
 }
 
 func (d *ClusterPeerDispatcher) Dispatch(ctx context.Context, domain *model.ClusterDomain, source *model.ClusterMember, message *PeerMessage) error {
@@ -232,6 +240,17 @@ func (d *ClusterPeerDispatcher) Dispatch(ctx context.Context, domain *model.Clus
 		return store.MarkEventState(state.MessageID, PeerEventStatusSucceeded, "")
 	}
 
+	if message.Category == PeerCategoryQuery && message.Action == PeerActionTaskScatter {
+		if err := d.handleTaskScatter(ctx, domain, source, message); err != nil {
+			_ = store.MarkEventState(state.MessageID, PeerEventStatusFailed, err.Error())
+			resultFields["status"] = PeerEventStatusFailed
+			resultFields["error"] = err.Error()
+			return err
+		}
+		resultFields["status"] = PeerEventStatusSucceeded
+		return store.MarkEventState(state.MessageID, PeerEventStatusSucceeded, "")
+	}
+
 	if message.Category == PeerCategoryEvent {
 		if _, err := d.completeChainStep(ctx, domain, message, PeerEventStatusUnsupported, ""); err != nil {
 			_ = store.MarkEventState(state.MessageID, PeerEventStatusFailed, err.Error())
@@ -244,6 +263,16 @@ func (d *ClusterPeerDispatcher) Dispatch(ctx context.Context, domain *model.Clus
 	}
 
 	if message.Category == PeerCategoryResponse {
+		if message.Action == PeerActionTaskScatterResult {
+			if err := d.handleTaskScatterResult(ctx, domain, source, message); err != nil {
+				_ = store.MarkEventState(state.MessageID, PeerEventStatusFailed, err.Error())
+				resultFields["status"] = PeerEventStatusFailed
+				resultFields["error"] = err.Error()
+				return err
+			}
+			resultFields["status"] = PeerEventStatusSucceeded
+			return store.MarkEventState(state.MessageID, PeerEventStatusSucceeded, "")
+		}
 		resultFields["status"] = PeerEventStatusIgnored
 		resultFields["reason"] = "response_unhandled"
 		return store.MarkEventState(state.MessageID, PeerEventStatusIgnored, "response_unhandled")
@@ -530,6 +559,112 @@ func clonePeerPayload(payload map[string]interface{}) map[string]interface{} {
 		clone[key] = value
 	}
 	return clone
+}
+
+func (d *ClusterPeerDispatcher) handleTaskScatter(ctx context.Context, domain *model.ClusterDomain, source *model.ClusterMember, message *PeerMessage) error {
+	taskType, _ := message.Payload["task_type"].(string)
+	taskID, _ := message.Payload["task_id"].(string)
+	if taskType == "" || taskID == "" {
+		return errors.New("invalid_task_scatter_payload")
+	}
+
+	handler, ok := GetScatterHandler(taskType)
+	if !ok {
+		return errors.New("unknown_task_type")
+	}
+
+	params, _ := message.Payload["params"].(map[string]any)
+	if params == nil {
+		params = map[string]any{}
+	}
+
+	// Execute local work in background, then send result back
+	go func() {
+		result, err := handler.ExecuteLocal(context.Background(), domain.Domain, params)
+		local, localErr := d.identity.GetOrCreate()
+		if localErr != nil {
+			return
+		}
+
+		status := "completed"
+		errMsg := ""
+		if err != nil {
+			status = "failed"
+			errMsg = err.Error()
+		}
+
+		responsePayload := map[string]interface{}{
+			"task_type": taskType,
+			"task_id":   taskID,
+			"status":    status,
+			"result":    result,
+			"error":     errMsg,
+		}
+
+		responseMsg, msgErr := NewClusterPeerMessage(
+			domain.Domain,
+			message.MembershipVersion,
+			local.NodeID,
+			message.SourceSeq+1,
+			PeerCategoryResponse,
+			PeerActionTaskScatterResult,
+			responsePayload,
+		)
+		if msgErr != nil {
+			return
+		}
+		responseMsg.Route = RoutePlan{
+			Mode:    RouteModeDirect,
+			Targets: []string{message.SourceNodeID},
+		}
+		responseMsg.CorrelationID = message.CorrelationID
+		responseMsg.CausationID = message.MessageID
+
+		if signErr := SignClusterPeerMessage(local, responseMsg); signErr != nil {
+			return
+		}
+
+		// Find source member to send to
+		member, findErr := d.getSyncService().store.GetMember(domain.Id, message.SourceNodeID)
+		if findErr != nil {
+			return
+		}
+		secret, secErr := d.getSecretProvider().GetSecret()
+		if secErr != nil {
+			return
+		}
+		token, tokErr := DecryptClusterDomainToken(secret, member.PeerTokenEncrypted)
+		if tokErr != nil {
+			return
+		}
+		_ = d.getDelivery().Send(context.Background(), responseMsg, *member, token)
+	}()
+
+	return nil
+}
+
+func (d *ClusterPeerDispatcher) handleTaskScatterResult(ctx context.Context, domain *model.ClusterDomain, source *model.ClusterMember, message *PeerMessage) error {
+	taskID, _ := message.Payload["task_id"].(string)
+	status, _ := message.Payload["status"].(string)
+	errMsg, _ := message.Payload["error"].(string)
+
+	if taskID == "" {
+		return nil // silently ignore malformed results
+	}
+
+	result := NodeResult{
+		NodeID: message.SourceNodeID,
+		Status: status,
+		Result: message.Payload["result"],
+		Error:  errMsg,
+	}
+
+	if d.scatterGatherManager != nil {
+		mgr := d.scatterGatherManager.GetOrCreateDomainManager(domain.Domain)
+		mgr.DeliverResult(taskID, message.CorrelationID, result)
+	}
+
+	return nil
 }
 
 func isTerminalPeerEventState(status string) bool {

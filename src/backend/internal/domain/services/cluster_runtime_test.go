@@ -269,6 +269,10 @@ func (s *stubClusterRuntimeHubClient) ReportProxyConfigs(context.Context, string
 	return nil
 }
 
+func (s *stubClusterRuntimeHubClient) ReportDomainReport(context.Context, string, string, ClusterHubReportRequest) error {
+	return nil
+}
+
 type stubClusterRuntimeStore struct {
 	replaceCalls      []stubClusterRuntimeReplaceCall
 	membersByDomain   map[uint][]model.ClusterMember
