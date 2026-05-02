@@ -204,6 +204,7 @@ const menuGroups = computed(() => [
       ...(canShowAdminTools.value
         ? [
             { title: 'pages.clusterCenter', icon: 'mdi-lan-connect', path: '/clusters' },
+            { title: 'pages.multiLocationPing', icon: 'mdi-map-marker-distance', path: '/ping' },
             { title: 'pages.webTerminal', icon: 'mdi-console', path: '/webterminal' },
           ]
         : []),

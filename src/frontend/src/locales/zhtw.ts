@@ -52,6 +52,7 @@ export default {
     settings: "設置",
     clusterCenter: "集群中心",
     clusterNodeDetail: "叢集節點詳情",
+    multiLocationPing: "多地延遲測試",
     webTerminal: "WebTerminal",
   },
   webTerminal: {

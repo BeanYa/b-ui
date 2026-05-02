@@ -43,6 +43,21 @@ describe('drawer admin-only terminal menu entry', () => {
     expect(zhtw.pages.clusterCenter).toBeTruthy()
   })
 
+  it('shows the Multi-Location Ping entry only for admins', () => {
+    const source = readFileSync(fileURLToPath(new URL('./Drawer.vue', import.meta.url)), 'utf8')
+
+    expect(source).toMatch(/canShowAdminTools\.value\s*\?\s*\[[\s\S]*title:\s*['"]pages\.multiLocationPing['"][\s\S]*path:\s*['"]\/ping['"]/)
+  })
+
+  it('provides a pages.multiLocationPing label in every locale', () => {
+    expect(en.pages.multiLocationPing).toBeTruthy()
+    expect(fa.pages.multiLocationPing).toBeTruthy()
+    expect(ru.pages.multiLocationPing).toBeTruthy()
+    expect(vi.pages.multiLocationPing).toBeTruthy()
+    expect(zhcn.pages.multiLocationPing).toBeTruthy()
+    expect(zhtw.pages.multiLocationPing).toBeTruthy()
+  })
+
   it('uses a scrollable menu container and eagerly loads auth state', () => {
     const source = readFileSync(fileURLToPath(new URL('./Drawer.vue', import.meta.url)), 'utf8')
 

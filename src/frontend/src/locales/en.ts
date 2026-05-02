@@ -53,6 +53,7 @@ export default {
     settings: "Settings",
     clusterCenter: "Cluster Center",
     clusterNodeDetail: "Cluster Node Detail",
+    multiLocationPing: "Multi-Location Ping",
     webTerminal: "WebTerminal",
   },
   webTerminal: {

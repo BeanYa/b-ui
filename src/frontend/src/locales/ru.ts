@@ -52,6 +52,7 @@ export default {
     settings: "Настройки",
     clusterCenter: "Центр кластера",
     clusterNodeDetail: "Узел кластера",
+    multiLocationPing: "Мульти-локационный ping",
     webTerminal: "Веб-терминал",
   },
   webTerminal: {
