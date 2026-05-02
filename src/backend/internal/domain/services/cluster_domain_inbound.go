@@ -12,6 +12,7 @@ import (
 	"time"
 
 	clustertypes "github.com/BeanYa/b-ui/src/backend/internal/domain/services/cluster/types"
+	database "github.com/BeanYa/b-ui/src/backend/internal/infra/db"
 	"github.com/BeanYa/b-ui/src/backend/internal/infra/db/model"
 	"golang.zx2c4.com/wireguard/wgctrl/wgtypes"
 	"gorm.io/gorm"
@@ -82,6 +83,16 @@ func NewClusterDomainInboundService(opts ClusterDomainInboundServiceOptions) *Cl
 		s.now = func() int64 { return time.Now().Unix() }
 	}
 	return s
+}
+
+func defaultClusterDomainInboundOptions(broadcaster clusterDomainInboundBroadcaster, reporter clusterDomainInboundReporter) ClusterDomainInboundServiceOptions {
+	return ClusterDomainInboundServiceOptions{
+		DB:           database.GetDB(),
+		InboundSaver: &InboundService{},
+		Identity:     &ClusterLocalIdentityService{},
+		Broadcaster:  broadcaster,
+		Reporter:     reporter,
+	}
 }
 
 func (s *ClusterDomainInboundService) ApplyDomainInboundCreate(ctx context.Context, domain *model.ClusterDomain, payload clustertypes.DomainInboundCreatePayload, source string, broadcast bool) (*DomainInboundCreateResult, error) {

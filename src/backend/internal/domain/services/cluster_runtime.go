@@ -23,7 +23,7 @@ const ClusterCommunicationEndpointPath = "/_cluster"
 const ClusterCommunicationProtocolVersion = "v1"
 
 func ClusterCommunicationSupportedActions() []string {
-	return []string{"domain.cluster.changed", "events", "heartbeat", "ping", "info", "action", "domain.panel.update.available", "domain.panel.update.request", "domain.panel.update.status"}
+	return []string{"domain.cluster.changed", "events", "heartbeat", "ping", "info", "action", "domain.panel.update.available", "domain.panel.update.request", "domain.panel.update.status", "domain.inbound.create"}
 }
 
 type ClusterHubSyncer struct {

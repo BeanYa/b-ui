@@ -105,9 +105,31 @@ type ClusterService struct {
 
 func NewClusterService() *ClusterService {
 	service := &ClusterService{}
-	panel := &ClusterPanelActionService{}
-	service.SetRuntime(cluster.NewRuntimeWithPanel(NewClusterPanelListServices(panel), panel))
+	service.configureRuntime()
 	return service
+}
+
+func (s *ClusterService) configureRuntime() {
+	panel := &ClusterPanelActionService{}
+	s.SetRuntime(cluster.NewRuntimeWithPanelAndDomain(
+		NewClusterPanelListServices(panel),
+		panel,
+		cluster.RuntimeDomainServices{DomainInbound: s.newDomainInboundService()},
+	))
+}
+
+func (s *ClusterService) newDomainInboundService() *ClusterDomainInboundService {
+	options := defaultClusterDomainInboundOptions(s.newDomainInboundBroadcaster(), s.proxyReport)
+	options.Identity = &s.localIdentity
+	return NewClusterDomainInboundService(options)
+}
+
+func (s *ClusterService) newDomainInboundBroadcaster() *ClusterHTTPBroadcaster {
+	return &ClusterHTTPBroadcaster{
+		identity:       s.localIdentity,
+		secretProvider: s.getSecretProvider(),
+		HTTPClient:     s.peerHTTPClient(),
+	}
 }
 
 type clusterSecretProvider interface {
@@ -1028,6 +1050,7 @@ func (s *ClusterService) InitProxyReport(inboundSvc *InboundService) {
 	report := NewClusterProxyReportService(s.getHubClient(), inboundSvc, s, s)
 	s.proxyReport = report
 	inboundSvc.SetProxyReportService(report)
+	s.configureRuntime()
 }
 
 func (s *ClusterService) SetRuntime(rt *cluster.Runtime) {
@@ -1090,9 +1113,10 @@ func (s *ClusterService) ReceivePeerMessage(message *PeerMessage, token string) 
 	}
 	syncService := s.peerSyncService()
 	dispatcher := ClusterPeerDispatcher{
-		syncService:         &syncService,
-		identity:            s.localIdentity,
-		secretProvider:      s.getSecretProvider(),
+		syncService:          &syncService,
+		identity:             s.localIdentity,
+		secretProvider:       s.getSecretProvider(),
+		domainInboundCreator: s.newDomainInboundService(),
 		scatterGatherManager: s.getScatterManager(),
 	}
 	return dispatcher.Dispatch(context.Background(), domain, member, message)

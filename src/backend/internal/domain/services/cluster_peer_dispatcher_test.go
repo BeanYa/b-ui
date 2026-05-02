@@ -10,6 +10,7 @@ import (
 	"net/http/httptest"
 	"testing"
 
+	clustertypes "github.com/BeanYa/b-ui/src/backend/internal/domain/services/cluster/types"
 	"github.com/BeanYa/b-ui/src/backend/internal/infra/db/model"
 )
 
@@ -71,6 +72,49 @@ func TestPeerDispatcherHandlesDomainClusterChanged(t *testing.T) {
 	}
 	if err := dispatcher.Dispatch(context.Background(), &model.ClusterDomain{Id: 1, Domain: "edge.example.com", HubURL: "https://hub.example.com"}, &model.ClusterMember{NodeID: "node-a", LastVersion: 1}, message); err != nil {
 		t.Fatalf("dispatch: %v", err)
+	}
+	state, err := store.RecordReceived(message)
+	if err != nil {
+		t.Fatalf("state: %v", err)
+	}
+	if state.Status != PeerEventStatusSucceeded {
+		t.Fatalf("expected succeeded, got %q", state.Status)
+	}
+}
+
+func TestPeerDispatcherHandlesDomainInboundCreateCommand(t *testing.T) {
+	store := newMemoryPeerStore()
+	creator := &stubPeerDomainInboundCreator{}
+	dispatcher := ClusterPeerDispatcher{
+		eventStore:           store,
+		domainInboundCreator: creator,
+		identity:             ClusterLocalIdentityService{store: &stubClusterLocalNodeStore{node: newTestClusterLocalNode(t, "node-local")}},
+	}
+	message := &PeerMessage{
+		MessageID:   "msg-domain-inbound-create",
+		DomainID:    "edge.example.com",
+		PayloadHash: "hash",
+		Category:    PeerCategoryCommand,
+		Action:      PeerActionDomainInboundCreate,
+		Payload: map[string]interface{}{
+			"request_id": "req-1",
+			"domain_id":  "edge.example.com",
+			"inbound": map[string]interface{}{
+				"type": "vless",
+				"tag":  "main",
+			},
+		},
+		Route: RoutePlan{Mode: RouteModeBroadcast},
+	}
+
+	if err := dispatcher.Dispatch(context.Background(), &model.ClusterDomain{Id: 1, Domain: "edge.example.com"}, &model.ClusterMember{NodeID: "node-a"}, message); err != nil {
+		t.Fatalf("dispatch: %v", err)
+	}
+	if creator.calls != 1 {
+		t.Fatalf("expected creator call, got %d", creator.calls)
+	}
+	if creator.broadcast {
+		t.Fatal("peer command must not rebroadcast")
 	}
 	state, err := store.RecordReceived(message)
 	if err != nil {
@@ -801,6 +845,17 @@ func failedContinueChainMessage(messageID string) *PeerMessage {
 
 type stubPeerSyncer struct {
 	syncCalls int
+}
+
+type stubPeerDomainInboundCreator struct {
+	calls     int
+	broadcast bool
+}
+
+func (s *stubPeerDomainInboundCreator) ApplyDomainInboundCreate(ctx context.Context, domain *model.ClusterDomain, payload clustertypes.DomainInboundCreatePayload, source string, broadcast bool) (*DomainInboundCreateResult, error) {
+	s.calls++
+	s.broadcast = broadcast
+	return &DomainInboundCreateResult{InboundID: 99, RequestID: payload.RequestID, Created: true}, nil
 }
 
 func (s *stubPeerSyncer) LatestVersion(context.Context, *model.ClusterDomain) (int64, error) {

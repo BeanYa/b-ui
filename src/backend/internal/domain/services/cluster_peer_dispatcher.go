@@ -2,8 +2,11 @@ package service
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
+	"fmt"
 
+	clustertypes "github.com/BeanYa/b-ui/src/backend/internal/domain/services/cluster/types"
 	"github.com/BeanYa/b-ui/src/backend/internal/infra/db/model"
 	logger "github.com/BeanYa/b-ui/src/backend/internal/infra/logging"
 	"github.com/gofrs/uuid/v5"
@@ -24,16 +27,23 @@ const PeerActionDomainPanelUpdateRequest = "domain.panel.update.request"
 
 const PeerActionDomainPanelUpdateStatus = "domain.panel.update.status"
 
+const PeerActionDomainInboundCreate = "domain.inbound.create"
+
 const PeerActionTaskScatter = "task.scatter"
 const PeerActionTaskScatterResult = "task.scatter.result"
 
+type clusterPeerDomainInboundCreator interface {
+	ApplyDomainInboundCreate(context.Context, *model.ClusterDomain, clustertypes.DomainInboundCreatePayload, string, bool) (*DomainInboundCreateResult, error)
+}
+
 type ClusterPeerDispatcher struct {
-	eventStore       clusterPeerStore
-	syncService      *ClusterSyncService
-	identity         ClusterLocalIdentityService
-	secretProvider   clusterSecretProvider
-	delivery         *ClusterPeerDeliveryService
-	saveWorkflowStep func(workflowID string, stepID string, domainID string, nodeID string, status string, resultHash string, errorMessage string) error
+	eventStore           clusterPeerStore
+	syncService          *ClusterSyncService
+	identity             ClusterLocalIdentityService
+	secretProvider       clusterSecretProvider
+	delivery             *ClusterPeerDeliveryService
+	saveWorkflowStep     func(workflowID string, stepID string, domainID string, nodeID string, status string, resultHash string, errorMessage string) error
+	domainInboundCreator clusterPeerDomainInboundCreator
 	scatterGatherManager *ScatterGatherManager
 }
 
@@ -242,6 +252,17 @@ func (d *ClusterPeerDispatcher) Dispatch(ctx context.Context, domain *model.Clus
 
 	if message.Category == PeerCategoryQuery && message.Action == PeerActionTaskScatter {
 		if err := d.handleTaskScatter(ctx, domain, source, message); err != nil {
+			_ = store.MarkEventState(state.MessageID, PeerEventStatusFailed, err.Error())
+			resultFields["status"] = PeerEventStatusFailed
+			resultFields["error"] = err.Error()
+			return err
+		}
+		resultFields["status"] = PeerEventStatusSucceeded
+		return store.MarkEventState(state.MessageID, PeerEventStatusSucceeded, "")
+	}
+
+	if message.Category == PeerCategoryCommand && message.Action == PeerActionDomainInboundCreate {
+		if err := d.handleDomainInboundCreate(ctx, domain, source, message); err != nil {
 			_ = store.MarkEventState(state.MessageID, PeerEventStatusFailed, err.Error())
 			resultFields["status"] = PeerEventStatusFailed
 			resultFields["error"] = err.Error()
@@ -548,6 +569,30 @@ func clusterPeerChainRouteStep(route RoutePlan, stepID string) (RouteStep, bool)
 		}
 	}
 	return RouteStep{}, false
+}
+
+func (d *ClusterPeerDispatcher) handleDomainInboundCreate(ctx context.Context, domain *model.ClusterDomain, source *model.ClusterMember, message *PeerMessage) error {
+	raw, err := json.Marshal(message.Payload)
+	if err != nil {
+		return err
+	}
+
+	var payload clustertypes.DomainInboundCreatePayload
+	if err := json.Unmarshal(raw, &payload); err != nil {
+		return fmt.Errorf("invalid_domain_inbound_payload: %w", err)
+	}
+
+	creator := d.domainInboundCreator
+	if creator == nil {
+		creator = NewClusterDomainInboundService(defaultClusterDomainInboundOptions(nil, nil))
+	}
+
+	sourceNode := ""
+	if source != nil {
+		sourceNode = source.NodeID
+	}
+	_, err = creator.ApplyDomainInboundCreate(ctx, domain, payload, sourceNode, false)
+	return err
 }
 
 func clonePeerPayload(payload map[string]interface{}) map[string]interface{} {
