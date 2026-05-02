@@ -16,6 +16,7 @@ import (
 )
 
 var errClusterLocalNodeNotFound = errors.New("cluster local node not found")
+var errClusterLocalNodeStoreUnavailable = errors.New("cluster local node store unavailable")
 
 func EncryptClusterDomainToken(secret []byte, token string) (string, error) {
 	block, err := aes.NewCipher(clusterSecretKey(secret))
@@ -65,9 +66,19 @@ type clusterLocalNodeStore interface {
 
 type dbClusterLocalNodeStore struct{}
 
-func (s *dbClusterLocalNodeStore) First() (*model.ClusterLocalNode, error) {
-	local := &model.ClusterLocalNode{}
-	err := database.GetDB().First(local).Error
+func (s *dbClusterLocalNodeStore) First() (local *model.ClusterLocalNode, err error) {
+	db := database.GetDB()
+	if db == nil || db.Config == nil {
+		return nil, errClusterLocalNodeStoreUnavailable
+	}
+	defer func() {
+		if recover() != nil {
+			local = nil
+			err = errClusterLocalNodeStoreUnavailable
+		}
+	}()
+	local = &model.ClusterLocalNode{}
+	err = db.First(local).Error
 	if errors.Is(err, gorm.ErrRecordNotFound) {
 		return nil, errClusterLocalNodeNotFound
 	}
@@ -77,8 +88,17 @@ func (s *dbClusterLocalNodeStore) First() (*model.ClusterLocalNode, error) {
 	return local, nil
 }
 
-func (s *dbClusterLocalNodeStore) Create(local *model.ClusterLocalNode) error {
-	return database.GetDB().Create(local).Error
+func (s *dbClusterLocalNodeStore) Create(local *model.ClusterLocalNode) (err error) {
+	db := database.GetDB()
+	if db == nil || db.Config == nil {
+		return errClusterLocalNodeStoreUnavailable
+	}
+	defer func() {
+		if recover() != nil {
+			err = errClusterLocalNodeStoreUnavailable
+		}
+	}()
+	return db.Create(local).Error
 }
 
 type ClusterLocalIdentityService struct {

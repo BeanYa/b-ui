@@ -221,7 +221,8 @@ func TestClusterHTTPBroadcasterUsesTargetMemberPeerTokenInsteadOfDomainToken(t *
 			PeerTokenEncrypted: mustEncryptClusterToken(t, "panel-secret-for-cluster-tests", "peer-token-a"),
 			Domain:             &model.ClusterDomain{Domain: "edge.example.com", TokenEncrypted: mustEncryptClusterToken(t, "panel-secret-for-cluster-tests", "domain-token")},
 		}}},
-		HTTPClient: server.Client(),
+		HTTPClient:     server.Client(),
+		saveAckAttempt: noopPeerAckAttempt,
 	}
 
 	if err := broadcaster.BroadcastNotifyVersion(context.Background(), 9, ""); err != nil {
@@ -457,7 +458,8 @@ func TestClusterHTTPBroadcasterDoesNotSkipUnreachablePeersAndContinuesOthers(t *
 				Domain:             &model.ClusterDomain{Id: 1, Domain: "edge.example.com", CommunicationEndpointPath: "/_cluster", CommunicationProtocolVersion: "v1"},
 			},
 		}},
-		HTTPClient: server.Client(),
+		HTTPClient:     server.Client(),
+		saveAckAttempt: noopPeerAckAttempt,
 	}
 
 	if err := broadcaster.BroadcastNotifyVersion(context.Background(), 9, ""); err != nil {
@@ -505,7 +507,8 @@ func TestClusterHTTPBroadcasterRetriesStaleUnreachablePeerWhenProbeWindowReopens
 			PeerTokenEncrypted: mustEncryptClusterToken(t, "panel-secret-for-cluster-tests", "peer-token-retry"),
 			Domain:             &model.ClusterDomain{Id: 1, Domain: "edge.example.com", CommunicationEndpointPath: "/_cluster", CommunicationProtocolVersion: "v1"},
 		}}},
-		HTTPClient: server.Client(),
+		HTTPClient:     server.Client(),
+		saveAckAttempt: noopPeerAckAttempt,
 	}
 
 	if err := broadcaster.BroadcastNotifyVersion(context.Background(), 9, ""); err != nil {

@@ -799,7 +799,7 @@ func TestClusterServiceListDomainsIncludesSupportedActions(t *testing.T) {
 	if domains[0].CommunicationProtocolVersion != "v1" {
 		t.Fatalf("expected protocol version, got %q", domains[0].CommunicationProtocolVersion)
 	}
-	expectedActions := []string{"domain.cluster.changed", "events", "heartbeat", "ping", "info", "action", "domain.panel.update.available", "domain.panel.update.request", "domain.panel.update.status"}
+	expectedActions := []string{"domain.cluster.changed", "events", "heartbeat", "ping", "info", "action", "domain.panel.update.available", "domain.panel.update.request", "domain.panel.update.status", "domain.inbound.create"}
 	if !reflect.DeepEqual(domains[0].SupportedActions, expectedActions) {
 		t.Fatalf("expected supported actions %#v, got %#v", expectedActions, domains[0].SupportedActions)
 	}
