@@ -5,6 +5,8 @@ import (
 	"errors"
 	"testing"
 
+	"github.com/BeanYa/b-ui/src/backend/internal/domain/services/cluster"
+	clustertypes "github.com/BeanYa/b-ui/src/backend/internal/domain/services/cluster/types"
 	"github.com/BeanYa/b-ui/src/backend/internal/infra/db/model"
 )
 
@@ -223,6 +225,32 @@ func TestClusterHubSyncerLatestVersionDeletesLocalMirrorWhenHubRejectsRead(t *te
 	if store.deletedDomainID != 1 {
 		t.Fatalf("expected domain 1 to be deleted locally, got %d", store.deletedDomainID)
 	}
+}
+
+func TestRuntimeRegistersDomainInboundCreateWhenServiceProvided(t *testing.T) {
+	svc := &stubDomainInboundActionService{}
+	rt := cluster.NewRuntimeWithPanelAndDomain(cluster.RuntimeListServices{}, nil, cluster.RuntimeDomainServices{
+		DomainInbound: svc,
+	})
+	actions := rt.InfoResponse().Actions
+	if !containsString(actions, "domain.inbound.create") {
+		t.Fatalf("expected domain.inbound.create in actions, got %#v", actions)
+	}
+}
+
+type stubDomainInboundActionService struct{}
+
+func (s *stubDomainInboundActionService) HandleDomainInboundCreate(context.Context, clustertypes.ActionRequest, clustertypes.DomainInboundCreatePayload) (map[string]interface{}, error) {
+	return map[string]interface{}{"ok": true}, nil
+}
+
+func containsString(values []string, want string) bool {
+	for _, value := range values {
+		if value == want {
+			return true
+		}
+	}
+	return false
 }
 
 type stubClusterRuntimeHubClient struct {

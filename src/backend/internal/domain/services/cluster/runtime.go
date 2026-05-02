@@ -21,6 +21,10 @@ type RuntimeListServices struct {
 	Outbound action.ListService
 }
 
+type RuntimeDomainServices struct {
+	DomainInbound action.DomainInboundCreateService
+}
+
 // NewRuntime creates a Runtime with all handlers registered.
 // Parameters: service interfaces for each handler category.
 func NewRuntime(
@@ -44,11 +48,18 @@ func NewRuntime(
 // NewRuntimeWithPanel creates a Runtime with list handlers and optional
 // panel-compatible management actions.
 func NewRuntimeWithPanel(lists RuntimeListServices, panel action.PanelService) *Runtime {
+	return NewRuntimeWithPanelAndDomain(lists, panel, RuntimeDomainServices{})
+}
+
+func NewRuntimeWithPanelAndDomain(lists RuntimeListServices, panel action.PanelService, domains RuntimeDomainServices) *Runtime {
 	r := router.NewActionRouter()
 	registerListActions(r, lists)
 
 	if panel != nil {
 		action.NewPanelHandler(panel).RegisterAll(r)
+	}
+	if domains.DomainInbound != nil {
+		action.NewDomainInboundHandler(domains.DomainInbound).RegisterAll(r)
 	}
 
 	return &Runtime{Router: r}
