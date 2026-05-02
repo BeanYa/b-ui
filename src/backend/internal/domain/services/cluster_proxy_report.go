@@ -107,7 +107,7 @@ func (s *ClusterProxyReportService) reportProxyConfigs(domain clusterDomainInfo)
 		return fmt.Errorf("get all inbounds: %w", err)
 	}
 
-	var configs []ClusterHubProxyConfigItem
+	configs := make([]ClusterHubProxyConfigItem, 0)
 	for _, inb := range inbounds {
 		var listenPort int
 		var options json.RawMessage
