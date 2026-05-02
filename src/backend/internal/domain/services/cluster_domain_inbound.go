@@ -217,7 +217,7 @@ func (s *ClusterDomainInboundService) prepareDomainInboundJSON(tx *gorm.DB, payl
 	if baseTag == "" {
 		baseTag = inboundType
 	}
-	tag := payload.Prefix + baseTag + "-" + sanitizeDomainInboundPart(nodeID, "node") + payload.Suffix
+	tag := buildClusterInboundTag(payload.Prefix, baseTag, nodeID, payload.Suffix)
 
 	delete(inbound, "id")
 	delete(inbound, "tls_id")
@@ -360,6 +360,12 @@ func sanitizeDomainInboundPart(value string, fallback string) string {
 		return fallback
 	}
 	return value
+}
+
+func buildClusterInboundTag(prefix string, baseTag string, nodeID string, suffix string) string {
+	base := sanitizeDomainInboundPart(baseTag, "inbound")
+	node := sanitizeDomainInboundPart(nodeID, "node")
+	return prefix + base + "-" + node + suffix
 }
 
 func defaultRealityShortID(tag string, now int64) string {

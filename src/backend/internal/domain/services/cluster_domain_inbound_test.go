@@ -164,6 +164,13 @@ func TestDomainInboundCreateDuplicateRequestReturnsExistingInbound(t *testing.T)
 	}
 }
 
+func TestDomainInboundBuildTagSanitizesBaseAndNode(t *testing.T) {
+	tag := buildClusterInboundTag("edge-", "bad tag!", "node/a", "-prod")
+	if tag != "edge-bad-tag-node-a-prod" {
+		t.Fatalf("expected sanitized tag, got %q", tag)
+	}
+}
+
 type domainInboundSaverFunc func(*gorm.DB, string, json.RawMessage, string, string) error
 
 func (fn domainInboundSaverFunc) Save(tx *gorm.DB, act string, data json.RawMessage, initUserIds string, hostname string) error {
