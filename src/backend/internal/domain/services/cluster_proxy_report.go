@@ -102,13 +102,20 @@ func (s *ClusterProxyReportService) reportProxyConfigs(domain clusterDomainInfo)
 	}
 
 	db := database.GetDB()
-	var inbounds []model.Inbound
-	if err := db.Model(model.Inbound{}).Preload("Tls").Find(&inbounds).Error; err != nil {
-		return fmt.Errorf("get all inbounds: %w", err)
+	var wrappers []model.ClusterInbound
+	if err := db.Model(model.ClusterInbound{}).
+		Preload("Inbound.Tls").
+		Where("domain_id = ?", domain.ID).
+		Find(&wrappers).Error; err != nil {
+		return fmt.Errorf("get cluster domain inbounds: %w", err)
 	}
 
 	configs := make([]ClusterHubProxyConfigItem, 0)
-	for _, inb := range inbounds {
+	for _, wrapper := range wrappers {
+		if wrapper.Inbound == nil {
+			continue
+		}
+		inb := *wrapper.Inbound
 		var listenPort int
 		var options json.RawMessage
 		var tlsConfig json.RawMessage
@@ -135,9 +142,7 @@ func (s *ClusterProxyReportService) reportProxyConfigs(domain clusterDomainInfo)
 			}
 		}
 
-		if inb.Tls != nil {
-			tlsConfig = inb.Tls.Server
-		}
+		tlsConfig = buildClusterProxyReportTLSConfig(inb.Tls)
 
 		configs = append(configs, ClusterHubProxyConfigItem{
 			InboundID:  inb.Id,
@@ -160,6 +165,42 @@ func (s *ClusterProxyReportService) reportProxyConfigs(domain clusterDomainInfo)
 	}
 
 	return s.hubClient.ReportProxyConfigs(context.Background(), domain.HubURL, domain.Name, body)
+}
+
+func buildClusterProxyReportTLSConfig(tls *model.Tls) json.RawMessage {
+	if tls == nil || len(tls.Server) == 0 {
+		return nil
+	}
+
+	var server map[string]interface{}
+	if err := json.Unmarshal(tls.Server, &server); err != nil {
+		return tls.Server
+	}
+
+	var client map[string]interface{}
+	if len(tls.Client) > 0 {
+		_ = json.Unmarshal(tls.Client, &client)
+	}
+	if clientReality, ok := client["reality"].(map[string]interface{}); ok {
+		serverReality, _ := server["reality"].(map[string]interface{})
+		if serverReality == nil {
+			serverReality = map[string]interface{}{"enabled": true}
+			server["reality"] = serverReality
+		}
+		if publicKey, ok := clientReality["public_key"].(string); ok && publicKey != "" {
+			serverReality["public_key"] = publicKey
+		}
+		if shortID, ok := clientReality["short_id"].(string); ok && shortID != "" {
+			serverReality["short_id"] = shortID
+		}
+		delete(serverReality, "private_key")
+	}
+
+	out, err := json.Marshal(server)
+	if err != nil {
+		return tls.Server
+	}
+	return out
 }
 
 func extractHostFromURL(rawURL string) string {
