@@ -2,6 +2,7 @@ package api
 
 import (
 	"encoding/json"
+	"errors"
 	"strconv"
 	"strings"
 	"time"
@@ -461,4 +462,29 @@ func (a *ApiService) GetCheckOutbound(c *gin.Context) {
 	link := c.Query("link")
 	result := a.ConfigService.CheckOutbound(tag, link)
 	jsonObj(c, result, nil)
+}
+
+func (a *ApiService) GetCleanup(c *gin.Context) {
+	files, err := database.ListResidualFiles()
+	if err != nil {
+		jsonMsg(c, "", err)
+		return
+	}
+	jsonObj(c, files, nil)
+}
+
+func (a *ApiService) CleanupFiles(c *gin.Context) {
+	paths := c.PostFormArray("paths[]")
+	if len(paths) == 0 {
+		// single param fallback
+		if p := c.PostForm("paths"); p != "" {
+			paths = []string{p}
+		}
+	}
+	if len(paths) == 0 {
+		jsonMsg(c, "", errors.New("no file paths provided"))
+		return
+	}
+	err := database.DeleteResidualFiles(paths)
+	jsonMsg(c, "cleanupFiles", err)
 }
