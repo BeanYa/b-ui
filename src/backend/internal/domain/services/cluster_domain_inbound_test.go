@@ -43,6 +43,11 @@ func TestDomainInboundWrapperMigratesAndEnforcesRequestPerDomain(t *testing.T) {
 	}
 	second := first
 	second.Id = 0
+	secondInbound := model.Inbound{Type: "vless", Tag: "cluster-vless-b"}
+	if err := db.Create(&secondInbound).Error; err != nil {
+		t.Fatalf("seed second inbound: %v", err)
+	}
+	second.InboundID = secondInbound.Id
 	if err := db.Create(&second).Error; err == nil {
 		t.Fatal("expected duplicate request id in same domain to fail")
 	}
