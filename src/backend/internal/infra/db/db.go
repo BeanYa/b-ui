@@ -120,6 +120,7 @@ func InitDB(dbPath string) error {
 		&model.ClusterLocalNode{},
 		&model.ClusterDomain{},
 		&model.ClusterMember{},
+		&model.ClusterInbound{},
 		&model.ClusterPeerReachability{},
 		&model.ClusterPeerEventLog{},
 		&model.ClusterPeerEventState{},

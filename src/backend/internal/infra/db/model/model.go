@@ -134,6 +134,22 @@ type ClusterMember struct {
 	Domain             *ClusterDomain `json:"domain,omitempty" gorm:"foreignKey:DomainID;references:Id"`
 }
 
+type ClusterInbound struct {
+	Id        uint     `json:"id" gorm:"primaryKey;autoIncrement"`
+	DomainID  uint     `json:"domainId" gorm:"uniqueIndex:idx_cluster_inbound_domain_request;index"`
+	Domain    string   `json:"domain" gorm:"index"`
+	NodeID    string   `json:"nodeId" gorm:"index"`
+	MemberID  string   `json:"memberId" gorm:"index"`
+	InboundID uint     `json:"inboundId" gorm:"uniqueIndex"`
+	Inbound   *Inbound `json:"inbound,omitempty" gorm:"foreignKey:InboundID;references:Id"`
+	RequestID string   `json:"requestId" gorm:"uniqueIndex:idx_cluster_inbound_domain_request"`
+	Prefix    string   `json:"prefix"`
+	Suffix    string   `json:"suffix"`
+	Template  string   `json:"template"`
+	CreatedAt int64    `json:"createdAt"`
+	UpdatedAt int64    `json:"updatedAt"`
+}
+
 type ClusterPeerReachability struct {
 	Id                    uint   `json:"id" gorm:"primaryKey;autoIncrement"`
 	DomainID              uint   `json:"domainId" gorm:"uniqueIndex:idx_cluster_reachability_domain_target"`
