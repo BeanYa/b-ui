@@ -188,12 +188,17 @@ func (s *ConfigService) CheckOutbound(tag string, link string) core.CheckOutboun
 func (s *ConfigService) Save(obj string, act string, data json.RawMessage, initUsers string, loginUser string, hostname string) ([]string, error) {
 	var err error
 	var objs []string = []string{obj}
+	var inboundChanged bool
 
 	db := database.GetDB()
 	tx := db.Begin()
 	defer func() {
 		if err == nil {
 			tx.Commit()
+			// Trigger proxy config report to Hub after transaction commits
+			if inboundChanged && s.InboundService.proxyReport != nil {
+				s.InboundService.proxyReport.ReportForAllDomains()
+			}
 			// Try to start core if it is not running
 			if !corePtr.IsRunning() {
 				s.StartCore()
@@ -219,6 +224,9 @@ func (s *ConfigService) Save(obj string, act string, data json.RawMessage, initU
 		objs = append(objs, "clients", "inbounds")
 	case "inbounds":
 		err = s.InboundService.Save(tx, act, data, initUsers, hostname)
+		if err == nil {
+			inboundChanged = true
+		}
 		objs = append(objs, "clients")
 	case "outbounds":
 		err = s.OutboundService.Save(tx, act, data)

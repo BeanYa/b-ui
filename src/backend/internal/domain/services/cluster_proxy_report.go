@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"log"
+	"sync"
 
 	database "github.com/BeanYa/b-ui/src/backend/internal/infra/db"
 	"github.com/BeanYa/b-ui/src/backend/internal/infra/db/model"
@@ -16,6 +17,7 @@ type ClusterProxyReportService struct {
 	inboundSvc  *InboundService
 	memberSvc   clusterMemberProvider
 	identitySvc clusterIdentityProvider
+	mu          sync.Mutex
 }
 
 // clusterMemberProvider abstracts getting domain member info
@@ -55,6 +57,8 @@ func NewClusterProxyReportService(
 // Called after inbound CRUD operations and manual sync.
 func (s *ClusterProxyReportService) ReportForAllDomains() {
 	go func() {
+		s.mu.Lock()
+		defer s.mu.Unlock()
 		domains, err := s.memberSvc.GetAllDomains()
 		if err != nil {
 			log.Printf("ClusterProxyReport: failed to get domains: %v", err)
@@ -71,6 +75,8 @@ func (s *ClusterProxyReportService) ReportForAllDomains() {
 // ReportProxyConfigs reports proxy configs for a specific domain.
 func (s *ClusterProxyReportService) ReportProxyConfigs(domainID uint) {
 	go func() {
+		s.mu.Lock()
+		defer s.mu.Unlock()
 		domains, err := s.memberSvc.GetAllDomains()
 		if err != nil {
 			log.Printf("ClusterProxyReport: failed to get domains: %v", err)

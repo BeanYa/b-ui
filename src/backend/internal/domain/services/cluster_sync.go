@@ -251,8 +251,79 @@ func (s *ClusterSyncService) pollAndNotifyVersion(ctx context.Context, forceSnap
 
 		_, _ = s.CheckAndBroadcastUpdate(ctx, &domain)
 	}
+
+	// Periodically reconcile proxy configs with hub
+	s.ReconcileProxyConfigs()
+
 	return removedMirrorErr
 }
+
+// ReconcileProxyConfigs reports current inbound configs to all hub domains.
+func (s *ClusterSyncService) ReconcileProxyConfigs() {
+	if s.store == nil {
+		return
+	}
+	provider := &syncMemberProvider{
+		store:          s.store,
+		secretProvider: s.getSecretProvider(),
+		localIdentity:  s.getLocalIdentity(),
+	}
+	report := NewClusterProxyReportService(&ClusterHubClient{}, nil, provider, s)
+	report.ReportForAllDomains()
+}
+
+func (s *ClusterSyncService) GetLocalNodeID() string {
+	local, err := s.getLocalIdentity().GetOrCreate()
+	if err != nil {
+		return ""
+	}
+	return local.NodeID
+}
+
+type syncMemberProvider struct {
+	store          clusterSyncStore
+	secretProvider clusterSecretProvider
+	localIdentity  clusterLocalIdentityProvider
+}
+
+func (p *syncMemberProvider) GetAllDomains() ([]clusterDomainInfo, error) {
+	domains, err := p.store.ListDomains()
+	if err != nil {
+		return nil, err
+	}
+	localIdentity, err := p.localIdentity.GetOrCreate()
+	if err != nil {
+		return nil, err
+	}
+	secret, err := p.secretProvider.GetSecret()
+	if err != nil {
+		return nil, err
+	}
+	var result []clusterDomainInfo
+	for _, domain := range domains {
+		if domain.HubURL == "" {
+			continue
+		}
+		domainToken, err := DecryptClusterDomainToken(secret, domain.TokenEncrypted)
+		if err != nil {
+			continue
+		}
+		member, err := p.store.GetMember(domain.Id, localIdentity.NodeID)
+		if err != nil || member == nil {
+			continue
+		}
+		result = append(result, clusterDomainInfo{
+			ID:          domain.Id,
+			Name:        domain.Domain,
+			MemberID:    localIdentity.NodeID,
+			BaseURL:     member.BaseURL,
+			HubURL:      domain.HubURL,
+			DomainToken: domainToken,
+		})
+	}
+	return result, nil
+}
+
 
 func (s *ClusterSyncService) domainNeedsSnapshotRefresh(domainID uint) (bool, error) {
 	members, err := s.store.GetMembers(domainID)

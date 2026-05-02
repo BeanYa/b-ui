@@ -203,10 +203,6 @@ func (s *InboundService) Save(tx *gorm.DB, act string, data json.RawMessage, ini
 	default:
 		return common.NewErrorf("unknown action: %s", act)
 	}
-	// Trigger proxy config report to Hub if in cluster
-	if s.proxyReport != nil {
-		s.proxyReport.ReportForAllDomains()
-	}
 	return nil
 }
 
