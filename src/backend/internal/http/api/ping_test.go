@@ -1,6 +1,8 @@
 package api
 
 import (
+	"bytes"
+	"context"
 	"net/http"
 	"net/http/httptest"
 	"testing"
@@ -10,6 +12,122 @@ import (
 	"github.com/gin-contrib/sessions/cookie"
 	"github.com/gin-gonic/gin"
 )
+
+type externalPingServiceStub struct {
+	called  bool
+	req     ping.ExternalRunRequest
+	members []ping.MeshMember
+	result  *ping.ExternalResultData
+	err     error
+}
+
+func (s *externalPingServiceStub) Run(ctx context.Context, req ping.ExternalRunRequest, members []ping.MeshMember) (*ping.ExternalResultData, error) {
+	s.called = true
+	s.req = req
+	s.members = members
+	if s.result != nil || s.err != nil {
+		return s.result, s.err
+	}
+	return &ping.ExternalResultData{TestedAt: 123, Results: []ping.ExternalTestResult{}}, nil
+}
+
+func newExternalPingTestRouter(externalSvc externalPingService) *gin.Engine {
+	gin.SetMode(gin.TestMode)
+	router := gin.New()
+	router.Use(gin.Recovery())
+	router.Use(sessions.Sessions("b-ui", cookie.NewStore([]byte("test-secret"))))
+	handler := &pingAPIHandler{externalSvc: externalSvc}
+	router.POST("/api/ping/external", handler.triggerExternalPing)
+	router.GET("/__test/login/:username", func(c *gin.Context) {
+		if err := SetLoginUser(c, c.Param("username"), 0); err != nil {
+			c.AbortWithStatus(http.StatusInternalServerError)
+			return
+		}
+		c.Status(http.StatusOK)
+	})
+	return router
+}
+
+func TestTriggerExternalPingOutboundDoesNotRequireClusterMembers(t *testing.T) {
+	stub := &externalPingServiceStub{}
+	router := newExternalPingTestRouter(stub)
+	req := httptest.NewRequest(
+		http.MethodPost,
+		"/api/ping/external",
+		bytes.NewBufferString(`{"direction":"outbound","source_ids":["public_dns"],"methods":["tcp"]}`),
+	)
+	req.Header.Set("Content-Type", "application/json")
+	req.Header.Set("Cookie", loginCookie(t, router, "admin"))
+	recorder := httptest.NewRecorder()
+
+	router.ServeHTTP(recorder, req)
+
+	if recorder.Code != http.StatusOK {
+		t.Fatalf("expected outbound external ping status %d, got %d", http.StatusOK, recorder.Code)
+	}
+	var response Msg
+	decodeResponse(t, recorder, &response)
+	if !response.Success {
+		t.Fatalf("expected outbound external ping success, got %#v", response)
+	}
+	if !stub.called {
+		t.Fatal("expected external ping service to be called")
+	}
+	if stub.req.Direction != ping.DirectionOutbound {
+		t.Fatalf("expected outbound direction, got %q", stub.req.Direction)
+	}
+	if len(stub.req.TargetNodeIDs) != 0 {
+		t.Fatalf("expected no target_node_ids, got %#v", stub.req.TargetNodeIDs)
+	}
+	if len(stub.members) != 0 {
+		t.Fatalf("expected no cluster members, got %#v", stub.members)
+	}
+}
+
+func TestTriggerExternalPingInboundUsesExplicitTarget(t *testing.T) {
+	stub := &externalPingServiceStub{}
+	router := newExternalPingTestRouter(stub)
+	req := httptest.NewRequest(
+		http.MethodPost,
+		"/api/ping/external",
+		bytes.NewBufferString(`{"direction":"inbound","source_ids":["check_host"],"target":{"host":"panel.example.com","port":8443,"label":"Panel edge"},"methods":["tcp"]}`),
+	)
+	req.Header.Set("Content-Type", "application/json")
+	req.Header.Set("Cookie", loginCookie(t, router, "admin"))
+	recorder := httptest.NewRecorder()
+
+	router.ServeHTTP(recorder, req)
+
+	if recorder.Code != http.StatusOK {
+		t.Fatalf("expected inbound external ping status %d, got %d", http.StatusOK, recorder.Code)
+	}
+	var response Msg
+	decodeResponse(t, recorder, &response)
+	if !response.Success {
+		t.Fatalf("expected inbound external ping success, got %#v", response)
+	}
+	if !stub.called {
+		t.Fatal("expected external ping service to be called")
+	}
+	if stub.req.Direction != ping.DirectionInbound {
+		t.Fatalf("expected inbound direction, got %q", stub.req.Direction)
+	}
+	if stub.req.Target == nil {
+		t.Fatal("expected inbound target to be passed to external service")
+	}
+	if stub.req.Target.Host != "panel.example.com" {
+		t.Fatalf("expected target host panel.example.com, got %q", stub.req.Target.Host)
+	}
+	if stub.req.Target.Port != 8443 {
+		t.Fatalf("expected target port 8443, got %d", stub.req.Target.Port)
+	}
+	if stub.req.Target.Label != "Panel edge" {
+		t.Fatalf("expected target label Panel edge, got %q", stub.req.Target.Label)
+	}
+	if len(stub.members) != 0 {
+		t.Fatalf("expected no cluster members, got %#v", stub.members)
+	}
+}
 
 func TestGetMeshPingMissingResultReturnsEmptySuccess(t *testing.T) {
 	gin.SetMode(gin.TestMode)

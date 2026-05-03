@@ -1,10 +1,13 @@
 package api
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
+	"net"
 	"net/http"
 	"os"
+	"strconv"
 	"strings"
 
 	service "github.com/BeanYa/b-ui/src/backend/internal/domain/services"
@@ -13,10 +16,14 @@ import (
 	"github.com/gin-gonic/gin"
 )
 
+type externalPingService interface {
+	Run(context.Context, ping.ExternalRunRequest, []ping.MeshMember) (*ping.ExternalResultData, error)
+}
+
 type pingAPIHandler struct {
 	clusterService *service.ClusterService
 	meshService    *ping.MeshService
-	externalSvc    *ping.ExternalService
+	externalSvc    externalPingService
 	store          *ping.Store
 }
 
@@ -224,37 +231,39 @@ func (h *pingAPIHandler) triggerExternalPing(c *gin.Context) {
 		return
 	}
 
-	members, err := h.clusterService.ListMembers()
-	if err != nil {
-		jsonMsg(c, "external ping", err)
-		return
+	if req.Direction == ping.DirectionInbound && req.Target == nil {
+		target, err := externalTargetFromRequest(c)
+		if err != nil {
+			jsonMsg(c, "external ping", err)
+			return
+		}
+		req.Target = target
 	}
 
-	pingMembers := make([]ping.MeshMember, 0, len(members))
-	for _, m := range members {
-		conn, _ := h.clusterService.GetMemberConnection(m.NodeID)
-		pm := ping.MeshMember{
-			MemberID: m.NodeID,
-			NodeID:   m.NodeID,
-			Name:     m.DisplayName,
-			BaseURL:  m.BaseURL,
-		}
-		if m.Name != "" {
-			pm.Name = m.Name
-		}
-		if conn != nil {
-			pm.PeerToken = conn.Token
-			pm.Address = extractAddrFromBaseURL(conn.BaseURL)
-		}
-		pingMembers = append(pingMembers, pm)
-	}
-
-	data, err := h.externalSvc.Run(c.Request.Context(), req, pingMembers)
+	data, err := h.externalSvc.Run(c.Request.Context(), req, nil)
 	if err != nil {
 		jsonMsg(c, "external ping", err)
 		return
 	}
 	jsonObj(c, data, nil)
+}
+
+func externalTargetFromRequest(c *gin.Context) (*ping.ExternalTargetRequest, error) {
+	host := strings.TrimSpace(c.Request.Host)
+	if host == "" {
+		return nil, fmt.Errorf("inbound target host is required")
+	}
+
+	hostname, port, err := net.SplitHostPort(host)
+	if err == nil {
+		parsedPort, err := strconv.Atoi(port)
+		if err != nil {
+			return nil, fmt.Errorf("invalid inbound target port: %w", err)
+		}
+		return &ping.ExternalTargetRequest{Host: hostname, Port: parsedPort, Label: hostname}, nil
+	}
+
+	return &ping.ExternalTargetRequest{Host: host, Label: host}, nil
 }
 
 func (h *pingAPIHandler) getExternalResults(c *gin.Context) {
