@@ -32,6 +32,8 @@ export const useClusterStore = defineStore('ClusterStore', () => {
       taskType,
       scope,
       params,
+    }, {
+      headers: { 'Content-Type': 'application/json' },
     })
     if (msg.success && msg.obj) {
       return msg.obj as ScatterTaskSummary
