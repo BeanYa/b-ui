@@ -15,6 +15,14 @@ afterEach(() => {
 })
 
 describe('sync-web-html script', () => {
+  it('keeps icon links relative so subpath deployments do not request root assets', () => {
+    const frontendIndex = resolve(dirname(fileURLToPath(import.meta.url)), '..', 'index.html')
+    const source = readFileSync(frontendIndex, 'utf8')
+
+    expect(source).toContain('href="./assets/icon.svg"')
+    expect(source).not.toContain('href="/assets/icon.svg"')
+  })
+
   it('syncs dist into both backend embed assets and the legacy repository root web/html path', () => {
     const sandboxRoot = mkdtempSync(join(tmpdir(), 'sync-web-html-'))
     tempDirs.push(sandboxRoot)

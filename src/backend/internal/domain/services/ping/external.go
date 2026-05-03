@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"net"
 	"net/http"
+	"sync"
 	"time"
 )
 
@@ -90,7 +91,7 @@ func (s *ExternalService) RunInbound(ctx context.Context, sourceIDs []string, me
 	config := s.store.LoadExternalConfigOrDefault()
 	enabledSet := makeSourceSet(sourceIDs, config, "inbound")
 
-	results := make([]ExternalTestResult, 0)
+	tasks := make([]func() ExternalTestResult, 0)
 
 	for sourceID := range enabledSet {
 		targets, ok := inboundTargets[sourceID]
@@ -99,27 +100,32 @@ func (s *ExternalService) RunInbound(ctx context.Context, sourceIDs []string, me
 		}
 		for _, tgt := range targets {
 			for _, member := range members {
-				latency, err := s.meshSvc.icmpPing(ctx, member.Address)
-				r := ExternalTestResult{
-					SourceMemberID: "",
-					SourceLabel:    tgt.Label,
-					Direction:      "inbound",
-					TargetMemberID: member.MemberID,
-					TargetName:     member.Name,
-				}
-				if err != nil {
-					r.Success = false
-					r.Error = errorPtr(err.Error())
-				} else {
-					r.Success = true
-					r.Method = methodPtr("icmp")
-					r.LatencyMs = latencyPtr(latency)
-				}
-				results = append(results, r)
+				tgt := tgt
+				member := member
+				tasks = append(tasks, func() ExternalTestResult {
+					latency, err := s.meshSvc.icmpPing(ctx, member.Address)
+					r := ExternalTestResult{
+						SourceMemberID: "",
+						SourceLabel:    tgt.Label,
+						Direction:      "inbound",
+						TargetMemberID: member.MemberID,
+						TargetName:     member.Name,
+					}
+					if err != nil {
+						r.Success = false
+						r.Error = errorPtr(err.Error())
+					} else {
+						r.Success = true
+						r.Method = methodPtr("icmp")
+						r.LatencyMs = latencyPtr(latency)
+					}
+					return r
+				})
 			}
 		}
 	}
 
+	results := runExternalProbeTasks(DefaultExternalMaxConcurrent, tasks)
 	data := &ExternalResultData{TestedAt: nowUnix(), Results: results}
 	if err := s.store.SaveExternalResults(data); err != nil {
 		return nil, err
@@ -132,7 +138,7 @@ func (s *ExternalService) RunOutbound(ctx context.Context, sourceIDs []string, m
 	config := s.store.LoadExternalConfigOrDefault()
 	enabledSet := makeSourceSet(sourceIDs, config, "outbound")
 
-	results := make([]ExternalTestResult, 0)
+	tasks := make([]func() ExternalTestResult, 0)
 
 	for sourceID := range enabledSet {
 		targets, ok := outboundTargets[sourceID]
@@ -141,12 +147,17 @@ func (s *ExternalService) RunOutbound(ctx context.Context, sourceIDs []string, m
 		}
 		for _, member := range members {
 			for _, tgt := range targets {
-				r := probeExternalTarget(ctx, s.meshSvc, s.tcpDialer, sourceID, member, tgt)
-				results = append(results, r)
+				sourceID := sourceID
+				member := member
+				tgt := tgt
+				tasks = append(tasks, func() ExternalTestResult {
+					return probeExternalTarget(ctx, s.meshSvc, s.tcpDialer, sourceID, member, tgt)
+				})
 			}
 		}
 	}
 
+	results := runExternalProbeTasks(DefaultExternalMaxConcurrent, tasks)
 	data := &ExternalResultData{TestedAt: nowUnix(), Results: results}
 	if err := s.store.SaveExternalResults(data); err != nil {
 		return nil, err
@@ -243,6 +254,7 @@ func (s *ExternalService) Run(ctx context.Context, req ExternalRunRequest, membe
 	config := s.store.LoadExternalConfigOrDefault()
 	enabledIn := make([]string, 0)
 	enabledOut := make([]string, 0)
+	members = filterExternalMembers(members, req.TargetNodeIDs)
 
 	for _, sid := range req.SourceIDs {
 		for _, src := range config.Sources {
@@ -284,6 +296,55 @@ func (s *ExternalService) Run(ctx context.Context, req ExternalRunRequest, membe
 		return nil, err
 	}
 	return data, nil
+}
+
+func filterExternalMembers(members []MeshMember, targetNodeIDs []string) []MeshMember {
+	if len(targetNodeIDs) == 0 {
+		return members
+	}
+	targets := make(map[string]bool, len(targetNodeIDs))
+	for _, id := range targetNodeIDs {
+		if id != "" {
+			targets[id] = true
+		}
+	}
+	if len(targets) == 0 {
+		return members
+	}
+	filtered := make([]MeshMember, 0, len(members))
+	for _, member := range members {
+		if targets[member.NodeID] || targets[member.MemberID] {
+			filtered = append(filtered, member)
+		}
+	}
+	return filtered
+}
+
+func runExternalProbeTasks(maxConcurrent int, tasks []func() ExternalTestResult) []ExternalTestResult {
+	if len(tasks) == 0 {
+		return nil
+	}
+	if maxConcurrent < 1 {
+		maxConcurrent = 1
+	}
+	if maxConcurrent > len(tasks) {
+		maxConcurrent = len(tasks)
+	}
+
+	results := make([]ExternalTestResult, len(tasks))
+	sem := make(chan struct{}, maxConcurrent)
+	var wg sync.WaitGroup
+	for i, task := range tasks {
+		wg.Add(1)
+		go func(index int, run func() ExternalTestResult) {
+			defer wg.Done()
+			sem <- struct{}{}
+			defer func() { <-sem }()
+			results[index] = run()
+		}(i, task)
+	}
+	wg.Wait()
+	return results
 }
 
 func makeSourceSet(requestIDs []string, config *ExternalConfig, direction string) map[string]bool {

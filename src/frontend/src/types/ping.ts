@@ -48,6 +48,7 @@ export interface ExternalResultData {
 
 export interface ExternalRunRequest {
   source_ids: string[]
+  target_node_ids?: string[]
 }
 
 export function latencyColor(ms: number | null, success: boolean): string {

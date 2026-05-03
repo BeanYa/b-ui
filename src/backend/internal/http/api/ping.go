@@ -263,6 +263,10 @@ func (h *pingAPIHandler) getExternalResults(c *gin.Context) {
 	}
 	data, err := h.store.LoadExternalResults()
 	if err != nil {
+		if os.IsNotExist(err) {
+			jsonObj(c, &ping.ExternalResultData{TestedAt: 0, Results: []ping.ExternalTestResult{}}, nil)
+			return
+		}
 		c.JSON(http.StatusNotFound, Msg{Success: false, Msg: "no external ping results"})
 		return
 	}

@@ -141,11 +141,14 @@ export const usePingStore = defineStore('PingStore', () => {
     }
   }
 
-  async function triggerExternalPing(sourceIds: string[]): Promise<ExternalResultData> {
+  async function triggerExternalPing(sourceIds: string[], targetNodeIds: string[] = []): Promise<ExternalResultData> {
     loading.value = true
     error.value = null
     try {
       const req: ExternalRunRequest = { source_ids: sourceIds }
+      if (targetNodeIds.length > 0) {
+        req.target_node_ids = targetNodeIds
+      }
       const { data } = await api.post('api/ping/external', req, {
         headers: { 'Content-Type': 'application/json' },
       })

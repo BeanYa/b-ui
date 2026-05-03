@@ -1,6 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { createPinia, setActivePinia } from 'pinia'
-import type { MeshPairResult, MeshResult } from '@/types/ping'
+import api from '@/plugins/api'
+import type { ExternalResultData, MeshPairResult, MeshResult } from '@/types/ping'
 
 vi.mock('@/plugins/api', () => ({
   default: {
@@ -84,5 +85,24 @@ describe('ping store mesh stream', () => {
     await expect(promise).resolves.toEqual(finalResult)
     expect(resolved).toBe(true)
     expect(store.meshResult).toEqual(finalResult)
+  })
+
+  it('can scope external ping requests to one cluster node', async () => {
+    const result: ExternalResultData = {
+      tested_at: 1710000000,
+      results: [],
+    }
+    vi.mocked(api.post).mockResolvedValueOnce({ data: { success: true, obj: result } })
+
+    const { usePingStore } = await import('./ping')
+    const store = usePingStore()
+
+    await expect(store.triggerExternalPing(['public_dns'], ['node-a'])).resolves.toEqual(result)
+
+    expect(api.post).toHaveBeenCalledWith(
+      'api/ping/external',
+      { source_ids: ['public_dns'], target_node_ids: ['node-a'] },
+      { headers: { 'Content-Type': 'application/json' } },
+    )
   })
 })

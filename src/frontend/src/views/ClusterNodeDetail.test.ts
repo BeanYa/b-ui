@@ -58,4 +58,12 @@ describe('ClusterNodeDetail view source', () => {
     expect(source).toContain('await tryEnterRemotePanel()')
     expect(source).toContain('panelReady.value = true')
   })
+
+  it('runs node latency checks only for the selected cluster node', () => {
+    const source = readFileSync(fileURLToPath(new URL('./ClusterNodeDetail.vue', import.meta.url)), 'utf8')
+
+    expect(source).toContain('currentNodeId.value')
+    expect(source).toContain('triggerExternalPing(enabledSourceIds, [currentNodeId.value])')
+    expect(source).not.toContain('triggerExternalPing(allSourceIds)')
+  })
 })
