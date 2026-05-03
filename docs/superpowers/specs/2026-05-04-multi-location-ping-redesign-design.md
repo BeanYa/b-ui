@@ -103,7 +103,7 @@ Default candidates:
 - CDN edge hosts
 - Cloud provider regional endpoint hosts
 
-ZStaticCDN targets should default to TCP connect latency on port 80 because the public node page describes the listed hosts as TCP Ping targets. ICMP can be opt-in only when a node is known to support it.
+ZStaticCDN targets should use the host and port published for each node on the public node page. The implementation must not assign a hard-coded default port for ZStaticCDN; if a node entry lacks a usable port, that entry is skipped or marked invalid instead of silently probing a guessed port. ICMP can be opt-in only when a node is known to support it.
 
 ## Data Model
 
@@ -282,7 +282,7 @@ Backend tests:
 - `ExternalService.Run` outbound does not require cluster members and produces one current-node source.
 - `ExternalService.Run` inbound accepts an explicit target in standalone mode.
 - Target node metadata is preserved in results.
-- ZStatic targets default to TCP port 80.
+- ZStatic targets use the per-node host and port from the node catalogue and do not fall back to a hard-coded default port.
 - Request `target_node_ids` no longer causes outbound to fan out across cluster members for current-node external tests.
 - Provider errors produce partial result errors instead of aborting all results.
 
