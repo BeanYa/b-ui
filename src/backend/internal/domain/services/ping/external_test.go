@@ -133,6 +133,76 @@ func TestProbeEndpointWithMethodsHTTPUsesExternalEndpointRoot(t *testing.T) {
 	}
 }
 
+func TestProbeEndpointWithMethodsHTTPFallsBackToGETAfterHead405(t *testing.T) {
+	methodsSeen := make([]string, 0, 2)
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		methodsSeen = append(methodsSeen, r.Method)
+		if r.Method == http.MethodHead {
+			w.WriteHeader(http.StatusMethodNotAllowed)
+			return
+		}
+		w.WriteHeader(http.StatusNoContent)
+	}))
+	defer server.Close()
+
+	serverURL, err := url.Parse(server.URL)
+	if err != nil {
+		t.Fatalf("Parse server URL: %v", err)
+	}
+	var requests int
+	svc := NewExternalService(newStoreWithDir(t.TempDir()))
+	svc.httpClient = &http.Client{Transport: rewriteHostTransport{target: serverURL, seen: &requests}}
+
+	method, latency, err := svc.probeEndpointWithMethods(context.Background(), ExternalEndpoint{
+		ID:      "external-http",
+		Host:    "example.test",
+		Port:    80,
+		Methods: []string{MethodHTTP},
+	}, []string{MethodHTTP})
+	if err != nil {
+		t.Fatalf("probeEndpointWithMethods: %v", err)
+	}
+	if method != MethodHTTP {
+		t.Fatalf("expected HTTP method, got %q", method)
+	}
+	if latency < 0 {
+		t.Fatalf("expected non-negative latency, got %f", latency)
+	}
+	if strings.Join(methodsSeen, ",") != "HEAD,GET" {
+		t.Fatalf("expected HEAD then GET, got %v", methodsSeen)
+	}
+}
+
+func TestProbeEndpointWithMethodsHTTPFailsWhenGetFallbackRejected(t *testing.T) {
+	methodsSeen := make([]string, 0, 2)
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		methodsSeen = append(methodsSeen, r.Method)
+		w.WriteHeader(http.StatusMethodNotAllowed)
+	}))
+	defer server.Close()
+
+	serverURL, err := url.Parse(server.URL)
+	if err != nil {
+		t.Fatalf("Parse server URL: %v", err)
+	}
+	var requests int
+	svc := NewExternalService(newStoreWithDir(t.TempDir()))
+	svc.httpClient = &http.Client{Transport: rewriteHostTransport{target: serverURL, seen: &requests}}
+
+	_, _, err = svc.probeEndpointWithMethods(context.Background(), ExternalEndpoint{
+		ID:      "external-http",
+		Host:    "example.test",
+		Port:    80,
+		Methods: []string{MethodHTTP},
+	}, []string{MethodHTTP})
+	if err == nil {
+		t.Fatal("expected GET fallback 405 to fail")
+	}
+	if strings.Join(methodsSeen, ",") != "HEAD,GET" {
+		t.Fatalf("expected HEAD then GET, got %v", methodsSeen)
+	}
+}
+
 func TestProbeEndpointWithMethodsUnsupportedRequestedMethodDoesNotProbe(t *testing.T) {
 	var requests int
 	svc := NewExternalService(newStoreWithDir(t.TempDir()))

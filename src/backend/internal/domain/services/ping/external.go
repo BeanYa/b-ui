@@ -101,7 +101,7 @@ func (s *ExternalService) httpEndpointLatency(ctx context.Context, endpoint Exte
 	}
 
 	latency := float64(time.Since(start).Microseconds()) / 1000.0
-	if isExternalHTTPReachableStatus(status) {
+	if isExternalHTTPSuccessStatus(status) {
 		return latency, nil
 	}
 	return 0, fmt.Errorf("http probe returned %d", status)
@@ -135,8 +135,8 @@ func isDefaultHTTPPort(scheme string, port int) bool {
 	return (scheme == "http" && port == 80) || (scheme == "https" && port == 443)
 }
 
-func isExternalHTTPReachableStatus(status int) bool {
-	return (status >= 200 && status < 400) || status == http.StatusMethodNotAllowed
+func isExternalHTTPSuccessStatus(status int) bool {
+	return status >= 200 && status < 400
 }
 
 type externalTarget struct {
