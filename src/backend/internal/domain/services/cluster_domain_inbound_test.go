@@ -126,6 +126,120 @@ func TestDomainInboundCreateGeneratesPortAndCreatesWrapper(t *testing.T) {
 	}
 }
 
+func TestDomainInboundCreateMaterializesStandardTLSWithGeneratedCertificate(t *testing.T) {
+	db := initClusterInboundTestDB(t)
+	svc := NewClusterDomainInboundService(ClusterDomainInboundServiceOptions{
+		DB: db,
+		InboundSaver: domainInboundSaverFunc(func(tx *gorm.DB, act string, data json.RawMessage, initUserIds string, hostname string) error {
+			var inbound model.Inbound
+			if err := inbound.UnmarshalJSON(data); err != nil {
+				return err
+			}
+			return tx.Create(&inbound).Error
+		}),
+		Identity:      &stubDomainInboundIdentity{node: &model.ClusterLocalNode{NodeID: "node-a"}},
+		PortAllocator: func() (int, error) { return 32003, nil },
+		Now:           func() int64 { return 1700000000 },
+		TLSKeypairGenerator: func(serverName string) []string {
+			if serverName != "edge.example.com" {
+				t.Fatalf("expected server name edge.example.com, got %q", serverName)
+			}
+			return []string{
+				"-----BEGIN PRIVATE KEY-----",
+				"private-line",
+				"-----END PRIVATE KEY-----",
+				"-----BEGIN CERTIFICATE-----",
+				"cert-line",
+				"-----END CERTIFICATE-----",
+			}
+		},
+	})
+
+	result, err := svc.ApplyDomainInboundCreate(context.Background(), &model.ClusterDomain{Id: 1, Domain: "edge.example.com"}, clustertypes.DomainInboundCreatePayload{
+		RequestID:   "req-tls",
+		DomainID:    "edge.example.com",
+		Inbound:     json.RawMessage(`{"type":"vless","tag":"main"}`),
+		TLSTemplate: "standard",
+		TLS: &clustertypes.DomainInboundTLS{
+			Name:   "edge-main-tls",
+			Server: json.RawMessage(`{"enabled":true,"server_name":"edge.example.com","alpn":["h2","http/1.1"],"certificate_path":"","key_path":""}`),
+			Client: json.RawMessage(`{"insecure":true}`),
+		},
+	}, "hub", false)
+	if err != nil {
+		t.Fatalf("apply create: %v", err)
+	}
+
+	var inbound model.Inbound
+	if err := db.First(&inbound, result.InboundID).Error; err != nil {
+		t.Fatalf("load inbound: %v", err)
+	}
+	if inbound.TlsId == 0 {
+		t.Fatal("expected generated tls row to be bound to inbound")
+	}
+
+	var tlsConfig model.Tls
+	if err := db.First(&tlsConfig, inbound.TlsId).Error; err != nil {
+		t.Fatalf("load tls: %v", err)
+	}
+	var server map[string]interface{}
+	if err := json.Unmarshal(tlsConfig.Server, &server); err != nil {
+		t.Fatalf("decode tls server: %v", err)
+	}
+	if _, ok := server["certificate_path"]; ok {
+		t.Fatalf("expected generated certificate text instead of certificate_path, got %#v", server)
+	}
+	if _, ok := server["key_path"]; ok {
+		t.Fatalf("expected generated key text instead of key_path, got %#v", server)
+	}
+	if cert, ok := server["certificate"].([]interface{}); !ok || len(cert) == 0 {
+		t.Fatalf("expected generated certificate lines, got %#v", server["certificate"])
+	}
+	if key, ok := server["key"].([]interface{}); !ok || len(key) == 0 {
+		t.Fatalf("expected generated key lines, got %#v", server["key"])
+	}
+}
+
+func TestDomainInboundGeneratedTLSKeypairUsesInlineCertificateMaterial(t *testing.T) {
+	svc := NewClusterDomainInboundService(ClusterDomainInboundServiceOptions{
+		TLSKeypairGenerator: func(serverName string) []string {
+			if serverName != "''" {
+				t.Fatalf("expected blank server name to be normalized, got %q", serverName)
+			}
+			return []string{
+				"-----BEGIN PRIVATE KEY-----",
+				"private-line",
+				"-----END PRIVATE KEY-----",
+				"-----BEGIN CERTIFICATE-----",
+				"cert-line",
+				"-----END CERTIFICATE-----",
+			}
+		},
+	})
+	server := map[string]interface{}{
+		"enabled":          true,
+		"server_name":      "",
+		"certificate_path": "",
+		"key_path":         "",
+	}
+
+	if err := svc.ensureGeneratedTLSKeypair(server); err != nil {
+		t.Fatalf("generate tls keypair: %v", err)
+	}
+	if _, ok := server["certificate_path"]; ok {
+		t.Fatalf("expected certificate_path to be removed, got %#v", server)
+	}
+	if _, ok := server["key_path"]; ok {
+		t.Fatalf("expected key_path to be removed, got %#v", server)
+	}
+	if cert, ok := server["certificate"].([]string); !ok || len(cert) == 0 {
+		t.Fatalf("expected certificate lines, got %#v", server["certificate"])
+	}
+	if key, ok := server["key"].([]string); !ok || len(key) == 0 {
+		t.Fatalf("expected key lines, got %#v", server["key"])
+	}
+}
+
 func TestDomainInboundCreateDuplicateRequestReturnsExistingInbound(t *testing.T) {
 	db := initClusterInboundTestDB(t)
 	saveCalls := 0

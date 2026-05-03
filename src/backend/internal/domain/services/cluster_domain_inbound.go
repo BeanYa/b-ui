@@ -35,23 +35,25 @@ type clusterDomainInboundReporter interface {
 }
 
 type ClusterDomainInboundServiceOptions struct {
-	DB            *gorm.DB
-	InboundSaver  clusterDomainInboundSaver
-	Identity      clusterDomainInboundIdentity
-	Broadcaster   clusterDomainInboundBroadcaster
-	Reporter      clusterDomainInboundReporter
-	PortAllocator func() (int, error)
-	Now           func() int64
+	DB                  *gorm.DB
+	InboundSaver        clusterDomainInboundSaver
+	Identity            clusterDomainInboundIdentity
+	Broadcaster         clusterDomainInboundBroadcaster
+	Reporter            clusterDomainInboundReporter
+	PortAllocator       func() (int, error)
+	TLSKeypairGenerator func(serverName string) []string
+	Now                 func() int64
 }
 
 type ClusterDomainInboundService struct {
-	db            *gorm.DB
-	inboundSaver  clusterDomainInboundSaver
-	identity      clusterDomainInboundIdentity
-	broadcaster   clusterDomainInboundBroadcaster
-	reporter      clusterDomainInboundReporter
-	portAllocator func() (int, error)
-	now           func() int64
+	db                  *gorm.DB
+	inboundSaver        clusterDomainInboundSaver
+	identity            clusterDomainInboundIdentity
+	broadcaster         clusterDomainInboundBroadcaster
+	reporter            clusterDomainInboundReporter
+	portAllocator       func() (int, error)
+	tlsKeypairGenerator func(serverName string) []string
+	now                 func() int64
 }
 
 type DomainInboundCreateResult struct {
@@ -62,13 +64,14 @@ type DomainInboundCreateResult struct {
 
 func NewClusterDomainInboundService(opts ClusterDomainInboundServiceOptions) *ClusterDomainInboundService {
 	s := &ClusterDomainInboundService{
-		db:            opts.DB,
-		inboundSaver:  opts.InboundSaver,
-		identity:      opts.Identity,
-		broadcaster:   opts.Broadcaster,
-		reporter:      opts.Reporter,
-		portAllocator: opts.PortAllocator,
-		now:           opts.Now,
+		db:                  opts.DB,
+		inboundSaver:        opts.InboundSaver,
+		identity:            opts.Identity,
+		broadcaster:         opts.Broadcaster,
+		reporter:            opts.Reporter,
+		portAllocator:       opts.PortAllocator,
+		tlsKeypairGenerator: opts.TLSKeypairGenerator,
+		now:                 opts.Now,
 	}
 	if s.inboundSaver == nil {
 		s.inboundSaver = &InboundService{}
@@ -78,6 +81,9 @@ func NewClusterDomainInboundService(opts ClusterDomainInboundServiceOptions) *Cl
 	}
 	if s.portAllocator == nil {
 		s.portAllocator = allocateDomainInboundPort
+	}
+	if s.tlsKeypairGenerator == nil {
+		s.tlsKeypairGenerator = (&ServerService{}).generateTLSKeyPair
 	}
 	if s.now == nil {
 		s.now = func() int64 { return time.Now().Unix() }
@@ -271,7 +277,12 @@ func (s *ClusterDomainInboundService) createDomainInboundTLS(tx *gorm.DB, tag st
 	if err != nil {
 		return 0, err
 	}
-	if strings.TrimSpace(payload.TLSTemplate) == "reality" {
+	switch strings.TrimSpace(payload.TLSTemplate) {
+	case "standard", "hysteria2":
+		if err := s.ensureGeneratedTLSKeypair(server); err != nil {
+			return 0, err
+		}
+	case "reality":
 		if err := ensureRealityKeypair(server, client, tag, s.now()); err != nil {
 			return 0, err
 		}
@@ -293,6 +304,98 @@ func (s *ClusterDomainInboundService) createDomainInboundTLS(tx *gorm.DB, tag st
 		return 0, err
 	}
 	return tls.Id, nil
+}
+
+func (s *ClusterDomainInboundService) ensureGeneratedTLSKeypair(server map[string]interface{}) error {
+	if hasInlineTLSCertificate(server) {
+		return nil
+	}
+	certPath := strings.TrimSpace(stringValue(server["certificate_path"]))
+	keyPath := strings.TrimSpace(stringValue(server["key_path"]))
+	if certPath != "" || keyPath != "" {
+		if certPath == "" || keyPath == "" {
+			return errors.New("tls certificate_path and key_path must both be set")
+		}
+		return nil
+	}
+	serverName := normalizeDomainInboundTLSServerName(stringValue(server["server_name"]))
+	certificate, key, err := parseGeneratedTLSKeypair(s.tlsKeypairGenerator(serverName))
+	if err != nil {
+		return err
+	}
+	server["certificate"] = certificate
+	server["key"] = key
+	delete(server, "certificate_path")
+	delete(server, "key_path")
+	return nil
+}
+
+func hasInlineTLSCertificate(server map[string]interface{}) bool {
+	return hasTLSValue(server["certificate"]) && hasTLSValue(server["key"])
+}
+
+func hasTLSValue(value interface{}) bool {
+	switch v := value.(type) {
+	case string:
+		return strings.TrimSpace(v) != ""
+	case []string:
+		return len(v) > 0
+	case []interface{}:
+		return len(v) > 0
+	default:
+		return value != nil
+	}
+}
+
+func normalizeDomainInboundTLSServerName(serverName string) string {
+	serverName = strings.TrimSpace(serverName)
+	if serverName == "" {
+		return "''"
+	}
+	return serverName
+}
+
+func parseGeneratedTLSKeypair(lines []string) ([]string, []string, error) {
+	certificate := make([]string, 0)
+	key := make([]string, 0)
+	activeBlock := ""
+	for _, rawLine := range lines {
+		line := strings.TrimRight(rawLine, "\r")
+		if isDomainInboundPEMBoundary(line, "CERTIFICATE", "BEGIN") {
+			activeBlock = "certificate"
+			certificate = append(certificate, line)
+			continue
+		}
+		if isDomainInboundPEMBoundary(line, "CERTIFICATE", "END") {
+			certificate = append(certificate, line)
+			activeBlock = ""
+			continue
+		}
+		if strings.HasPrefix(line, "-----BEGIN ") && strings.HasSuffix(line, " PRIVATE KEY-----") {
+			activeBlock = "key"
+			key = append(key, line)
+			continue
+		}
+		if strings.HasPrefix(line, "-----END ") && strings.HasSuffix(line, " PRIVATE KEY-----") {
+			key = append(key, line)
+			activeBlock = ""
+			continue
+		}
+		switch activeBlock {
+		case "certificate":
+			certificate = append(certificate, line)
+		case "key":
+			key = append(key, line)
+		}
+	}
+	if len(certificate) == 0 || len(key) == 0 {
+		return nil, nil, errors.New("failed to generate TLS keypair")
+	}
+	return certificate, key, nil
+}
+
+func isDomainInboundPEMBoundary(line string, marker string, boundary string) bool {
+	return strings.HasPrefix(line, "-----"+boundary+" ") && strings.HasSuffix(line, " "+marker+"-----")
 }
 
 func allocateDomainInboundPort() (int, error) {
