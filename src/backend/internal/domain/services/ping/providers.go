@@ -38,13 +38,20 @@ func normalizeExternalConfig(config *ExternalConfig) *ExternalConfig {
 		legacy[src.ID] = src
 	}
 	merged := make([]ExternalSource, 0, len(defaults))
+	seen := make(map[string]bool, len(defaults))
 	for _, def := range defaults {
+		seen[def.ID] = true
 		if old, ok := legacy[def.ID]; ok {
 			def.Enabled = old.Enabled
 			def.APIKey = old.APIKey
 			def.WorkerURL = old.WorkerURL
 		}
 		merged = append(merged, def)
+	}
+	for _, src := range config.Sources {
+		if !seen[src.ID] {
+			merged = append(merged, src)
+		}
 	}
 	return &ExternalConfig{Sources: merged}
 }

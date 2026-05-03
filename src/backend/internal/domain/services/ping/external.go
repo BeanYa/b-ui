@@ -364,7 +364,12 @@ func runExternalProbeTasks(maxConcurrent int, tasks []func() ExternalTestResult)
 
 func enabledExternalSources(requestIDs []string, config *ExternalConfig, direction string) []ExternalSource {
 	sources := make([]ExternalSource, 0)
+	seen := make(map[string]bool, len(requestIDs))
 	for _, sid := range requestIDs {
+		if seen[sid] {
+			continue
+		}
+		seen[sid] = true
 		for _, src := range config.Sources {
 			if src.ID == sid && src.Enabled && src.Direction == direction {
 				sources = append(sources, src)

@@ -76,6 +76,44 @@ func TestNormalizeExternalConfigCorrectsLegacyZStaticDirection(t *testing.T) {
 	}
 }
 
+func TestNormalizeExternalConfigPreservesLegacyRunnableSources(t *testing.T) {
+	config := normalizeExternalConfig(&ExternalConfig{Sources: []ExternalSource{
+		{ID: "he_lg", Name: "Hurricane Electric LG", Type: "web_scrape", Direction: DirectionInbound, Enabled: true, APIKey: "he-key"},
+	}})
+
+	var he ExternalSource
+	for _, src := range config.Sources {
+		if src.ID == "he_lg" {
+			he = src
+			break
+		}
+	}
+
+	if he.ID == "" {
+		t.Fatal("expected legacy he_lg source after normalization")
+	}
+	if he.Direction != DirectionInbound {
+		t.Fatalf("expected he_lg direction inbound, got %q", he.Direction)
+	}
+	if !he.Enabled {
+		t.Fatal("expected normalization to preserve he_lg enabled flag")
+	}
+	if he.APIKey != "he-key" {
+		t.Fatalf("expected normalization to preserve he_lg api key, got %q", he.APIKey)
+	}
+}
+
+func TestEnabledExternalSourcesDeduplicatesRequestIDs(t *testing.T) {
+	sources := enabledExternalSources([]string{"public_dns", "public_dns"}, defaultExternalConfig(), DirectionOutbound)
+
+	if len(sources) != 1 {
+		t.Fatalf("expected duplicate request IDs to resolve once, got %d", len(sources))
+	}
+	if sources[0].ID != "public_dns" {
+		t.Fatalf("expected public_dns source, got %q", sources[0].ID)
+	}
+}
+
 func TestRunInboundUnknownEnabledProviderReturnsErrorResult(t *testing.T) {
 	svc := NewExternalService(newStoreWithDir(t.TempDir()))
 
@@ -127,6 +165,72 @@ func TestRunOutboundUnknownEnabledProviderReturnsErrorResult(t *testing.T) {
 	}
 	if result.Error == nil || *result.Error == "" {
 		t.Fatal("expected unimplemented outbound provider error message")
+	}
+}
+
+func TestRunInboundLegacyProviderPopulatesEndpointMetadata(t *testing.T) {
+	store := newStoreWithDir(t.TempDir())
+	if err := store.SaveExternalConfig(&ExternalConfig{Sources: []ExternalSource{
+		{ID: "linode_lg", Name: "Linode Looking Glass", Type: "web_scrape", Direction: DirectionInbound, Enabled: true},
+	}}); err != nil {
+		t.Fatalf("SaveExternalConfig: %v", err)
+	}
+	svc := NewExternalService(store)
+	svc.meshSvc.icmpPinger = func(context.Context, string) (float64, error) {
+		return 12.5, nil
+	}
+
+	data, err := svc.RunInbound(context.Background(), []string{"linode_lg"}, []MeshMember{
+		{MemberID: "node-a", NodeID: "node-a", Name: "Node A", Address: "node-a.example"},
+	})
+	if err != nil {
+		t.Fatalf("RunInbound: %v", err)
+	}
+	if len(data.Results) == 0 {
+		t.Fatal("expected legacy inbound results")
+	}
+	result := data.Results[0]
+	if result.Source.ID == "" {
+		t.Fatalf("expected source endpoint id, got %#v", result.Source)
+	}
+	if result.Source.Provider != "linode_lg" {
+		t.Fatalf("expected source provider linode_lg, got %q", result.Source.Provider)
+	}
+	if result.Target.ID != "node-a" {
+		t.Fatalf("expected target endpoint node-a, got %q", result.Target.ID)
+	}
+	if result.SourceLabel != result.Source.Label {
+		t.Fatalf("expected legacy source label to align with endpoint label, got %q and %q", result.SourceLabel, result.Source.Label)
+	}
+	if result.TargetMemberID != result.Target.ID {
+		t.Fatalf("expected legacy target member id to align with endpoint id, got %q and %q", result.TargetMemberID, result.Target.ID)
+	}
+}
+
+func TestRunRIPEAtlasPopulatesEndpointMetadata(t *testing.T) {
+	svc := NewExternalService(newStoreWithDir(t.TempDir()))
+
+	data, err := svc.RunRIPEAtlas(context.Background(), "api-key", []MeshMember{
+		{MemberID: "node-a", NodeID: "node-a", Name: "Node A", Address: "node-a.example"},
+	})
+	if err != nil {
+		t.Fatalf("RunRIPEAtlas: %v", err)
+	}
+	if len(data.Results) != 1 {
+		t.Fatalf("expected one RIPE Atlas result, got %d", len(data.Results))
+	}
+	result := data.Results[0]
+	if result.Source.ID != "ripe_atlas" {
+		t.Fatalf("expected source endpoint ripe_atlas, got %q", result.Source.ID)
+	}
+	if result.Source.Label != "RIPE Atlas" {
+		t.Fatalf("expected source label RIPE Atlas, got %q", result.Source.Label)
+	}
+	if result.Target.ID != "node-a" {
+		t.Fatalf("expected target endpoint node-a, got %q", result.Target.ID)
+	}
+	if result.TargetMemberID != result.Target.ID {
+		t.Fatalf("expected legacy target member id to align with endpoint id, got %q and %q", result.TargetMemberID, result.Target.ID)
 	}
 }
 
