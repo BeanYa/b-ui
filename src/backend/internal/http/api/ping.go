@@ -20,6 +20,13 @@ type externalPingService interface {
 	Run(context.Context, ping.ExternalRunRequest, []ping.MeshMember) (*ping.ExternalResultData, error)
 }
 
+var knownInboundExternalSourceIDs = map[string]struct{}{
+	"check_host":         {},
+	"globalping":         {},
+	"ripe_atlas":         {},
+	"cloudflare_workers": {},
+}
+
 type pingAPIHandler struct {
 	clusterService *service.ClusterService
 	meshService    *ping.MeshService
@@ -231,7 +238,7 @@ func (h *pingAPIHandler) triggerExternalPing(c *gin.Context) {
 		return
 	}
 
-	if req.Direction == ping.DirectionInbound && req.Target == nil {
+	if h.shouldDeriveExternalTarget(req) {
 		target, err := externalTargetFromRequest(c)
 		if err != nil {
 			jsonMsg(c, "external ping", err)
@@ -246,6 +253,53 @@ func (h *pingAPIHandler) triggerExternalPing(c *gin.Context) {
 		return
 	}
 	jsonObj(c, data, nil)
+}
+
+func (h *pingAPIHandler) shouldDeriveExternalTarget(req ping.ExternalRunRequest) bool {
+	if req.Target != nil {
+		return false
+	}
+	if req.Direction == ping.DirectionOutbound {
+		return false
+	}
+	if req.Direction == ping.DirectionInbound {
+		return true
+	}
+	return h.requestIncludesInboundExternalSource(req.SourceIDs)
+}
+
+func (h *pingAPIHandler) requestIncludesInboundExternalSource(sourceIDs []string) bool {
+	if len(sourceIDs) == 0 {
+		return false
+	}
+
+	requested := make(map[string]struct{}, len(sourceIDs))
+	for _, sourceID := range sourceIDs {
+		sourceID = strings.TrimSpace(sourceID)
+		if sourceID != "" {
+			requested[sourceID] = struct{}{}
+		}
+	}
+	if len(requested) == 0 {
+		return false
+	}
+
+	if h.store == nil {
+		for sourceID := range requested {
+			if _, ok := knownInboundExternalSourceIDs[sourceID]; ok {
+				return true
+			}
+		}
+		return false
+	}
+
+	config := h.store.LoadExternalConfigOrDefault()
+	for _, src := range config.Sources {
+		if _, ok := requested[src.ID]; ok && src.Direction == ping.DirectionInbound {
+			return true
+		}
+	}
+	return false
 }
 
 func externalTargetFromRequest(c *gin.Context) (*ping.ExternalTargetRequest, error) {

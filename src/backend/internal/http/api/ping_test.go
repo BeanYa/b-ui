@@ -79,6 +79,9 @@ func TestTriggerExternalPingOutboundDoesNotRequireClusterMembers(t *testing.T) {
 	if len(stub.req.TargetNodeIDs) != 0 {
 		t.Fatalf("expected no target_node_ids, got %#v", stub.req.TargetNodeIDs)
 	}
+	if stub.req.Target != nil {
+		t.Fatalf("expected no outbound target, got %#v", stub.req.Target)
+	}
 	if len(stub.members) != 0 {
 		t.Fatalf("expected no cluster members, got %#v", stub.members)
 	}
@@ -126,6 +129,46 @@ func TestTriggerExternalPingInboundUsesExplicitTarget(t *testing.T) {
 	}
 	if len(stub.members) != 0 {
 		t.Fatalf("expected no cluster members, got %#v", stub.members)
+	}
+}
+
+func TestTriggerExternalPingLegacyInboundSourceDerivesTargetFromRequestHost(t *testing.T) {
+	stub := &externalPingServiceStub{}
+	router := newExternalPingTestRouter(stub)
+	req := httptest.NewRequest(
+		http.MethodPost,
+		"/api/ping/external",
+		bytes.NewBufferString(`{"source_ids":["check_host"]}`),
+	)
+	req.Host = "panel.example.com:8443"
+	req.Header.Set("Content-Type", "application/json")
+	req.Header.Set("Cookie", loginCookie(t, router, "admin"))
+	recorder := httptest.NewRecorder()
+
+	router.ServeHTTP(recorder, req)
+
+	if recorder.Code != http.StatusOK {
+		t.Fatalf("expected legacy inbound external ping status %d, got %d", http.StatusOK, recorder.Code)
+	}
+	var response Msg
+	decodeResponse(t, recorder, &response)
+	if !response.Success {
+		t.Fatalf("expected legacy inbound external ping success, got %#v", response)
+	}
+	if !stub.called {
+		t.Fatal("expected external ping service to be called")
+	}
+	if stub.req.Target == nil {
+		t.Fatal("expected inbound target to be derived from request host")
+	}
+	if stub.req.Target.Host != "panel.example.com" {
+		t.Fatalf("expected derived target host panel.example.com, got %q", stub.req.Target.Host)
+	}
+	if stub.req.Target.Port != 8443 {
+		t.Fatalf("expected derived target port 8443, got %d", stub.req.Target.Port)
+	}
+	if stub.req.Target.Label != "panel.example.com" {
+		t.Fatalf("expected derived target label panel.example.com, got %q", stub.req.Target.Label)
 	}
 }
 
