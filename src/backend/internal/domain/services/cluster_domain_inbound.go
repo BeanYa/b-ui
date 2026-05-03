@@ -35,25 +35,27 @@ type clusterDomainInboundReporter interface {
 }
 
 type ClusterDomainInboundServiceOptions struct {
-	DB                  *gorm.DB
-	InboundSaver        clusterDomainInboundSaver
-	Identity            clusterDomainInboundIdentity
-	Broadcaster         clusterDomainInboundBroadcaster
-	Reporter            clusterDomainInboundReporter
-	PortAllocator       func() (int, error)
-	TLSKeypairGenerator func(serverName string) []string
-	Now                 func() int64
+	DB                       *gorm.DB
+	InboundSaver             clusterDomainInboundSaver
+	Identity                 clusterDomainInboundIdentity
+	Broadcaster              clusterDomainInboundBroadcaster
+	Reporter                 clusterDomainInboundReporter
+	PortAllocator            func() (int, error)
+	TLSKeypairGenerator      func(serverName string) []string
+	PanelCertificateProvider func() (DomainInboundPanelCertificateSettings, error)
+	Now                      func() int64
 }
 
 type ClusterDomainInboundService struct {
-	db                  *gorm.DB
-	inboundSaver        clusterDomainInboundSaver
-	identity            clusterDomainInboundIdentity
-	broadcaster         clusterDomainInboundBroadcaster
-	reporter            clusterDomainInboundReporter
-	portAllocator       func() (int, error)
-	tlsKeypairGenerator func(serverName string) []string
-	now                 func() int64
+	db                       *gorm.DB
+	inboundSaver             clusterDomainInboundSaver
+	identity                 clusterDomainInboundIdentity
+	broadcaster              clusterDomainInboundBroadcaster
+	reporter                 clusterDomainInboundReporter
+	portAllocator            func() (int, error)
+	tlsKeypairGenerator      func(serverName string) []string
+	panelCertificateProvider func() (DomainInboundPanelCertificateSettings, error)
+	now                      func() int64
 }
 
 type DomainInboundCreateResult struct {
@@ -62,16 +64,23 @@ type DomainInboundCreateResult struct {
 	Created   bool
 }
 
+type DomainInboundPanelCertificateSettings struct {
+	WebDomain   string
+	WebCertFile string
+	WebKeyFile  string
+}
+
 func NewClusterDomainInboundService(opts ClusterDomainInboundServiceOptions) *ClusterDomainInboundService {
 	s := &ClusterDomainInboundService{
-		db:                  opts.DB,
-		inboundSaver:        opts.InboundSaver,
-		identity:            opts.Identity,
-		broadcaster:         opts.Broadcaster,
-		reporter:            opts.Reporter,
-		portAllocator:       opts.PortAllocator,
-		tlsKeypairGenerator: opts.TLSKeypairGenerator,
-		now:                 opts.Now,
+		db:                       opts.DB,
+		inboundSaver:             opts.InboundSaver,
+		identity:                 opts.Identity,
+		broadcaster:              opts.Broadcaster,
+		reporter:                 opts.Reporter,
+		portAllocator:            opts.PortAllocator,
+		tlsKeypairGenerator:      opts.TLSKeypairGenerator,
+		panelCertificateProvider: opts.PanelCertificateProvider,
+		now:                      opts.Now,
 	}
 	if s.inboundSaver == nil {
 		s.inboundSaver = &InboundService{}
@@ -84,6 +93,9 @@ func NewClusterDomainInboundService(opts ClusterDomainInboundServiceOptions) *Cl
 	}
 	if s.tlsKeypairGenerator == nil {
 		s.tlsKeypairGenerator = (&ServerService{}).generateTLSKeyPair
+	}
+	if s.panelCertificateProvider == nil {
+		s.panelCertificateProvider = defaultDomainInboundPanelCertificateSettings
 	}
 	if s.now == nil {
 		s.now = func() int64 { return time.Now().Unix() }
@@ -155,7 +167,7 @@ func (s *ClusterDomainInboundService) ApplyDomainInboundCreate(ctx context.Conte
 			return err
 		}
 
-		inboundJSON, tag, err := s.prepareDomainInboundJSON(tx, payload, nodeID)
+		inboundJSON, tag, err := s.prepareDomainInboundJSON(tx, domain, payload, nodeID)
 		if err != nil {
 			return err
 		}
@@ -221,7 +233,7 @@ func (s *ClusterDomainInboundService) HandleDomainInboundCreate(ctx context.Cont
 	}, nil
 }
 
-func (s *ClusterDomainInboundService) prepareDomainInboundJSON(tx *gorm.DB, payload clustertypes.DomainInboundCreatePayload, nodeID string) (json.RawMessage, string, error) {
+func (s *ClusterDomainInboundService) prepareDomainInboundJSON(tx *gorm.DB, domain *model.ClusterDomain, payload clustertypes.DomainInboundCreatePayload, nodeID string) (json.RawMessage, string, error) {
 	var inbound map[string]interface{}
 	if err := json.Unmarshal(payload.Inbound, &inbound); err != nil {
 		return nil, "", err
@@ -247,14 +259,20 @@ func (s *ClusterDomainInboundService) prepareDomainInboundJSON(tx *gorm.DB, payl
 	if strings.TrimSpace(stringValue(inbound["listen"])) == "" {
 		inbound["listen"] = "::"
 	}
+	if err := validateDomainInboundListenPortLocalProvided(inbound["listen_port"]); err != nil {
+		return nil, "", err
+	}
 	port, err := s.portAllocator()
 	if err != nil {
 		return nil, "", err
 	}
 	inbound["listen_port"] = port
+	if err := rejectUnresolvedLocalProvided(inbound, "inbound"); err != nil {
+		return nil, "", err
+	}
 
 	if payload.TLS != nil {
-		tlsID, err := s.createDomainInboundTLS(tx, tag, payload)
+		tlsID, err := s.createDomainInboundTLS(tx, domain, tag, payload)
 		if err != nil {
 			return nil, "", err
 		}
@@ -268,13 +286,16 @@ func (s *ClusterDomainInboundService) prepareDomainInboundJSON(tx *gorm.DB, payl
 	return data, tag, nil
 }
 
-func (s *ClusterDomainInboundService) createDomainInboundTLS(tx *gorm.DB, tag string, payload clustertypes.DomainInboundCreatePayload) (uint, error) {
+func (s *ClusterDomainInboundService) createDomainInboundTLS(tx *gorm.DB, domain *model.ClusterDomain, tag string, payload clustertypes.DomainInboundCreatePayload) (uint, error) {
 	server, err := rawObject(payload.TLS.Server)
 	if err != nil {
 		return 0, err
 	}
 	client, err := rawObject(payload.TLS.Client)
 	if err != nil {
+		return 0, err
+	}
+	if err := s.resolveDomainInboundTLSLocalProvided(domain, server, client); err != nil {
 		return 0, err
 	}
 	switch strings.TrimSpace(payload.TLSTemplate) {
@@ -286,6 +307,12 @@ func (s *ClusterDomainInboundService) createDomainInboundTLS(tx *gorm.DB, tag st
 		if err := ensureRealityKeypair(server, client, tag, s.now()); err != nil {
 			return 0, err
 		}
+	}
+	if err := rejectUnresolvedLocalProvided(server, "tls.server"); err != nil {
+		return 0, err
+	}
+	if err := rejectUnresolvedLocalProvided(client, "tls.client"); err != nil {
+		return 0, err
 	}
 	serverJSON, err := json.Marshal(server)
 	if err != nil {
@@ -306,7 +333,190 @@ func (s *ClusterDomainInboundService) createDomainInboundTLS(tx *gorm.DB, tag st
 	return tls.Id, nil
 }
 
+const (
+	localProvidedKey                     = "LocalProvided"
+	localProvidedDomainInboundListenPort = "DomainInboundListenPort"
+	localProvidedDomainName              = "DomainName"
+	localProvidedGeneratedTLSCertificate = "GeneratedTLSCertificate"
+	localProvidedGeneratedTLSKey         = "GeneratedTLSKey"
+	localProvidedPanelWebDomain          = "PanelWebDomain"
+	localProvidedPanelWebCertFile        = "PanelWebCertFile"
+	localProvidedPanelWebKeyFile         = "PanelWebKeyFile"
+	localProvidedRealityPrivateKey       = "RealityPrivateKey"
+	localProvidedRealityPublicKey        = "RealityPublicKey"
+)
+
+func defaultDomainInboundPanelCertificateSettings() (DomainInboundPanelCertificateSettings, error) {
+	settings := &SettingService{}
+	webDomain, err := settings.GetWebDomain()
+	if err != nil {
+		return DomainInboundPanelCertificateSettings{}, err
+	}
+	webCertFile, err := settings.GetCertFile()
+	if err != nil {
+		return DomainInboundPanelCertificateSettings{}, err
+	}
+	webKeyFile, err := settings.GetKeyFile()
+	if err != nil {
+		return DomainInboundPanelCertificateSettings{}, err
+	}
+	return DomainInboundPanelCertificateSettings{
+		WebDomain:   webDomain,
+		WebCertFile: webCertFile,
+		WebKeyFile:  webKeyFile,
+	}, nil
+}
+
+func validateDomainInboundListenPortLocalProvided(value interface{}) error {
+	kind, ok := localProvidedKind(value)
+	if !ok {
+		return nil
+	}
+	if kind != localProvidedDomainInboundListenPort {
+		return unsupportedLocalProvided("inbound.listen_port", kind)
+	}
+	return nil
+}
+
+func (s *ClusterDomainInboundService) resolveDomainInboundTLSLocalProvided(domain *model.ClusterDomain, server map[string]interface{}, client map[string]interface{}) error {
+	var panelSettings *DomainInboundPanelCertificateSettings
+	loadPanelSettings := func() (DomainInboundPanelCertificateSettings, error) {
+		if panelSettings != nil {
+			return *panelSettings, nil
+		}
+		settings, err := s.panelCertificateProvider()
+		if err != nil {
+			return DomainInboundPanelCertificateSettings{}, err
+		}
+		settings.WebDomain = strings.TrimSpace(settings.WebDomain)
+		settings.WebCertFile = strings.TrimSpace(settings.WebCertFile)
+		settings.WebKeyFile = strings.TrimSpace(settings.WebKeyFile)
+		panelSettings = &settings
+		return settings, nil
+	}
+
+	if kind, ok := localProvidedKind(server["server_name"]); ok {
+		switch kind {
+		case localProvidedDomainName:
+			if domain != nil {
+				server["server_name"] = strings.TrimSpace(domain.Domain)
+			} else {
+				server["server_name"] = ""
+			}
+		case localProvidedPanelWebDomain:
+			settings, err := loadPanelSettings()
+			if err != nil {
+				return err
+			}
+			server["server_name"] = settings.WebDomain
+		default:
+			return unsupportedLocalProvided("tls.server.server_name", kind)
+		}
+	}
+
+	if kind, ok := localProvidedKind(server["certificate_path"]); ok {
+		if kind != localProvidedPanelWebCertFile {
+			return unsupportedLocalProvided("tls.server.certificate_path", kind)
+		}
+		settings, err := loadPanelSettings()
+		if err != nil {
+			return err
+		}
+		if settings.WebCertFile == "" {
+			return errors.New("panel TLS certificate is not configured")
+		}
+		server["certificate_path"] = settings.WebCertFile
+	}
+	if kind, ok := localProvidedKind(server["key_path"]); ok {
+		if kind != localProvidedPanelWebKeyFile {
+			return unsupportedLocalProvided("tls.server.key_path", kind)
+		}
+		settings, err := loadPanelSettings()
+		if err != nil {
+			return err
+		}
+		if settings.WebKeyFile == "" {
+			return errors.New("panel TLS certificate key is not configured")
+		}
+		server["key_path"] = settings.WebKeyFile
+	}
+
+	if err := resolveRealityLocalProvided(server, client); err != nil {
+		return err
+	}
+	return nil
+}
+
+func resolveRealityLocalProvided(server map[string]interface{}, client map[string]interface{}) error {
+	if serverReality, ok := server["reality"].(map[string]interface{}); ok {
+		if kind, ok := localProvidedKind(serverReality["private_key"]); ok {
+			if kind != localProvidedRealityPrivateKey {
+				return unsupportedLocalProvided("tls.server.reality.private_key", kind)
+			}
+			serverReality["private_key"] = ""
+		}
+	}
+	if clientReality, ok := client["reality"].(map[string]interface{}); ok {
+		if kind, ok := localProvidedKind(clientReality["public_key"]); ok {
+			if kind != localProvidedRealityPublicKey {
+				return unsupportedLocalProvided("tls.client.reality.public_key", kind)
+			}
+			delete(clientReality, "public_key")
+		}
+	}
+	return nil
+}
+
+func localProvidedKind(value interface{}) (string, bool) {
+	obj, ok := value.(map[string]interface{})
+	if !ok {
+		return "", false
+	}
+	raw, ok := obj[localProvidedKey]
+	if !ok {
+		return "", false
+	}
+	kind := strings.TrimSpace(stringValue(raw))
+	return kind, kind != ""
+}
+
+func rejectUnresolvedLocalProvided(value interface{}, path string) error {
+	if kind, ok := localProvidedKind(value); ok {
+		return unsupportedLocalProvided(path, kind)
+	}
+	switch typed := value.(type) {
+	case map[string]interface{}:
+		for key, child := range typed {
+			nextPath := key
+			if path != "" {
+				nextPath = path + "." + key
+			}
+			if err := rejectUnresolvedLocalProvided(child, nextPath); err != nil {
+				return err
+			}
+		}
+	case []interface{}:
+		for index, child := range typed {
+			nextPath := fmt.Sprintf("%s[%d]", path, index)
+			if err := rejectUnresolvedLocalProvided(child, nextPath); err != nil {
+				return err
+			}
+		}
+	}
+	return nil
+}
+
+func unsupportedLocalProvided(path string, kind string) error {
+	return fmt.Errorf("unsupported LocalProvided %q at %s", kind, path)
+}
+
 func (s *ClusterDomainInboundService) ensureGeneratedTLSKeypair(server map[string]interface{}) error {
+	if kind, ok := localProvidedKind(server["certificate"]); ok && kind != localProvidedGeneratedTLSCertificate {
+		return unsupportedLocalProvided("tls.server.certificate", kind)
+	}
+	if kind, ok := localProvidedKind(server["key"]); ok && kind != localProvidedGeneratedTLSKey {
+		return unsupportedLocalProvided("tls.server.key", kind)
+	}
 	if hasInlineTLSCertificate(server) {
 		return nil
 	}
@@ -335,6 +545,9 @@ func hasInlineTLSCertificate(server map[string]interface{}) bool {
 }
 
 func hasTLSValue(value interface{}) bool {
+	if _, ok := localProvidedKind(value); ok {
+		return false
+	}
 	switch v := value.(type) {
 	case string:
 		return strings.TrimSpace(v) != ""
