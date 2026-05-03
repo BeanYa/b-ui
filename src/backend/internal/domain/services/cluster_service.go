@@ -114,7 +114,11 @@ func (s *ClusterService) configureRuntime() {
 	s.SetRuntime(cluster.NewRuntimeWithPanelAndDomain(
 		NewClusterPanelListServices(panel),
 		panel,
-		cluster.RuntimeDomainServices{DomainInbound: s.newDomainInboundService()},
+		cluster.RuntimeDomainServices{
+			DomainInbound: s.newDomainInboundService(),
+			DomainUser:    s.newDomainUserService(),
+			DomainCleanup: s.newDomainCleanupService(),
+		},
 	))
 }
 
@@ -122,6 +126,19 @@ func (s *ClusterService) newDomainInboundService() *ClusterDomainInboundService 
 	options := defaultClusterDomainInboundOptions(s.newDomainInboundBroadcaster(), s.proxyReport)
 	options.Identity = &s.localIdentity
 	return NewClusterDomainInboundService(options)
+}
+
+func (s *ClusterService) newDomainUserService() *ClusterDomainUserService {
+	return NewClusterDomainUserService(ClusterDomainUserServiceOptions{
+		Identity:    &s.localIdentity,
+		Broadcaster: s.newDomainInboundBroadcaster(),
+	})
+}
+
+func (s *ClusterService) newDomainCleanupService() *ClusterDomainCleanupService {
+	return NewClusterDomainCleanupService(ClusterDomainCleanupServiceOptions{
+		Broadcaster: s.newDomainInboundBroadcaster(),
+	})
 }
 
 func (s *ClusterService) newDomainInboundBroadcaster() *ClusterHTTPBroadcaster {
@@ -859,6 +876,11 @@ func (s *ClusterService) LeaveDomain(id uint) error {
 	if err != nil {
 		return err
 	}
+	if s.store == nil {
+		if _, err := s.newDomainCleanupService().CleanupLocalDomainResources(context.Background(), domain); err != nil {
+			return err
+		}
+	}
 	client := s.getHubClient()
 	if _, err := client.DeleteMember(context.Background(), domain.HubURL, domain.Domain, domainToken, localIdentity.NodeID); err != nil {
 		return err
@@ -1117,6 +1139,8 @@ func (s *ClusterService) ReceivePeerMessage(message *PeerMessage, token string) 
 		identity:             s.localIdentity,
 		secretProvider:       s.getSecretProvider(),
 		domainInboundCreator: s.newDomainInboundService(),
+		domainUserApplier:    s.newDomainUserService(),
+		domainCleaner:        s.newDomainCleanupService(),
 		scatterGatherManager: s.getScatterManager(),
 	}
 	return dispatcher.Dispatch(context.Background(), domain, member, message)
@@ -1345,6 +1369,10 @@ func (s *dbClusterStore) DeleteMember(id uint) error {
 
 func (s *dbClusterStore) DeleteDomain(id uint) error {
 	tx := database.GetDB().Begin()
+	if _, err := cleanupClusterDomainResources(tx, id); err != nil {
+		tx.Rollback()
+		return err
+	}
 	if err := tx.Where("domain_id = ?", id).Delete(&model.ClusterMember{}).Error; err != nil {
 		tx.Rollback()
 		return err

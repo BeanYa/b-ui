@@ -65,6 +65,9 @@ func TestClusterProxyReportReportsOnlyWrappedDomainInbounds(t *testing.T) {
 	if hub.body.Configs[0].Tag != "domain-only" || hub.body.Configs[0].ListenPort != 10002 {
 		t.Fatalf("unexpected reported config: %#v", hub.body.Configs[0])
 	}
+	if hub.body.Configs[0].Scope != "domain" || hub.body.Configs[0].DomainInboundRequestID != "req-1" {
+		t.Fatalf("expected domain scope metadata, got %#v", hub.body.Configs[0])
+	}
 }
 
 type capturingClusterHubClient struct {

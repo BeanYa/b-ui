@@ -125,6 +125,130 @@ func TestPeerDispatcherHandlesDomainInboundCreateCommand(t *testing.T) {
 	}
 }
 
+func TestPeerDispatcherHandlesDomainUserUpsertCommand(t *testing.T) {
+	store := newMemoryPeerStore()
+	applier := &stubPeerDomainUserApplier{}
+	dispatcher := ClusterPeerDispatcher{
+		eventStore:        store,
+		domainUserApplier: applier,
+		identity:          ClusterLocalIdentityService{store: &stubClusterLocalNodeStore{node: newTestClusterLocalNode(t, "node-local")}},
+	}
+	message := &PeerMessage{
+		MessageID:   "msg-domain-user-upsert",
+		DomainID:    "edge.example.com",
+		PayloadHash: "hash",
+		Category:    PeerCategoryCommand,
+		Action:      PeerActionDomainUserUpsert,
+		Payload: map[string]interface{}{
+			"request_id": "req-user-1",
+			"domain_id":  "edge.example.com",
+			"user": map[string]interface{}{
+				"uuid":   "user-uuid-1",
+				"name":   "alice",
+				"enable": true,
+				"config": map[string]interface{}{"vless": map[string]interface{}{"uuid": "11111111-1111-4111-8111-111111111111"}},
+			},
+		},
+		Route: RoutePlan{Mode: RouteModeBroadcast},
+	}
+
+	if err := dispatcher.Dispatch(context.Background(), &model.ClusterDomain{Id: 1, Domain: "edge.example.com"}, &model.ClusterMember{NodeID: "node-a"}, message); err != nil {
+		t.Fatalf("dispatch: %v", err)
+	}
+	if applier.upsertCalls != 1 {
+		t.Fatalf("expected upsert call, got %d", applier.upsertCalls)
+	}
+	if applier.broadcast {
+		t.Fatal("peer command must not rebroadcast")
+	}
+	state, err := store.RecordReceived(message)
+	if err != nil {
+		t.Fatalf("state: %v", err)
+	}
+	if state.Status != PeerEventStatusSucceeded {
+		t.Fatalf("expected succeeded, got %q", state.Status)
+	}
+}
+
+func TestPeerDispatcherHandlesDomainUserDeleteCommand(t *testing.T) {
+	store := newMemoryPeerStore()
+	applier := &stubPeerDomainUserApplier{}
+	dispatcher := ClusterPeerDispatcher{
+		eventStore:        store,
+		domainUserApplier: applier,
+		identity:          ClusterLocalIdentityService{store: &stubClusterLocalNodeStore{node: newTestClusterLocalNode(t, "node-local")}},
+	}
+	message := &PeerMessage{
+		MessageID:   "msg-domain-user-delete",
+		DomainID:    "edge.example.com",
+		PayloadHash: "hash",
+		Category:    PeerCategoryCommand,
+		Action:      PeerActionDomainUserDelete,
+		Payload: map[string]interface{}{
+			"request_id": "req-user-delete",
+			"domain_id":  "edge.example.com",
+			"uuid":       "user-uuid-1",
+		},
+		Route: RoutePlan{Mode: RouteModeBroadcast},
+	}
+
+	if err := dispatcher.Dispatch(context.Background(), &model.ClusterDomain{Id: 1, Domain: "edge.example.com"}, &model.ClusterMember{NodeID: "node-a"}, message); err != nil {
+		t.Fatalf("dispatch: %v", err)
+	}
+	if applier.deleteCalls != 1 {
+		t.Fatalf("expected delete call, got %d", applier.deleteCalls)
+	}
+	if applier.broadcast {
+		t.Fatal("peer command must not rebroadcast")
+	}
+	state, err := store.RecordReceived(message)
+	if err != nil {
+		t.Fatalf("state: %v", err)
+	}
+	if state.Status != PeerEventStatusSucceeded {
+		t.Fatalf("expected succeeded, got %q", state.Status)
+	}
+}
+
+func TestPeerDispatcherHandlesDomainCleanupCommand(t *testing.T) {
+	store := newMemoryPeerStore()
+	cleaner := &stubPeerDomainCleaner{}
+	dispatcher := ClusterPeerDispatcher{
+		eventStore:    store,
+		domainCleaner: cleaner,
+		identity:      ClusterLocalIdentityService{store: &stubClusterLocalNodeStore{node: newTestClusterLocalNode(t, "node-local")}},
+	}
+	message := &PeerMessage{
+		MessageID:   "msg-domain-cleanup",
+		DomainID:    "edge.example.com",
+		PayloadHash: "hash",
+		Category:    PeerCategoryCommand,
+		Action:      PeerActionDomainCleanup,
+		Payload: map[string]interface{}{
+			"request_id": "req-cleanup",
+			"domain_id":  "edge.example.com",
+		},
+		Route: RoutePlan{Mode: RouteModeBroadcast},
+	}
+
+	if err := dispatcher.Dispatch(context.Background(), &model.ClusterDomain{Id: 1, Domain: "edge.example.com"}, &model.ClusterMember{NodeID: "node-a"}, message); err != nil {
+		t.Fatalf("dispatch: %v", err)
+	}
+	if cleaner.calls != 1 {
+		t.Fatalf("expected cleanup call, got %d", cleaner.calls)
+	}
+	if cleaner.broadcast {
+		t.Fatal("peer command must not rebroadcast")
+	}
+	state, err := store.RecordReceived(message)
+	if err != nil {
+		t.Fatalf("state: %v", err)
+	}
+	if state.Status != PeerEventStatusSucceeded {
+		t.Fatalf("expected succeeded, got %q", state.Status)
+	}
+}
+
 func TestPeerDispatcherDoesNotRunSideEffectForInFlightDuplicate(t *testing.T) {
 	store := newMemoryPeerStore()
 	message := &PeerMessage{
@@ -856,6 +980,35 @@ func (s *stubPeerDomainInboundCreator) ApplyDomainInboundCreate(ctx context.Cont
 	s.calls++
 	s.broadcast = broadcast
 	return &DomainInboundCreateResult{InboundID: 99, RequestID: payload.RequestID, Created: true}, nil
+}
+
+type stubPeerDomainUserApplier struct {
+	upsertCalls int
+	deleteCalls int
+	broadcast   bool
+}
+
+func (s *stubPeerDomainUserApplier) ApplyDomainUserUpsert(ctx context.Context, domain *model.ClusterDomain, payload clustertypes.DomainUserUpsertPayload, source string, broadcast bool) (*DomainUserUpsertResult, error) {
+	s.upsertCalls++
+	s.broadcast = broadcast
+	return &DomainUserUpsertResult{ClientID: 77, RequestID: payload.RequestID, Created: true}, nil
+}
+
+func (s *stubPeerDomainUserApplier) ApplyDomainUserDelete(ctx context.Context, domain *model.ClusterDomain, payload clustertypes.DomainUserDeletePayload, source string, broadcast bool) (*DomainUserDeleteResult, error) {
+	s.deleteCalls++
+	s.broadcast = broadcast
+	return &DomainUserDeleteResult{ClientID: 77, RequestID: payload.RequestID, Deleted: true}, nil
+}
+
+type stubPeerDomainCleaner struct {
+	calls     int
+	broadcast bool
+}
+
+func (s *stubPeerDomainCleaner) ApplyDomainCleanup(ctx context.Context, domain *model.ClusterDomain, payload clustertypes.DomainCleanupPayload, source string, broadcast bool) (*DomainCleanupResult, error) {
+	s.calls++
+	s.broadcast = broadcast
+	return &DomainCleanupResult{RequestID: payload.RequestID, DomainDeleted: true}, nil
 }
 
 func (s *stubPeerSyncer) LatestVersion(context.Context, *model.ClusterDomain) (int64, error) {

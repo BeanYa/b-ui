@@ -25,6 +25,12 @@ export interface Client {
   nextReset?: number
   totalUp?: number
   totalDown?: number
+  cluster_managed?: boolean
+  cluster_read_only?: boolean
+  cluster_scope?: string
+  cluster_domain?: string
+  cluster_hub_user_uuid?: string
+  cluster_request_id?: string
 }
 
 const defaultClient: Client = {

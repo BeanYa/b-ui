@@ -22,6 +22,9 @@ func (s *TlsService) GetAll() ([]model.Tls, error) {
 	if err != nil {
 		return nil, err
 	}
+	if err := annotateClusterManagedTLS(db, tlsConfig); err != nil {
+		return nil, err
+	}
 
 	return tlsConfig, nil
 }
@@ -35,6 +38,11 @@ func (s *TlsService) Save(tx *gorm.DB, action string, data json.RawMessage, host
 		err = json.Unmarshal(data, &tls)
 		if err != nil {
 			return err
+		}
+		if action == "edit" {
+			if err := rejectClusterManagedTLSID(tx, tls.Id); err != nil {
+				return err
+			}
 		}
 		err = tx.Save(&tls).Error
 		if err != nil {
@@ -80,6 +88,9 @@ func (s *TlsService) Save(tx *gorm.DB, action string, data json.RawMessage, host
 		var id uint
 		err = json.Unmarshal(data, &id)
 		if err != nil {
+			return err
+		}
+		if err := rejectClusterManagedTLSID(tx, id); err != nil {
 			return err
 		}
 		var inboundCount int64

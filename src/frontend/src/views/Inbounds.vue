@@ -65,6 +65,9 @@
               <v-chip size="small" density="comfortable" :color="item.tls_id > 0 ? 'info' : ''" variant="flat">
                 {{ item.tls_id > 0 ? $t('enable') : $t('disable') }}
               </v-chip>
+              <v-chip v-if="isClusterManaged(item)" size="small" density="comfortable" color="secondary" variant="flat">
+                Hub
+              </v-chip>
               <v-chip v-if="onlines.includes(item.tag)" size="small" density="comfortable" color="success" variant="flat">
                 {{ $t('online') }}
               </v-chip>
@@ -94,11 +97,11 @@
           </v-card-text>
           <v-divider />
           <v-card-actions class="app-card-actions">
-            <v-btn icon="mdi-file-edit" @click="showModal(item.id)">
+            <v-btn icon="mdi-file-edit" :disabled="isClusterManaged(item)" @click="showModal(item.id)">
               <v-icon />
-              <v-tooltip activator="parent" location="top" :text="$t('actions.edit')" />
+              <v-tooltip activator="parent" location="top" :text="isClusterManaged(item) ? 'Hub-managed domain inbound is read-only' : $t('actions.edit')" />
             </v-btn>
-            <v-btn icon="mdi-file-remove" color="warning" @click="delOverlay[index] = true">
+            <v-btn v-if="!isClusterManaged(item)" icon="mdi-file-remove" color="warning" @click="delOverlay[index] = true">
               <v-icon />
               <v-tooltip activator="parent" location="top" :text="$t('actions.del')" />
             </v-btn>
@@ -116,9 +119,9 @@
                 </v-card-actions>
               </v-card>
             </v-overlay>
-            <v-btn icon="mdi-content-duplicate" :loading="cloneLoading" @click="clone(item.id)">
+            <v-btn icon="mdi-content-duplicate" :disabled="isClusterManaged(item)" :loading="cloneLoading" @click="clone(item.id)">
               <v-icon />
-              <v-tooltip activator="parent" location="top" :text="$t('actions.clone')" />
+              <v-tooltip activator="parent" location="top" :text="isClusterManaged(item) ? 'Hub-managed domain inbound is read-only' : $t('actions.clone')" />
             </v-btn>
             <v-btn v-if="Data().enableTraffic" icon="mdi-chart-line" @click="showStats(item.tag)">
               <v-icon />
@@ -150,6 +153,7 @@ const onlineCount = computed(() => onlines.value.length)
 const tlsEnabledCount = computed(() => inbounds.value.filter(item => item.tls_id > 0).length)
 const inboundUsers = (item: any): string[] => item.users ?? []
 const totalUsers = computed(() => inbounds.value.reduce((sum, item: any) => sum + inboundUsers(item).length, 0))
+const isClusterManaged = (item: any): boolean => item?.cluster_managed === true || item?.cluster_read_only === true
 
 const modal = ref({
   visible: false,

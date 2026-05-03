@@ -36,7 +36,11 @@
     </v-row>
     <v-row class="app-grid">
       <v-col cols="12" md="6" lg="4" xl="3" v-for="(item, index) in <any[]>tlsConfigs" :key="item.id">
-        <v-card class="app-entity-card" elevation="5" :title="item.name">
+        <v-card class="app-entity-card" elevation="5">
+          <v-card-title class="tls-card__title">
+            <span>{{ item.name }}</span>
+            <v-chip v-if="isClusterManaged(item)" size="small" density="comfortable" color="secondary" variant="flat">Hub</v-chip>
+          </v-card-title>
           <v-card-subtitle class="app-entity-card__subtitle">
             {{ item.server?.server_name?.length>0 ? item.server.server_name : "-" }}
           </v-card-subtitle>
@@ -74,11 +78,11 @@
           </v-card-text>
         <v-divider></v-divider>
           <v-card-actions class="app-card-actions">
-          <v-btn icon="mdi-file-edit" @click="showModal(item.id)">
+          <v-btn icon="mdi-file-edit" :disabled="isClusterManaged(item)" @click="showModal(item.id)">
             <v-icon />
-            <v-tooltip activator="parent" location="top" :text="$t('actions.edit')"></v-tooltip>
+            <v-tooltip activator="parent" location="top" :text="isClusterManaged(item) ? 'Hub-managed domain TLS is read-only' : $t('actions.edit')"></v-tooltip>
           </v-btn>
-          <v-btn v-if="tlsInbounds(item.id).length == 0" icon="mdi-file-remove" color="warning" @click="delOverlay[index] = true">
+          <v-btn v-if="tlsInbounds(item.id).length == 0 && !isClusterManaged(item)" icon="mdi-file-remove" color="warning" @click="delOverlay[index] = true">
             <v-icon />
             <v-tooltip activator="parent" location="top" :text="$t('actions.del')"></v-tooltip>
           </v-btn>
@@ -96,9 +100,9 @@
               </v-card-actions>
             </v-card>
           </v-overlay>
-          <v-btn icon="mdi-content-duplicate" @click="clone(item)">
+          <v-btn icon="mdi-content-duplicate" :disabled="isClusterManaged(item)" @click="clone(item)">
             <v-icon />
-            <v-tooltip activator="parent" location="top" :text="$t('actions.clone')"></v-tooltip>
+            <v-tooltip activator="parent" location="top" :text="isClusterManaged(item) ? 'Hub-managed domain TLS is read-only' : $t('actions.clone')"></v-tooltip>
           </v-btn>
           </v-card-actions>
         </v-card>
@@ -129,6 +133,7 @@ const inbounds = computed((): Inbound[] => {
 const tlsInbounds = (id: number): string[] => {
   return inbounds.value.filter(i => i.tls_id == id).map(i => i.tag)  
 }
+const isClusterManaged = (item: any): boolean => item?.cluster_managed === true || item?.cluster_read_only === true
 
 const modal = ref({
   visible: false,
@@ -192,3 +197,12 @@ const delTls = async (id: number) => {
 }
 
 </script>
+
+<style scoped>
+.tls-card__title {
+  align-items: center;
+  display: flex;
+  gap: 10px;
+  justify-content: space-between;
+}
+</style>

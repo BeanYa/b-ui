@@ -23,6 +23,8 @@ type RuntimeListServices struct {
 
 type RuntimeDomainServices struct {
 	DomainInbound action.DomainInboundCreateService
+	DomainUser    action.DomainUserService
+	DomainCleanup action.DomainCleanupService
 }
 
 // NewRuntime creates a Runtime with all handlers registered.
@@ -60,6 +62,12 @@ func NewRuntimeWithPanelAndDomain(lists RuntimeListServices, panel action.PanelS
 	}
 	if domains.DomainInbound != nil {
 		action.NewDomainInboundHandler(domains.DomainInbound).RegisterAll(r)
+	}
+	if domains.DomainUser != nil {
+		action.NewDomainUserHandler(domains.DomainUser).RegisterAll(r)
+	}
+	if domains.DomainCleanup != nil {
+		action.NewDomainCleanupHandler(domains.DomainCleanup).RegisterAll(r)
 	}
 
 	return &Runtime{Router: r}

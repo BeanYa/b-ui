@@ -17,6 +17,12 @@ type Tls struct {
 	Name   string          `json:"name" form:"name"`
 	Server json.RawMessage `json:"server" form:"server"`
 	Client json.RawMessage `json:"client" form:"client"`
+
+	ClusterManaged   bool   `json:"cluster_managed,omitempty" gorm:"-"`
+	ClusterReadOnly  bool   `json:"cluster_read_only,omitempty" gorm:"-"`
+	ClusterScope     string `json:"cluster_scope,omitempty" gorm:"-"`
+	ClusterDomain    string `json:"cluster_domain,omitempty" gorm:"-"`
+	ClusterRequestID string `json:"cluster_request_id,omitempty" gorm:"-"`
 }
 
 type User struct {
@@ -47,6 +53,13 @@ type Client struct {
 	NextReset  int64 `json:"nextReset" form:"nextReset" gorm:"default:0;not null"`
 	TotalUp    int64 `json:"totalUp" form:"totalUp" gorm:"default:0;not null"`
 	TotalDown  int64 `json:"totalDown" form:"totalDown" gorm:"default:0;not null"`
+
+	ClusterManaged     bool   `json:"cluster_managed,omitempty" gorm:"-"`
+	ClusterReadOnly    bool   `json:"cluster_read_only,omitempty" gorm:"-"`
+	ClusterScope       string `json:"cluster_scope,omitempty" gorm:"-"`
+	ClusterDomain      string `json:"cluster_domain,omitempty" gorm:"-"`
+	ClusterHubUserUUID string `json:"cluster_hub_user_uuid,omitempty" gorm:"-"`
+	ClusterRequestID   string `json:"cluster_request_id,omitempty" gorm:"-"`
 }
 
 type Stats struct {
@@ -148,6 +161,20 @@ type ClusterInbound struct {
 	Template  string   `json:"template"`
 	CreatedAt int64    `json:"createdAt"`
 	UpdatedAt int64    `json:"updatedAt"`
+}
+
+type ClusterClient struct {
+	Id          uint    `json:"id" gorm:"primaryKey;autoIncrement"`
+	DomainID    uint    `json:"domainId" gorm:"uniqueIndex:idx_cluster_client_domain_user;index"`
+	Domain      string  `json:"domain" gorm:"index"`
+	NodeID      string  `json:"nodeId" gorm:"index"`
+	MemberID    string  `json:"memberId" gorm:"index"`
+	ClientID    uint    `json:"clientId" gorm:"uniqueIndex"`
+	Client      *Client `json:"client,omitempty" gorm:"foreignKey:ClientID;references:Id"`
+	HubUserUUID string  `json:"hubUserUuid" gorm:"uniqueIndex:idx_cluster_client_domain_user"`
+	RequestID   string  `json:"requestId" gorm:"index"`
+	CreatedAt   int64   `json:"createdAt"`
+	UpdatedAt   int64   `json:"updatedAt"`
 }
 
 type ClusterPeerReachability struct {

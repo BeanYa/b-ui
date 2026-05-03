@@ -145,13 +145,15 @@ func (s *ClusterProxyReportService) reportProxyConfigs(domain clusterDomainInfo)
 		tlsConfig = buildClusterProxyReportTLSConfig(inb.Tls)
 
 		configs = append(configs, ClusterHubProxyConfigItem{
-			InboundID:  inb.Id,
-			Type:       inb.Type,
-			Tag:        inb.Tag,
-			ListenPort: listenPort,
-			Address:    address,
-			Options:    options,
-			TLSConfig:  tlsConfig,
+			InboundID:              inb.Id,
+			Type:                   inb.Type,
+			Tag:                    inb.Tag,
+			ListenPort:             listenPort,
+			Address:                address,
+			Options:                options,
+			TLSConfig:              tlsConfig,
+			Scope:                  "domain",
+			DomainInboundRequestID: wrapper.RequestID,
 		})
 	}
 

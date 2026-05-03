@@ -96,13 +96,15 @@ type ClusterHubReportProxyConfigsRequest struct {
 }
 
 type ClusterHubProxyConfigItem struct {
-	InboundID  uint            `json:"inbound_id"`
-	Type       string          `json:"type"`
-	Tag        string          `json:"tag"`
-	ListenPort int             `json:"listen_port"`
-	Address    string          `json:"address"`
-	Options    json.RawMessage `json:"options"`
-	TLSConfig  json.RawMessage `json:"tls_config,omitempty"`
+	InboundID              uint            `json:"inbound_id"`
+	Type                   string          `json:"type"`
+	Tag                    string          `json:"tag"`
+	ListenPort             int             `json:"listen_port"`
+	Address                string          `json:"address"`
+	Options                json.RawMessage `json:"options"`
+	TLSConfig              json.RawMessage `json:"tls_config,omitempty"`
+	Scope                  string          `json:"scope,omitempty"`
+	DomainInboundRequestID string          `json:"domain_inbound_request_id,omitempty"`
 }
 
 type ClusterHubReportRequest struct {

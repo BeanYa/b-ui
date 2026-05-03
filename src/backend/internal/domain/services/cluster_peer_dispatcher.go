@@ -29,11 +29,26 @@ const PeerActionDomainPanelUpdateStatus = "domain.panel.update.status"
 
 const PeerActionDomainInboundCreate = "domain.inbound.create"
 
+const PeerActionDomainUserUpsert = "domain.user.upsert"
+
+const PeerActionDomainUserDelete = "domain.user.delete"
+
+const PeerActionDomainCleanup = "domain.cleanup"
+
 const PeerActionTaskScatter = "task.scatter"
 const PeerActionTaskScatterResult = "task.scatter.result"
 
 type clusterPeerDomainInboundCreator interface {
 	ApplyDomainInboundCreate(context.Context, *model.ClusterDomain, clustertypes.DomainInboundCreatePayload, string, bool) (*DomainInboundCreateResult, error)
+}
+
+type clusterPeerDomainUserApplier interface {
+	ApplyDomainUserUpsert(context.Context, *model.ClusterDomain, clustertypes.DomainUserUpsertPayload, string, bool) (*DomainUserUpsertResult, error)
+	ApplyDomainUserDelete(context.Context, *model.ClusterDomain, clustertypes.DomainUserDeletePayload, string, bool) (*DomainUserDeleteResult, error)
+}
+
+type clusterPeerDomainCleaner interface {
+	ApplyDomainCleanup(context.Context, *model.ClusterDomain, clustertypes.DomainCleanupPayload, string, bool) (*DomainCleanupResult, error)
 }
 
 type ClusterPeerDispatcher struct {
@@ -44,6 +59,8 @@ type ClusterPeerDispatcher struct {
 	delivery             *ClusterPeerDeliveryService
 	saveWorkflowStep     func(workflowID string, stepID string, domainID string, nodeID string, status string, resultHash string, errorMessage string) error
 	domainInboundCreator clusterPeerDomainInboundCreator
+	domainUserApplier    clusterPeerDomainUserApplier
+	domainCleaner        clusterPeerDomainCleaner
 	scatterGatherManager *ScatterGatherManager
 }
 
@@ -263,6 +280,39 @@ func (d *ClusterPeerDispatcher) Dispatch(ctx context.Context, domain *model.Clus
 
 	if message.Category == PeerCategoryCommand && message.Action == PeerActionDomainInboundCreate {
 		if err := d.handleDomainInboundCreate(ctx, domain, source, message); err != nil {
+			_ = store.MarkEventState(state.MessageID, PeerEventStatusFailed, err.Error())
+			resultFields["status"] = PeerEventStatusFailed
+			resultFields["error"] = err.Error()
+			return err
+		}
+		resultFields["status"] = PeerEventStatusSucceeded
+		return store.MarkEventState(state.MessageID, PeerEventStatusSucceeded, "")
+	}
+
+	if message.Category == PeerCategoryCommand && message.Action == PeerActionDomainUserUpsert {
+		if err := d.handleDomainUserUpsert(ctx, domain, source, message); err != nil {
+			_ = store.MarkEventState(state.MessageID, PeerEventStatusFailed, err.Error())
+			resultFields["status"] = PeerEventStatusFailed
+			resultFields["error"] = err.Error()
+			return err
+		}
+		resultFields["status"] = PeerEventStatusSucceeded
+		return store.MarkEventState(state.MessageID, PeerEventStatusSucceeded, "")
+	}
+
+	if message.Category == PeerCategoryCommand && message.Action == PeerActionDomainUserDelete {
+		if err := d.handleDomainUserDelete(ctx, domain, source, message); err != nil {
+			_ = store.MarkEventState(state.MessageID, PeerEventStatusFailed, err.Error())
+			resultFields["status"] = PeerEventStatusFailed
+			resultFields["error"] = err.Error()
+			return err
+		}
+		resultFields["status"] = PeerEventStatusSucceeded
+		return store.MarkEventState(state.MessageID, PeerEventStatusSucceeded, "")
+	}
+
+	if message.Category == PeerCategoryCommand && message.Action == PeerActionDomainCleanup {
+		if err := d.handleDomainCleanup(ctx, domain, source, message); err != nil {
 			_ = store.MarkEventState(state.MessageID, PeerEventStatusFailed, err.Error())
 			resultFields["status"] = PeerEventStatusFailed
 			resultFields["error"] = err.Error()
@@ -592,6 +642,78 @@ func (d *ClusterPeerDispatcher) handleDomainInboundCreate(ctx context.Context, d
 		sourceNode = source.NodeID
 	}
 	_, err = creator.ApplyDomainInboundCreate(ctx, domain, payload, sourceNode, false)
+	return err
+}
+
+func (d *ClusterPeerDispatcher) handleDomainUserUpsert(ctx context.Context, domain *model.ClusterDomain, source *model.ClusterMember, message *PeerMessage) error {
+	raw, err := json.Marshal(message.Payload)
+	if err != nil {
+		return err
+	}
+
+	var payload clustertypes.DomainUserUpsertPayload
+	if err := json.Unmarshal(raw, &payload); err != nil {
+		return fmt.Errorf("invalid_domain_user_payload: %w", err)
+	}
+
+	applier := d.domainUserApplier
+	if applier == nil {
+		applier = NewClusterDomainUserService(ClusterDomainUserServiceOptions{})
+	}
+
+	sourceNode := ""
+	if source != nil {
+		sourceNode = source.NodeID
+	}
+	_, err = applier.ApplyDomainUserUpsert(ctx, domain, payload, sourceNode, false)
+	return err
+}
+
+func (d *ClusterPeerDispatcher) handleDomainUserDelete(ctx context.Context, domain *model.ClusterDomain, source *model.ClusterMember, message *PeerMessage) error {
+	raw, err := json.Marshal(message.Payload)
+	if err != nil {
+		return err
+	}
+
+	var payload clustertypes.DomainUserDeletePayload
+	if err := json.Unmarshal(raw, &payload); err != nil {
+		return fmt.Errorf("invalid_domain_user_delete_payload: %w", err)
+	}
+
+	applier := d.domainUserApplier
+	if applier == nil {
+		applier = NewClusterDomainUserService(ClusterDomainUserServiceOptions{})
+	}
+
+	sourceNode := ""
+	if source != nil {
+		sourceNode = source.NodeID
+	}
+	_, err = applier.ApplyDomainUserDelete(ctx, domain, payload, sourceNode, false)
+	return err
+}
+
+func (d *ClusterPeerDispatcher) handleDomainCleanup(ctx context.Context, domain *model.ClusterDomain, source *model.ClusterMember, message *PeerMessage) error {
+	raw, err := json.Marshal(message.Payload)
+	if err != nil {
+		return err
+	}
+
+	var payload clustertypes.DomainCleanupPayload
+	if err := json.Unmarshal(raw, &payload); err != nil {
+		return fmt.Errorf("invalid_domain_cleanup_payload: %w", err)
+	}
+
+	cleaner := d.domainCleaner
+	if cleaner == nil {
+		cleaner = NewClusterDomainCleanupService(ClusterDomainCleanupServiceOptions{})
+	}
+
+	sourceNode := ""
+	if source != nil {
+		sourceNode = source.NodeID
+	}
+	_, err = cleaner.ApplyDomainCleanup(ctx, domain, payload, sourceNode, false)
 	return err
 }
 

@@ -238,9 +238,49 @@ func TestRuntimeRegistersDomainInboundCreateWhenServiceProvided(t *testing.T) {
 	}
 }
 
+func TestRuntimeRegistersDomainUserActionsWhenServiceProvided(t *testing.T) {
+	svc := &stubDomainUserActionService{}
+	rt := cluster.NewRuntimeWithPanelAndDomain(cluster.RuntimeListServices{}, nil, cluster.RuntimeDomainServices{
+		DomainUser: svc,
+	})
+	actions := rt.InfoResponse().Actions
+	for _, action := range []string{"domain.user.upsert", "domain.user.delete"} {
+		if !containsString(actions, action) {
+			t.Fatalf("expected %s in actions, got %#v", action, actions)
+		}
+	}
+}
+
+func TestRuntimeRegistersDomainCleanupWhenServiceProvided(t *testing.T) {
+	svc := &stubDomainCleanupActionService{}
+	rt := cluster.NewRuntimeWithPanelAndDomain(cluster.RuntimeListServices{}, nil, cluster.RuntimeDomainServices{
+		DomainCleanup: svc,
+	})
+	actions := rt.InfoResponse().Actions
+	if !containsString(actions, "domain.cleanup") {
+		t.Fatalf("expected domain.cleanup in actions, got %#v", actions)
+	}
+}
+
 type stubDomainInboundActionService struct{}
 
 func (s *stubDomainInboundActionService) HandleDomainInboundCreate(context.Context, clustertypes.ActionRequest, clustertypes.DomainInboundCreatePayload) (map[string]interface{}, error) {
+	return map[string]interface{}{"ok": true}, nil
+}
+
+type stubDomainUserActionService struct{}
+
+func (s *stubDomainUserActionService) HandleDomainUserUpsert(context.Context, clustertypes.ActionRequest, clustertypes.DomainUserUpsertPayload) (map[string]interface{}, error) {
+	return map[string]interface{}{"ok": true}, nil
+}
+
+func (s *stubDomainUserActionService) HandleDomainUserDelete(context.Context, clustertypes.ActionRequest, clustertypes.DomainUserDeletePayload) (map[string]interface{}, error) {
+	return map[string]interface{}{"ok": true}, nil
+}
+
+type stubDomainCleanupActionService struct{}
+
+func (s *stubDomainCleanupActionService) HandleDomainCleanup(context.Context, clustertypes.ActionRequest, clustertypes.DomainCleanupPayload) (map[string]interface{}, error) {
 	return map[string]interface{}{"ok": true}, nil
 }
 

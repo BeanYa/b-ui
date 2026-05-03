@@ -31,6 +31,9 @@ func (s *ClientService) getById(id string) (*[]model.Client, error) {
 	if err != nil {
 		return nil, err
 	}
+	if err := annotateClusterManagedClients(db, client); err != nil {
+		return nil, err
+	}
 
 	return &client, nil
 }
@@ -44,12 +47,18 @@ func (s *ClientService) GetAll() (*[]model.Client, error) {
 	if err != nil {
 		return nil, err
 	}
+	if err := annotateClusterManagedClients(db, clients); err != nil {
+		return nil, err
+	}
 	return &clients, nil
 }
 
 func (s *ClientService) Save(tx *gorm.DB, act string, data json.RawMessage, hostname string) ([]uint, error) {
 	var err error
 	var inboundIds []uint
+	if err := rejectClusterManagedClientMutation(tx, act, data); err != nil {
+		return nil, err
+	}
 
 	switch act {
 	case "new", "edit":

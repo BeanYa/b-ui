@@ -5,6 +5,11 @@ export interface tls {
   name: string
   server: iTls
   client: oTls
+  cluster_managed?: boolean
+  cluster_read_only?: boolean
+  cluster_scope?: string
+  cluster_domain?: string
+  cluster_request_id?: string
 }
 
 export interface iTls {

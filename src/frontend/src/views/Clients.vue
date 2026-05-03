@@ -49,7 +49,7 @@
       v-model="editBulkModal"
       :visible="editBulkModal"
       :inboundTags="inboundTags"
-      :clients="clients"
+      :clients="editableClients"
       @close="closeEditBulk"
     />
     <QrCode
@@ -189,6 +189,12 @@
           width="100%"
           class="app-card-shell app-data-table clients-table elevation-3"
           >
+        <template v-slot:item.name="{ item }">
+          <div class="client-name-cell">
+            <span>{{ item.name }}</span>
+            <v-chip v-if="isClusterManaged(item)" size="x-small" density="comfortable" color="secondary" variant="flat">Hub</v-chip>
+          </div>
+        </template>
         <template v-slot:item.inbounds="{ item }">
           <span>
           <v-tooltip activator="parent" dir="ltr" location="start" v-if="item.inbounds != ''">
@@ -232,35 +238,42 @@
           </div>
         </template>
         <template v-slot:item.actions="{ item }">
-        <v-icon
-          class="me-2"
-          @click="showModal(item.id)"
-        >
-          mdi-pencil
-        </v-icon>
-        <v-menu
-          v-model="delOverlay[clients.findIndex(c => c.id == item.id)]"
-          :close-on-content-click="false"
-          location="top center"
-        >
+        <v-tooltip v-if="isClusterManaged(item)" location="top" text="Hub-managed domain user is read-only">
           <template v-slot:activator="{ props }">
-            <v-icon
-              class="me-2"
-              color="error"
-              v-bind="props"
-            >
-              mdi-delete
-            </v-icon>
+            <v-icon class="me-2" color="disabled" v-bind="props">mdi-lock-outline</v-icon>
           </template>
-          <v-card :title="$t('actions.del')" rounded="lg">
-            <v-divider></v-divider>
-            <v-card-text>{{ $t('confirm') }}</v-card-text>
-            <v-card-actions>
-              <v-btn color="error" variant="outlined" @click="delClient(item.id)">{{ $t('yes') }}</v-btn>
-              <v-btn color="success" variant="outlined" @click="delOverlay[clients.findIndex(c => c.id == item.id)] = false">{{ $t('no') }}</v-btn>
-            </v-card-actions>
-          </v-card>
-        </v-menu>
+        </v-tooltip>
+        <template v-else>
+          <v-icon
+            class="me-2"
+            @click="showModal(item.id)"
+          >
+            mdi-pencil
+          </v-icon>
+          <v-menu
+            v-model="delOverlay[clients.findIndex(c => c.id == item.id)]"
+            :close-on-content-click="false"
+            location="top center"
+          >
+            <template v-slot:activator="{ props }">
+              <v-icon
+                class="me-2"
+                color="error"
+                v-bind="props"
+              >
+                mdi-delete
+              </v-icon>
+            </template>
+            <v-card :title="$t('actions.del')" rounded="lg">
+              <v-divider></v-divider>
+              <v-card-text>{{ $t('confirm') }}</v-card-text>
+              <v-card-actions>
+                <v-btn color="error" variant="outlined" @click="delClient(item.id)">{{ $t('yes') }}</v-btn>
+                <v-btn color="success" variant="outlined" @click="delOverlay[clients.findIndex(c => c.id == item.id)] = false">{{ $t('no') }}</v-btn>
+              </v-card-actions>
+            </v-card>
+          </v-menu>
+        </template>
         <v-icon
           class="me-2"
           @click="showQrCode(item.id)"
@@ -358,9 +371,11 @@ const filterItems = [
 ]
 
 const filteredClients = computed(() => filterSettings.value.enabled ? filterSettings.value.filteredClients : clients.value)
+const editableClients = computed(() => clients.value.filter(c => !isClusterManaged(c)))
 const onlineCount = computed(() => Data().onlines?.user?.length ?? 0)
 const expiredCount = computed(() => clients.value.filter(c => c.expiry > 0 && c.expiry < (Date.now() / 1000)).length)
 const disabledCount = computed(() => clients.value.filter(c => c.enable === false).length)
+const isClusterManaged = (item: any): boolean => item?.cluster_managed === true || item?.cluster_read_only === true
 
 const headers = createClientTableHeaders(i18n.global.t)
 
@@ -483,6 +498,12 @@ const percentColor = (c: Client) => { return (c.up+c.down) >= c.volume ? 'error'
 </script>
 
 <style scoped>
+.client-name-cell {
+  align-items: center;
+  display: inline-flex;
+  gap: 8px;
+}
+
 .clients-toolbar {
   display: grid;
   gap: 4px;

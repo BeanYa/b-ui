@@ -45,6 +45,9 @@ func (s *InboundService) getById(ids string) (*[]map[string]interface{}, error) 
 		}
 		result = append(result, *inbData)
 	}
+	if err := annotateClusterManagedInboundMaps(db, result); err != nil {
+		return nil, err
+	}
 	return &result, nil
 }
 
@@ -92,6 +95,9 @@ func (s *InboundService) GetAll() (*[]map[string]interface{}, error) {
 
 		data = append(data, inbData)
 	}
+	if err := annotateClusterManagedInboundMaps(db, data); err != nil {
+		return nil, err
+	}
 	return &data, nil
 }
 
@@ -114,6 +120,11 @@ func (s *InboundService) Save(tx *gorm.DB, act string, data json.RawMessage, ini
 		err = inbound.UnmarshalJSON(data)
 		if err != nil {
 			return err
+		}
+		if act == "edit" {
+			if err := rejectClusterManagedInboundID(tx, inbound.Id); err != nil {
+				return err
+			}
 		}
 		if inbound.TlsId > 0 {
 			err = tx.Model(model.Tls{}).Where("id = ?", inbound.TlsId).Find(&inbound.Tls).Error
@@ -179,6 +190,9 @@ func (s *InboundService) Save(tx *gorm.DB, act string, data json.RawMessage, ini
 		var tag string
 		err = json.Unmarshal(data, &tag)
 		if err != nil {
+			return err
+		}
+		if err := rejectClusterManagedInboundTag(tx, tag); err != nil {
 			return err
 		}
 		if corePtr.IsRunning() {

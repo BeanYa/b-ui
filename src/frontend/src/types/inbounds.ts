@@ -54,6 +54,11 @@ interface InboundBasics extends Listen {
   tls_id: number
   addrs?: Addr[]
   out_json?: any
+  cluster_managed?: boolean
+  cluster_read_only?: boolean
+  cluster_scope?: string
+  cluster_domain?: string
+  cluster_request_id?: string
 }
 
 interface ShadowTLSHandShake extends Dial {
