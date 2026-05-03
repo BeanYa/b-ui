@@ -48,7 +48,7 @@ func TestDefaultExternalConfigUsesCurrentNodeProviderModel(t *testing.T) {
 
 func TestNormalizeExternalConfigCorrectsLegacyZStaticDirection(t *testing.T) {
 	config := normalizeExternalConfig(&ExternalConfig{Sources: []ExternalSource{
-		{ID: "zstatic_cdn", Name: "Zstatic CDN", Type: "cdn_ping", Direction: "inbound", Enabled: true},
+		{ID: "zstatic_cdn", Name: "Zstatic CDN", Type: "cdn_ping", Direction: "inbound", Enabled: false},
 	}})
 
 	var zstatic ExternalSource
@@ -65,8 +65,8 @@ func TestNormalizeExternalConfigCorrectsLegacyZStaticDirection(t *testing.T) {
 	if zstatic.Direction != "outbound" {
 		t.Fatalf("expected normalized zstatic_cdn direction outbound, got %q", zstatic.Direction)
 	}
-	if !zstatic.Enabled {
-		t.Fatal("expected normalization to preserve enabled flag")
+	if zstatic.Enabled {
+		t.Fatal("expected normalization to preserve disabled enabled flag")
 	}
 }
 
