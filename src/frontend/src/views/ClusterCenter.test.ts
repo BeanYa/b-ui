@@ -178,7 +178,8 @@ describe('ClusterCenter view source', () => {
 
   it('keeps member version, panel version, status, latency, and action columns aligned', () => {
     const source = readFileSync(fileURLToPath(new URL('./ClusterCenter.vue', import.meta.url)), 'utf8')
-    const tableStart = source.indexOf('<table class="cluster-center__member-table">')
+    const memberSectionStart = source.indexOf('selectedDomainMembers.length === 0')
+    const tableStart = source.indexOf('<table class="cluster-center__member-table">', memberSectionStart)
     const tableEnd = source.indexOf('</table>', tableStart)
     const tableSource = source.slice(tableStart, tableEnd)
 

@@ -192,7 +192,12 @@ func TestClusterListsDomainsAndMembers(t *testing.T) {
 	if !bytes.Contains(domainsJSON, []byte(`"hubUrl":"https://hub.example.com"`)) {
 		t.Fatalf("expected hub URL in domains response, got %s", domainsJSON)
 	}
-	if !bytes.Contains(domainsJSON, []byte(`"supportedActions":["domain.cluster.changed","events","heartbeat","ping","info","action","domain.panel.update.available","domain.panel.update.request","domain.panel.update.status"]`)) {
+	expectedActionsJSON, err := json.Marshal(service.ClusterCommunicationSupportedActions())
+	if err != nil {
+		t.Fatalf("marshal supported actions: %v", err)
+	}
+	expectedSupportedActions := append([]byte(`"supportedActions":`), expectedActionsJSON...)
+	if !bytes.Contains(domainsJSON, expectedSupportedActions) {
 		t.Fatalf("expected supported actions in domains response, got %s", domainsJSON)
 	}
 	if cluster.listMembersCalls != 1 {
@@ -570,6 +575,13 @@ type stubClusterAPIService struct {
 	memberAction           *clustertypes.ActionResponse
 	memberActionNodeID     string
 	memberActionRequest    clustertypes.ActionRequest
+	scatterTasks           []service.TaskSummary
+	scatterTaskResult      *service.TaskResultDetail
+	scatterDomainID        string
+	scatterTaskID          string
+	scatterTaskType        string
+	scatterTaskScope       string
+	scatterTaskParams      map[string]any
 }
 
 func (s *stubClusterAPIService) Register(request service.ClusterRegisterRequest) (*service.ClusterOperationStatus, error) {
@@ -689,6 +701,36 @@ func (s *stubClusterAPIService) Ping(remoteNodeID string, token string) (*servic
 		return s.pingResponse, nil
 	}
 	return &service.ClusterPeerStatus{Status: "processed", Code: "ok", NodeID: "node-local"}, nil
+}
+
+func (s *stubClusterAPIService) ListScatterTasks(domainID string) ([]service.TaskSummary, error) {
+	s.scatterDomainID = domainID
+	return s.scatterTasks, nil
+}
+
+func (s *stubClusterAPIService) CreateScatterTask(domainID string, taskType string, scope string, params map[string]any) (*service.TaskSummary, error) {
+	s.scatterDomainID = domainID
+	s.scatterTaskType = taskType
+	s.scatterTaskScope = scope
+	s.scatterTaskParams = params
+	return &service.TaskSummary{
+		TaskID:   "task-stub",
+		TaskType: taskType,
+		Status:   "queued",
+		Scope:    scope,
+	}, nil
+}
+
+func (s *stubClusterAPIService) GetScatterTaskResult(domainID string, taskID string) (*service.TaskResultDetail, error) {
+	s.scatterDomainID = domainID
+	s.scatterTaskID = taskID
+	if s.scatterTaskResult != nil {
+		return s.scatterTaskResult, nil
+	}
+	return &service.TaskResultDetail{
+		TaskID: taskID,
+		Status: "completed",
+	}, nil
 }
 
 func (s *stubClusterAPIService) HandleAction(c *gin.Context) {
