@@ -2,8 +2,32 @@ package ping
 
 import (
 	"context"
+	"fmt"
+	"net/http"
+	"net/http/httptest"
+	"net/url"
+	"strings"
 	"testing"
 )
+
+type rewriteHostTransport struct {
+	target *url.URL
+	seen   *int
+}
+
+func (t rewriteHostTransport) RoundTrip(req *http.Request) (*http.Response, error) {
+	(*t.seen)++
+	rewritten := req.Clone(req.Context())
+	rewritten.URL.Scheme = t.target.Scheme
+	rewritten.URL.Host = t.target.Host
+	return http.DefaultTransport.RoundTrip(rewritten)
+}
+
+type roundTripFunc func(*http.Request) (*http.Response, error)
+
+func (f roundTripFunc) RoundTrip(req *http.Request) (*http.Response, error) {
+	return f(req)
+}
 
 func TestDefaultExternalConfig(t *testing.T) {
 	config := defaultExternalConfig()
@@ -64,6 +88,73 @@ func TestZStaticTargetsUsePublishedPortsOnly(t *testing.T) {
 		if !methodAllowed(MethodTCP, target.Methods) {
 			t.Fatalf("expected TCP method for %#v", target)
 		}
+	}
+}
+
+func TestProbeEndpointWithMethodsHTTPUsesExternalEndpointRoot(t *testing.T) {
+	var gotPath string
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		gotPath = r.URL.Path
+		w.Header().Set("Content-Type", "application/json")
+		fmt.Fprint(w, `{"status":"processed","code":"ok"}`)
+	}))
+	defer server.Close()
+
+	serverURL, err := url.Parse(server.URL)
+	if err != nil {
+		t.Fatalf("Parse server URL: %v", err)
+	}
+	var requests int
+	svc := NewExternalService(newStoreWithDir(t.TempDir()))
+	client := &http.Client{Transport: rewriteHostTransport{target: serverURL, seen: &requests}}
+	svc.httpClient = client
+	svc.meshSvc.httpClient = client
+
+	method, latency, err := svc.probeEndpointWithMethods(context.Background(), ExternalEndpoint{
+		ID:      "external-http",
+		Host:    "example.test",
+		Port:    80,
+		Methods: []string{MethodHTTP},
+	}, []string{MethodHTTP})
+	if err != nil {
+		t.Fatalf("probeEndpointWithMethods: %v", err)
+	}
+	if method != MethodHTTP {
+		t.Fatalf("expected HTTP method, got %q", method)
+	}
+	if latency < 0 {
+		t.Fatalf("expected non-negative latency, got %f", latency)
+	}
+	if requests == 0 {
+		t.Fatal("expected HTTP request")
+	}
+	if gotPath != "/" {
+		t.Fatalf("expected external HTTP probe to request root path, got %q", gotPath)
+	}
+}
+
+func TestProbeEndpointWithMethodsUnsupportedRequestedMethodDoesNotProbe(t *testing.T) {
+	var requests int
+	svc := NewExternalService(newStoreWithDir(t.TempDir()))
+	svc.httpClient = &http.Client{Transport: roundTripFunc(func(req *http.Request) (*http.Response, error) {
+		requests++
+		return nil, fmt.Errorf("unexpected HTTP request")
+	})}
+
+	_, _, err := svc.probeEndpointWithMethods(context.Background(), ExternalEndpoint{
+		ID:      "tcp-only",
+		Host:    "example.test",
+		Port:    80,
+		Methods: []string{MethodTCP},
+	}, []string{MethodHTTP})
+	if err == nil {
+		t.Fatal("expected unsupported method error")
+	}
+	if !strings.Contains(err.Error(), "no supported methods") {
+		t.Fatalf("expected no supported methods error, got %v", err)
+	}
+	if requests != 0 {
+		t.Fatalf("expected no HTTP requests, got %d", requests)
 	}
 }
 

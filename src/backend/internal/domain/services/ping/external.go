@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"net"
 	"net/http"
+	"strconv"
 	"sync"
 	"time"
 )
@@ -67,11 +68,7 @@ func (s *ExternalService) probeEndpointWithMethods(ctx context.Context, endpoint
 			}
 			lastErr = err
 		case MethodHTTP:
-			scheme := "https"
-			if endpoint.Port == 80 {
-				scheme = "http"
-			}
-			latency, err := s.meshSvc.httpPing(ctx, scheme+"://"+endpoint.Host, "")
+			latency, err := s.httpEndpointLatency(ctx, endpoint)
 			if err == nil {
 				return MethodHTTP, latency, nil
 			}
@@ -82,6 +79,64 @@ func (s *ExternalService) probeEndpointWithMethods(ctx context.Context, endpoint
 		return "", 0, lastErr
 	}
 	return "", 0, fmt.Errorf("no supported methods for %s", endpoint.ID)
+}
+
+func (s *ExternalService) httpEndpointLatency(ctx context.Context, endpoint ExternalEndpoint) (float64, error) {
+	targetURL := externalHTTPURL(endpoint)
+	start := time.Now()
+	resp, err := s.doExternalHTTPRequest(ctx, http.MethodHead, targetURL)
+	if err != nil {
+		return 0, err
+	}
+	status := resp.StatusCode
+	resp.Body.Close()
+
+	if status == http.StatusMethodNotAllowed {
+		resp, err = s.doExternalHTTPRequest(ctx, http.MethodGet, targetURL)
+		if err != nil {
+			return 0, err
+		}
+		status = resp.StatusCode
+		resp.Body.Close()
+	}
+
+	latency := float64(time.Since(start).Microseconds()) / 1000.0
+	if isExternalHTTPReachableStatus(status) {
+		return latency, nil
+	}
+	return 0, fmt.Errorf("http probe returned %d", status)
+}
+
+func (s *ExternalService) doExternalHTTPRequest(ctx context.Context, method string, targetURL string) (*http.Response, error) {
+	req, err := http.NewRequestWithContext(ctx, method, targetURL, nil)
+	if err != nil {
+		return nil, err
+	}
+	client := s.httpClient
+	if client == nil {
+		client = &http.Client{Timeout: 10 * time.Second}
+	}
+	return client.Do(req)
+}
+
+func externalHTTPURL(endpoint ExternalEndpoint) string {
+	scheme := "https"
+	if endpoint.Port == 80 {
+		scheme = "http"
+	}
+	host := endpoint.Host
+	if endpoint.Port > 0 && !isDefaultHTTPPort(scheme, endpoint.Port) {
+		host = net.JoinHostPort(endpoint.Host, strconv.Itoa(endpoint.Port))
+	}
+	return scheme + "://" + host
+}
+
+func isDefaultHTTPPort(scheme string, port int) bool {
+	return (scheme == "http" && port == 80) || (scheme == "https" && port == 443)
+}
+
+func isExternalHTTPReachableStatus(status int) bool {
+	return (status >= 200 && status < 400) || status == http.StatusMethodNotAllowed
 }
 
 type externalTarget struct {
