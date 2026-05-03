@@ -1645,9 +1645,20 @@ func (a *clusterSyncStoreAdapter) ListDomains() ([]model.ClusterDomain, error) {
 // GetAllDomains returns domain info needed for proxy config reporting.
 // Satisfies clusterMemberProvider interface for ClusterProxyReportService.
 func (s *ClusterService) GetAllDomains() ([]clusterDomainInfo, error) {
-	domains, err := s.getStore().ListDomains()
+	store := s.getStore()
+	domains, err := store.ListDomains()
 	if err != nil {
 		return nil, err
+	}
+	reportDomains := make([]model.ClusterDomain, 0, len(domains))
+	for _, domain := range domains {
+		if strings.TrimSpace(domain.HubURL) == "" || strings.TrimSpace(domain.TokenEncrypted) == "" {
+			continue
+		}
+		reportDomains = append(reportDomains, domain)
+	}
+	if len(reportDomains) == 0 {
+		return nil, nil
 	}
 	localIdentity, err := s.localIdentity.GetOrCreate()
 	if err != nil {
@@ -1658,12 +1669,12 @@ func (s *ClusterService) GetAllDomains() ([]clusterDomainInfo, error) {
 		return nil, err
 	}
 	var result []clusterDomainInfo
-	for _, domain := range domains {
+	for _, domain := range reportDomains {
 		domainToken, err := DecryptClusterDomainToken(secret, domain.TokenEncrypted)
 		if err != nil {
 			continue
 		}
-		localMember, err := findClusterMemberByDomainNodeID(s.getStore(), domain.Id, localIdentity.NodeID)
+		localMember, err := findClusterMemberByDomainNodeID(store, domain.Id, localIdentity.NodeID)
 		if err != nil || localMember == nil {
 			continue
 		}

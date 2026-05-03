@@ -188,7 +188,7 @@ func (s *ClusterSyncService) HandleIncomingNotifyVersion(ctx context.Context, do
 		}
 		if domain.HubURL != "" {
 			if err := s.hubSyncer.SyncDomain(ctx, domain, version); err != nil {
-			logger.ClusterError(logger.ClusterCron, "version_poll.sync_domain", map[string]interface{}{"domain": domain.Domain, "version": version, "error": err.Error()})
+				logger.ClusterError(logger.ClusterCron, "version_poll.sync_domain", map[string]interface{}{"domain": domain.Domain, "version": version, "error": err.Error()})
 				return false, err
 			}
 		}
@@ -272,6 +272,85 @@ func (s *ClusterSyncService) ReconcileProxyConfigs() {
 	report.ReportForAllDomains()
 }
 
+func (s *ClusterSyncService) ReportLocalPanelStatus(ctx context.Context) error {
+	if s.store == nil {
+		return nil
+	}
+
+	domains, err := s.store.ListDomains()
+	if err != nil {
+		return err
+	}
+	reportDomains := make([]model.ClusterDomain, 0, len(domains))
+	for index := range domains {
+		if strings.TrimSpace(domains[index].Domain) == "" {
+			continue
+		}
+		if strings.TrimSpace(domains[index].HubURL) == "" || strings.TrimSpace(domains[index].TokenEncrypted) == "" {
+			continue
+		}
+		reportDomains = append(reportDomains, domains[index])
+	}
+	if len(reportDomains) == 0 {
+		return nil
+	}
+
+	currentVersion := canonicalizeReleaseTag(config.GetVersion())
+	if localPanelUpdateStillRunning(currentVersion) {
+		return nil
+	}
+
+	local, err := s.getLocalIdentity().GetOrCreate()
+	if err != nil {
+		return err
+	}
+	if strings.TrimSpace(local.NodeID) == "" {
+		return nil
+	}
+
+	var failures []string
+	for index := range reportDomains {
+		domain := reportDomains[index]
+		localChanged, localPresent, err := s.localPanelStatusChanged(domain.Id, local.NodeID, currentVersion)
+		if err != nil {
+			failures = append(failures, fmt.Sprintf("%s local: %v", domain.Domain, err))
+			continue
+		}
+		if !localPresent {
+			continue
+		}
+		if err := s.saveLocalMemberStatus(ctx, &domain, local.NodeID, ClusterPanelUpdateStatusOnline, currentVersion); err != nil {
+			failures = append(failures, fmt.Sprintf("%s local: %v", domain.Domain, err))
+		}
+		if err := s.notifyHubMemberStatus(ctx, &domain, local.NodeID, ClusterPanelUpdateStatusOnline, currentVersion); err != nil {
+			failures = append(failures, fmt.Sprintf("%s hub: %v", domain.Domain, err))
+		}
+		if localChanged {
+			if err := s.publishPanelUpdateStatus(ctx, &domain, ClusterPanelUpdateStatusOnline, "", currentVersion, local.NodeID); err != nil {
+				failures = append(failures, fmt.Sprintf("%s peers: %v", domain.Domain, err))
+			}
+		}
+	}
+	if len(failures) > 0 {
+		return errors.New(strings.Join(failures, "; "))
+	}
+	return nil
+}
+
+func (s *ClusterSyncService) localPanelStatusChanged(domainID uint, localNodeID string, currentVersion string) (bool, bool, error) {
+	member, err := s.store.GetMember(domainID, localNodeID)
+	if err != nil || member == nil {
+		if errors.Is(err, errClusterMemberNotFound) || member == nil {
+			return false, false, nil
+		}
+		return false, false, err
+	}
+	if member.Status != ClusterPanelUpdateStatusOnline {
+		return true, true, nil
+	}
+	return currentVersion != "" && canonicalizeReleaseTag(member.PanelVersion) != currentVersion, true, nil
+}
+
 func (s *ClusterSyncService) GetLocalNodeID() string {
 	local, err := s.getLocalIdentity().GetOrCreate()
 	if err != nil {
@@ -291,6 +370,16 @@ func (p *syncMemberProvider) GetAllDomains() ([]clusterDomainInfo, error) {
 	if err != nil {
 		return nil, err
 	}
+	reportDomains := make([]model.ClusterDomain, 0, len(domains))
+	for _, domain := range domains {
+		if strings.TrimSpace(domain.HubURL) == "" || strings.TrimSpace(domain.TokenEncrypted) == "" {
+			continue
+		}
+		reportDomains = append(reportDomains, domain)
+	}
+	if len(reportDomains) == 0 {
+		return nil, nil
+	}
 	localIdentity, err := p.localIdentity.GetOrCreate()
 	if err != nil {
 		return nil, err
@@ -300,10 +389,7 @@ func (p *syncMemberProvider) GetAllDomains() ([]clusterDomainInfo, error) {
 		return nil, err
 	}
 	var result []clusterDomainInfo
-	for _, domain := range domains {
-		if domain.HubURL == "" {
-			continue
-		}
+	for _, domain := range reportDomains {
 		domainToken, err := DecryptClusterDomainToken(secret, domain.TokenEncrypted)
 		if err != nil {
 			continue
@@ -324,6 +410,29 @@ func (p *syncMemberProvider) GetAllDomains() ([]clusterDomainInfo, error) {
 	return result, nil
 }
 
+func localPanelUpdateStillRunning(currentVersion string) bool {
+	state, err := loadPanelUpdateState()
+	if err != nil || state == nil {
+		return false
+	}
+	reconciledState, changed, _ := reconcilePanelUpdateStateWithCurrentVersion(state, currentVersion, time.Now())
+	if changed {
+		_ = saveOrClearPanelUpdateState(reconciledState)
+		state = reconciledState
+	}
+	if state == nil {
+		return false
+	}
+	if state.Phase != "running" && state.Phase != "preflight" {
+		return false
+	}
+	targetVersion := canonicalizeReleaseTag(state.TargetVersion)
+	if targetVersion == "" {
+		return true
+	}
+	comparison := compareReleaseTags(currentVersion, targetVersion)
+	return comparison == "older" || comparison == "unknown"
+}
 
 func (s *ClusterSyncService) domainNeedsSnapshotRefresh(domainID uint) (bool, error) {
 	members, err := s.store.GetMembers(domainID)

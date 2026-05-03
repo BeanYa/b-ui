@@ -13,6 +13,7 @@ import (
 type stubClusterProbeStore struct {
 	localNodeID string
 	members     []model.ClusterMember
+	localCalls  int
 }
 
 func (s *stubClusterProbeStore) ListMembersWithDomain() ([]model.ClusterMember, error) {
@@ -20,6 +21,7 @@ func (s *stubClusterProbeStore) ListMembersWithDomain() ([]model.ClusterMember, 
 }
 
 func (s *stubClusterProbeStore) GetLocalNodeID() (string, error) {
+	s.localCalls++
 	return s.localNodeID, nil
 }
 
@@ -31,6 +33,21 @@ func (s *stubClusterProbeStore) SaveMember(member *model.ClusterMember) error {
 		}
 	}
 	return nil
+}
+
+func TestClusterPeerProbeServiceSkipsIdentityWithoutMembers(t *testing.T) {
+	store := &stubClusterProbeStore{}
+	prober := &ClusterPeerProbeService{
+		store:        store,
+		reachability: &ClusterReachabilityService{store: newStubClusterReachabilityStore(), policy: DefaultClusterReachabilityPolicy()},
+	}
+
+	if err := prober.ProbeIdlePeers(context.Background()); err != nil {
+		t.Fatalf("probe idle peers without members: %v", err)
+	}
+	if store.localCalls != 0 {
+		t.Fatalf("expected no local identity lookup without members, got %d calls", store.localCalls)
+	}
 }
 
 func TestClusterPeerProbeServiceMarksIdlePeerReachableOnHeartbeatSuccess(t *testing.T) {

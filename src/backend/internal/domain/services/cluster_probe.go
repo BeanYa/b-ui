@@ -47,11 +47,14 @@ func NewRuntimeClusterPeerProbeService() *ClusterPeerProbeService {
 }
 
 func (s *ClusterPeerProbeService) ProbeIdlePeers(ctx context.Context) error {
-	localNodeID, err := s.getStore().GetLocalNodeID()
+	members, err := s.getStore().ListMembersWithDomain()
 	if err != nil {
 		return err
 	}
-	members, err := s.getStore().ListMembersWithDomain()
+	if len(members) == 0 {
+		return nil
+	}
+	localNodeID, err := s.getStore().GetLocalNodeID()
 	if err != nil {
 		return err
 	}

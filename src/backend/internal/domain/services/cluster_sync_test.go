@@ -6,8 +6,10 @@ import (
 	"crypto/rand"
 	"encoding/base64"
 	"fmt"
+	"path/filepath"
 	"testing"
 
+	"github.com/BeanYa/b-ui/src/backend/internal/domain/config"
 	"github.com/BeanYa/b-ui/src/backend/internal/infra/db/model"
 )
 
@@ -388,6 +390,195 @@ func TestClusterSyncServicePanelUpdateStatusUpdatesSourceMember(t *testing.T) {
 	}
 }
 
+func TestClusterSyncServiceReportsLocalPanelStatusAfterRestart(t *testing.T) {
+	stateDir := t.TempDir()
+	originalStatePath := panelUpdateStateFilePath
+	panelUpdateStateFilePath = func() string {
+		return filepath.Join(stateDir, "panel-update-state.json")
+	}
+	t.Cleanup(func() {
+		panelUpdateStateFilePath = originalStatePath
+	})
+
+	secret := []byte("panel-secret-for-cluster-tests")
+	currentVersion := canonicalizeReleaseTag(config.GetVersion())
+	store := &stubClusterSyncStore{
+		domains: map[uint]*model.ClusterDomain{
+			1: {
+				Id:             1,
+				Domain:         "edge.example.com",
+				HubURL:         "https://hub.example.com",
+				TokenEncrypted: mustEncryptClusterToken(t, string(secret), "domain-token"),
+			},
+		},
+		members: map[string]*model.ClusterMember{
+			stubClusterSyncKey(1, "node-local"): {NodeID: "node-local", DomainID: 1, PanelVersion: "v0.1.61", Status: "offline"},
+			stubClusterSyncKey(1, "node-peer"):  {NodeID: "node-peer", DomainID: 1, PanelVersion: "v0.1.61", Status: "offline"},
+		},
+	}
+	broadcaster := &stubClusterBroadcaster{}
+	hub := &stubClusterUpdateHubClient{}
+	service := &ClusterSyncService{
+		store:          store,
+		broadcaster:    broadcaster,
+		hubClient:      hub,
+		secretProvider: stubClusterSecretProvider{secret: secret},
+		localIdentity:  &ClusterLocalIdentityService{store: &stubClusterLocalNodeStore{node: &model.ClusterLocalNode{NodeID: "node-local"}}},
+	}
+
+	if err := service.ReportLocalPanelStatus(context.Background()); err != nil {
+		t.Fatalf("report local panel status: %v", err)
+	}
+
+	member := store.members[stubClusterSyncKey(1, "node-local")]
+	if member.Status != ClusterPanelUpdateStatusOnline || member.PanelVersion != currentVersion {
+		t.Fatalf("expected local member online with current version %s, got %#v", currentVersion, member)
+	}
+	if hub.setStatusCalls != 1 || hub.lastStatus != ClusterPanelUpdateStatusOnline || hub.lastPanelVersion != currentVersion {
+		t.Fatalf("expected hub online report with current version, got calls=%d status=%q version=%q", hub.setStatusCalls, hub.lastStatus, hub.lastPanelVersion)
+	}
+	if broadcaster.statusCalls != 1 || broadcaster.statuses[0] != ClusterPanelUpdateStatusOnline || broadcaster.statusPanelVersions[0] != currentVersion {
+		t.Fatalf("expected peer online broadcast with current version, got %#v", broadcaster)
+	}
+}
+
+func TestClusterSyncServiceSkipsPanelStatusReportWithoutDomains(t *testing.T) {
+	stateDir := t.TempDir()
+	originalStatePath := panelUpdateStateFilePath
+	panelUpdateStateFilePath = func() string {
+		return filepath.Join(stateDir, "panel-update-state.json")
+	}
+	t.Cleanup(func() {
+		panelUpdateStateFilePath = originalStatePath
+	})
+
+	store := &stubClusterSyncStore{
+		domains: map[uint]*model.ClusterDomain{},
+		members: map[string]*model.ClusterMember{},
+	}
+	identity := &stubClusterLocalIdentityProvider{}
+	broadcaster := &stubClusterBroadcaster{}
+	hub := &stubClusterUpdateHubClient{}
+	service := &ClusterSyncService{
+		store:         store,
+		broadcaster:   broadcaster,
+		hubClient:     hub,
+		localIdentity: identity,
+	}
+
+	if err := service.ReportLocalPanelStatus(context.Background()); err != nil {
+		t.Fatalf("report local panel status without domains: %v", err)
+	}
+	if identity.calls != 0 {
+		t.Fatalf("expected no local identity access without domains, got %d calls", identity.calls)
+	}
+	if hub.setStatusCalls != 0 {
+		t.Fatalf("expected no hub status report without domains, got %d calls", hub.setStatusCalls)
+	}
+	if broadcaster.statusCalls != 0 {
+		t.Fatalf("expected no peer broadcast without domains, got %d calls", broadcaster.statusCalls)
+	}
+}
+
+func TestClusterSyncServiceSkipsPanelStatusReportWithoutReportableDomains(t *testing.T) {
+	stateDir := t.TempDir()
+	originalStatePath := panelUpdateStateFilePath
+	panelUpdateStateFilePath = func() string {
+		return filepath.Join(stateDir, "panel-update-state.json")
+	}
+	t.Cleanup(func() {
+		panelUpdateStateFilePath = originalStatePath
+	})
+
+	store := &stubClusterSyncStore{
+		domains: map[uint]*model.ClusterDomain{
+			1: {Id: 1, Domain: "local-only.example.com"},
+		},
+		members: map[string]*model.ClusterMember{},
+	}
+	identity := &stubClusterLocalIdentityProvider{}
+	service := &ClusterSyncService{
+		store:         store,
+		localIdentity: identity,
+	}
+
+	if err := service.ReportLocalPanelStatus(context.Background()); err != nil {
+		t.Fatalf("report local panel status without reportable domains: %v", err)
+	}
+	if identity.calls != 0 {
+		t.Fatalf("expected no local identity access without reportable domains, got %d calls", identity.calls)
+	}
+}
+
+func TestClusterSyncServiceSkipsPanelStatusReportWithoutLocalMember(t *testing.T) {
+	stateDir := t.TempDir()
+	originalStatePath := panelUpdateStateFilePath
+	panelUpdateStateFilePath = func() string {
+		return filepath.Join(stateDir, "panel-update-state.json")
+	}
+	t.Cleanup(func() {
+		panelUpdateStateFilePath = originalStatePath
+	})
+
+	secret := []byte("panel-secret-for-cluster-tests")
+	store := &stubClusterSyncStore{
+		domains: map[uint]*model.ClusterDomain{
+			1: {
+				Id:             1,
+				Domain:         "edge.example.com",
+				HubURL:         "https://hub.example.com",
+				TokenEncrypted: mustEncryptClusterToken(t, string(secret), "domain-token"),
+			},
+		},
+		members: map[string]*model.ClusterMember{
+			stubClusterSyncKey(1, "node-peer"): {NodeID: "node-peer", DomainID: 1, PanelVersion: "v0.1.61", Status: "offline"},
+		},
+	}
+	broadcaster := &stubClusterBroadcaster{}
+	hub := &stubClusterUpdateHubClient{}
+	service := &ClusterSyncService{
+		store:          store,
+		broadcaster:    broadcaster,
+		hubClient:      hub,
+		secretProvider: stubClusterSecretProvider{secret: secret},
+		localIdentity:  &stubClusterLocalIdentityProvider{node: &model.ClusterLocalNode{NodeID: "node-local"}},
+	}
+
+	if err := service.ReportLocalPanelStatus(context.Background()); err != nil {
+		t.Fatalf("report local panel status without local member: %v", err)
+	}
+	if hub.setStatusCalls != 0 {
+		t.Fatalf("expected no hub status report without local member, got %d calls", hub.setStatusCalls)
+	}
+	if broadcaster.statusCalls != 0 {
+		t.Fatalf("expected no peer broadcast without local member, got %d calls", broadcaster.statusCalls)
+	}
+}
+
+func TestSyncMemberProviderSkipsIdentityWithoutDomains(t *testing.T) {
+	store := &stubClusterSyncStore{
+		domains: map[uint]*model.ClusterDomain{},
+		members: map[string]*model.ClusterMember{},
+	}
+	identity := &stubClusterLocalIdentityProvider{}
+	provider := &syncMemberProvider{
+		store:          store,
+		secretProvider: stubClusterSecretProvider{secret: []byte("panel-secret-for-cluster-tests")},
+		localIdentity:  identity,
+	}
+
+	domains, err := provider.GetAllDomains()
+	if err != nil {
+		t.Fatalf("get domains: %v", err)
+	}
+	if len(domains) != 0 {
+		t.Fatalf("expected no domains, got %#v", domains)
+	}
+	if identity.calls != 0 {
+		t.Fatalf("expected no local identity access without domains, got %d calls", identity.calls)
+	}
+}
+
 func TestClusterSyncServiceUsesDomainScopedMemberLookup(t *testing.T) {
 	store := &stubClusterSyncStore{
 		domains: map[uint]*model.ClusterDomain{
@@ -525,6 +716,23 @@ func (s *stubClusterBroadcaster) BroadcastUpdateStatus(_ context.Context, _ uint
 	return nil
 }
 
+type stubClusterLocalIdentityProvider struct {
+	calls int
+	node  *model.ClusterLocalNode
+	err   error
+}
+
+func (s *stubClusterLocalIdentityProvider) GetOrCreate() (*model.ClusterLocalNode, error) {
+	s.calls++
+	if s.err != nil {
+		return nil, s.err
+	}
+	if s.node != nil {
+		return s.node, nil
+	}
+	return &model.ClusterLocalNode{NodeID: "node-local"}, nil
+}
+
 type stubClusterPanelUpdater struct {
 	info            *PanelUpdateInfo
 	infoErr         error
@@ -557,6 +765,7 @@ type stubClusterUpdateHubClient struct {
 	setStatusCalls     int
 	lastClaimTarget    string
 	lastStatus         string
+	lastPanelVersion   string
 	claimResponse      *ClusterHubClaimUpdateResponse
 	claimErr           error
 	setMemberStatusErr error
@@ -574,9 +783,10 @@ func (s *stubClusterUpdateHubClient) ClaimUpdate(_ context.Context, _ string, _ 
 	return &ClusterHubClaimUpdateResponse{Proceed: true, TargetVersion: targetVersion}, nil
 }
 
-func (s *stubClusterUpdateHubClient) SetMemberStatus(_ context.Context, _ string, _ string, _ string, _ string, _ string, status string, _ string) (*ClusterHubMemberStatusResponse, error) {
+func (s *stubClusterUpdateHubClient) SetMemberStatus(_ context.Context, _ string, _ string, _ string, _ string, _ string, status string, panelVersion string) (*ClusterHubMemberStatusResponse, error) {
 	s.setStatusCalls++
 	s.lastStatus = status
+	s.lastPanelVersion = panelVersion
 	if s.setMemberStatusErr != nil {
 		return nil, s.setMemberStatusErr
 	}

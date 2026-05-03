@@ -92,11 +92,14 @@ func TestClusterLocalIdentityStoreCreatesAndReusesKeypair(t *testing.T) {
 }
 
 type stubClusterLocalNodeStore struct {
-	node   *model.ClusterLocalNode
-	nextID uint
+	node        *model.ClusterLocalNode
+	nextID      uint
+	firstCalls  int
+	createCalls int
 }
 
 func (s *stubClusterLocalNodeStore) First() (*model.ClusterLocalNode, error) {
+	s.firstCalls++
 	if s.node == nil {
 		return nil, errClusterLocalNodeNotFound
 	}
@@ -105,6 +108,7 @@ func (s *stubClusterLocalNodeStore) First() (*model.ClusterLocalNode, error) {
 }
 
 func (s *stubClusterLocalNodeStore) Create(node *model.ClusterLocalNode) error {
+	s.createCalls++
 	s.nextID++
 	copy := *node
 	copy.Id = s.nextID

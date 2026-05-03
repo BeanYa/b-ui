@@ -7,12 +7,24 @@ import (
 
 	service "github.com/BeanYa/b-ui/src/backend/internal/domain/services"
 	"github.com/BeanYa/b-ui/src/backend/internal/domain/services/ping"
+	"github.com/BeanYa/b-ui/src/backend/internal/infra/db/model"
 	logger "github.com/BeanYa/b-ui/src/backend/internal/infra/logging"
 )
 
 type ClusterMeshPingJob struct {
 	mu      sync.Mutex
 	lastRun map[uint]time.Time
+}
+
+type clusterMeshPingService interface {
+	ListDomains() ([]service.ClusterDomainResponse, error)
+	ListMembers() ([]service.ClusterMemberResponse, error)
+	GetDomain(uint) (*model.ClusterDomain, error)
+	GetMemberConnection(string) (*service.ClusterMemberConnectionResponse, error)
+}
+
+var newClusterServiceForMeshPing = func() clusterMeshPingService {
+	return &service.ClusterService{}
 }
 
 func NewClusterMeshPingJob() *ClusterMeshPingJob {
@@ -22,12 +34,15 @@ func NewClusterMeshPingJob() *ClusterMeshPingJob {
 }
 
 func (j *ClusterMeshPingJob) Run() {
-	cs := &service.ClusterService{}
+	cs := newClusterServiceForMeshPing()
 	domains, err := cs.ListDomains()
 	if err != nil {
 		logger.ClusterError(logger.ClusterCron, "mesh_ping.list_domains", map[string]interface{}{
 			"error": err.Error(),
 		})
+		return
+	}
+	if len(domains) == 0 {
 		return
 	}
 
@@ -57,11 +72,11 @@ func (j *ClusterMeshPingJob) Run() {
 			continue
 		}
 
-		j.runPing(domain.Domain, domain.ID, members, policy.MaxConcurrent)
+		j.runPing(cs, domain.Domain, domain.ID, members, policy.MaxConcurrent)
 	}
 }
 
-func (j *ClusterMeshPingJob) runPing(domainStr string, domainID uint, members []service.ClusterMemberResponse, maxConcurrent int) {
+func (j *ClusterMeshPingJob) runPing(cs clusterMeshPingService, domainStr string, domainID uint, members []service.ClusterMemberResponse, maxConcurrent int) {
 	if !ping.AcquireMeshPingLock() {
 		return
 	}
@@ -75,7 +90,7 @@ func (j *ClusterMeshPingJob) runPing(domainStr string, domainID uint, members []
 		if m.DomainID != domainID {
 			continue
 		}
-		conn, _ := (&service.ClusterService{}).GetMemberConnection(m.NodeID)
+		conn, _ := cs.GetMemberConnection(m.NodeID)
 		pm := ping.MeshMember{
 			MemberID: m.NodeID,
 			NodeID:   m.NodeID,

@@ -1063,6 +1063,26 @@ func TestClusterServiceReceivePeerMessageRefreshesNewerMembershipBeforeSignature
 	}
 }
 
+func TestClusterServiceGetAllDomainsSkipsIdentityWithoutDomains(t *testing.T) {
+	localStore := &stubClusterLocalNodeStore{}
+	service := &ClusterService{
+		store:          &stubClusterServiceStore{domains: map[string]*model.ClusterDomain{}},
+		secretProvider: stubClusterSecretProvider{secret: []byte("panel-secret-for-cluster-tests")},
+		localIdentity:  ClusterLocalIdentityService{store: localStore},
+	}
+
+	domains, err := service.GetAllDomains()
+	if err != nil {
+		t.Fatalf("get all domains: %v", err)
+	}
+	if len(domains) != 0 {
+		t.Fatalf("expected no domains, got %#v", domains)
+	}
+	if localStore.firstCalls != 0 || localStore.createCalls != 0 {
+		t.Fatalf("expected no local identity access without domains, got first=%d create=%d", localStore.firstCalls, localStore.createCalls)
+	}
+}
+
 type stubClusterServiceStore struct {
 	domains         map[string]*model.ClusterDomain
 	domainsList     []model.ClusterDomain
