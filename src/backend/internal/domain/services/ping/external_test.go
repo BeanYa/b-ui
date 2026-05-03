@@ -48,7 +48,7 @@ func TestDefaultExternalConfigUsesCurrentNodeProviderModel(t *testing.T) {
 
 func TestNormalizeExternalConfigCorrectsLegacyZStaticDirection(t *testing.T) {
 	config := normalizeExternalConfig(&ExternalConfig{Sources: []ExternalSource{
-		{ID: "zstatic_cdn", Name: "Zstatic CDN", Type: "cdn_ping", Direction: "inbound", Enabled: false},
+		{ID: "zstatic_cdn", Name: "Zstatic CDN", Type: "cdn_ping", Direction: "inbound", Enabled: false, APIKey: "legacy-key", WorkerURL: "https://worker.example"},
 	}})
 
 	var zstatic ExternalSource
@@ -67,6 +67,66 @@ func TestNormalizeExternalConfigCorrectsLegacyZStaticDirection(t *testing.T) {
 	}
 	if zstatic.Enabled {
 		t.Fatal("expected normalization to preserve disabled enabled flag")
+	}
+	if zstatic.APIKey != "legacy-key" {
+		t.Fatalf("expected normalization to preserve api key, got %q", zstatic.APIKey)
+	}
+	if zstatic.WorkerURL != "https://worker.example" {
+		t.Fatalf("expected normalization to preserve worker url, got %q", zstatic.WorkerURL)
+	}
+}
+
+func TestRunInboundUnknownEnabledProviderReturnsErrorResult(t *testing.T) {
+	svc := NewExternalService(newStoreWithDir(t.TempDir()))
+
+	data, err := svc.RunInbound(context.Background(), []string{"check_host"}, []MeshMember{
+		{MemberID: "node-a", NodeID: "node-a", Name: "Node A", Address: "node-a.example"},
+	})
+	if err != nil {
+		t.Fatalf("RunInbound: %v", err)
+	}
+	if len(data.Results) != 1 {
+		t.Fatalf("expected one error result for unimplemented inbound provider, got %d", len(data.Results))
+	}
+	result := data.Results[0]
+	if result.Success {
+		t.Fatal("expected unimplemented inbound provider result to fail")
+	}
+	if result.Direction != "inbound" {
+		t.Fatalf("expected inbound direction, got %q", result.Direction)
+	}
+	if result.Source.ID != "check_host" || result.SourceLabel != "Check-Host" {
+		t.Fatalf("expected source populated from provider config, got source=%#v source_label=%q", result.Source, result.SourceLabel)
+	}
+	if result.Error == nil || *result.Error == "" {
+		t.Fatal("expected unimplemented inbound provider error message")
+	}
+}
+
+func TestRunOutboundUnknownEnabledProviderReturnsErrorResult(t *testing.T) {
+	svc := NewExternalService(newStoreWithDir(t.TempDir()))
+
+	data, err := svc.RunOutbound(context.Background(), []string{"zstatic_cdn"}, []MeshMember{
+		{MemberID: "node-a", NodeID: "node-a", Name: "Node A", Address: "node-a.example"},
+	})
+	if err != nil {
+		t.Fatalf("RunOutbound: %v", err)
+	}
+	if len(data.Results) != 1 {
+		t.Fatalf("expected one error result for unimplemented outbound provider, got %d", len(data.Results))
+	}
+	result := data.Results[0]
+	if result.Success {
+		t.Fatal("expected unimplemented outbound provider result to fail")
+	}
+	if result.Direction != "outbound" {
+		t.Fatalf("expected outbound direction, got %q", result.Direction)
+	}
+	if result.Source.ID != "zstatic_cdn" || result.SourceLabel != "ZStaticCDN" {
+		t.Fatalf("expected source populated from provider config, got source=%#v source_label=%q", result.Source, result.SourceLabel)
+	}
+	if result.Error == nil || *result.Error == "" {
+		t.Fatal("expected unimplemented outbound provider error message")
 	}
 }
 
@@ -100,6 +160,12 @@ func TestRunExternal_TargetNodeIDsFiltersMembers(t *testing.T) {
 	for _, result := range data.Results {
 		if result.SourceMemberID != "node-a" {
 			t.Fatalf("expected target filter to exclude node-b, got result from %q", result.SourceMemberID)
+		}
+		if result.Source.ID == "" {
+			t.Fatalf("expected legacy outbound source endpoint id to be populated, got %#v", result)
+		}
+		if result.Target.ID == "" {
+			t.Fatalf("expected legacy outbound target endpoint id to be populated, got %#v", result)
 		}
 	}
 }

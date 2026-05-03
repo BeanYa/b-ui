@@ -89,34 +89,41 @@ var outboundTargets = map[string][]externalTarget{
 // RunInbound runs inbound tests: each enabled external source pings each cluster member.
 func (s *ExternalService) RunInbound(ctx context.Context, sourceIDs []string, members []MeshMember) (*ExternalResultData, error) {
 	config := s.store.LoadExternalConfigOrDefault()
-	enabledSet := makeSourceSet(sourceIDs, config, "inbound")
+	enabledSources := enabledExternalSources(sourceIDs, config, DirectionInbound)
 
 	tasks := make([]func() ExternalTestResult, 0)
 
-	for sourceID := range enabledSet {
-		targets, ok := inboundTargets[sourceID]
+	for _, src := range enabledSources {
+		targets, ok := inboundTargets[src.ID]
 		if !ok {
+			src := src
+			tasks = append(tasks, func() ExternalTestResult {
+				return unimplementedProviderResult(src, DirectionInbound)
+			})
 			continue
 		}
 		for _, tgt := range targets {
 			for _, member := range members {
 				tgt := tgt
 				member := member
+				src := src
 				tasks = append(tasks, func() ExternalTestResult {
 					latency, err := s.meshSvc.icmpPing(ctx, member.Address)
 					r := ExternalTestResult{
 						SourceMemberID: "",
 						SourceLabel:    tgt.Label,
-						Direction:      "inbound",
+						Direction:      DirectionInbound,
 						TargetMemberID: member.MemberID,
 						TargetName:     member.Name,
+						Source:         externalTargetEndpoint(src.ID, tgt),
+						Target:         memberEndpoint(member),
 					}
 					if err != nil {
 						r.Success = false
 						r.Error = errorPtr(err.Error())
 					} else {
 						r.Success = true
-						r.Method = methodPtr("icmp")
+						r.Method = methodPtr(MethodICMP)
 						r.LatencyMs = latencyPtr(latency)
 					}
 					return r
@@ -136,18 +143,22 @@ func (s *ExternalService) RunInbound(ctx context.Context, sourceIDs []string, me
 // RunOutbound runs outbound tests: each cluster member pings external targets.
 func (s *ExternalService) RunOutbound(ctx context.Context, sourceIDs []string, members []MeshMember) (*ExternalResultData, error) {
 	config := s.store.LoadExternalConfigOrDefault()
-	enabledSet := makeSourceSet(sourceIDs, config, "outbound")
+	enabledSources := enabledExternalSources(sourceIDs, config, DirectionOutbound)
 
 	tasks := make([]func() ExternalTestResult, 0)
 
-	for sourceID := range enabledSet {
-		targets, ok := outboundTargets[sourceID]
+	for _, src := range enabledSources {
+		targets, ok := outboundTargets[src.ID]
 		if !ok {
+			src := src
+			tasks = append(tasks, func() ExternalTestResult {
+				return unimplementedProviderResult(src, DirectionOutbound)
+			})
 			continue
 		}
 		for _, member := range members {
 			for _, tgt := range targets {
-				sourceID := sourceID
+				sourceID := src.ID
 				member := member
 				tgt := tgt
 				tasks = append(tasks, func() ExternalTestResult {
@@ -169,9 +180,11 @@ func probeExternalTarget(ctx context.Context, meshSvc *MeshService, dialer *net.
 	r := ExternalTestResult{
 		SourceMemberID: member.MemberID,
 		SourceLabel:    member.Name,
-		Direction:      "outbound",
+		Direction:      DirectionOutbound,
 		TargetMemberID: tgt.Label,
 		TargetName:     tgt.IP,
+		Source:         memberEndpoint(member),
+		Target:         externalTargetEndpoint(sourceID, tgt),
 	}
 
 	// For ICMP-only sources, skip TCP/HTTP
@@ -180,7 +193,7 @@ func probeExternalTarget(ctx context.Context, meshSvc *MeshService, dialer *net.
 		latency, err := meshSvc.icmpPing(ctx, tgt.IP)
 		if err == nil {
 			r.Success = true
-			r.Method = methodPtr("icmp")
+			r.Method = methodPtr(MethodICMP)
 			r.LatencyMs = latencyPtr(latency)
 		} else {
 			r.Success = false
@@ -193,14 +206,14 @@ func probeExternalTarget(ctx context.Context, meshSvc *MeshService, dialer *net.
 		latency, err := meshSvc.httpPing(ctx, "https://"+tgt.IP, "")
 		if err == nil {
 			r.Success = true
-			r.Method = methodPtr("http")
+			r.Method = methodPtr(MethodHTTP)
 			r.LatencyMs = latencyPtr(latency)
 			return r
 		}
 		latency, err = meshSvc.icmpPing(ctx, tgt.IP)
 		if err == nil {
 			r.Success = true
-			r.Method = methodPtr("icmp")
+			r.Method = methodPtr(MethodICMP)
 			r.LatencyMs = latencyPtr(latency)
 			return r
 		}
@@ -213,7 +226,7 @@ func probeExternalTarget(ctx context.Context, meshSvc *MeshService, dialer *net.
 	latency, err := meshSvc.icmpPing(ctx, tgt.IP)
 	if err == nil {
 		r.Success = true
-		r.Method = methodPtr("icmp")
+		r.Method = methodPtr(MethodICMP)
 		r.LatencyMs = latencyPtr(latency)
 	} else {
 		r.Success = false
@@ -236,9 +249,11 @@ func (s *ExternalService) RunRIPEAtlas(ctx context.Context, apiKey string, membe
 		r := ExternalTestResult{
 			SourceMemberID: "",
 			SourceLabel:    "RIPE Atlas",
-			Direction:      "inbound",
+			Direction:      DirectionInbound,
 			TargetMemberID: member.MemberID,
 			TargetName:     member.Name,
+			Source:         providerEndpoint(ExternalSource{ID: "ripe_atlas", Name: "RIPE Atlas"}),
+			Target:         memberEndpoint(member),
 			Success:        false,
 			Error:          errorPtr("RIPE Atlas integration not implemented — requires measurement lifecycle management"),
 		}
@@ -261,7 +276,7 @@ func (s *ExternalService) Run(ctx context.Context, req ExternalRunRequest, membe
 			if src.ID != sid || !src.Enabled {
 				continue
 			}
-			if src.Direction == "inbound" {
+			if src.Direction == DirectionInbound {
 				enabledIn = append(enabledIn, sid)
 			} else {
 				enabledOut = append(enabledOut, sid)
@@ -347,15 +362,50 @@ func runExternalProbeTasks(maxConcurrent int, tasks []func() ExternalTestResult)
 	return results
 }
 
-func makeSourceSet(requestIDs []string, config *ExternalConfig, direction string) map[string]bool {
-	set := make(map[string]bool)
+func enabledExternalSources(requestIDs []string, config *ExternalConfig, direction string) []ExternalSource {
+	sources := make([]ExternalSource, 0)
 	for _, sid := range requestIDs {
 		for _, src := range config.Sources {
 			if src.ID == sid && src.Enabled && src.Direction == direction {
-				set[sid] = true
+				sources = append(sources, src)
 				break
 			}
 		}
 	}
-	return set
+	return sources
+}
+
+func providerEndpoint(src ExternalSource) ExternalEndpoint {
+	return ExternalEndpoint{
+		ID:       src.ID,
+		Label:    src.Name,
+		Provider: src.ID,
+	}
+}
+
+func memberEndpoint(member MeshMember) ExternalEndpoint {
+	return ExternalEndpoint{
+		ID:    member.MemberID,
+		Label: member.Name,
+		Host:  member.Address,
+	}
+}
+
+func externalTargetEndpoint(providerID string, tgt externalTarget) ExternalEndpoint {
+	return ExternalEndpoint{
+		ID:       tgt.Label,
+		Label:    tgt.Label,
+		Provider: providerID,
+		Host:     tgt.IP,
+	}
+}
+
+func unimplementedProviderResult(src ExternalSource, direction string) ExternalTestResult {
+	return ExternalTestResult{
+		SourceLabel: src.Name,
+		Direction:   direction,
+		Source:      providerEndpoint(src),
+		Success:     false,
+		Error:       errorPtr(fmt.Sprintf("external provider %q is not implemented yet", src.ID)),
+	}
 }
