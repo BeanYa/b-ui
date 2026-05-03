@@ -443,6 +443,54 @@ func TestRunCheckHostTCPParsesNodeMetadataAndLatency(t *testing.T) {
 	}
 }
 
+func TestRunCheckHostTCPPollsUntilAllStartedNodesComplete(t *testing.T) {
+	var resultSeen int
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		switch r.URL.Path {
+		case "/check-tcp":
+			fmt.Fprint(w, `{"ok":1,"request_id":"req-partial","nodes":{"us1.node.check-host.net":["us","USA","Los Angeles","5.253.30.82","AS18978"],"de1.node.check-host.net":["de","Germany","Frankfurt","46.4.143.48","AS24940"]}}`)
+		case "/check-result/req-partial":
+			resultSeen++
+			if resultSeen == 1 {
+				fmt.Fprint(w, `{"us1.node.check-host.net":[{"time":0.031}],"de1.node.check-host.net":null}`)
+				return
+			}
+			fmt.Fprint(w, `{"us1.node.check-host.net":[{"time":0.031}],"de1.node.check-host.net":[{"time":0.045}]}`)
+		default:
+			http.NotFound(w, r)
+		}
+	}))
+	defer server.Close()
+
+	svc := NewExternalService(newStoreWithDir(t.TempDir()))
+	svc.checkHostBaseURL = server.URL
+	svc.checkHostPollDelay = 0
+	svc.checkHostPollAttempts = 2
+
+	results := svc.runCheckHostTCP(context.Background(), ExternalEndpoint{
+		ID:    "current-target",
+		Label: "Panel",
+		Host:  "panel.example.com",
+		Port:  443,
+	})
+
+	if resultSeen != 2 {
+		t.Fatalf("expected second Check-Host result poll, got %d polls", resultSeen)
+	}
+	if len(results) != 2 {
+		t.Fatalf("expected two node results, got %d", len(results))
+	}
+	for _, result := range results {
+		if !result.Success {
+			t.Fatalf("expected completed node result to succeed, got %#v", result)
+		}
+		if result.LatencyMs == nil {
+			t.Fatalf("expected latency for node %q", result.Source.ID)
+		}
+	}
+}
+
 func TestRunCheckHostTCPTreatsFailureTupleAsFailedResult(t *testing.T) {
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "application/json")

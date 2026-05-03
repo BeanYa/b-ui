@@ -45,7 +45,7 @@ func (s *ExternalService) runCheckHostTCP(ctx context.Context, target ExternalEn
 	if err != nil {
 		return []ExternalTestResult{checkHostErrorResult(target, err)}
 	}
-	rawResults, err := s.fetchCheckHostTCPResults(ctx, start.RequestID)
+	rawResults, err := s.fetchCheckHostTCPResults(ctx, start.RequestID, start.Nodes)
 	if err != nil {
 		return []ExternalTestResult{checkHostErrorResult(target, err)}
 	}
@@ -108,7 +108,7 @@ func (s *ExternalService) startCheckHostTCP(ctx context.Context, target External
 	return &start, nil
 }
 
-func (s *ExternalService) fetchCheckHostTCPResults(ctx context.Context, requestID string) (map[string]interface{}, error) {
+func (s *ExternalService) fetchCheckHostTCPResults(ctx context.Context, requestID string, expectedNodes map[string][]string) (map[string]interface{}, error) {
 	attempts := s.checkHostPollAttempts
 	if attempts < 1 {
 		attempts = 1
@@ -132,7 +132,7 @@ func (s *ExternalService) fetchCheckHostTCPResults(ctx context.Context, requestI
 		if err != nil {
 			return nil, err
 		}
-		if checkHostHasAnyResult(results) {
+		if checkHostHasCompleteResults(results, expectedNodes) {
 			return results, nil
 		}
 	}
@@ -187,13 +187,21 @@ func sleepCheckHostPoll(ctx context.Context, delay time.Duration) error {
 	}
 }
 
-func checkHostHasAnyResult(results map[string]interface{}) bool {
-	for _, value := range results {
-		if value != nil {
-			return true
+func checkHostHasCompleteResults(results map[string]interface{}, expectedNodes map[string][]string) bool {
+	if len(expectedNodes) == 0 {
+		for _, value := range results {
+			if value != nil {
+				return true
+			}
+		}
+		return false
+	}
+	for nodeID := range expectedNodes {
+		if results[nodeID] == nil {
+			return false
 		}
 	}
-	return false
+	return true
 }
 
 func checkHostErrorResult(target ExternalEndpoint, err error) ExternalTestResult {
