@@ -20,11 +20,8 @@ type externalPingService interface {
 	Run(context.Context, ping.ExternalRunRequest, []ping.MeshMember) (*ping.ExternalResultData, error)
 }
 
-var knownInboundExternalSourceIDs = map[string]struct{}{
-	"check_host":         {},
-	"globalping":         {},
-	"ripe_atlas":         {},
-	"cloudflare_workers": {},
+var defaultEnabledInboundExternalSourceIDs = map[string]struct{}{
+	"check_host": {},
 }
 
 type pingAPIHandler struct {
@@ -286,7 +283,7 @@ func (h *pingAPIHandler) requestIncludesInboundExternalSource(sourceIDs []string
 
 	if h.store == nil {
 		for sourceID := range requested {
-			if _, ok := knownInboundExternalSourceIDs[sourceID]; ok {
+			if _, ok := defaultEnabledInboundExternalSourceIDs[sourceID]; ok {
 				return true
 			}
 		}
@@ -295,7 +292,7 @@ func (h *pingAPIHandler) requestIncludesInboundExternalSource(sourceIDs []string
 
 	config := h.store.LoadExternalConfigOrDefault()
 	for _, src := range config.Sources {
-		if _, ok := requested[src.ID]; ok && src.Direction == ping.DirectionInbound {
+		if _, ok := requested[src.ID]; ok && src.Enabled && src.Direction == ping.DirectionInbound {
 			return true
 		}
 	}
@@ -310,11 +307,30 @@ func externalTargetFromRequest(c *gin.Context) (*ping.ExternalTargetRequest, err
 
 	hostname, port, err := net.SplitHostPort(host)
 	if err == nil {
+		hostname = strings.TrimSpace(hostname)
+		if hostname == "" {
+			return nil, fmt.Errorf("inbound target host is required")
+		}
 		parsedPort, err := strconv.Atoi(port)
 		if err != nil {
 			return nil, fmt.Errorf("invalid inbound target port: %w", err)
 		}
 		return &ping.ExternalTargetRequest{Host: hostname, Port: parsedPort, Label: hostname}, nil
+	}
+
+	if strings.HasPrefix(host, "[") || strings.HasSuffix(host, "]") {
+		if strings.HasPrefix(host, "[") && strings.HasSuffix(host, "]") {
+			hostname := strings.TrimSpace(strings.TrimSuffix(strings.TrimPrefix(host, "["), "]"))
+			if hostname == "" {
+				return nil, fmt.Errorf("inbound target host is required")
+			}
+			return &ping.ExternalTargetRequest{Host: hostname, Label: hostname}, nil
+		}
+		return nil, fmt.Errorf("invalid inbound target host: %s", host)
+	}
+
+	if strings.Contains(host, ":") {
+		return nil, fmt.Errorf("invalid inbound target host: %s", host)
 	}
 
 	return &ping.ExternalTargetRequest{Host: host, Label: host}, nil

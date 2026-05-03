@@ -48,6 +48,15 @@ func newExternalPingTestRouter(externalSvc externalPingService) *gin.Engine {
 	return router
 }
 
+func externalTargetFromHostForTest(t *testing.T, host string) (*ping.ExternalTargetRequest, error) {
+	t.Helper()
+	gin.SetMode(gin.TestMode)
+	c, _ := gin.CreateTestContext(httptest.NewRecorder())
+	c.Request = httptest.NewRequest(http.MethodPost, "/api/ping/external", nil)
+	c.Request.Host = host
+	return externalTargetFromRequest(c)
+}
+
 func TestTriggerExternalPingOutboundDoesNotRequireClusterMembers(t *testing.T) {
 	stub := &externalPingServiceStub{}
 	router := newExternalPingTestRouter(stub)
@@ -169,6 +178,76 @@ func TestTriggerExternalPingLegacyInboundSourceDerivesTargetFromRequestHost(t *t
 	}
 	if stub.req.Target.Label != "panel.example.com" {
 		t.Fatalf("expected derived target label panel.example.com, got %q", stub.req.Target.Label)
+	}
+}
+
+func TestTriggerExternalPingDisabledInboundSourceDoesNotDeriveTarget(t *testing.T) {
+	stub := &externalPingServiceStub{}
+	router := newExternalPingTestRouter(stub)
+	req := httptest.NewRequest(
+		http.MethodPost,
+		"/api/ping/external",
+		bytes.NewBufferString(`{"source_ids":["globalping"]}`),
+	)
+	req.Host = "panel.example.com:8443"
+	req.Header.Set("Content-Type", "application/json")
+	req.Header.Set("Cookie", loginCookie(t, router, "admin"))
+	recorder := httptest.NewRecorder()
+
+	router.ServeHTTP(recorder, req)
+
+	if recorder.Code != http.StatusOK {
+		t.Fatalf("expected disabled inbound source status %d, got %d", http.StatusOK, recorder.Code)
+	}
+	var response Msg
+	decodeResponse(t, recorder, &response)
+	if !response.Success {
+		t.Fatalf("expected disabled inbound source request success from stub, got %#v", response)
+	}
+	if !stub.called {
+		t.Fatal("expected external ping service to be called")
+	}
+	if stub.req.Target != nil {
+		t.Fatalf("expected disabled inbound source not to derive target, got %#v", stub.req.Target)
+	}
+}
+
+func TestExternalTargetFromRequestParsesBracketedIPv6WithoutPort(t *testing.T) {
+	target, err := externalTargetFromHostForTest(t, "[2001:db8::1]")
+	if err != nil {
+		t.Fatalf("expected bracketed IPv6 without port to parse, got error %v", err)
+	}
+	if target.Host != "2001:db8::1" {
+		t.Fatalf("expected IPv6 host without brackets, got %q", target.Host)
+	}
+	if target.Port != 0 {
+		t.Fatalf("expected no IPv6 target port, got %d", target.Port)
+	}
+	if target.Label != "2001:db8::1" {
+		t.Fatalf("expected IPv6 label without brackets, got %q", target.Label)
+	}
+}
+
+func TestExternalTargetFromRequestParsesBracketedIPv6WithPort(t *testing.T) {
+	target, err := externalTargetFromHostForTest(t, "[2001:db8::1]:8443")
+	if err != nil {
+		t.Fatalf("expected bracketed IPv6 with port to parse, got error %v", err)
+	}
+	if target.Host != "2001:db8::1" {
+		t.Fatalf("expected IPv6 host without brackets, got %q", target.Host)
+	}
+	if target.Port != 8443 {
+		t.Fatalf("expected IPv6 target port 8443, got %d", target.Port)
+	}
+	if target.Label != "2001:db8::1" {
+		t.Fatalf("expected IPv6 label without brackets, got %q", target.Label)
+	}
+}
+
+func TestExternalTargetFromRequestRejectsMalformedMultiColonHost(t *testing.T) {
+	target, err := externalTargetFromHostForTest(t, "bad:host:8443")
+	if err == nil {
+		t.Fatalf("expected malformed multi-colon host error, got target %#v", target)
 	}
 }
 
