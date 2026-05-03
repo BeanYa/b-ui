@@ -46,6 +46,59 @@ func TestDefaultExternalConfigUsesCurrentNodeProviderModel(t *testing.T) {
 	}
 }
 
+func TestZStaticTargetsUsePublishedPortsOnly(t *testing.T) {
+	targets := zstaticTargets()
+	if len(targets) == 0 {
+		t.Fatal("expected ZStatic target catalogue")
+	}
+	for _, target := range targets {
+		if target.Provider != "zstatic_cdn" {
+			t.Fatalf("expected provider zstatic_cdn, got %q", target.Provider)
+		}
+		if target.Host == "" {
+			t.Fatalf("expected host for %#v", target)
+		}
+		if target.Port <= 0 {
+			t.Fatalf("expected published port for %#v", target)
+		}
+		if !methodAllowed(MethodTCP, target.Methods) {
+			t.Fatalf("expected TCP method for %#v", target)
+		}
+	}
+}
+
+func TestRunOutboundUsesCurrentNodeOnceWithoutMembers(t *testing.T) {
+	t.Skip("implemented in Task 3")
+
+	svc := NewExternalService(newStoreWithDir(t.TempDir()))
+	svc.probeEndpoint = func(ctx context.Context, endpoint ExternalEndpoint, methods []string) (string, float64, error) {
+		return MethodTCP, 14.2, nil
+	}
+
+	data, err := svc.Run(context.Background(), ExternalRunRequest{
+		Direction: DirectionOutbound,
+		SourceIDs: []string{"public_dns"},
+		Methods:   []string{MethodTCP},
+	}, nil)
+	if err != nil {
+		t.Fatalf("Run outbound: %v", err)
+	}
+	if len(data.Results) == 0 {
+		t.Fatal("expected outbound results")
+	}
+	for _, result := range data.Results {
+		if result.Direction != DirectionOutbound {
+			t.Fatalf("expected outbound direction, got %q", result.Direction)
+		}
+		if result.Source.ID != "current-panel" {
+			t.Fatalf("expected current-panel source, got %#v", result.Source)
+		}
+		if result.SourceMemberID != "current-panel" {
+			t.Fatalf("expected legacy current-panel source id, got %q", result.SourceMemberID)
+		}
+	}
+}
+
 func TestNormalizeExternalConfigCorrectsLegacyZStaticDirection(t *testing.T) {
 	config := normalizeExternalConfig(&ExternalConfig{Sources: []ExternalSource{
 		{ID: "zstatic_cdn", Name: "Zstatic CDN", Type: "cdn_ping", Direction: "inbound", Enabled: false, APIKey: "legacy-key", WorkerURL: "https://worker.example"},

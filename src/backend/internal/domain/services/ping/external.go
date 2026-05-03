@@ -9,20 +9,37 @@ import (
 	"time"
 )
 
+type externalEndpointProbe func(context.Context, ExternalEndpoint, []string) (string, float64, error)
+
 type ExternalService struct {
-	store      *Store
-	meshSvc    *MeshService
-	httpClient *http.Client
-	tcpDialer  *net.Dialer
+	store         *Store
+	meshSvc       *MeshService
+	httpClient    *http.Client
+	tcpDialer     *net.Dialer
+	probeEndpoint externalEndpointProbe
 }
 
 func NewExternalService(store *Store) *ExternalService {
-	return &ExternalService{
+	svc := &ExternalService{
 		store:      store,
 		meshSvc:    NewMeshService(),
 		httpClient: &http.Client{Timeout: 10 * time.Second},
 		tcpDialer:  &net.Dialer{Timeout: 5 * time.Second},
 	}
+	svc.probeEndpoint = svc.probeEndpointWithMethods
+	return svc
+}
+
+func currentPanelEndpoint() ExternalEndpoint {
+	return ExternalEndpoint{
+		ID:       "current-panel",
+		Label:    "Current panel",
+		Provider: "panel",
+	}
+}
+
+func (s *ExternalService) probeEndpointWithMethods(ctx context.Context, endpoint ExternalEndpoint, requestedMethods []string) (string, float64, error) {
+	return "", 0, fmt.Errorf("external endpoint probing is not wired yet")
 }
 
 type externalTarget struct {
