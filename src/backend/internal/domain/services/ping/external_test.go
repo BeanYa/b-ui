@@ -3,6 +3,7 @@ package ping
 import (
 	"context"
 	"fmt"
+	"math"
 	"net/http"
 	"net/http/httptest"
 	"net/url"
@@ -284,6 +285,225 @@ func TestRunOutboundIgnoresDeprecatedTargetNodeIDs(t *testing.T) {
 	}
 	if probed != len(publicDNSTargets()) {
 		t.Fatalf("expected %d probes, got %d", len(publicDNSTargets()), probed)
+	}
+}
+
+func TestRunInboundUsesExplicitTargetInStandaloneMode(t *testing.T) {
+	svc := NewExternalService(newStoreWithDir(t.TempDir()))
+	svc.runInboundProvider = func(ctx context.Context, sourceID string, target ExternalEndpoint) []ExternalTestResult {
+		return []ExternalTestResult{{
+			Direction: DirectionInbound,
+			Source:    ExternalEndpoint{ID: sourceID},
+			Target:    target,
+			Success:   true,
+		}}
+	}
+
+	data, err := svc.Run(context.Background(), ExternalRunRequest{
+		Direction: DirectionInbound,
+		SourceIDs: []string{"check_host"},
+		Target: &ExternalTargetRequest{
+			Host:  "panel.example.com",
+			Port:  443,
+			Label: "Panel",
+		},
+	}, nil)
+	if err != nil {
+		t.Fatalf("Run inbound: %v", err)
+	}
+	if len(data.Results) != 1 {
+		t.Fatalf("expected one inbound result, got %d", len(data.Results))
+	}
+	result := data.Results[0]
+	if result.Target.Host != "panel.example.com" {
+		t.Fatalf("expected explicit target host, got %q", result.Target.Host)
+	}
+	if result.Target.Port != 443 {
+		t.Fatalf("expected explicit target port, got %d", result.Target.Port)
+	}
+}
+
+func TestRunInboundRequiresExplicitTarget(t *testing.T) {
+	svc := NewExternalService(newStoreWithDir(t.TempDir()))
+
+	_, err := svc.Run(context.Background(), ExternalRunRequest{
+		Direction: DirectionInbound,
+		SourceIDs: []string{"check_host"},
+	}, nil)
+
+	if err == nil {
+		t.Fatal("expected missing inbound target to fail")
+	}
+	if !strings.Contains(err.Error(), "target") {
+		t.Fatalf("expected target error, got %v", err)
+	}
+}
+
+func TestTargetFromRequestDefaultsLabelAndPreservesPort(t *testing.T) {
+	target, err := targetFromRequest(&ExternalTargetRequest{
+		Host: " panel.example.com ",
+		Port: 0,
+	})
+	if err != nil {
+		t.Fatalf("targetFromRequest: %v", err)
+	}
+	if target.ID != "current-target" {
+		t.Fatalf("expected current-target id, got %q", target.ID)
+	}
+	if target.Provider != "panel" {
+		t.Fatalf("expected panel provider, got %q", target.Provider)
+	}
+	if target.Host != "panel.example.com" {
+		t.Fatalf("expected trimmed host, got %q", target.Host)
+	}
+	if target.Label != "panel.example.com" {
+		t.Fatalf("expected label to default to host, got %q", target.Label)
+	}
+	if target.Port != 0 {
+		t.Fatalf("expected port to be preserved exactly, got %d", target.Port)
+	}
+}
+
+func TestRunCheckHostTCPParsesNodeMetadataAndLatency(t *testing.T) {
+	var startSeen int
+	var resultSeen int
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.Header.Get("Accept") != "application/json" {
+			t.Fatalf("expected JSON accept header, got %q", r.Header.Get("Accept"))
+		}
+		w.Header().Set("Content-Type", "application/json")
+		switch r.URL.Path {
+		case "/check-tcp":
+			startSeen++
+			if r.URL.Query().Get("host") != "panel.example.com:443" {
+				t.Fatalf("expected explicit target address in query, got %q", r.URL.Query().Get("host"))
+			}
+			if r.URL.Query().Get("max_nodes") != "12" {
+				t.Fatalf("expected max_nodes=12, got %q", r.URL.Query().Get("max_nodes"))
+			}
+			fmt.Fprint(w, `{"ok":1,"request_id":"req-1","nodes":{"us1.node.check-host.net":["us","USA","Los Angeles","5.253.30.82","AS18978"],"de1.node.check-host.net":["de","Germany","Frankfurt","46.4.143.48","AS24940"]}}`)
+		case "/check-result/req-1":
+			resultSeen++
+			fmt.Fprint(w, `{"us1.node.check-host.net":[{"time":0.031,"address":"203.0.113.10"}],"de1.node.check-host.net":[[1,"0.045","OK"]]}`)
+		default:
+			http.NotFound(w, r)
+		}
+	}))
+	defer server.Close()
+
+	svc := NewExternalService(newStoreWithDir(t.TempDir()))
+	svc.checkHostBaseURL = server.URL
+	svc.checkHostPollDelay = 0
+	svc.checkHostPollAttempts = 1
+
+	target := ExternalEndpoint{ID: "current-target", Label: "Panel", Provider: "panel", Host: "panel.example.com", Port: 443}
+	results := svc.runCheckHostTCP(context.Background(), target)
+
+	if startSeen != 1 {
+		t.Fatalf("expected one Check-Host start request, got %d", startSeen)
+	}
+	if resultSeen != 1 {
+		t.Fatalf("expected one Check-Host result request, got %d", resultSeen)
+	}
+	if len(results) != 2 {
+		t.Fatalf("expected two Check-Host results, got %d", len(results))
+	}
+
+	byNode := make(map[string]ExternalTestResult, len(results))
+	for _, result := range results {
+		byNode[result.Source.ID] = result
+		if !result.Success {
+			t.Fatalf("expected successful result for %s: %#v", result.Source.ID, result)
+		}
+		if result.Direction != DirectionInbound {
+			t.Fatalf("expected inbound direction, got %q", result.Direction)
+		}
+		if result.Target.ID != target.ID || result.Target.Host != target.Host || result.Target.Port != target.Port || result.Target.Label != target.Label {
+			t.Fatalf("expected explicit target, got %#v", result.Target)
+		}
+		if result.Method == nil || *result.Method != MethodTCP {
+			t.Fatalf("expected tcp method, got %#v", result.Method)
+		}
+	}
+
+	us := byNode["us1.node.check-host.net"]
+	if us.Source.Provider != "check_host" {
+		t.Fatalf("expected check_host source provider, got %q", us.Source.Provider)
+	}
+	if us.Source.Country != "USA" || us.Source.City != "Los Angeles" || us.Source.Network != "AS18978" {
+		t.Fatalf("expected node metadata from Check-Host nodes map, got %#v", us.Source)
+	}
+	if us.LatencyMs == nil || math.Abs(*us.LatencyMs-31) > 0.001 {
+		t.Fatalf("expected 31ms latency, got %#v", us.LatencyMs)
+	}
+
+	de := byNode["de1.node.check-host.net"]
+	if de.LatencyMs == nil || math.Abs(*de.LatencyMs-45) > 0.001 {
+		t.Fatalf("expected nested string latency converted to 45ms, got %#v", de.LatencyMs)
+	}
+}
+
+func TestRunCheckHostTCPTreatsFailureTupleAsFailedResult(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		switch r.URL.Path {
+		case "/check-tcp":
+			fmt.Fprint(w, `{"ok":1,"request_id":"req-fail","nodes":{"hk1.node.check-host.net":["hk","Hong Kong","Hong Kong","203.0.113.45","AS64500"]}}`)
+		case "/check-result/req-fail":
+			fmt.Fprint(w, `{"hk1.node.check-host.net":[[0,"Connection refused"]]}`)
+		default:
+			http.NotFound(w, r)
+		}
+	}))
+	defer server.Close()
+
+	svc := NewExternalService(newStoreWithDir(t.TempDir()))
+	svc.checkHostBaseURL = server.URL
+	svc.checkHostPollDelay = 0
+	svc.checkHostPollAttempts = 1
+
+	results := svc.runCheckHostTCP(context.Background(), ExternalEndpoint{
+		ID:    "current-target",
+		Label: "Panel",
+		Host:  "panel.example.com",
+		Port:  443,
+	})
+	if len(results) != 1 {
+		t.Fatalf("expected one failed node result, got %d", len(results))
+	}
+	result := results[0]
+	if result.Success {
+		t.Fatalf("expected failure tuple to produce failed result, got %#v", result)
+	}
+	if result.Error == nil || !strings.Contains(*result.Error, "Connection refused") {
+		t.Fatalf("expected connection error message, got %#v", result.Error)
+	}
+	if result.Method != nil || result.LatencyMs != nil {
+		t.Fatalf("expected no success metadata, got method=%#v latency=%#v", result.Method, result.LatencyMs)
+	}
+}
+
+func TestRunInboundProviderDefaultUnknownProviderReturnsFailedResult(t *testing.T) {
+	svc := NewExternalService(newStoreWithDir(t.TempDir()))
+	target := ExternalEndpoint{ID: "current-target", Label: "Panel", Host: "panel.example.com", Port: 443}
+
+	results := svc.runInboundProviderDefault(context.Background(), "globalping", target)
+
+	if len(results) != 1 {
+		t.Fatalf("expected one failed provider result, got %d", len(results))
+	}
+	result := results[0]
+	if result.Success {
+		t.Fatalf("expected unknown provider to fail, got %#v", result)
+	}
+	if result.Direction != DirectionInbound {
+		t.Fatalf("expected inbound direction, got %q", result.Direction)
+	}
+	if result.Target.Host != target.Host || result.Target.Port != target.Port {
+		t.Fatalf("expected explicit target, got %#v", result.Target)
+	}
+	if result.Error == nil || !strings.Contains(*result.Error, "not implemented") {
+		t.Fatalf("expected clear not implemented error, got %#v", result.Error)
 	}
 }
 

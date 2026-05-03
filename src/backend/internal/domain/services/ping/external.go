@@ -6,28 +6,38 @@ import (
 	"net"
 	"net/http"
 	"strconv"
+	"strings"
 	"sync"
 	"time"
 )
 
 type externalEndpointProbe func(context.Context, ExternalEndpoint, []string) (string, float64, error)
+type inboundProviderRunner func(context.Context, string, ExternalEndpoint) []ExternalTestResult
 
 type ExternalService struct {
-	store         *Store
-	meshSvc       *MeshService
-	httpClient    *http.Client
-	tcpDialer     *net.Dialer
-	probeEndpoint externalEndpointProbe
+	store                 *Store
+	meshSvc               *MeshService
+	httpClient            *http.Client
+	tcpDialer             *net.Dialer
+	probeEndpoint         externalEndpointProbe
+	runInboundProvider    inboundProviderRunner
+	checkHostBaseURL      string
+	checkHostPollDelay    time.Duration
+	checkHostPollAttempts int
 }
 
 func NewExternalService(store *Store) *ExternalService {
 	svc := &ExternalService{
-		store:      store,
-		meshSvc:    NewMeshService(),
-		httpClient: &http.Client{Timeout: 10 * time.Second},
-		tcpDialer:  &net.Dialer{Timeout: 5 * time.Second},
+		store:                 store,
+		meshSvc:               NewMeshService(),
+		httpClient:            &http.Client{Timeout: 10 * time.Second},
+		tcpDialer:             &net.Dialer{Timeout: 5 * time.Second},
+		checkHostBaseURL:      "https://check-host.net",
+		checkHostPollDelay:    2 * time.Second,
+		checkHostPollAttempts: 3,
 	}
 	svc.probeEndpoint = svc.probeEndpointWithMethods
+	svc.runInboundProvider = svc.runInboundProviderDefault
 	return svc
 }
 
@@ -37,6 +47,27 @@ func currentPanelEndpoint() ExternalEndpoint {
 		Label:    "Current panel",
 		Provider: "panel",
 	}
+}
+
+func targetFromRequest(target *ExternalTargetRequest) (ExternalEndpoint, error) {
+	if target == nil {
+		return ExternalEndpoint{}, fmt.Errorf("inbound target is required")
+	}
+	host := strings.TrimSpace(target.Host)
+	if host == "" {
+		return ExternalEndpoint{}, fmt.Errorf("inbound target host is required")
+	}
+	label := strings.TrimSpace(target.Label)
+	if label == "" {
+		label = host
+	}
+	return ExternalEndpoint{
+		ID:       "current-target",
+		Label:    label,
+		Provider: "panel",
+		Host:     host,
+		Port:     target.Port,
+	}, nil
 }
 
 func (s *ExternalService) probeEndpointWithMethods(ctx context.Context, endpoint ExternalEndpoint, requestedMethods []string) (string, float64, error) {
@@ -277,6 +308,18 @@ func (s *ExternalService) runOutboundWithMethods(ctx context.Context, sourceIDs 
 	return data, nil
 }
 
+func (s *ExternalService) runInboundWithTarget(ctx context.Context, sourceIDs []string, target ExternalEndpoint) (*ExternalResultData, error) {
+	results := make([]ExternalTestResult, 0)
+	for _, sourceID := range sourceIDs {
+		results = append(results, s.runInboundProvider(ctx, sourceID, target)...)
+	}
+	data := &ExternalResultData{TestedAt: nowUnix(), Results: results}
+	if err := s.store.SaveExternalResults(data); err != nil {
+		return nil, err
+	}
+	return data, nil
+}
+
 // RunRIPEAtlas runs an inbound test using RIPE Atlas API.
 func (s *ExternalService) RunRIPEAtlas(ctx context.Context, apiKey string, members []MeshMember) (*ExternalResultData, error) {
 	if apiKey == "" {
@@ -332,7 +375,11 @@ func (s *ExternalService) Run(ctx context.Context, req ExternalRunRequest, membe
 	var allResults []ExternalTestResult
 
 	if len(enabledIn) > 0 {
-		inData, err := s.RunInbound(ctx, enabledIn, filterExternalMembers(members, req.TargetNodeIDs))
+		target, err := targetFromRequest(req.Target)
+		if err != nil {
+			return nil, err
+		}
+		inData, err := s.runInboundWithTarget(ctx, enabledIn, target)
 		if err != nil {
 			return nil, err
 		}
