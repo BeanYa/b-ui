@@ -50,21 +50,45 @@ type ExternalResultData struct {
 	Results  []ExternalTestResult `json:"results"`
 }
 
+type ExternalEndpoint struct {
+	ID       string   `json:"id"`
+	Label    string   `json:"label"`
+	Provider string   `json:"provider"`
+	Region   string   `json:"region,omitempty"`
+	Country  string   `json:"country,omitempty"`
+	City     string   `json:"city,omitempty"`
+	Network  string   `json:"network,omitempty"`
+	Host     string   `json:"host,omitempty"`
+	Port     int      `json:"port,omitempty"`
+	Methods  []string `json:"methods,omitempty"`
+}
+
+type ExternalTargetRequest struct {
+	Host  string `json:"host"`
+	Port  int    `json:"port,omitempty"`
+	Label string `json:"label,omitempty"`
+}
+
 type ExternalTestResult struct {
-	SourceMemberID string   `json:"source_member_id"`
-	SourceLabel    string   `json:"source_label"`
-	Direction      string   `json:"direction"`
-	TargetMemberID string   `json:"target_member_id"`
-	TargetName     string   `json:"target_name"`
-	Method         *string  `json:"method"`
-	LatencyMs      *float64 `json:"latency_ms"`
-	Success        bool     `json:"success"`
-	Error          *string  `json:"error"`
+	SourceMemberID string           `json:"source_member_id"`
+	SourceLabel    string           `json:"source_label"`
+	Direction      string           `json:"direction"`
+	TargetMemberID string           `json:"target_member_id"`
+	TargetName     string           `json:"target_name"`
+	Source         ExternalEndpoint `json:"source"`
+	Target         ExternalEndpoint `json:"target"`
+	Method         *string          `json:"method"`
+	LatencyMs      *float64         `json:"latency_ms"`
+	Success        bool             `json:"success"`
+	Error          *string          `json:"error"`
 }
 
 type ExternalRunRequest struct {
-	SourceIDs     []string `json:"source_ids"`
-	TargetNodeIDs []string `json:"target_node_ids,omitempty"`
+	SourceIDs     []string               `json:"source_ids"`
+	TargetNodeIDs []string               `json:"target_node_ids,omitempty"`
+	Direction     string                 `json:"direction,omitempty"`
+	Target        *ExternalTargetRequest `json:"target,omitempty"`
+	Methods       []string               `json:"methods,omitempty"`
 }
 
 type PingPolicy struct {

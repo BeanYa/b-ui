@@ -69,7 +69,7 @@ func (s *Store) LoadExternalConfigOrDefault() *ExternalConfig {
 	if err != nil {
 		return defaultExternalConfig()
 	}
-	return config
+	return normalizeExternalConfig(config)
 }
 
 func (s *Store) SaveExternalResults(data *ExternalResultData) error {
@@ -117,18 +117,5 @@ func sanitizeFileName(name string) string {
 }
 
 func defaultExternalConfig() *ExternalConfig {
-	return &ExternalConfig{
-		Sources: []ExternalSource{
-			{ID: "ripe_atlas", Name: "RIPE Atlas", Type: "rest_api", Direction: "inbound", Enabled: true},
-			{ID: "cloudflare_workers", Name: "Cloudflare Workers", Type: "self_hosted", Direction: "inbound", Enabled: false},
-			{ID: "linode_lg", Name: "Linode Looking Glass", Type: "web_scrape", Direction: "inbound", Enabled: true},
-			{ID: "he_lg", Name: "Hurricane Electric LG", Type: "web_scrape", Direction: "inbound", Enabled: true},
-			{ID: "zstatic_cdn", Name: "Zstatic CDN", Type: "cdn_ping", Direction: "inbound", Enabled: true},
-			{ID: "cloud_test_ips", Name: "Cloud Provider Test IPs", Type: "icmp_tcp", Direction: "outbound", Enabled: true},
-			{ID: "speedtest_net", Name: "Speedtest.net Servers", Type: "rest_api", Direction: "outbound", Enabled: false},
-			{ID: "public_dns", Name: "Public DNS", Type: "icmp", Direction: "outbound", Enabled: true},
-			{ID: "cdn_edges", Name: "CDN Edge Nodes", Type: "http_icmp", Direction: "outbound", Enabled: true},
-			{ID: "ix_isp_lg", Name: "IX/ISP Looking Glass", Type: "icmp_mtr", Direction: "outbound", Enabled: true},
-		},
-	}
+	return normalizeExternalConfig(nil)
 }

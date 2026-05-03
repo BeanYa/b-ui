@@ -7,8 +7,8 @@ import (
 
 func TestDefaultExternalConfig(t *testing.T) {
 	config := defaultExternalConfig()
-	if len(config.Sources) != 10 {
-		t.Fatalf("expected 10 default sources, got %d", len(config.Sources))
+	if len(config.Sources) != 9 {
+		t.Fatalf("expected 9 default sources, got %d", len(config.Sources))
 	}
 	inCount := 0
 	outCount := 0
@@ -19,11 +19,54 @@ func TestDefaultExternalConfig(t *testing.T) {
 			outCount++
 		}
 	}
-	if inCount != 5 {
-		t.Fatalf("expected 5 inbound sources, got %d", inCount)
+	if inCount != 4 {
+		t.Fatalf("expected 4 inbound sources, got %d", inCount)
 	}
 	if outCount != 5 {
 		t.Fatalf("expected 5 outbound sources, got %d", outCount)
+	}
+}
+
+func TestDefaultExternalConfigUsesCurrentNodeProviderModel(t *testing.T) {
+	config := defaultExternalConfig()
+
+	byID := map[string]ExternalSource{}
+	for _, src := range config.Sources {
+		byID[src.ID] = src
+	}
+
+	if byID["check_host"].Direction != "inbound" {
+		t.Fatalf("expected check_host inbound, got %#v", byID["check_host"])
+	}
+	if byID["zstatic_cdn"].Direction != "outbound" {
+		t.Fatalf("expected zstatic_cdn outbound target provider, got %#v", byID["zstatic_cdn"])
+	}
+	if byID["linode_speedtest"].Direction != "outbound" {
+		t.Fatalf("expected linode_speedtest outbound, got %#v", byID["linode_speedtest"])
+	}
+}
+
+func TestNormalizeExternalConfigCorrectsLegacyZStaticDirection(t *testing.T) {
+	config := normalizeExternalConfig(&ExternalConfig{Sources: []ExternalSource{
+		{ID: "zstatic_cdn", Name: "Zstatic CDN", Type: "cdn_ping", Direction: "inbound", Enabled: true},
+	}})
+
+	var zstatic ExternalSource
+	for _, src := range config.Sources {
+		if src.ID == "zstatic_cdn" {
+			zstatic = src
+			break
+		}
+	}
+
+	if zstatic.ID == "" {
+		t.Fatal("expected zstatic_cdn source after normalization")
+	}
+	if zstatic.Direction != "outbound" {
+		t.Fatalf("expected normalized zstatic_cdn direction outbound, got %q", zstatic.Direction)
+	}
+	if !zstatic.Enabled {
+		t.Fatal("expected normalization to preserve enabled flag")
 	}
 }
 
