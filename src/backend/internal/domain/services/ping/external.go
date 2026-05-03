@@ -39,7 +39,49 @@ func currentPanelEndpoint() ExternalEndpoint {
 }
 
 func (s *ExternalService) probeEndpointWithMethods(ctx context.Context, endpoint ExternalEndpoint, requestedMethods []string) (string, float64, error) {
-	return "", 0, fmt.Errorf("external endpoint probing is not wired yet")
+	methods := requestedMethods
+	if len(methods) == 0 {
+		methods = endpoint.Methods
+	}
+	if len(methods) == 0 {
+		methods = []string{MethodTCP}
+	}
+
+	var lastErr error
+	for _, method := range methods {
+		if !methodAllowed(method, endpoint.Methods) {
+			continue
+		}
+		switch method {
+		case MethodTCP:
+			addr := endpointAddress(endpoint)
+			latency, err := measureTCPConnectLatency(s.tcpDialer, addr)
+			if err == nil {
+				return MethodTCP, latency, nil
+			}
+			lastErr = err
+		case MethodICMP:
+			latency, err := s.meshSvc.icmpPing(ctx, endpoint.Host)
+			if err == nil {
+				return MethodICMP, latency, nil
+			}
+			lastErr = err
+		case MethodHTTP:
+			scheme := "https"
+			if endpoint.Port == 80 {
+				scheme = "http"
+			}
+			latency, err := s.meshSvc.httpPing(ctx, scheme+"://"+endpoint.Host, "")
+			if err == nil {
+				return MethodHTTP, latency, nil
+			}
+			lastErr = err
+		}
+	}
+	if lastErr != nil {
+		return "", 0, lastErr
+	}
+	return "", 0, fmt.Errorf("no supported methods for %s", endpoint.ID)
 }
 
 type externalTarget struct {
@@ -67,39 +109,6 @@ var inboundTargets = map[string][]externalTarget{
 	},
 	"zstatic_cdn": {
 		{IP: "lf3-ips.zstaticcdn.com", Label: "Zstatic CDN"},
-	},
-}
-
-var outboundTargets = map[string][]externalTarget{
-	"cloud_test_ips": {
-		// AWS
-		{IP: "ec2.ap-northeast-1.amazonaws.com", Label: "AWS - Tokyo"},
-		{IP: "ec2.ap-southeast-1.amazonaws.com", Label: "AWS - Singapore"},
-		{IP: "ec2.eu-west-1.amazonaws.com", Label: "AWS - Ireland"},
-		{IP: "ec2.us-east-1.amazonaws.com", Label: "AWS - N. Virginia"},
-		{IP: "ec2.us-west-1.amazonaws.com", Label: "AWS - N. California"},
-		// GCP
-		{IP: "35.200.0.0", Label: "GCP - Tokyo"},
-		{IP: "35.197.0.0", Label: "GCP - London"},
-		{IP: "35.185.0.0", Label: "GCP - US Central"},
-		// Azure
-		{IP: "13.73.0.0", Label: "Azure - SE Asia"},
-		{IP: "40.69.0.0", Label: "Azure - Japan"},
-		{IP: "13.69.0.0", Label: "Azure - W. Europe"},
-		// Alibaba Cloud
-		{IP: "47.88.0.0", Label: "AliCloud - Singapore"},
-		{IP: "47.91.0.0", Label: "AliCloud - Hong Kong"},
-		{IP: "8.209.0.0", Label: "AliCloud - Frankfurt"},
-	},
-	"public_dns": {
-		{IP: "8.8.8.8", Label: "Google DNS"},
-		{IP: "1.1.1.1", Label: "Cloudflare DNS"},
-		{IP: "114.114.114.114", Label: "114 DNS"},
-	},
-	"cdn_edges": {
-		{IP: "cloudflare.com", Label: "Cloudflare Edge"},
-		{IP: "www.fastly.com", Label: "Fastly Edge"},
-		{IP: "www.akamai.com", Label: "Akamai Edge"},
 	},
 }
 
@@ -157,99 +166,60 @@ func (s *ExternalService) RunInbound(ctx context.Context, sourceIDs []string, me
 	return data, nil
 }
 
-// RunOutbound runs outbound tests: each cluster member pings external targets.
+// RunOutbound runs outbound tests from the current panel to external targets.
 func (s *ExternalService) RunOutbound(ctx context.Context, sourceIDs []string, members []MeshMember) (*ExternalResultData, error) {
+	return s.runOutboundWithMethods(ctx, sourceIDs, nil)
+}
+
+func (s *ExternalService) probeOutboundTarget(ctx context.Context, source ExternalEndpoint, target ExternalEndpoint, requestedMethods []string) ExternalTestResult {
+	r := ExternalTestResult{
+		SourceMemberID: source.ID,
+		SourceLabel:    source.Label,
+		Direction:      DirectionOutbound,
+		TargetMemberID: target.ID,
+		TargetName:     target.Host,
+		Source:         source,
+		Target:         target,
+	}
+	method, latency, err := s.probeEndpoint(ctx, target, requestedMethods)
+	if err != nil {
+		r.Success = false
+		r.Error = errorPtr(err.Error())
+		return r
+	}
+	r.Success = true
+	r.Method = methodPtr(method)
+	r.LatencyMs = latencyPtr(latency)
+	return r
+}
+
+func (s *ExternalService) runOutboundWithMethods(ctx context.Context, sourceIDs []string, methods []string) (*ExternalResultData, error) {
 	config := s.store.LoadExternalConfigOrDefault()
 	enabledSources := enabledExternalSources(sourceIDs, config, DirectionOutbound)
-
+	source := currentPanelEndpoint()
 	tasks := make([]func() ExternalTestResult, 0)
-
 	for _, src := range enabledSources {
-		targets, ok := outboundTargets[src.ID]
-		if !ok {
+		targets := targetsForProvider(src.ID)
+		if len(targets) == 0 {
 			src := src
 			tasks = append(tasks, func() ExternalTestResult {
 				return unimplementedProviderResult(src, DirectionOutbound)
 			})
 			continue
 		}
-		for _, member := range members {
-			for _, tgt := range targets {
-				sourceID := src.ID
-				member := member
-				tgt := tgt
-				tasks = append(tasks, func() ExternalTestResult {
-					return probeExternalTarget(ctx, s.meshSvc, s.tcpDialer, sourceID, member, tgt)
-				})
-			}
+		for _, target := range targets {
+			target := target
+			tasks = append(tasks, func() ExternalTestResult {
+				return s.probeOutboundTarget(ctx, source, target, methods)
+			})
 		}
 	}
-
 	results := runExternalProbeTasks(DefaultExternalMaxConcurrent, tasks)
 	data := &ExternalResultData{TestedAt: nowUnix(), Results: results}
 	if err := s.store.SaveExternalResults(data); err != nil {
 		return nil, err
 	}
 	return data, nil
-}
-
-func probeExternalTarget(ctx context.Context, meshSvc *MeshService, dialer *net.Dialer, sourceID string, member MeshMember, tgt externalTarget) ExternalTestResult {
-	r := ExternalTestResult{
-		SourceMemberID: member.MemberID,
-		SourceLabel:    member.Name,
-		Direction:      DirectionOutbound,
-		TargetMemberID: tgt.Label,
-		TargetName:     tgt.IP,
-		Source:         memberEndpoint(member),
-		Target:         externalTargetEndpoint(sourceID, tgt),
-	}
-
-	// For ICMP-only sources, skip TCP/HTTP
-	switch sourceID {
-	case "public_dns", "cloud_test_ips":
-		latency, err := meshSvc.icmpPing(ctx, tgt.IP)
-		if err == nil {
-			r.Success = true
-			r.Method = methodPtr(MethodICMP)
-			r.LatencyMs = latencyPtr(latency)
-		} else {
-			r.Success = false
-			r.Error = errorPtr(err.Error())
-		}
-		return r
-
-	case "cdn_edges":
-		// HTTP first (CDN edge), then ICMP fallback
-		latency, err := meshSvc.httpPing(ctx, "https://"+tgt.IP, "")
-		if err == nil {
-			r.Success = true
-			r.Method = methodPtr(MethodHTTP)
-			r.LatencyMs = latencyPtr(latency)
-			return r
-		}
-		latency, err = meshSvc.icmpPing(ctx, tgt.IP)
-		if err == nil {
-			r.Success = true
-			r.Method = methodPtr(MethodICMP)
-			r.LatencyMs = latencyPtr(latency)
-			return r
-		}
-		r.Success = false
-		r.Error = errorPtr(err.Error())
-		return r
-	}
-
-	// Default: ICMP
-	latency, err := meshSvc.icmpPing(ctx, tgt.IP)
-	if err == nil {
-		r.Success = true
-		r.Method = methodPtr(MethodICMP)
-		r.LatencyMs = latencyPtr(latency)
-	} else {
-		r.Success = false
-		r.Error = errorPtr(err.Error())
-	}
-	return r
 }
 
 // RunRIPEAtlas runs an inbound test using RIPE Atlas API.
@@ -286,7 +256,6 @@ func (s *ExternalService) Run(ctx context.Context, req ExternalRunRequest, membe
 	config := s.store.LoadExternalConfigOrDefault()
 	enabledIn := make([]string, 0)
 	enabledOut := make([]string, 0)
-	members = filterExternalMembers(members, req.TargetNodeIDs)
 
 	for _, sid := range req.SourceIDs {
 		for _, src := range config.Sources {
@@ -308,7 +277,7 @@ func (s *ExternalService) Run(ctx context.Context, req ExternalRunRequest, membe
 	var allResults []ExternalTestResult
 
 	if len(enabledIn) > 0 {
-		inData, err := s.RunInbound(ctx, enabledIn, members)
+		inData, err := s.RunInbound(ctx, enabledIn, filterExternalMembers(members, req.TargetNodeIDs))
 		if err != nil {
 			return nil, err
 		}
@@ -316,7 +285,7 @@ func (s *ExternalService) Run(ctx context.Context, req ExternalRunRequest, membe
 	}
 
 	if len(enabledOut) > 0 {
-		outData, err := s.RunOutbound(ctx, enabledOut, members)
+		outData, err := s.runOutboundWithMethods(ctx, enabledOut, req.Methods)
 		if err != nil {
 			return nil, err
 		}

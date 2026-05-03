@@ -68,8 +68,6 @@ func TestZStaticTargetsUsePublishedPortsOnly(t *testing.T) {
 }
 
 func TestRunOutboundUsesCurrentNodeOnceWithoutMembers(t *testing.T) {
-	t.Skip("implemented in Task 3")
-
 	svc := NewExternalService(newStoreWithDir(t.TempDir()))
 	svc.probeEndpoint = func(ctx context.Context, endpoint ExternalEndpoint, methods []string) (string, float64, error) {
 		return MethodTCP, 14.2, nil
@@ -96,6 +94,35 @@ func TestRunOutboundUsesCurrentNodeOnceWithoutMembers(t *testing.T) {
 		if result.SourceMemberID != "current-panel" {
 			t.Fatalf("expected legacy current-panel source id, got %q", result.SourceMemberID)
 		}
+	}
+}
+
+func TestRunOutboundIgnoresDeprecatedTargetNodeIDs(t *testing.T) {
+	svc := NewExternalService(newStoreWithDir(t.TempDir()))
+	var probed int
+	svc.probeEndpoint = func(ctx context.Context, endpoint ExternalEndpoint, methods []string) (string, float64, error) {
+		probed++
+		return MethodTCP, 9, nil
+	}
+
+	data, err := svc.Run(context.Background(), ExternalRunRequest{
+		SourceIDs:     []string{"public_dns"},
+		TargetNodeIDs: []string{"node-a", "node-b"},
+		Direction:     DirectionOutbound,
+		Methods:       []string{MethodTCP},
+	}, []MeshMember{
+		{MemberID: "node-a", NodeID: "node-a", Name: "Node A"},
+		{MemberID: "node-b", NodeID: "node-b", Name: "Node B"},
+	})
+	if err != nil {
+		t.Fatalf("Run outbound: %v", err)
+	}
+
+	if len(data.Results) != len(publicDNSTargets()) {
+		t.Fatalf("expected one result per public DNS target, got %d", len(data.Results))
+	}
+	if probed != len(publicDNSTargets()) {
+		t.Fatalf("expected %d probes, got %d", len(publicDNSTargets()), probed)
 	}
 }
 
@@ -195,9 +222,15 @@ func TestRunInboundUnknownEnabledProviderReturnsErrorResult(t *testing.T) {
 }
 
 func TestRunOutboundUnknownEnabledProviderReturnsErrorResult(t *testing.T) {
-	svc := NewExternalService(newStoreWithDir(t.TempDir()))
+	store := newStoreWithDir(t.TempDir())
+	if err := store.SaveExternalConfig(&ExternalConfig{Sources: []ExternalSource{
+		{ID: "unknown_out", Name: "Unknown Out", Type: "target_catalog", Direction: DirectionOutbound, Enabled: true},
+	}}); err != nil {
+		t.Fatalf("SaveExternalConfig: %v", err)
+	}
+	svc := NewExternalService(store)
 
-	data, err := svc.RunOutbound(context.Background(), []string{"zstatic_cdn"}, []MeshMember{
+	data, err := svc.RunOutbound(context.Background(), []string{"unknown_out"}, []MeshMember{
 		{MemberID: "node-a", NodeID: "node-a", Name: "Node A", Address: "node-a.example"},
 	})
 	if err != nil {
@@ -213,7 +246,7 @@ func TestRunOutboundUnknownEnabledProviderReturnsErrorResult(t *testing.T) {
 	if result.Direction != "outbound" {
 		t.Fatalf("expected outbound direction, got %q", result.Direction)
 	}
-	if result.Source.ID != "zstatic_cdn" || result.SourceLabel != "ZStaticCDN" {
+	if result.Source.ID != "unknown_out" || result.SourceLabel != "Unknown Out" {
 		t.Fatalf("expected source populated from provider config, got source=%#v source_label=%q", result.Source, result.SourceLabel)
 	}
 	if result.Error == nil || *result.Error == "" {
@@ -295,10 +328,10 @@ func TestRunExternal_NoSourcesEnabled(t *testing.T) {
 	}
 }
 
-func TestRunExternal_TargetNodeIDsFiltersMembers(t *testing.T) {
+func TestRunExternalOutboundIgnoresTargetNodeIDs(t *testing.T) {
 	svc := NewExternalService(newStoreWithDir(t.TempDir()))
-	svc.meshSvc.icmpPinger = func(context.Context, string) (float64, error) {
-		return 12.5, nil
+	svc.probeEndpoint = func(ctx context.Context, endpoint ExternalEndpoint, methods []string) (string, float64, error) {
+		return MethodTCP, 12.5, nil
 	}
 
 	data, err := svc.Run(context.Background(), ExternalRunRequest{
@@ -311,18 +344,18 @@ func TestRunExternal_TargetNodeIDsFiltersMembers(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Run: %v", err)
 	}
-	if len(data.Results) != len(outboundTargets["public_dns"]) {
-		t.Fatalf("expected only public DNS results for node-a, got %d", len(data.Results))
+	if len(data.Results) != len(publicDNSTargets()) {
+		t.Fatalf("expected one result per public DNS target, got %d", len(data.Results))
 	}
 	for _, result := range data.Results {
-		if result.SourceMemberID != "node-a" {
-			t.Fatalf("expected target filter to exclude node-b, got result from %q", result.SourceMemberID)
+		if result.SourceMemberID != "current-panel" {
+			t.Fatalf("expected outbound source to be current panel, got %q", result.SourceMemberID)
 		}
 		if result.Source.ID == "" {
-			t.Fatalf("expected legacy outbound source endpoint id to be populated, got %#v", result)
+			t.Fatalf("expected outbound source endpoint id to be populated, got %#v", result)
 		}
 		if result.Target.ID == "" {
-			t.Fatalf("expected legacy outbound target endpoint id to be populated, got %#v", result)
+			t.Fatalf("expected outbound target endpoint id to be populated, got %#v", result)
 		}
 	}
 }
