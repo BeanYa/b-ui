@@ -60,6 +60,7 @@ type ClusterDomainInboundService struct {
 	panelCertificateProvider func() (DomainInboundPanelCertificateSettings, error)
 	now                      func() int64
 	updateInbound            func(*gorm.DB, uint, json.RawMessage, string) error
+	updateLinks              func(*gorm.DB, *[]model.Inbound, string, string) error
 }
 
 type DomainInboundCreateResult struct {
@@ -105,7 +106,10 @@ func NewClusterDomainInboundService(opts ClusterDomainInboundServiceOptions) *Cl
 		s.now = func() int64 { return time.Now().Unix() }
 	}
 	if s.updateInbound == nil {
-		s.updateInbound = s.updateDomainInbound
+		s.updateInbound = s.updateDomainInboundRuntime
+	}
+	if s.updateLinks == nil {
+		s.updateLinks = (&ClientService{}).UpdateLinksByInboundChange
 	}
 	return s
 }
@@ -289,6 +293,9 @@ func (s *ClusterDomainInboundService) ApplyDomainInboundUpdate(ctx context.Conte
 	}
 
 	result := &DomainInboundCreateResult{RequestID: payload.RequestID}
+	var runtimeInboundID uint
+	var runtimeInboundJSON json.RawMessage
+	var runtimeOldTag string
 	err = s.db.Transaction(func(tx *gorm.DB) error {
 		var wrapper model.ClusterInbound
 		if err := tx.Where("domain_id = ? AND group_id = ?", domain.Id, payload.GroupID).First(&wrapper).Error; err != nil {
@@ -299,7 +306,7 @@ func (s *ClusterDomainInboundService) ApplyDomainInboundUpdate(ctx context.Conte
 		}
 
 		displayName := domainInboundLocalDisplayName(payload.TargetMembers, nodeID)
-		inboundJSON, tag, err := s.prepareDomainInboundJSON(tx, domain, payload, nodeID, displayName)
+		inboundJSON, _, err := s.prepareDomainInboundJSON(tx, domain, payload, nodeID, displayName)
 		if err != nil {
 			return err
 		}
@@ -311,7 +318,8 @@ func (s *ClusterDomainInboundService) ApplyDomainInboundUpdate(ctx context.Conte
 		if !errors.Is(err, gorm.ErrRecordNotFound) {
 			return err
 		}
-		if err := s.updateInbound(tx, wrapper.InboundID, inboundJSON, tag); err != nil {
+		oldTag, err := s.saveDomainInboundUpdate(tx, wrapper.InboundID, inboundJSON)
+		if err != nil {
 			return err
 		}
 		now := s.now()
@@ -330,9 +338,15 @@ func (s *ClusterDomainInboundService) ApplyDomainInboundUpdate(ctx context.Conte
 		}
 		result.InboundID = wrapper.InboundID
 		result.Created = false
+		runtimeInboundID = wrapper.InboundID
+		runtimeInboundJSON = append(json.RawMessage{}, inboundJSON...)
+		runtimeOldTag = oldTag
 		return nil
 	})
 	if err != nil {
+		return nil, err
+	}
+	if err := s.updateInbound(s.db, runtimeInboundID, runtimeInboundJSON, runtimeOldTag); err != nil {
 		return nil, err
 	}
 	if broadcast && s.broadcaster != nil {
@@ -431,49 +445,58 @@ func (s *ClusterDomainInboundService) HandleDomainInboundDelete(ctx context.Cont
 	}, nil
 }
 
-func (s *ClusterDomainInboundService) updateDomainInbound(tx *gorm.DB, inboundID uint, inboundJSON json.RawMessage, tag string) error {
+func (s *ClusterDomainInboundService) saveDomainInboundUpdate(tx *gorm.DB, inboundID uint, inboundJSON json.RawMessage) (string, error) {
+	var inbound model.Inbound
+	if err := inbound.UnmarshalJSON(inboundJSON); err != nil {
+		return "", err
+	}
+	inbound.Id = inboundID
+	if inbound.TlsId > 0 {
+		if err := tx.Model(model.Tls{}).Where("id = ?", inbound.TlsId).Find(&inbound.Tls).Error; err != nil {
+			return "", err
+		}
+	}
+	var old model.Inbound
+	if err := tx.Where("id = ?", inboundID).First(&old).Error; err != nil {
+		return "", err
+	}
+	if err := tx.Save(&inbound).Error; err != nil {
+		return "", err
+	}
+	if old.TlsId != inbound.TlsId {
+		if _, err := deleteUnusedClusterTLS(tx, old.TlsId); err != nil {
+			return "", err
+		}
+	}
+	if err := s.updateLinks(tx, &[]model.Inbound{inbound}, "ClusterDomainInbound", old.Tag); err != nil {
+		return "", err
+	}
+	return old.Tag, nil
+}
+
+func (s *ClusterDomainInboundService) updateDomainInboundRuntime(db *gorm.DB, inboundID uint, inboundJSON json.RawMessage, oldTag string) error {
+	if !corePtr.IsRunning() {
+		return nil
+	}
 	var inbound model.Inbound
 	if err := inbound.UnmarshalJSON(inboundJSON); err != nil {
 		return err
 	}
 	inbound.Id = inboundID
-	if inbound.TlsId > 0 {
-		if err := tx.Model(model.Tls{}).Where("id = ?", inbound.TlsId).Find(&inbound.Tls).Error; err != nil {
-			return err
-		}
-	}
-	var old model.Inbound
-	if err := tx.Where("id = ?", inboundID).First(&old).Error; err != nil {
+	if err := corePtr.RemoveInbound(oldTag); err != nil && err != os.ErrInvalid {
 		return err
 	}
-	if corePtr.IsRunning() {
-		if err := corePtr.RemoveInbound(old.Tag); err != nil && err != os.ErrInvalid {
-			return err
-		}
-		inboundConfig, err := inbound.MarshalJSON()
-		if err != nil {
-			return err
-		}
-		inboundConfig, err = (&InboundService{}).addUsers(tx, inboundConfig, inbound.Id, inbound.Type)
-		if err != nil {
-			return err
-		}
-		if err := corePtr.AddInbound(inboundConfig); err != nil {
-			return err
-		}
-	}
-	if err := tx.Save(&inbound).Error; err != nil {
+	inboundConfig, err := inbound.MarshalJSON()
+	if err != nil {
 		return err
 	}
-	if old.TlsId != inbound.TlsId {
-		if _, err := deleteUnusedClusterTLS(tx, old.TlsId); err != nil {
-			return err
-		}
-	}
-	if err := (&ClientService{}).UpdateLinksByInboundChange(tx, &[]model.Inbound{inbound}, "ClusterDomainInbound", old.Tag); err != nil {
+	inboundConfig, err = (&InboundService{}).addUsers(db, inboundConfig, inbound.Id, inbound.Type)
+	if err != nil {
 		return err
 	}
-	_ = tag
+	if err := corePtr.AddInbound(inboundConfig); err != nil {
+		return err
+	}
 	return nil
 }
 

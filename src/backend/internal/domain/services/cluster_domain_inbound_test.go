@@ -694,6 +694,44 @@ func TestDomainInboundUpdateDuplicateRequestFailsBeforeMutatingInbound(t *testin
 	}
 }
 
+func TestDomainInboundUpdateLinkFailureHappensBeforeRuntimeMutation(t *testing.T) {
+	db := initClusterInboundTestDB(t)
+	inbound := model.Inbound{Type: "vless", Tag: "link-fail-original"}
+	if err := db.Create(&inbound).Error; err != nil {
+		t.Fatalf("seed inbound: %v", err)
+	}
+	wrapper := model.ClusterInbound{DomainID: 1, Domain: "edge.example.com", GroupID: "group-link-fail", InboundID: inbound.Id, RequestID: "req-create"}
+	if err := db.Create(&wrapper).Error; err != nil {
+		t.Fatalf("seed wrapper: %v", err)
+	}
+	runtimeMutations := 0
+	svc := NewClusterDomainInboundService(ClusterDomainInboundServiceOptions{
+		DB:            db,
+		Identity:      &stubDomainInboundIdentity{node: &model.ClusterLocalNode{NodeID: "node-a"}},
+		PortAllocator: func() (int, error) { return 32016, nil },
+	})
+	svc.updateLinks = func(*gorm.DB, *[]model.Inbound, string, string) error {
+		return errors.New("link update failed")
+	}
+	svc.updateInbound = func(*gorm.DB, uint, json.RawMessage, string) error {
+		runtimeMutations++
+		return nil
+	}
+
+	_, err := svc.ApplyDomainInboundUpdate(context.Background(), &model.ClusterDomain{Id: 1, Domain: "edge.example.com"}, clustertypes.DomainInboundUpdatePayload{
+		RequestID: "req-link-fail",
+		DomainID:  "edge.example.com",
+		GroupID:   "group-link-fail",
+		Inbound:   json.RawMessage(`{"type":"trojan","tag":"link-fail-updated"}`),
+	}, "hub", false)
+	if err == nil || !strings.Contains(err.Error(), "link update failed") {
+		t.Fatalf("expected link update failure, got %v", err)
+	}
+	if runtimeMutations != 0 {
+		t.Fatalf("expected runtime mutation deferred until after DB work succeeds, got %d mutations", runtimeMutations)
+	}
+}
+
 func TestDomainInboundUpdateClearsTLSAndDeletesOldTLSWhenUnused(t *testing.T) {
 	db := initClusterInboundTestDB(t)
 	tlsConfig := model.Tls{Name: "old-unused-tls", Server: json.RawMessage(`{}`), Client: json.RawMessage(`{}`)}
