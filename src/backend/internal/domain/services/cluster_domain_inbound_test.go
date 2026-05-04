@@ -3,6 +3,7 @@ package service
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"path/filepath"
 	"strings"
 	"testing"
@@ -382,6 +383,40 @@ func TestDomainInboundCreateDuplicateRequestReturnsExistingInbound(t *testing.T)
 	}
 }
 
+func TestDomainInboundCreateKeepsLocalResultWhenPeerBroadcastFails(t *testing.T) {
+	db := initClusterInboundTestDB(t)
+	svc := NewClusterDomainInboundService(ClusterDomainInboundServiceOptions{
+		DB: db,
+		InboundSaver: domainInboundSaverFunc(func(tx *gorm.DB, act string, data json.RawMessage, initUserIds string, hostname string) error {
+			var inbound model.Inbound
+			if err := inbound.UnmarshalJSON(data); err != nil {
+				return err
+			}
+			return tx.Create(&inbound).Error
+		}),
+		Identity:      &stubDomainInboundIdentity{node: &model.ClusterLocalNode{NodeID: "node-a"}},
+		Broadcaster:   domainInboundBroadcasterFunc(func(context.Context, *model.ClusterDomain, clustertypes.DomainInboundCreatePayload) error { return errors.New("cluster peer notify failed: 401 Unauthorized") }),
+		PortAllocator: func() (int, error) { return 32004, nil },
+		Now:           func() int64 { return 1700000000 },
+	})
+
+	result, err := svc.ApplyDomainInboundCreate(context.Background(), &model.ClusterDomain{Id: 1, Domain: "edge.example.com"}, clustertypes.DomainInboundCreatePayload{
+		RequestID: "req-broadcast-fail",
+		DomainID:  "edge.example.com",
+		Inbound:   json.RawMessage(`{"type":"vless","tag":"main"}`),
+	}, "hub", true)
+	if err != nil {
+		t.Fatalf("expected local create result despite peer broadcast failure, got %v", err)
+	}
+	if result.InboundID == 0 || !result.Created {
+		t.Fatalf("unexpected result: %#v", result)
+	}
+	var wrapper model.ClusterInbound
+	if err := db.Where("domain_id = ? AND request_id = ?", 1, "req-broadcast-fail").First(&wrapper).Error; err != nil {
+		t.Fatalf("load wrapper: %v", err)
+	}
+}
+
 func TestDomainInboundBuildTagSanitizesBaseAndNode(t *testing.T) {
 	tag := buildClusterInboundTag("edge-", "bad tag!", "node/a", "-prod")
 	if tag != "edge-bad-tag-node-a-prod" {
@@ -393,6 +428,12 @@ type domainInboundSaverFunc func(*gorm.DB, string, json.RawMessage, string, stri
 
 func (fn domainInboundSaverFunc) Save(tx *gorm.DB, act string, data json.RawMessage, initUserIds string, hostname string) error {
 	return fn(tx, act, data, initUserIds, hostname)
+}
+
+type domainInboundBroadcasterFunc func(context.Context, *model.ClusterDomain, clustertypes.DomainInboundCreatePayload) error
+
+func (fn domainInboundBroadcasterFunc) BroadcastDomainInboundCreate(ctx context.Context, domain *model.ClusterDomain, payload clustertypes.DomainInboundCreatePayload) error {
+	return fn(ctx, domain, payload)
 }
 
 type stubDomainInboundIdentity struct {

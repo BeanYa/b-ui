@@ -207,9 +207,7 @@ func (s *ClusterDomainInboundService) ApplyDomainInboundCreate(ctx context.Conte
 		return nil, err
 	}
 	if result.Created && broadcast && s.broadcaster != nil {
-		if err := s.broadcaster.BroadcastDomainInboundCreate(ctx, domain, payload); err != nil {
-			return nil, err
-		}
+		_ = s.broadcaster.BroadcastDomainInboundCreate(ctx, domain, payload)
 	}
 	if result.Created && s.reporter != nil {
 		s.reporter.ReportProxyConfigs(domain.Id)
