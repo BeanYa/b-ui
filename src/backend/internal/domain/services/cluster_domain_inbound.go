@@ -135,6 +135,7 @@ func (s *ClusterDomainInboundService) ApplyDomainInboundCreate(ctx context.Conte
 
 	payload.RequestID = strings.TrimSpace(payload.RequestID)
 	payload.DomainID = strings.TrimSpace(payload.DomainID)
+	payload.GroupID = strings.TrimSpace(payload.GroupID)
 	if payload.RequestID == "" {
 		return nil, errors.New("request_id is required")
 	}
@@ -157,7 +158,11 @@ func (s *ClusterDomainInboundService) ApplyDomainInboundCreate(ctx context.Conte
 	result := &DomainInboundCreateResult{RequestID: payload.RequestID}
 	err = s.db.Transaction(func(tx *gorm.DB) error {
 		var wrapper model.ClusterInbound
-		err := tx.Where("domain_id = ? AND request_id = ?", domain.Id, payload.RequestID).First(&wrapper).Error
+		query := tx.Where("domain_id = ? AND request_id = ?", domain.Id, payload.RequestID)
+		if payload.GroupID != "" {
+			query = tx.Where("domain_id = ? AND group_id = ?", domain.Id, payload.GroupID)
+		}
+		err := query.First(&wrapper).Error
 		if err == nil {
 			result.InboundID = wrapper.InboundID
 			result.Created = false
@@ -167,7 +172,8 @@ func (s *ClusterDomainInboundService) ApplyDomainInboundCreate(ctx context.Conte
 			return err
 		}
 
-		inboundJSON, tag, err := s.prepareDomainInboundJSON(tx, domain, payload, nodeID)
+		displayName := domainInboundLocalDisplayName(payload.TargetMembers, nodeID)
+		inboundJSON, tag, err := s.prepareDomainInboundJSON(tx, domain, payload, nodeID, displayName)
 		if err != nil {
 			return err
 		}
@@ -185,6 +191,7 @@ func (s *ClusterDomainInboundService) ApplyDomainInboundCreate(ctx context.Conte
 			Domain:    domain.Domain,
 			NodeID:    nodeID,
 			MemberID:  nodeID,
+			GroupID:   payload.GroupID,
 			InboundID: inbound.Id,
 			RequestID: payload.RequestID,
 			Prefix:    payload.Prefix,
@@ -231,7 +238,7 @@ func (s *ClusterDomainInboundService) HandleDomainInboundCreate(ctx context.Cont
 	}, nil
 }
 
-func (s *ClusterDomainInboundService) prepareDomainInboundJSON(tx *gorm.DB, domain *model.ClusterDomain, payload clustertypes.DomainInboundCreatePayload, nodeID string) (json.RawMessage, string, error) {
+func (s *ClusterDomainInboundService) prepareDomainInboundJSON(tx *gorm.DB, domain *model.ClusterDomain, payload clustertypes.DomainInboundCreatePayload, nodeID string, displayName string) (json.RawMessage, string, error) {
 	var inbound map[string]interface{}
 	if err := json.Unmarshal(payload.Inbound, &inbound); err != nil {
 		return nil, "", err
@@ -244,7 +251,10 @@ func (s *ClusterDomainInboundService) prepareDomainInboundJSON(tx *gorm.DB, doma
 	if baseTag == "" {
 		baseTag = inboundType
 	}
-	tag := buildClusterInboundTag(payload.Prefix, baseTag, nodeID, payload.Suffix)
+	if tagSeed := strings.TrimSpace(payload.TagSeed); tagSeed != "" {
+		baseTag = tagSeed
+	}
+	tag := buildClusterInboundTag(baseTag, payload.Prefix, displayName, payload.Suffix)
 
 	delete(inbound, "id")
 	delete(inbound, "tls_id")
@@ -687,10 +697,33 @@ func sanitizeDomainInboundPart(value string, fallback string) string {
 	return value
 }
 
-func buildClusterInboundTag(prefix string, baseTag string, nodeID string, suffix string) string {
-	base := sanitizeDomainInboundPart(baseTag, "inbound")
-	node := sanitizeDomainInboundPart(nodeID, "node")
-	return prefix + base + "-" + node + suffix
+func buildClusterInboundTag(tagSeed string, prefix string, displayName string, suffix string) string {
+	parts := []string{
+		sanitizeDomainInboundPart(tagSeed, "inbound"),
+		sanitizeDomainInboundPart(prefix, ""),
+		sanitizeDomainInboundPart(displayName, "node"),
+		sanitizeDomainInboundPart(suffix, ""),
+	}
+	nonEmpty := parts[:0]
+	for _, part := range parts {
+		if part != "" {
+			nonEmpty = append(nonEmpty, part)
+		}
+	}
+	return strings.Join(nonEmpty, "-")
+}
+
+func domainInboundLocalDisplayName(targets []clustertypes.DomainInboundTarget, nodeID string) string {
+	nodeID = strings.TrimSpace(nodeID)
+	for _, target := range targets {
+		if strings.TrimSpace(target.NodeID) == nodeID {
+			if displayName := strings.TrimSpace(target.DisplayName); displayName != "" {
+				return displayName
+			}
+			break
+		}
+	}
+	return nodeID
 }
 
 func defaultRealityShortID(tag string, now int64) string {

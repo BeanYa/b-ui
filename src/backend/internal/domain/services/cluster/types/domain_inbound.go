@@ -9,11 +9,20 @@ type DomainInboundTLS struct {
 }
 
 type DomainInboundCreatePayload struct {
-	RequestID   string            `json:"request_id"`
-	DomainID    string            `json:"domain_id"`
-	Prefix      string            `json:"prefix"`
-	Suffix      string            `json:"suffix"`
-	Inbound     json.RawMessage   `json:"inbound"`
-	TLSTemplate string            `json:"tls_template"`
-	TLS         *DomainInboundTLS `json:"tls,omitempty"`
+	RequestID     string                `json:"request_id"`
+	DomainID      string                `json:"domain_id"`
+	GroupID       string                `json:"group_id"`
+	TagSeed       string                `json:"tag_seed"`
+	TargetMembers []DomainInboundTarget `json:"target_members"`
+	Prefix        string                `json:"prefix"`
+	Suffix        string                `json:"suffix"`
+	Inbound       json.RawMessage       `json:"inbound"`
+	TLSTemplate   string                `json:"tls_template"`
+	TLS           *DomainInboundTLS     `json:"tls,omitempty"`
+}
+
+type DomainInboundTarget struct {
+	MemberID    string `json:"member_id"`
+	NodeID      string `json:"node_id"`
+	DisplayName string `json:"display_name"`
 }

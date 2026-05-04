@@ -153,6 +153,7 @@ type ClusterInbound struct {
 	Domain    string   `json:"domain" gorm:"index"`
 	NodeID    string   `json:"nodeId" gorm:"index"`
 	MemberID  string   `json:"memberId" gorm:"index"`
+	GroupID   string   `json:"groupId" gorm:"index"`
 	InboundID uint     `json:"inboundId" gorm:"uniqueIndex"`
 	Inbound   *Inbound `json:"inbound,omitempty" gorm:"foreignKey:InboundID;references:Id"`
 	RequestID string   `json:"requestId" gorm:"uniqueIndex:idx_cluster_inbound_domain_request"`

@@ -108,7 +108,7 @@ func TestDomainInboundCreateGeneratesPortAndCreatesWrapper(t *testing.T) {
 	if err := db.First(&inbound, result.InboundID).Error; err != nil {
 		t.Fatalf("load inbound: %v", err)
 	}
-	if inbound.Tag != "edge-main-node-a-prod" {
+	if inbound.Tag != "main-edge-node-a-prod" {
 		t.Fatalf("expected normalized tag, got %q", inbound.Tag)
 	}
 	var options map[string]interface{}
@@ -124,6 +124,66 @@ func TestDomainInboundCreateGeneratesPortAndCreatesWrapper(t *testing.T) {
 	}
 	if wrapper.InboundID != inbound.Id || wrapper.Prefix != "edge-" || wrapper.Suffix != "-prod" {
 		t.Fatalf("unexpected wrapper: %#v", wrapper)
+	}
+}
+
+func TestDomainInboundCreateUsesGroupSeedDisplayNameAndIsIdempotent(t *testing.T) {
+	db := initClusterInboundTestDB(t)
+	svc := NewClusterDomainInboundService(ClusterDomainInboundServiceOptions{
+		DB: db,
+		InboundSaver: domainInboundSaverFunc(func(tx *gorm.DB, act string, data json.RawMessage, initUserIds string, hostname string) error {
+			var inbound model.Inbound
+			if err := inbound.UnmarshalJSON(data); err != nil {
+				return err
+			}
+			return tx.Create(&inbound).Error
+		}),
+		Identity:      &stubDomainInboundIdentity{node: &model.ClusterLocalNode{NodeID: "node-a"}},
+		PortAllocator: func() (int, error) { return 32005, nil },
+		Now:           func() int64 { return 1700000000 },
+	})
+	payload := clustertypes.DomainInboundCreatePayload{
+		RequestID: "req-group-1",
+		DomainID:  "edge.example.com",
+		GroupID:   "group-1",
+		TagSeed:   "main",
+		Prefix:    "edge",
+		Suffix:    "prod",
+		Inbound:   json.RawMessage(`{"type":"vless","tag":"legacy"}`),
+		TargetMembers: []clustertypes.DomainInboundTarget{
+			{MemberID: "member-a", NodeID: "node-a", DisplayName: "de"},
+		},
+	}
+
+	first, err := svc.ApplyDomainInboundCreate(context.Background(), &model.ClusterDomain{Id: 1, Domain: "edge.example.com"}, payload, "hub", false)
+	if err != nil {
+		t.Fatalf("apply first: %v", err)
+	}
+	if !first.Created || first.InboundID == 0 {
+		t.Fatalf("unexpected first result: %#v", first)
+	}
+	var inbound model.Inbound
+	if err := db.First(&inbound, first.InboundID).Error; err != nil {
+		t.Fatalf("load inbound: %v", err)
+	}
+	if inbound.Tag != "main-edge-de-prod" {
+		t.Fatalf("expected display-name tag, got %q", inbound.Tag)
+	}
+	var wrapper model.ClusterInbound
+	if err := db.Where("domain_id = ? AND group_id = ?", 1, "group-1").First(&wrapper).Error; err != nil {
+		t.Fatalf("load wrapper: %v", err)
+	}
+	if wrapper.GroupID != "group-1" || wrapper.InboundID != first.InboundID {
+		t.Fatalf("unexpected wrapper: %#v", wrapper)
+	}
+
+	payload.RequestID = "req-group-2"
+	second, err := svc.ApplyDomainInboundCreate(context.Background(), &model.ClusterDomain{Id: 1, Domain: "edge.example.com"}, payload, "hub", false)
+	if err != nil {
+		t.Fatalf("apply second: %v", err)
+	}
+	if second.InboundID != first.InboundID || second.Created {
+		t.Fatalf("expected existing grouped inbound, first=%#v second=%#v", first, second)
 	}
 }
 
@@ -394,8 +454,10 @@ func TestDomainInboundCreateKeepsLocalResultWhenPeerBroadcastFails(t *testing.T)
 			}
 			return tx.Create(&inbound).Error
 		}),
-		Identity:      &stubDomainInboundIdentity{node: &model.ClusterLocalNode{NodeID: "node-a"}},
-		Broadcaster:   domainInboundBroadcasterFunc(func(context.Context, *model.ClusterDomain, clustertypes.DomainInboundCreatePayload) error { return errors.New("cluster peer notify failed: 401 Unauthorized") }),
+		Identity: &stubDomainInboundIdentity{node: &model.ClusterLocalNode{NodeID: "node-a"}},
+		Broadcaster: domainInboundBroadcasterFunc(func(context.Context, *model.ClusterDomain, clustertypes.DomainInboundCreatePayload) error {
+			return errors.New("cluster peer notify failed: 401 Unauthorized")
+		}),
 		PortAllocator: func() (int, error) { return 32004, nil },
 		Now:           func() int64 { return 1700000000 },
 	})
@@ -421,6 +483,17 @@ func TestDomainInboundBuildTagSanitizesBaseAndNode(t *testing.T) {
 	tag := buildClusterInboundTag("edge-", "bad tag!", "node/a", "-prod")
 	if tag != "edge-bad-tag-node-a-prod" {
 		t.Fatalf("expected sanitized tag, got %q", tag)
+	}
+}
+
+func TestDomainInboundBuildTagUsesSeedPrefixDisplayNameSuffix(t *testing.T) {
+	tag := buildClusterInboundTag("main", "edge", "de", "prod")
+	if tag != "main-edge-de-prod" {
+		t.Fatalf("expected main-edge-de-prod, got %q", tag)
+	}
+	tag = buildClusterInboundTag("main", "", "de", "")
+	if tag != "main-de" {
+		t.Fatalf("expected main-de, got %q", tag)
 	}
 }
 
