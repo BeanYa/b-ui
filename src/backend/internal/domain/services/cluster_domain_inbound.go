@@ -50,17 +50,19 @@ type ClusterDomainInboundServiceOptions struct {
 }
 
 type ClusterDomainInboundService struct {
-	db                       *gorm.DB
-	inboundSaver             clusterDomainInboundSaver
-	identity                 clusterDomainInboundIdentity
-	broadcaster              clusterDomainInboundBroadcaster
-	reporter                 clusterDomainInboundReporter
-	portAllocator            func() (int, error)
-	tlsKeypairGenerator      func(serverName string) []string
-	panelCertificateProvider func() (DomainInboundPanelCertificateSettings, error)
-	now                      func() int64
-	updateInbound            func(*gorm.DB, uint, json.RawMessage, string) error
-	updateLinks              func(*gorm.DB, *[]model.Inbound, string, string) error
+	db                           *gorm.DB
+	inboundSaver                 clusterDomainInboundSaver
+	identity                     clusterDomainInboundIdentity
+	broadcaster                  clusterDomainInboundBroadcaster
+	reporter                     clusterDomainInboundReporter
+	portAllocator                func() (int, error)
+	tlsKeypairGenerator          func(serverName string) []string
+	panelCertificateProvider     func() (DomainInboundPanelCertificateSettings, error)
+	now                          func() int64
+	updateInbound                func(*gorm.DB, uint, json.RawMessage, string) error
+	updateLinks                  func(*gorm.DB, *[]model.Inbound, string, string) error
+	updateClientsOnInboundDelete func(*gorm.DB, uint, string) error
+	deleteInboundRuntime         func(string) error
 }
 
 type DomainInboundCreateResult struct {
@@ -110,6 +112,12 @@ func NewClusterDomainInboundService(opts ClusterDomainInboundServiceOptions) *Cl
 	}
 	if s.updateLinks == nil {
 		s.updateLinks = (&ClientService{}).UpdateLinksByInboundChange
+	}
+	if s.updateClientsOnInboundDelete == nil {
+		s.updateClientsOnInboundDelete = (&ClientService{}).UpdateClientsOnInboundDelete
+	}
+	if s.deleteInboundRuntime == nil {
+		s.deleteInboundRuntime = deleteDomainInboundRuntime
 	}
 	return s
 }
@@ -386,6 +394,7 @@ func (s *ClusterDomainInboundService) ApplyDomainInboundDelete(ctx context.Conte
 	}
 
 	deleted := false
+	deleteRuntimeTag := ""
 	if err := s.db.Transaction(func(tx *gorm.DB) error {
 		var wrapper model.ClusterInbound
 		err := tx.Where("domain_id = ? AND group_id = ?", domain.Id, payload.GroupID).First(&wrapper).Error
@@ -395,16 +404,23 @@ func (s *ClusterDomainInboundService) ApplyDomainInboundDelete(ctx context.Conte
 		if err != nil {
 			return err
 		}
-		if _, _, err := deleteClusterManagedInbound(tx, wrapper.InboundID); err != nil {
+		runtimeTag, _, _, err := s.deleteDomainInboundDB(tx, wrapper.InboundID)
+		if err != nil {
 			return err
 		}
 		if err := tx.Delete(&wrapper).Error; err != nil {
 			return err
 		}
 		deleted = true
+		deleteRuntimeTag = runtimeTag
 		return nil
 	}); err != nil {
 		return err
+	}
+	if deleted && deleteRuntimeTag != "" {
+		if err := s.deleteInboundRuntime(deleteRuntimeTag); err != nil {
+			return err
+		}
 	}
 	if broadcast && s.broadcaster != nil {
 		_ = s.broadcaster.BroadcastDomainInboundDelete(ctx, domain, payload)
@@ -495,6 +511,39 @@ func (s *ClusterDomainInboundService) updateDomainInboundRuntime(db *gorm.DB, in
 		return err
 	}
 	if err := corePtr.AddInbound(inboundConfig); err != nil {
+		return err
+	}
+	return nil
+}
+
+func (s *ClusterDomainInboundService) deleteDomainInboundDB(tx *gorm.DB, inboundID uint) (string, bool, bool, error) {
+	var inbound model.Inbound
+	err := tx.Where("id = ?", inboundID).First(&inbound).Error
+	if errors.Is(err, gorm.ErrRecordNotFound) {
+		return "", false, false, nil
+	}
+	if err != nil {
+		return "", false, false, err
+	}
+	if err := s.updateClientsOnInboundDelete(tx, inbound.Id, inbound.Tag); err != nil {
+		return "", false, false, err
+	}
+	tlsID := inbound.TlsId
+	if err := tx.Delete(&inbound).Error; err != nil {
+		return "", false, false, err
+	}
+	tlsDeleted, err := deleteUnusedClusterTLS(tx, tlsID)
+	if err != nil {
+		return "", false, false, err
+	}
+	return inbound.Tag, tlsDeleted, true, nil
+}
+
+func deleteDomainInboundRuntime(tag string) error {
+	if corePtr == nil || !corePtr.IsRunning() || tag == "" {
+		return nil
+	}
+	if err := corePtr.RemoveInbound(tag); err != nil && err != os.ErrInvalid {
 		return err
 	}
 	return nil

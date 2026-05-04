@@ -979,6 +979,38 @@ func TestDomainInboundDeleteKeepsLocalDeleteWhenPeerBroadcastFails(t *testing.T)
 	}
 }
 
+func TestDomainInboundDeleteClientUpdateFailureHappensBeforeRuntimeMutation(t *testing.T) {
+	db := initClusterInboundTestDB(t)
+	inbound := model.Inbound{Type: "vless", Tag: "delete-client-fail-tag"}
+	if err := db.Create(&inbound).Error; err != nil {
+		t.Fatalf("seed inbound: %v", err)
+	}
+	wrapper := model.ClusterInbound{DomainID: 1, Domain: "edge.example.com", NodeID: "node-a", MemberID: "node-a", GroupID: "group-delete-client-fail", InboundID: inbound.Id, RequestID: "req-create"}
+	if err := db.Create(&wrapper).Error; err != nil {
+		t.Fatalf("seed wrapper: %v", err)
+	}
+	runtimeDeletes := 0
+	svc := NewClusterDomainInboundService(ClusterDomainInboundServiceOptions{DB: db})
+	svc.updateClientsOnInboundDelete = func(*gorm.DB, uint, string) error {
+		return errors.New("client update failed")
+	}
+	svc.deleteInboundRuntime = func(string) error {
+		runtimeDeletes++
+		return nil
+	}
+
+	if err := svc.ApplyDomainInboundDelete(context.Background(), &model.ClusterDomain{Id: 1, Domain: "edge.example.com"}, clustertypes.DomainInboundDeletePayload{
+		RequestID: "req-delete-client-fail",
+		DomainID:  "edge.example.com",
+		GroupID:   "group-delete-client-fail",
+	}, "hub", false); err == nil || !strings.Contains(err.Error(), "client update failed") {
+		t.Fatalf("expected client update failure, got %v", err)
+	}
+	if runtimeDeletes != 0 {
+		t.Fatalf("expected runtime delete deferred until after DB work succeeds, got %d deletes", runtimeDeletes)
+	}
+}
+
 func TestDomainInboundDeleteMissingGroupIsIdempotent(t *testing.T) {
 	db := initClusterInboundTestDB(t)
 	svc := NewClusterDomainInboundService(ClusterDomainInboundServiceOptions{
