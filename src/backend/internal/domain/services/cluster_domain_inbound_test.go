@@ -567,6 +567,174 @@ func TestDomainInboundUpdateMissingGroupReturnsClearError(t *testing.T) {
 	}
 }
 
+func TestDomainInboundUpdateReplacesExistingInboundAndTLS(t *testing.T) {
+	db := initClusterInboundTestDB(t)
+	originalTLS := model.Tls{Name: "old-tls", Server: json.RawMessage(`{"enabled":true}`), Client: json.RawMessage(`{}`)}
+	if err := db.Create(&originalTLS).Error; err != nil {
+		t.Fatalf("seed original tls: %v", err)
+	}
+	inbound := model.Inbound{Type: "vless", Tag: "old-tag", TlsId: originalTLS.Id, Options: json.RawMessage(`{"listen":"::","listen_port":32000}`)}
+	if err := db.Create(&inbound).Error; err != nil {
+		t.Fatalf("seed inbound: %v", err)
+	}
+	wrapper := model.ClusterInbound{
+		DomainID:  1,
+		Domain:    "edge.example.com",
+		NodeID:    "node-a",
+		MemberID:  "node-a",
+		GroupID:   "group-1",
+		InboundID: inbound.Id,
+		RequestID: "req-create",
+		Prefix:    "old",
+		Suffix:    "old",
+		Template:  "standard",
+	}
+	if err := db.Create(&wrapper).Error; err != nil {
+		t.Fatalf("seed wrapper: %v", err)
+	}
+	svc := NewClusterDomainInboundService(ClusterDomainInboundServiceOptions{
+		DB:            db,
+		Identity:      &stubDomainInboundIdentity{node: &model.ClusterLocalNode{NodeID: "node-a"}},
+		PortAllocator: func() (int, error) { return 32010, nil },
+		Now:           func() int64 { return 1700000001 },
+	})
+
+	result, err := svc.ApplyDomainInboundUpdate(context.Background(), &model.ClusterDomain{Id: 1, Domain: "edge.example.com"}, clustertypes.DomainInboundUpdatePayload{
+		RequestID:   "req-update",
+		DomainID:    "edge.example.com",
+		GroupID:     "group-1",
+		TagSeed:     "main",
+		Prefix:      "edge",
+		Suffix:      "prod",
+		Inbound:     json.RawMessage(`{"type":"trojan","tag":"legacy","listen":"127.0.0.1","tcp_fast_open":true}`),
+		TLSTemplate: "standard",
+		TLS: &clustertypes.DomainInboundTLS{
+			Name:   "new-tls",
+			Server: json.RawMessage(`{"enabled":true,"server_name":"edge.example.com","certificate":["cert"],"key":["key"]}`),
+			Client: json.RawMessage(`{"insecure":false}`),
+		},
+		TargetMembers: []clustertypes.DomainInboundTarget{{NodeID: "node-a", DisplayName: "de"}},
+	}, "hub", false)
+	if err != nil {
+		t.Fatalf("apply update: %v", err)
+	}
+	if result.InboundID != inbound.Id || result.RequestID != "req-update" || result.Created {
+		t.Fatalf("unexpected result: %#v", result)
+	}
+	var updated model.Inbound
+	if err := db.First(&updated, inbound.Id).Error; err != nil {
+		t.Fatalf("load updated inbound: %v", err)
+	}
+	if updated.Type != "trojan" || updated.Tag != "main-edge-de-prod" || updated.TlsId == 0 || updated.TlsId == originalTLS.Id {
+		t.Fatalf("expected updated inbound type/tag/tls, got %#v", updated)
+	}
+	var options map[string]interface{}
+	if err := json.Unmarshal(updated.Options, &options); err != nil {
+		t.Fatalf("decode updated options: %v", err)
+	}
+	if options["listen"] != "127.0.0.1" || options["listen_port"] != float64(32010) || options["tcp_fast_open"] != true {
+		t.Fatalf("expected editable inbound options to be replaced, got %#v", options)
+	}
+	var updatedWrapper model.ClusterInbound
+	if err := db.First(&updatedWrapper, wrapper.Id).Error; err != nil {
+		t.Fatalf("load wrapper: %v", err)
+	}
+	if updatedWrapper.RequestID != "req-update" || updatedWrapper.Prefix != "edge" || updatedWrapper.Suffix != "prod" || updatedWrapper.Template != "standard" || updatedWrapper.MemberID != "hub" {
+		t.Fatalf("expected wrapper metadata update, got %#v", updatedWrapper)
+	}
+	var oldTLSCount int64
+	if err := db.Model(model.Tls{}).Where("id = ?", originalTLS.Id).Count(&oldTLSCount).Error; err != nil {
+		t.Fatalf("count old tls: %v", err)
+	}
+	if oldTLSCount != 0 {
+		t.Fatalf("expected old tls to be deleted, count=%d", oldTLSCount)
+	}
+}
+
+func TestDomainInboundDeleteRemovesExistingWrapperAndInbound(t *testing.T) {
+	db := initClusterInboundTestDB(t)
+	tlsConfig := model.Tls{Name: "delete-tls", Server: json.RawMessage(`{}`), Client: json.RawMessage(`{}`)}
+	if err := db.Create(&tlsConfig).Error; err != nil {
+		t.Fatalf("seed tls: %v", err)
+	}
+	inbound := model.Inbound{Type: "vless", Tag: "delete-tag", TlsId: tlsConfig.Id}
+	if err := db.Create(&inbound).Error; err != nil {
+		t.Fatalf("seed inbound: %v", err)
+	}
+	wrapper := model.ClusterInbound{DomainID: 1, Domain: "edge.example.com", NodeID: "node-a", MemberID: "node-a", GroupID: "group-delete", InboundID: inbound.Id, RequestID: "req-create"}
+	if err := db.Create(&wrapper).Error; err != nil {
+		t.Fatalf("seed wrapper: %v", err)
+	}
+	svc := NewClusterDomainInboundService(ClusterDomainInboundServiceOptions{DB: db})
+
+	if err := svc.ApplyDomainInboundDelete(context.Background(), &model.ClusterDomain{Id: 1, Domain: "edge.example.com"}, clustertypes.DomainInboundDeletePayload{
+		RequestID: "req-delete",
+		DomainID:  "edge.example.com",
+		GroupID:   "group-delete",
+	}, "hub", false); err != nil {
+		t.Fatalf("apply delete: %v", err)
+	}
+	var wrapperCount int64
+	if err := db.Model(model.ClusterInbound{}).Where("id = ?", wrapper.Id).Count(&wrapperCount).Error; err != nil {
+		t.Fatalf("count wrapper: %v", err)
+	}
+	if wrapperCount != 0 {
+		t.Fatalf("expected wrapper deleted, count=%d", wrapperCount)
+	}
+	var inboundCount int64
+	if err := db.Model(model.Inbound{}).Where("id = ?", inbound.Id).Count(&inboundCount).Error; err != nil {
+		t.Fatalf("count inbound: %v", err)
+	}
+	if inboundCount != 0 {
+		t.Fatalf("expected inbound deleted, count=%d", inboundCount)
+	}
+	var tlsCount int64
+	if err := db.Model(model.Tls{}).Where("id = ?", tlsConfig.Id).Count(&tlsCount).Error; err != nil {
+		t.Fatalf("count tls: %v", err)
+	}
+	if tlsCount != 0 {
+		t.Fatalf("expected unused tls deleted, count=%d", tlsCount)
+	}
+}
+
+func TestDomainInboundDeleteKeepsLocalDeleteWhenPeerBroadcastFails(t *testing.T) {
+	db := initClusterInboundTestDB(t)
+	inbound := model.Inbound{Type: "vless", Tag: "delete-broadcast-tag"}
+	if err := db.Create(&inbound).Error; err != nil {
+		t.Fatalf("seed inbound: %v", err)
+	}
+	wrapper := model.ClusterInbound{DomainID: 1, Domain: "edge.example.com", NodeID: "node-a", MemberID: "node-a", GroupID: "group-broadcast", InboundID: inbound.Id, RequestID: "req-create"}
+	if err := db.Create(&wrapper).Error; err != nil {
+		t.Fatalf("seed wrapper: %v", err)
+	}
+	svc := NewClusterDomainInboundService(ClusterDomainInboundServiceOptions{
+		DB:          db,
+		Broadcaster: stubDomainInboundBroadcaster{deleteErr: errors.New("cluster peer notify failed: 401 Unauthorized")},
+	})
+
+	if err := svc.ApplyDomainInboundDelete(context.Background(), &model.ClusterDomain{Id: 1, Domain: "edge.example.com"}, clustertypes.DomainInboundDeletePayload{
+		RequestID: "req-delete-broadcast",
+		DomainID:  "edge.example.com",
+		GroupID:   "group-broadcast",
+	}, "hub", true); err != nil {
+		t.Fatalf("expected local delete despite broadcast failure, got %v", err)
+	}
+	var wrapperCount int64
+	if err := db.Model(model.ClusterInbound{}).Where("id = ?", wrapper.Id).Count(&wrapperCount).Error; err != nil {
+		t.Fatalf("count wrapper: %v", err)
+	}
+	if wrapperCount != 0 {
+		t.Fatalf("expected wrapper deleted, count=%d", wrapperCount)
+	}
+	var inboundCount int64
+	if err := db.Model(model.Inbound{}).Where("id = ?", inbound.Id).Count(&inboundCount).Error; err != nil {
+		t.Fatalf("count inbound: %v", err)
+	}
+	if inboundCount != 0 {
+		t.Fatalf("expected inbound deleted, count=%d", inboundCount)
+	}
+}
+
 func TestDomainInboundDeleteMissingGroupIsIdempotent(t *testing.T) {
 	db := initClusterInboundTestDB(t)
 	svc := NewClusterDomainInboundService(ClusterDomainInboundServiceOptions{
@@ -664,6 +832,24 @@ func (fn domainInboundBroadcasterFunc) BroadcastDomainInboundUpdate(ctx context.
 
 func (fn domainInboundBroadcasterFunc) BroadcastDomainInboundDelete(ctx context.Context, domain *model.ClusterDomain, payload clustertypes.DomainInboundDeletePayload) error {
 	return nil
+}
+
+type stubDomainInboundBroadcaster struct {
+	createErr error
+	updateErr error
+	deleteErr error
+}
+
+func (s stubDomainInboundBroadcaster) BroadcastDomainInboundCreate(context.Context, *model.ClusterDomain, clustertypes.DomainInboundCreatePayload) error {
+	return s.createErr
+}
+
+func (s stubDomainInboundBroadcaster) BroadcastDomainInboundUpdate(context.Context, *model.ClusterDomain, clustertypes.DomainInboundUpdatePayload) error {
+	return s.updateErr
+}
+
+func (s stubDomainInboundBroadcaster) BroadcastDomainInboundDelete(context.Context, *model.ClusterDomain, clustertypes.DomainInboundDeletePayload) error {
+	return s.deleteErr
 }
 
 type stubDomainInboundIdentity struct {
