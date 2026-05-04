@@ -259,9 +259,6 @@ func (h *pingAPIHandler) shouldDeriveExternalTarget(req ping.ExternalRunRequest)
 	if req.Direction == ping.DirectionOutbound {
 		return false
 	}
-	if req.Direction == ping.DirectionInbound {
-		return true
-	}
 	return h.requestIncludesInboundExternalSource(req.SourceIDs)
 }
 

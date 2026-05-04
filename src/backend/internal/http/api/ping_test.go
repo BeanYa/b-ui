@@ -8,9 +8,11 @@ import (
 	"testing"
 
 	"github.com/BeanYa/b-ui/src/backend/internal/domain/services/ping"
+	logger "github.com/BeanYa/b-ui/src/backend/internal/infra/logging"
 	"github.com/gin-contrib/sessions"
 	"github.com/gin-contrib/sessions/cookie"
 	"github.com/gin-gonic/gin"
+	"github.com/op/go-logging"
 )
 
 type externalPingServiceStub struct {
@@ -33,6 +35,7 @@ func (s *externalPingServiceStub) Run(ctx context.Context, req ping.ExternalRunR
 
 func newExternalPingTestRouter(externalSvc externalPingService) *gin.Engine {
 	gin.SetMode(gin.TestMode)
+	logger.InitLogger(logging.ERROR)
 	router := gin.New()
 	router.Use(gin.Recovery())
 	router.Use(sessions.Sessions("b-ui", cookie.NewStore([]byte("test-secret"))))
@@ -93,6 +96,40 @@ func TestTriggerExternalPingOutboundDoesNotRequireClusterMembers(t *testing.T) {
 	}
 	if len(stub.members) != 0 {
 		t.Fatalf("expected no cluster members, got %#v", stub.members)
+	}
+}
+
+func TestTriggerExternalPingInboundOutboundSourceDoesNotDeriveTarget(t *testing.T) {
+	stub := &externalPingServiceStub{}
+	router := newExternalPingTestRouter(stub)
+	req := httptest.NewRequest(
+		http.MethodPost,
+		"/api/ping/external",
+		bytes.NewBufferString(`{"direction":"inbound","source_ids":["public_dns"],"methods":["tcp"]}`),
+	)
+	req.Host = "bad:host:8443"
+	req.Header.Set("Content-Type", "application/json")
+	req.Header.Set("Cookie", loginCookie(t, router, "admin"))
+	recorder := httptest.NewRecorder()
+
+	router.ServeHTTP(recorder, req)
+
+	if recorder.Code != http.StatusOK {
+		t.Fatalf("expected inbound external ping with outbound source status %d, got %d", http.StatusOK, recorder.Code)
+	}
+	var response Msg
+	decodeResponse(t, recorder, &response)
+	if !response.Success {
+		t.Fatalf("expected inbound external ping with outbound source success, got %#v", response)
+	}
+	if !stub.called {
+		t.Fatal("expected external ping service to be called")
+	}
+	if stub.req.Direction != ping.DirectionInbound {
+		t.Fatalf("expected inbound direction, got %q", stub.req.Direction)
+	}
+	if stub.req.Target != nil {
+		t.Fatalf("expected no derived target for outbound source, got %#v", stub.req.Target)
 	}
 }
 
@@ -209,6 +246,40 @@ func TestTriggerExternalPingDisabledInboundSourceDoesNotDeriveTarget(t *testing.
 	}
 	if stub.req.Target != nil {
 		t.Fatalf("expected disabled inbound source not to derive target, got %#v", stub.req.Target)
+	}
+}
+
+func TestTriggerExternalPingInboundDisabledInboundSourceDoesNotDeriveTarget(t *testing.T) {
+	stub := &externalPingServiceStub{}
+	router := newExternalPingTestRouter(stub)
+	req := httptest.NewRequest(
+		http.MethodPost,
+		"/api/ping/external",
+		bytes.NewBufferString(`{"direction":"inbound","source_ids":["globalping"],"methods":["tcp"]}`),
+	)
+	req.Host = "bad:host:8443"
+	req.Header.Set("Content-Type", "application/json")
+	req.Header.Set("Cookie", loginCookie(t, router, "admin"))
+	recorder := httptest.NewRecorder()
+
+	router.ServeHTTP(recorder, req)
+
+	if recorder.Code != http.StatusOK {
+		t.Fatalf("expected inbound external ping with disabled inbound source status %d, got %d", http.StatusOK, recorder.Code)
+	}
+	var response Msg
+	decodeResponse(t, recorder, &response)
+	if !response.Success {
+		t.Fatalf("expected inbound external ping with disabled inbound source success, got %#v", response)
+	}
+	if !stub.called {
+		t.Fatal("expected external ping service to be called")
+	}
+	if stub.req.Direction != ping.DirectionInbound {
+		t.Fatalf("expected inbound direction, got %q", stub.req.Direction)
+	}
+	if stub.req.Target != nil {
+		t.Fatalf("expected no derived target for disabled inbound source, got %#v", stub.req.Target)
 	}
 }
 
