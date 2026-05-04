@@ -399,7 +399,14 @@ func (s *ClusterDomainInboundService) ApplyDomainInboundDelete(ctx context.Conte
 		var wrapper model.ClusterInbound
 		err := tx.Where("domain_id = ? AND group_id = ?", domain.Id, payload.GroupID).First(&wrapper).Error
 		if errors.Is(err, gorm.ErrRecordNotFound) {
-			return nil
+			fallback, fallbackErr := findDomainInboundDeleteFallback(tx, domain.Id, payload)
+			if errors.Is(fallbackErr, gorm.ErrRecordNotFound) {
+				return nil
+			}
+			if fallbackErr != nil {
+				return fallbackErr
+			}
+			wrapper = fallback
 		}
 		if err != nil {
 			return err
@@ -429,6 +436,38 @@ func (s *ClusterDomainInboundService) ApplyDomainInboundDelete(ctx context.Conte
 		s.reporter.ReportProxyConfigs(domain.Id)
 	}
 	return nil
+}
+
+func findDomainInboundDeleteFallback(tx *gorm.DB, domainID uint, payload clustertypes.DomainInboundDeletePayload) (model.ClusterInbound, error) {
+	for _, target := range payload.TargetMembers {
+		if target.DomainInboundRequestID != "" {
+			var wrapper model.ClusterInbound
+			if err := tx.Where("domain_id = ? AND request_id = ?", domainID, target.DomainInboundRequestID).First(&wrapper).Error; err == nil {
+				return wrapper, nil
+			} else if !errors.Is(err, gorm.ErrRecordNotFound) {
+				return model.ClusterInbound{}, err
+			}
+		}
+		if target.RemoteInboundID > 0 {
+			var wrapper model.ClusterInbound
+			if err := tx.Where("domain_id = ? AND inbound_id = ?", domainID, target.RemoteInboundID).First(&wrapper).Error; err == nil {
+				return wrapper, nil
+			} else if !errors.Is(err, gorm.ErrRecordNotFound) {
+				return model.ClusterInbound{}, err
+			}
+		}
+		if target.TargetTag != "" {
+			var wrapper model.ClusterInbound
+			if err := tx.Joins("JOIN inbounds ON inbounds.id = cluster_inbounds.inbound_id").
+				Where("cluster_inbounds.domain_id = ? AND inbounds.tag = ?", domainID, target.TargetTag).
+				First(&wrapper).Error; err == nil {
+				return wrapper, nil
+			} else if !errors.Is(err, gorm.ErrRecordNotFound) {
+				return model.ClusterInbound{}, err
+			}
+		}
+	}
+	return model.ClusterInbound{}, gorm.ErrRecordNotFound
 }
 
 func (s *ClusterDomainInboundService) HandleDomainInboundUpdate(ctx context.Context, req clustertypes.ActionRequest, payload clustertypes.DomainInboundUpdatePayload) (map[string]interface{}, error) {

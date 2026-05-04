@@ -31,7 +31,10 @@ type DomainInboundDeletePayload struct {
 }
 
 type DomainInboundTarget struct {
-	MemberID    string `json:"member_id"`
-	NodeID      string `json:"node_id"`
-	DisplayName string `json:"display_name"`
+	MemberID               string `json:"member_id"`
+	NodeID                 string `json:"node_id"`
+	DisplayName            string `json:"display_name"`
+	TargetTag              string `json:"target_tag,omitempty"`
+	RemoteInboundID        uint   `json:"remote_inbound_id,omitempty"`
+	DomainInboundRequestID string `json:"domain_inbound_request_id,omitempty"`
 }

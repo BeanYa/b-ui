@@ -24,6 +24,7 @@ const (
 
 type ClusterLogEntry struct {
 	Time      string                 `json:"time"`
+	TimeUTC   string                 `json:"time_utc"`
 	Level     string                 `json:"level"`
 	Direction string                 `json:"direction"`
 	Action    string                 `json:"action"`
@@ -88,8 +89,10 @@ func ClusterError(direction, action string, fields map[string]interface{}) {
 }
 
 func addClusterBuf(level, direction, action string, fields map[string]interface{}) {
+	now := time.Now().UTC()
 	entry := ClusterLogEntry{
-		Time:      time.Now().Format("2006/01/02 15:04:05"),
+		Time:      now.Format("2006/01/02 15:04:05 UTC"),
+		TimeUTC:   now.Format(time.RFC3339),
 		Level:     level,
 		Direction: direction,
 		Action:    action,

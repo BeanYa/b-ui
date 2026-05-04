@@ -1027,6 +1027,52 @@ func TestDomainInboundDeleteMissingGroupIsIdempotent(t *testing.T) {
 	}
 }
 
+func TestDomainInboundDeleteFallsBackToReportedTargetWhenAdoptedGroupIsUnknown(t *testing.T) {
+	db := initClusterInboundTestDB(t)
+	inbound := model.Inbound{Type: "vless", Tag: "BeanStudioVless-edge-de-prod"}
+	if err := db.Create(&inbound).Error; err != nil {
+		t.Fatalf("seed inbound: %v", err)
+	}
+	wrapper := model.ClusterInbound{DomainID: 1, Domain: "edge.example.com", NodeID: "node-a", MemberID: "member-a", GroupID: "original-group", InboundID: inbound.Id, RequestID: "reported-adopt-request"}
+	if err := db.Create(&wrapper).Error; err != nil {
+		t.Fatalf("seed wrapper: %v", err)
+	}
+	svc := NewClusterDomainInboundService(ClusterDomainInboundServiceOptions{
+		DB:       db,
+		Identity: &stubDomainInboundIdentity{node: &model.ClusterLocalNode{NodeID: "node-a"}},
+	})
+
+	if err := svc.ApplyDomainInboundDelete(context.Background(), &model.ClusterDomain{Id: 1, Domain: "edge.example.com"}, clustertypes.DomainInboundDeletePayload{
+		RequestID: "req-delete-adopted",
+		DomainID:  "edge.example.com",
+		GroupID:   "hub-adopted-group",
+		TargetMembers: []clustertypes.DomainInboundTarget{{
+			MemberID:               "member-a",
+			NodeID:                 "node-a",
+			DisplayName:            "de",
+			TargetTag:              "BeanStudioVless-edge-de-prod",
+			RemoteInboundID:        inbound.Id,
+			DomainInboundRequestID: "reported-adopt-request",
+		}},
+	}, "hub", false); err != nil {
+		t.Fatalf("apply adopted delete: %v", err)
+	}
+	var wrapperCount int64
+	if err := db.Model(model.ClusterInbound{}).Where("id = ?", wrapper.Id).Count(&wrapperCount).Error; err != nil {
+		t.Fatalf("count wrapper: %v", err)
+	}
+	if wrapperCount != 0 {
+		t.Fatalf("expected adopted fallback wrapper deleted, count=%d", wrapperCount)
+	}
+	var inboundCount int64
+	if err := db.Model(model.Inbound{}).Where("id = ?", inbound.Id).Count(&inboundCount).Error; err != nil {
+		t.Fatalf("count inbound: %v", err)
+	}
+	if inboundCount != 0 {
+		t.Fatalf("expected adopted fallback inbound deleted, count=%d", inboundCount)
+	}
+}
+
 func TestDomainInboundBuildTagSanitizesBaseAndNode(t *testing.T) {
 	tag := buildLegacyClusterInboundTag("edge-", "bad tag!", "node/a", "-prod")
 	if tag != "edge-bad-tag-node-a-prod" {
