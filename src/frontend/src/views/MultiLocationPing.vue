@@ -38,6 +38,8 @@
               hide-details
               type="number"
               min="1"
+              max="65535"
+              step="1"
               class="multi-location-ping__target-port"
             />
           </div>
@@ -326,7 +328,7 @@ type ExternalMatrixCell = {
 }
 
 function defaultInboundTargetHost() {
-  const hostname = globalThis.window?.location?.hostname?.trim() ?? ''
+  const hostname = normalizeInboundTargetHost(globalThis.window?.location?.hostname ?? '')
   const normalized = hostname.toLowerCase()
   if (normalized === 'localhost' || normalized === '127.0.0.1' || normalized === '::1' || normalized === '[::1]') {
     return ''
@@ -339,6 +341,23 @@ function defaultInboundTargetPort() {
   if (!location) return ''
   if (location.port) return location.port
   return location.protocol === 'https:' ? '443' : '80'
+}
+
+function normalizeInboundTargetHost(value: string) {
+  const host = value.trim()
+  if (!host) return ''
+  if (host.startsWith('[') && host.endsWith(']')) {
+    return host.slice(1, -1).trim()
+  }
+  return host
+}
+
+function normalizedInboundTargetPort(value: string) {
+  const port = Number(value)
+  if (!Number.isInteger(port) || port < 1 || port > 65535) {
+    return undefined
+  }
+  return port
 }
 
 onMounted(async () => {
@@ -362,15 +381,15 @@ async function saveConfig() {
 
 async function runInbound() {
   const ids = store.inboundSources.filter(s => s.enabled).map(s => s.id)
-  const host = inboundTargetHost.value.trim()
+  const host = normalizeInboundTargetHost(inboundTargetHost.value)
   if (ids.length === 0 || !host) return
-  const port = Number(inboundTargetPort.value)
+  const port = normalizedInboundTargetPort(inboundTargetPort.value)
   await store.triggerExternalPing({
     direction: 'inbound',
     source_ids: ids,
     target: {
       host,
-      ...(Number.isFinite(port) && port > 0 ? { port } : {}),
+      ...(port !== undefined ? { port } : {}),
       label: host,
     },
   })

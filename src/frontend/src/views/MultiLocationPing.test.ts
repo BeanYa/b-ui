@@ -30,4 +30,13 @@ describe('MultiLocationPing view source', () => {
     expect(source).toContain('endpointLocation')
     expect(source).toContain('endpointAddressText')
   })
+
+  it('normalizes inbound target host and accepts only integer ports in range', () => {
+    const source = readSource()
+
+    expect(source).toContain('normalizeInboundTargetHost')
+    expect(source).toContain('normalizedInboundTargetPort')
+    expect(source).toContain('Number.isInteger')
+    expect(source).toContain('65535')
+  })
 })
