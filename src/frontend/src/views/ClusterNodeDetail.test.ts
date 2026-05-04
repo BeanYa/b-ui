@@ -64,6 +64,7 @@ describe('ClusterNodeDetail view source', () => {
 
     expect(source).toContain('triggerExternalPing({')
     expect(source).toContain("direction: 'outbound'")
+    expect(source).toContain('pingStore.outboundSources.filter(s => s.enabled).map(s => s.id)')
     expect(source).not.toContain('triggerExternalPing(enabledSourceIds, [currentNodeId.value])')
     expect(source).not.toContain('target_node_ids')
   })

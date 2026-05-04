@@ -311,7 +311,7 @@ async function runLatencyTest() {
   latencyTesting.value = true
   try {
     await pingStore.loadExternalConfig()
-    const enabledSourceIds = pingStore.externalConfig?.sources.filter(s => s.enabled).map(s => s.id) ?? []
+    const enabledSourceIds = pingStore.outboundSources.filter(s => s.enabled).map(s => s.id)
     if (enabledSourceIds.length > 0) {
       await pingStore.triggerExternalPing({
         direction: 'outbound',
