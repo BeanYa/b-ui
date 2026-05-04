@@ -21,6 +21,15 @@ type DomainInboundCreatePayload struct {
 	TLS           *DomainInboundTLS     `json:"tls,omitempty"`
 }
 
+type DomainInboundUpdatePayload = DomainInboundCreatePayload
+
+type DomainInboundDeletePayload struct {
+	RequestID     string                `json:"request_id"`
+	GroupID       string                `json:"group_id"`
+	DomainID      string                `json:"domain_id"`
+	TargetMembers []DomainInboundTarget `json:"target_members"`
+}
+
 type DomainInboundTarget struct {
 	MemberID    string `json:"member_id"`
 	NodeID      string `json:"node_id"`

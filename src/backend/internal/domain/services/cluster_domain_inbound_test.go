@@ -549,6 +549,40 @@ func TestDomainInboundCreateKeepsLocalResultWhenPeerBroadcastFails(t *testing.T)
 	}
 }
 
+func TestDomainInboundUpdateMissingGroupReturnsClearError(t *testing.T) {
+	db := initClusterInboundTestDB(t)
+	svc := NewClusterDomainInboundService(ClusterDomainInboundServiceOptions{
+		DB:       db,
+		Identity: &stubDomainInboundIdentity{node: &model.ClusterLocalNode{NodeID: "node-a"}},
+	})
+
+	_, err := svc.ApplyDomainInboundUpdate(context.Background(), &model.ClusterDomain{Id: 1, Domain: "edge.example.com"}, clustertypes.DomainInboundUpdatePayload{
+		RequestID: "req-update-missing",
+		DomainID:  "edge.example.com",
+		GroupID:   "group-missing",
+		Inbound:   json.RawMessage(`{"type":"vless","tag":"main"}`),
+	}, "hub", false)
+	if err == nil || !strings.Contains(err.Error(), "domain inbound group") || !strings.Contains(err.Error(), "not found") {
+		t.Fatalf("expected clear missing group error, got %v", err)
+	}
+}
+
+func TestDomainInboundDeleteMissingGroupIsIdempotent(t *testing.T) {
+	db := initClusterInboundTestDB(t)
+	svc := NewClusterDomainInboundService(ClusterDomainInboundServiceOptions{
+		DB:       db,
+		Identity: &stubDomainInboundIdentity{node: &model.ClusterLocalNode{NodeID: "node-a"}},
+	})
+
+	if err := svc.ApplyDomainInboundDelete(context.Background(), &model.ClusterDomain{Id: 1, Domain: "edge.example.com"}, clustertypes.DomainInboundDeletePayload{
+		RequestID: "req-delete-missing",
+		DomainID:  "edge.example.com",
+		GroupID:   "group-missing",
+	}, "hub", true); err != nil {
+		t.Fatalf("expected missing delete to be idempotent, got %v", err)
+	}
+}
+
 func TestDomainInboundBuildTagSanitizesBaseAndNode(t *testing.T) {
 	tag := buildLegacyClusterInboundTag("edge-", "bad tag!", "node/a", "-prod")
 	if tag != "edge-bad-tag-node-a-prod" {
@@ -622,6 +656,14 @@ type domainInboundBroadcasterFunc func(context.Context, *model.ClusterDomain, cl
 
 func (fn domainInboundBroadcasterFunc) BroadcastDomainInboundCreate(ctx context.Context, domain *model.ClusterDomain, payload clustertypes.DomainInboundCreatePayload) error {
 	return fn(ctx, domain, payload)
+}
+
+func (fn domainInboundBroadcasterFunc) BroadcastDomainInboundUpdate(ctx context.Context, domain *model.ClusterDomain, payload clustertypes.DomainInboundUpdatePayload) error {
+	return nil
+}
+
+func (fn domainInboundBroadcasterFunc) BroadcastDomainInboundDelete(ctx context.Context, domain *model.ClusterDomain, payload clustertypes.DomainInboundDeletePayload) error {
+	return nil
 }
 
 type stubDomainInboundIdentity struct {

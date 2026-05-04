@@ -7,6 +7,7 @@ import (
 	"errors"
 	"fmt"
 	"net"
+	"os"
 	"regexp"
 	"strings"
 	"time"
@@ -28,6 +29,8 @@ type clusterDomainInboundIdentity interface {
 
 type clusterDomainInboundBroadcaster interface {
 	BroadcastDomainInboundCreate(context.Context, *model.ClusterDomain, clustertypes.DomainInboundCreatePayload) error
+	BroadcastDomainInboundUpdate(context.Context, *model.ClusterDomain, clustertypes.DomainInboundUpdatePayload) error
+	BroadcastDomainInboundDelete(context.Context, *model.ClusterDomain, clustertypes.DomainInboundDeletePayload) error
 }
 
 type clusterDomainInboundReporter interface {
@@ -237,6 +240,229 @@ func (s *ClusterDomainInboundService) HandleDomainInboundCreate(ctx context.Cont
 		"request_id": result.RequestID,
 		"created":    result.Created,
 	}, nil
+}
+
+func (s *ClusterDomainInboundService) ApplyDomainInboundUpdate(ctx context.Context, domain *model.ClusterDomain, payload clustertypes.DomainInboundUpdatePayload, source string, broadcast bool) (*DomainInboundCreateResult, error) {
+	if err := ctx.Err(); err != nil {
+		return nil, err
+	}
+	if s == nil {
+		return nil, errors.New("cluster domain inbound service is required")
+	}
+	if s.db == nil {
+		return nil, errors.New("cluster domain inbound db is required")
+	}
+	if s.identity == nil {
+		return nil, errors.New("cluster domain inbound identity is required")
+	}
+	if domain == nil || strings.TrimSpace(domain.Domain) == "" || domain.Id == 0 {
+		return nil, errors.New("local domain is required")
+	}
+
+	payload.RequestID = strings.TrimSpace(payload.RequestID)
+	payload.DomainID = strings.TrimSpace(payload.DomainID)
+	payload.GroupID = strings.TrimSpace(payload.GroupID)
+	if payload.RequestID == "" {
+		return nil, errors.New("request_id is required")
+	}
+	if payload.GroupID == "" {
+		return nil, errors.New("group_id is required")
+	}
+	if payload.DomainID != "" && payload.DomainID != domain.Domain {
+		return nil, fmt.Errorf("payload domain_id %q does not match local domain %q", payload.DomainID, domain.Domain)
+	}
+	if len(strings.TrimSpace(string(payload.Inbound))) == 0 {
+		return nil, errors.New("inbound is required")
+	}
+
+	local, err := s.identity.GetOrCreate()
+	if err != nil {
+		return nil, err
+	}
+	nodeID := ""
+	if local != nil {
+		nodeID = local.NodeID
+	}
+
+	result := &DomainInboundCreateResult{RequestID: payload.RequestID}
+	err = s.db.Transaction(func(tx *gorm.DB) error {
+		var wrapper model.ClusterInbound
+		if err := tx.Where("domain_id = ? AND group_id = ?", domain.Id, payload.GroupID).First(&wrapper).Error; err != nil {
+			if errors.Is(err, gorm.ErrRecordNotFound) {
+				return fmt.Errorf("domain inbound group %q not found for domain %q", payload.GroupID, domain.Domain)
+			}
+			return err
+		}
+
+		displayName := domainInboundLocalDisplayName(payload.TargetMembers, nodeID)
+		inboundJSON, tag, err := s.prepareDomainInboundJSON(tx, domain, payload, nodeID, displayName)
+		if err != nil {
+			return err
+		}
+		if err := s.updateDomainInbound(tx, wrapper.InboundID, inboundJSON, tag); err != nil {
+			return err
+		}
+		now := s.now()
+		updates := map[string]interface{}{
+			"request_id": payload.RequestID,
+			"prefix":     payload.Prefix,
+			"suffix":     payload.Suffix,
+			"template":   strings.TrimSpace(payload.TLSTemplate),
+			"updated_at": now,
+		}
+		if source = strings.TrimSpace(source); source != "" {
+			updates["member_id"] = source
+		}
+		if err := tx.Model(&wrapper).Updates(updates).Error; err != nil {
+			return err
+		}
+		result.InboundID = wrapper.InboundID
+		result.Created = false
+		return nil
+	})
+	if err != nil {
+		return nil, err
+	}
+	if broadcast && s.broadcaster != nil {
+		_ = s.broadcaster.BroadcastDomainInboundUpdate(ctx, domain, payload)
+	}
+	if s.reporter != nil {
+		s.reporter.ReportProxyConfigs(domain.Id)
+	}
+	return result, nil
+}
+
+func (s *ClusterDomainInboundService) ApplyDomainInboundDelete(ctx context.Context, domain *model.ClusterDomain, payload clustertypes.DomainInboundDeletePayload, source string, broadcast bool) error {
+	if err := ctx.Err(); err != nil {
+		return err
+	}
+	if s == nil {
+		return errors.New("cluster domain inbound service is required")
+	}
+	if s.db == nil {
+		return errors.New("cluster domain inbound db is required")
+	}
+	if domain == nil || strings.TrimSpace(domain.Domain) == "" || domain.Id == 0 {
+		return errors.New("local domain is required")
+	}
+
+	payload.RequestID = strings.TrimSpace(payload.RequestID)
+	payload.DomainID = strings.TrimSpace(payload.DomainID)
+	payload.GroupID = strings.TrimSpace(payload.GroupID)
+	if payload.RequestID == "" {
+		return errors.New("request_id is required")
+	}
+	if payload.GroupID == "" {
+		return errors.New("group_id is required")
+	}
+	if payload.DomainID != "" && payload.DomainID != domain.Domain {
+		return fmt.Errorf("payload domain_id %q does not match local domain %q", payload.DomainID, domain.Domain)
+	}
+
+	deleted := false
+	if err := s.db.Transaction(func(tx *gorm.DB) error {
+		var wrapper model.ClusterInbound
+		err := tx.Where("domain_id = ? AND group_id = ?", domain.Id, payload.GroupID).First(&wrapper).Error
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return nil
+		}
+		if err != nil {
+			return err
+		}
+		if _, _, err := deleteClusterManagedInbound(tx, wrapper.InboundID); err != nil {
+			return err
+		}
+		if err := tx.Delete(&wrapper).Error; err != nil {
+			return err
+		}
+		deleted = true
+		return nil
+	}); err != nil {
+		return err
+	}
+	if broadcast && s.broadcaster != nil {
+		_ = s.broadcaster.BroadcastDomainInboundDelete(ctx, domain, payload)
+	}
+	if deleted && s.reporter != nil {
+		s.reporter.ReportProxyConfigs(domain.Id)
+	}
+	return nil
+}
+
+func (s *ClusterDomainInboundService) HandleDomainInboundUpdate(ctx context.Context, req clustertypes.ActionRequest, payload clustertypes.DomainInboundUpdatePayload) (map[string]interface{}, error) {
+	domain, err := (&dbClusterStore{}).GetDomainByName(req.Domain)
+	if err != nil {
+		return nil, err
+	}
+	result, err := s.ApplyDomainInboundUpdate(ctx, domain, payload, req.SourceNodeID, true)
+	if err != nil {
+		return nil, err
+	}
+	return map[string]interface{}{
+		"inbound_id": result.InboundID,
+		"request_id": result.RequestID,
+		"created":    result.Created,
+	}, nil
+}
+
+func (s *ClusterDomainInboundService) HandleDomainInboundDelete(ctx context.Context, req clustertypes.ActionRequest, payload clustertypes.DomainInboundDeletePayload) (map[string]interface{}, error) {
+	domain, err := (&dbClusterStore{}).GetDomainByName(req.Domain)
+	if err != nil {
+		return nil, err
+	}
+	if err := s.ApplyDomainInboundDelete(ctx, domain, payload, req.SourceNodeID, true); err != nil {
+		return nil, err
+	}
+	return map[string]interface{}{
+		"request_id": payload.RequestID,
+		"deleted":    true,
+	}, nil
+}
+
+func (s *ClusterDomainInboundService) updateDomainInbound(tx *gorm.DB, inboundID uint, inboundJSON json.RawMessage, tag string) error {
+	var inbound model.Inbound
+	if err := inbound.UnmarshalJSON(inboundJSON); err != nil {
+		return err
+	}
+	inbound.Id = inboundID
+	if inbound.TlsId > 0 {
+		if err := tx.Model(model.Tls{}).Where("id = ?", inbound.TlsId).Find(&inbound.Tls).Error; err != nil {
+			return err
+		}
+	}
+	var old model.Inbound
+	if err := tx.Where("id = ?", inboundID).First(&old).Error; err != nil {
+		return err
+	}
+	if corePtr.IsRunning() {
+		if err := corePtr.RemoveInbound(old.Tag); err != nil && err != os.ErrInvalid {
+			return err
+		}
+		inboundConfig, err := inbound.MarshalJSON()
+		if err != nil {
+			return err
+		}
+		inboundConfig, err = (&InboundService{}).addUsers(tx, inboundConfig, inbound.Id, inbound.Type)
+		if err != nil {
+			return err
+		}
+		if err := corePtr.AddInbound(inboundConfig); err != nil {
+			return err
+		}
+	}
+	if err := tx.Save(&inbound).Error; err != nil {
+		return err
+	}
+	if old.TlsId != inbound.TlsId {
+		if _, err := deleteUnusedClusterTLS(tx, old.TlsId); err != nil {
+			return err
+		}
+	}
+	if err := (&ClientService{}).UpdateLinksByInboundChange(tx, &[]model.Inbound{inbound}, "ClusterDomainInbound", old.Tag); err != nil {
+		return err
+	}
+	_ = tag
+	return nil
 }
 
 func (s *ClusterDomainInboundService) prepareDomainInboundJSON(tx *gorm.DB, domain *model.ClusterDomain, payload clustertypes.DomainInboundCreatePayload, nodeID string, displayName string) (json.RawMessage, string, error) {

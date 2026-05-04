@@ -9,6 +9,18 @@ import (
 )
 
 func (b *ClusterHTTPBroadcaster) BroadcastDomainInboundCreate(ctx context.Context, domain *model.ClusterDomain, payload clustertypes.DomainInboundCreatePayload) error {
+	return b.broadcastDomainInbound(ctx, domain, PeerActionDomainInboundCreate, payload)
+}
+
+func (b *ClusterHTTPBroadcaster) BroadcastDomainInboundUpdate(ctx context.Context, domain *model.ClusterDomain, payload clustertypes.DomainInboundUpdatePayload) error {
+	return b.broadcastDomainInbound(ctx, domain, PeerActionDomainInboundUpdate, payload)
+}
+
+func (b *ClusterHTTPBroadcaster) BroadcastDomainInboundDelete(ctx context.Context, domain *model.ClusterDomain, payload clustertypes.DomainInboundDeletePayload) error {
+	return b.broadcastDomainInbound(ctx, domain, PeerActionDomainInboundDelete, payload)
+}
+
+func (b *ClusterHTTPBroadcaster) broadcastDomainInbound(ctx context.Context, domain *model.ClusterDomain, action string, payload interface{}) error {
 	if b == nil || domain == nil {
 		return nil
 	}
@@ -44,7 +56,7 @@ func (b *ClusterHTTPBroadcaster) BroadcastDomainInboundCreate(ctx context.Contex
 		if err != nil {
 			continue
 		}
-		message, err := NewClusterPeerMessage(domain.Domain, member.LastVersion, identity.NodeID, 0, PeerCategoryCommand, PeerActionDomainInboundCreate, payloadMap)
+		message, err := NewClusterPeerMessage(domain.Domain, member.LastVersion, identity.NodeID, 0, PeerCategoryCommand, action, payloadMap)
 		if err != nil {
 			return err
 		}
@@ -59,7 +71,7 @@ func (b *ClusterHTTPBroadcaster) BroadcastDomainInboundCreate(ctx context.Contex
 	return nil
 }
 
-func domainInboundPayloadMap(payload clustertypes.DomainInboundCreatePayload) (map[string]interface{}, error) {
+func domainInboundPayloadMap(payload interface{}) (map[string]interface{}, error) {
 	raw, err := json.Marshal(payload)
 	if err != nil {
 		return nil, err

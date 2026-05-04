@@ -125,6 +125,90 @@ func TestPeerDispatcherHandlesDomainInboundCreateCommand(t *testing.T) {
 	}
 }
 
+func TestPeerDispatcherHandlesDomainInboundUpdateCommand(t *testing.T) {
+	store := newMemoryPeerStore()
+	applier := &stubPeerDomainInboundApplier{}
+	dispatcher := ClusterPeerDispatcher{
+		eventStore:           store,
+		domainInboundCreator: applier,
+		identity:             ClusterLocalIdentityService{store: &stubClusterLocalNodeStore{node: newTestClusterLocalNode(t, "node-local")}},
+	}
+	message := &PeerMessage{
+		MessageID:   "msg-domain-inbound-update",
+		DomainID:    "edge.example.com",
+		PayloadHash: "hash",
+		Category:    PeerCategoryCommand,
+		Action:      PeerActionDomainInboundUpdate,
+		Payload: map[string]interface{}{
+			"request_id": "req-update",
+			"domain_id":  "edge.example.com",
+			"group_id":   "group-1",
+			"inbound": map[string]interface{}{
+				"type": "vless",
+				"tag":  "main-updated",
+			},
+		},
+		Route: RoutePlan{Mode: RouteModeBroadcast},
+	}
+
+	if err := dispatcher.Dispatch(context.Background(), &model.ClusterDomain{Id: 1, Domain: "edge.example.com"}, &model.ClusterMember{NodeID: "node-a"}, message); err != nil {
+		t.Fatalf("dispatch: %v", err)
+	}
+	if applier.updateCalls != 1 {
+		t.Fatalf("expected update call, got %d", applier.updateCalls)
+	}
+	if applier.broadcast {
+		t.Fatal("peer command must not rebroadcast")
+	}
+	state, err := store.RecordReceived(message)
+	if err != nil {
+		t.Fatalf("state: %v", err)
+	}
+	if state.Status != PeerEventStatusSucceeded {
+		t.Fatalf("expected succeeded, got %q", state.Status)
+	}
+}
+
+func TestPeerDispatcherHandlesDomainInboundDeleteCommand(t *testing.T) {
+	store := newMemoryPeerStore()
+	applier := &stubPeerDomainInboundApplier{}
+	dispatcher := ClusterPeerDispatcher{
+		eventStore:           store,
+		domainInboundCreator: applier,
+		identity:             ClusterLocalIdentityService{store: &stubClusterLocalNodeStore{node: newTestClusterLocalNode(t, "node-local")}},
+	}
+	message := &PeerMessage{
+		MessageID:   "msg-domain-inbound-delete",
+		DomainID:    "edge.example.com",
+		PayloadHash: "hash",
+		Category:    PeerCategoryCommand,
+		Action:      PeerActionDomainInboundDelete,
+		Payload: map[string]interface{}{
+			"request_id": "req-delete",
+			"domain_id":  "edge.example.com",
+			"group_id":   "group-1",
+		},
+		Route: RoutePlan{Mode: RouteModeBroadcast},
+	}
+
+	if err := dispatcher.Dispatch(context.Background(), &model.ClusterDomain{Id: 1, Domain: "edge.example.com"}, &model.ClusterMember{NodeID: "node-a"}, message); err != nil {
+		t.Fatalf("dispatch: %v", err)
+	}
+	if applier.deleteCalls != 1 {
+		t.Fatalf("expected delete call, got %d", applier.deleteCalls)
+	}
+	if applier.broadcast {
+		t.Fatal("peer command must not rebroadcast")
+	}
+	state, err := store.RecordReceived(message)
+	if err != nil {
+		t.Fatalf("state: %v", err)
+	}
+	if state.Status != PeerEventStatusSucceeded {
+		t.Fatalf("expected succeeded, got %q", state.Status)
+	}
+}
+
 func TestPeerDispatcherHandlesDomainUserUpsertCommand(t *testing.T) {
 	store := newMemoryPeerStore()
 	applier := &stubPeerDomainUserApplier{}
@@ -980,6 +1064,34 @@ func (s *stubPeerDomainInboundCreator) ApplyDomainInboundCreate(ctx context.Cont
 	s.calls++
 	s.broadcast = broadcast
 	return &DomainInboundCreateResult{InboundID: 99, RequestID: payload.RequestID, Created: true}, nil
+}
+
+func (s *stubPeerDomainInboundCreator) ApplyDomainInboundUpdate(ctx context.Context, domain *model.ClusterDomain, payload clustertypes.DomainInboundUpdatePayload, source string, broadcast bool) (*DomainInboundCreateResult, error) {
+	s.broadcast = broadcast
+	return &DomainInboundCreateResult{InboundID: 99, RequestID: payload.RequestID, Created: false}, nil
+}
+
+func (s *stubPeerDomainInboundCreator) ApplyDomainInboundDelete(ctx context.Context, domain *model.ClusterDomain, payload clustertypes.DomainInboundDeletePayload, source string, broadcast bool) error {
+	s.broadcast = broadcast
+	return nil
+}
+
+type stubPeerDomainInboundApplier struct {
+	stubPeerDomainInboundCreator
+	updateCalls int
+	deleteCalls int
+}
+
+func (s *stubPeerDomainInboundApplier) ApplyDomainInboundUpdate(ctx context.Context, domain *model.ClusterDomain, payload clustertypes.DomainInboundUpdatePayload, source string, broadcast bool) (*DomainInboundCreateResult, error) {
+	s.updateCalls++
+	s.broadcast = broadcast
+	return &DomainInboundCreateResult{InboundID: 99, RequestID: payload.RequestID, Created: false}, nil
+}
+
+func (s *stubPeerDomainInboundApplier) ApplyDomainInboundDelete(ctx context.Context, domain *model.ClusterDomain, payload clustertypes.DomainInboundDeletePayload, source string, broadcast bool) error {
+	s.deleteCalls++
+	s.broadcast = broadcast
+	return nil
 }
 
 type stubPeerDomainUserApplier struct {

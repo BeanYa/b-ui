@@ -227,14 +227,25 @@ func TestClusterHubSyncerLatestVersionDeletesLocalMirrorWhenHubRejectsRead(t *te
 	}
 }
 
-func TestRuntimeRegistersDomainInboundCreateWhenServiceProvided(t *testing.T) {
+func TestRuntimeRegistersDomainInboundActionsWhenServiceProvided(t *testing.T) {
 	svc := &stubDomainInboundActionService{}
 	rt := cluster.NewRuntimeWithPanelAndDomain(cluster.RuntimeListServices{}, nil, cluster.RuntimeDomainServices{
 		DomainInbound: svc,
 	})
 	actions := rt.InfoResponse().Actions
-	if !containsString(actions, "domain.inbound.create") {
-		t.Fatalf("expected domain.inbound.create in actions, got %#v", actions)
+	for _, action := range []string{"domain.inbound.create", "domain.inbound.update", "domain.inbound.delete"} {
+		if !containsString(actions, action) {
+			t.Fatalf("expected %s in actions, got %#v", action, actions)
+		}
+	}
+}
+
+func TestClusterCommunicationSupportedActionsIncludesDomainInboundMutations(t *testing.T) {
+	actions := ClusterCommunicationSupportedActions()
+	for _, action := range []string{"domain.inbound.create", "domain.inbound.update", "domain.inbound.delete"} {
+		if !containsString(actions, action) {
+			t.Fatalf("expected %s in supported actions, got %#v", action, actions)
+		}
 	}
 }
 
@@ -265,6 +276,14 @@ func TestRuntimeRegistersDomainCleanupWhenServiceProvided(t *testing.T) {
 type stubDomainInboundActionService struct{}
 
 func (s *stubDomainInboundActionService) HandleDomainInboundCreate(context.Context, clustertypes.ActionRequest, clustertypes.DomainInboundCreatePayload) (map[string]interface{}, error) {
+	return map[string]interface{}{"ok": true}, nil
+}
+
+func (s *stubDomainInboundActionService) HandleDomainInboundUpdate(context.Context, clustertypes.ActionRequest, clustertypes.DomainInboundUpdatePayload) (map[string]interface{}, error) {
+	return map[string]interface{}{"ok": true}, nil
+}
+
+func (s *stubDomainInboundActionService) HandleDomainInboundDelete(context.Context, clustertypes.ActionRequest, clustertypes.DomainInboundDeletePayload) (map[string]interface{}, error) {
 	return map[string]interface{}{"ok": true}, nil
 }
 

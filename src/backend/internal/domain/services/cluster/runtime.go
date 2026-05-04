@@ -22,7 +22,7 @@ type RuntimeListServices struct {
 }
 
 type RuntimeDomainServices struct {
-	DomainInbound action.DomainInboundCreateService
+	DomainInbound action.DomainInboundService
 	DomainUser    action.DomainUserService
 	DomainCleanup action.DomainCleanupService
 }

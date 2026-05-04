@@ -29,6 +29,10 @@ const PeerActionDomainPanelUpdateStatus = "domain.panel.update.status"
 
 const PeerActionDomainInboundCreate = "domain.inbound.create"
 
+const PeerActionDomainInboundUpdate = "domain.inbound.update"
+
+const PeerActionDomainInboundDelete = "domain.inbound.delete"
+
 const PeerActionDomainUserUpsert = "domain.user.upsert"
 
 const PeerActionDomainUserDelete = "domain.user.delete"
@@ -40,6 +44,8 @@ const PeerActionTaskScatterResult = "task.scatter.result"
 
 type clusterPeerDomainInboundCreator interface {
 	ApplyDomainInboundCreate(context.Context, *model.ClusterDomain, clustertypes.DomainInboundCreatePayload, string, bool) (*DomainInboundCreateResult, error)
+	ApplyDomainInboundUpdate(context.Context, *model.ClusterDomain, clustertypes.DomainInboundUpdatePayload, string, bool) (*DomainInboundCreateResult, error)
+	ApplyDomainInboundDelete(context.Context, *model.ClusterDomain, clustertypes.DomainInboundDeletePayload, string, bool) error
 }
 
 type clusterPeerDomainUserApplier interface {
@@ -280,6 +286,28 @@ func (d *ClusterPeerDispatcher) Dispatch(ctx context.Context, domain *model.Clus
 
 	if message.Category == PeerCategoryCommand && message.Action == PeerActionDomainInboundCreate {
 		if err := d.handleDomainInboundCreate(ctx, domain, source, message); err != nil {
+			_ = store.MarkEventState(state.MessageID, PeerEventStatusFailed, err.Error())
+			resultFields["status"] = PeerEventStatusFailed
+			resultFields["error"] = err.Error()
+			return err
+		}
+		resultFields["status"] = PeerEventStatusSucceeded
+		return store.MarkEventState(state.MessageID, PeerEventStatusSucceeded, "")
+	}
+
+	if message.Category == PeerCategoryCommand && message.Action == PeerActionDomainInboundUpdate {
+		if err := d.handleDomainInboundUpdate(ctx, domain, source, message); err != nil {
+			_ = store.MarkEventState(state.MessageID, PeerEventStatusFailed, err.Error())
+			resultFields["status"] = PeerEventStatusFailed
+			resultFields["error"] = err.Error()
+			return err
+		}
+		resultFields["status"] = PeerEventStatusSucceeded
+		return store.MarkEventState(state.MessageID, PeerEventStatusSucceeded, "")
+	}
+
+	if message.Category == PeerCategoryCommand && message.Action == PeerActionDomainInboundDelete {
+		if err := d.handleDomainInboundDelete(ctx, domain, source, message); err != nil {
 			_ = store.MarkEventState(state.MessageID, PeerEventStatusFailed, err.Error())
 			resultFields["status"] = PeerEventStatusFailed
 			resultFields["error"] = err.Error()
@@ -643,6 +671,53 @@ func (d *ClusterPeerDispatcher) handleDomainInboundCreate(ctx context.Context, d
 	}
 	_, err = creator.ApplyDomainInboundCreate(ctx, domain, payload, sourceNode, false)
 	return err
+}
+
+func (d *ClusterPeerDispatcher) handleDomainInboundUpdate(ctx context.Context, domain *model.ClusterDomain, source *model.ClusterMember, message *PeerMessage) error {
+	raw, err := json.Marshal(message.Payload)
+	if err != nil {
+		return err
+	}
+
+	var payload clustertypes.DomainInboundUpdatePayload
+	if err := json.Unmarshal(raw, &payload); err != nil {
+		return fmt.Errorf("invalid_domain_inbound_update_payload: %w", err)
+	}
+
+	creator := d.domainInboundCreator
+	if creator == nil {
+		creator = NewClusterDomainInboundService(defaultClusterDomainInboundOptions(nil, nil))
+	}
+
+	sourceNode := ""
+	if source != nil {
+		sourceNode = source.NodeID
+	}
+	_, err = creator.ApplyDomainInboundUpdate(ctx, domain, payload, sourceNode, false)
+	return err
+}
+
+func (d *ClusterPeerDispatcher) handleDomainInboundDelete(ctx context.Context, domain *model.ClusterDomain, source *model.ClusterMember, message *PeerMessage) error {
+	raw, err := json.Marshal(message.Payload)
+	if err != nil {
+		return err
+	}
+
+	var payload clustertypes.DomainInboundDeletePayload
+	if err := json.Unmarshal(raw, &payload); err != nil {
+		return fmt.Errorf("invalid_domain_inbound_delete_payload: %w", err)
+	}
+
+	creator := d.domainInboundCreator
+	if creator == nil {
+		creator = NewClusterDomainInboundService(defaultClusterDomainInboundOptions(nil, nil))
+	}
+
+	sourceNode := ""
+	if source != nil {
+		sourceNode = source.NodeID
+	}
+	return creator.ApplyDomainInboundDelete(ctx, domain, payload, sourceNode, false)
 }
 
 func (d *ClusterPeerDispatcher) handleDomainUserUpsert(ctx context.Context, domain *model.ClusterDomain, source *model.ClusterMember, message *PeerMessage) error {
