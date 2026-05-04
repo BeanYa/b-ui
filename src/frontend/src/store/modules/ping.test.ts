@@ -33,6 +33,7 @@ function waitUntil(predicate: () => boolean): Promise<void> {
 describe('ping store mesh stream', () => {
   beforeEach(() => {
     setActivePinia(createPinia())
+    vi.clearAllMocks()
     vi.unstubAllGlobals()
   })
 
@@ -87,7 +88,7 @@ describe('ping store mesh stream', () => {
     expect(store.meshResult).toEqual(finalResult)
   })
 
-  it('can scope external ping requests to one cluster node', async () => {
+  it('sends current-node outbound ping requests without cluster node filters', async () => {
     const result: ExternalResultData = {
       tested_at: 1710000000,
       results: [],
@@ -97,11 +98,40 @@ describe('ping store mesh stream', () => {
     const { usePingStore } = await import('./ping')
     const store = usePingStore()
 
-    await expect(store.triggerExternalPing(['public_dns'], ['node-a'])).resolves.toEqual(result)
+    const request = { direction: 'outbound' as const, source_ids: ['public_dns'], methods: ['tcp'] }
 
+    await expect(store.triggerExternalPing(request)).resolves.toEqual(result)
+
+    expect(api.post).toHaveBeenCalledTimes(1)
     expect(api.post).toHaveBeenCalledWith(
       'api/ping/external',
-      { source_ids: ['public_dns'], target_node_ids: ['node-a'] },
+      request,
+      { headers: { 'Content-Type': 'application/json' } },
+    )
+  })
+
+  it('sends explicit inbound target details', async () => {
+    const result: ExternalResultData = {
+      tested_at: 1710000000,
+      results: [],
+    }
+    vi.mocked(api.post).mockResolvedValueOnce({ data: { success: true, obj: result } })
+
+    const { usePingStore } = await import('./ping')
+    const store = usePingStore()
+
+    const request = {
+      direction: 'inbound' as const,
+      source_ids: ['check_host'],
+      target: { host: 'panel.example.com', port: 443, label: 'Panel' },
+    }
+
+    await expect(store.triggerExternalPing(request)).resolves.toEqual(result)
+
+    expect(api.post).toHaveBeenCalledTimes(1)
+    expect(api.post).toHaveBeenCalledWith(
+      'api/ping/external',
+      request,
       { headers: { 'Content-Type': 'application/json' } },
     )
   })

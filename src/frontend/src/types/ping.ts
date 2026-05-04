@@ -29,12 +29,33 @@ export interface ExternalConfig {
   sources: ExternalSource[]
 }
 
+export interface ExternalEndpoint {
+  id: string
+  label: string
+  provider: string
+  region?: string
+  country?: string
+  city?: string
+  network?: string
+  host?: string
+  port?: number
+  methods?: string[]
+}
+
+export interface ExternalTargetRequest {
+  host: string
+  port?: number
+  label?: string
+}
+
 export interface ExternalTestResult {
   source_member_id: string
   source_label: string
   direction: 'inbound' | 'outbound'
   target_member_id: string
   target_name: string
+  source: ExternalEndpoint
+  target: ExternalEndpoint
   method: string | null
   latency_ms: number | null
   success: boolean
@@ -47,8 +68,11 @@ export interface ExternalResultData {
 }
 
 export interface ExternalRunRequest {
+  direction?: 'inbound' | 'outbound'
   source_ids: string[]
   target_node_ids?: string[]
+  target?: ExternalTargetRequest
+  methods?: string[]
 }
 
 export function latencyColor(ms: number | null, success: boolean): string {
