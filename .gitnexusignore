@@ -1,0 +1,9 @@
+# GitNexus-only exclusions. These files are kept in the repository for
+# packaging/runtime embedding, but they are generated build artifacts and add
+# noisy minified JavaScript/CSS symbols to the knowledge graph.
+web/html/assets/
+src/backend/internal/infra/web/html/assets/
+
+# Other generated frontend outputs that should not contribute symbols.
+src/frontend/dist/
+src/frontend/*.tsbuildinfo
