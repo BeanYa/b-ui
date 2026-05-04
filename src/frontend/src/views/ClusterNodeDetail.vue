@@ -284,12 +284,12 @@ const currentNodeId = computed(() => nodeConnection.value?.nodeId ?? '')
 
 const nodeInboundResults = computed(() => {
   const results = pingStore.externalResults?.results ?? []
-  return sortedExternalByLatency(results.filter(r => r.direction === 'inbound' && r.target_member_id === currentNodeId.value))
+  return sortedExternalByLatency(results.filter(r => r.direction === 'inbound'))
 })
 
 const nodeOutboundResults = computed(() => {
   const results = pingStore.externalResults?.results ?? []
-  return sortedExternalByLatency(results.filter(r => r.direction === 'outbound' && r.source_member_id === currentNodeId.value))
+  return sortedExternalByLatency(results.filter(r => r.direction === 'outbound'))
 })
 
 const inboundAvg = computed(() => {
@@ -312,8 +312,12 @@ async function runLatencyTest() {
   try {
     await pingStore.loadExternalConfig()
     const enabledSourceIds = pingStore.externalConfig?.sources.filter(s => s.enabled).map(s => s.id) ?? []
-    if (enabledSourceIds.length > 0 && currentNodeId.value) {
-      await pingStore.triggerExternalPing(enabledSourceIds, [currentNodeId.value])
+    if (enabledSourceIds.length > 0) {
+      await pingStore.triggerExternalPing({
+        direction: 'outbound',
+        source_ids: enabledSourceIds,
+        methods: ['tcp', 'http', 'icmp'],
+      })
     }
   } finally {
     latencyTesting.value = false

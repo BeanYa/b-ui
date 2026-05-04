@@ -59,11 +59,12 @@ describe('ClusterNodeDetail view source', () => {
     expect(source).toContain('panelReady.value = true')
   })
 
-  it('runs node latency checks only for the selected cluster node', () => {
+  it('runs current-panel external latency requests without cluster node fan-out', () => {
     const source = readFileSync(fileURLToPath(new URL('./ClusterNodeDetail.vue', import.meta.url)), 'utf8')
 
-    expect(source).toContain('currentNodeId.value')
-    expect(source).toContain('triggerExternalPing(enabledSourceIds, [currentNodeId.value])')
-    expect(source).not.toContain('triggerExternalPing(allSourceIds)')
+    expect(source).toContain('triggerExternalPing({')
+    expect(source).toContain("direction: 'outbound'")
+    expect(source).not.toContain('triggerExternalPing(enabledSourceIds, [currentNodeId.value])')
+    expect(source).not.toContain('target_node_ids')
   })
 })
