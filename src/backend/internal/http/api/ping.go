@@ -308,6 +308,9 @@ func externalTargetFromRequest(c *gin.Context) (*ping.ExternalTargetRequest, err
 		if hostname == "" {
 			return nil, fmt.Errorf("inbound target host is required")
 		}
+		if err := validateDerivedExternalTargetHost(hostname); err != nil {
+			return nil, err
+		}
 		parsedPort, err := strconv.Atoi(port)
 		if err != nil {
 			return nil, fmt.Errorf("invalid inbound target port: %w", err)
@@ -321,6 +324,9 @@ func externalTargetFromRequest(c *gin.Context) (*ping.ExternalTargetRequest, err
 			if hostname == "" {
 				return nil, fmt.Errorf("inbound target host is required")
 			}
+			if err := validateDerivedExternalTargetHost(hostname); err != nil {
+				return nil, err
+			}
 			return &ping.ExternalTargetRequest{Host: hostname, Label: hostname}, nil
 		}
 		return nil, fmt.Errorf("invalid inbound target host: %s", host)
@@ -330,7 +336,29 @@ func externalTargetFromRequest(c *gin.Context) (*ping.ExternalTargetRequest, err
 		return nil, fmt.Errorf("invalid inbound target host: %s", host)
 	}
 
+	if err := validateDerivedExternalTargetHost(host); err != nil {
+		return nil, err
+	}
 	return &ping.ExternalTargetRequest{Host: host, Label: host}, nil
+}
+
+func validateDerivedExternalTargetHost(hostname string) error {
+	if strings.EqualFold(strings.TrimSuffix(hostname, "."), "localhost") {
+		return fmt.Errorf("inbound target host must be public or explicitly provided")
+	}
+	ip := net.ParseIP(hostname)
+	if ip == nil {
+		return nil
+	}
+	if ip.IsLoopback() ||
+		ip.IsPrivate() ||
+		ip.IsLinkLocalUnicast() ||
+		ip.IsLinkLocalMulticast() ||
+		ip.IsUnspecified() ||
+		ip.IsMulticast() {
+		return fmt.Errorf("inbound target host must be public or explicitly provided")
+	}
+	return nil
 }
 
 func (h *pingAPIHandler) getExternalResults(c *gin.Context) {

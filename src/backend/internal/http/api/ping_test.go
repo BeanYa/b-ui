@@ -5,6 +5,7 @@ import (
 	"context"
 	"net/http"
 	"net/http/httptest"
+	"strings"
 	"testing"
 
 	"github.com/BeanYa/b-ui/src/backend/internal/domain/services/ping"
@@ -58,6 +59,21 @@ func externalTargetFromHostForTest(t *testing.T, host string) (*ping.ExternalTar
 	c.Request = httptest.NewRequest(http.MethodPost, "/api/ping/external", nil)
 	c.Request.Host = host
 	return externalTargetFromRequest(c)
+}
+
+func assertExternalPingValidationError(t *testing.T, recorder *httptest.ResponseRecorder) {
+	t.Helper()
+	if recorder.Code == http.StatusBadRequest {
+		return
+	}
+	if recorder.Code != http.StatusOK {
+		t.Fatalf("expected validation error status %d or jsonMsg status %d, got %d", http.StatusBadRequest, http.StatusOK, recorder.Code)
+	}
+	var response Msg
+	decodeResponse(t, recorder, &response)
+	if response.Success {
+		t.Fatalf("expected validation error response, got %#v", response)
+	}
 }
 
 func TestTriggerExternalPingOutboundDoesNotRequireClusterMembers(t *testing.T) {
@@ -139,8 +155,9 @@ func TestTriggerExternalPingInboundUsesExplicitTarget(t *testing.T) {
 	req := httptest.NewRequest(
 		http.MethodPost,
 		"/api/ping/external",
-		bytes.NewBufferString(`{"direction":"inbound","source_ids":["check_host"],"target":{"host":"panel.example.com","port":8443,"label":"Panel edge"},"methods":["tcp"]}`),
+		bytes.NewBufferString(`{"direction":"inbound","source_ids":["check_host"],"target":{"host":"127.0.0.1","port":8443,"label":"Local explicit"},"methods":["tcp"]}`),
 	)
+	req.Host = "localhost:8080"
 	req.Header.Set("Content-Type", "application/json")
 	req.Header.Set("Cookie", loginCookie(t, router, "admin"))
 	recorder := httptest.NewRecorder()
@@ -164,17 +181,48 @@ func TestTriggerExternalPingInboundUsesExplicitTarget(t *testing.T) {
 	if stub.req.Target == nil {
 		t.Fatal("expected inbound target to be passed to external service")
 	}
-	if stub.req.Target.Host != "panel.example.com" {
-		t.Fatalf("expected target host panel.example.com, got %q", stub.req.Target.Host)
+	if stub.req.Target.Host != "127.0.0.1" {
+		t.Fatalf("expected target host 127.0.0.1, got %q", stub.req.Target.Host)
 	}
 	if stub.req.Target.Port != 8443 {
 		t.Fatalf("expected target port 8443, got %d", stub.req.Target.Port)
 	}
-	if stub.req.Target.Label != "Panel edge" {
-		t.Fatalf("expected target label Panel edge, got %q", stub.req.Target.Label)
+	if stub.req.Target.Label != "Local explicit" {
+		t.Fatalf("expected target label Local explicit, got %q", stub.req.Target.Label)
 	}
 	if len(stub.members) != 0 {
 		t.Fatalf("expected no cluster members, got %#v", stub.members)
+	}
+}
+
+func TestTriggerExternalPingLegacyInboundSourceRejectsNonPublicDerivedRequestHosts(t *testing.T) {
+	hosts := []string{
+		"localhost:8080",
+		"127.0.0.1:8080",
+		"[::1]:8080",
+		"192.168.1.10:8080",
+	}
+	for _, host := range hosts {
+		t.Run(host, func(t *testing.T) {
+			stub := &externalPingServiceStub{}
+			router := newExternalPingTestRouter(stub)
+			req := httptest.NewRequest(
+				http.MethodPost,
+				"/api/ping/external",
+				bytes.NewBufferString(`{"source_ids":["check_host"]}`),
+			)
+			req.Host = host
+			req.Header.Set("Content-Type", "application/json")
+			req.Header.Set("Cookie", loginCookie(t, router, "admin"))
+			recorder := httptest.NewRecorder()
+
+			router.ServeHTTP(recorder, req)
+
+			assertExternalPingValidationError(t, recorder)
+			if stub.called {
+				t.Fatalf("expected external ping service not to be called for derived host %q", host)
+			}
+		})
 	}
 }
 
@@ -319,6 +367,29 @@ func TestExternalTargetFromRequestRejectsMalformedMultiColonHost(t *testing.T) {
 	target, err := externalTargetFromHostForTest(t, "bad:host:8443")
 	if err == nil {
 		t.Fatalf("expected malformed multi-colon host error, got target %#v", target)
+	}
+}
+
+func TestExternalTargetFromRequestRejectsNonPublicHosts(t *testing.T) {
+	hosts := []string{
+		"LOCALHOST:8080",
+		"127.0.0.1:8080",
+		"[::1]:8080",
+		"192.168.1.10:8080",
+		"169.254.10.20:8080",
+		"0.0.0.0:8080",
+		"224.0.0.1:8080",
+	}
+	for _, host := range hosts {
+		t.Run(host, func(t *testing.T) {
+			target, err := externalTargetFromHostForTest(t, host)
+			if err == nil {
+				t.Fatalf("expected non-public host error, got target %#v", target)
+			}
+			if !strings.Contains(err.Error(), "inbound target host must be public or explicitly provided") {
+				t.Fatalf("expected public target error, got %v", err)
+			}
+		})
 	}
 }
 
