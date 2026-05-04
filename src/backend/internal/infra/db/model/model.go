@@ -149,11 +149,11 @@ type ClusterMember struct {
 
 type ClusterInbound struct {
 	Id        uint     `json:"id" gorm:"primaryKey;autoIncrement"`
-	DomainID  uint     `json:"domainId" gorm:"uniqueIndex:idx_cluster_inbound_domain_request;index"`
+	DomainID  uint     `json:"domainId" gorm:"uniqueIndex:idx_cluster_inbound_domain_request;uniqueIndex:idx_cluster_inbound_domain_group,where:group_id <> '';index"`
 	Domain    string   `json:"domain" gorm:"index"`
 	NodeID    string   `json:"nodeId" gorm:"index"`
 	MemberID  string   `json:"memberId" gorm:"index"`
-	GroupID   string   `json:"groupId" gorm:"index"`
+	GroupID   string   `json:"groupId" gorm:"index;uniqueIndex:idx_cluster_inbound_domain_group,where:group_id <> ''"`
 	InboundID uint     `json:"inboundId" gorm:"uniqueIndex"`
 	Inbound   *Inbound `json:"inbound,omitempty" gorm:"foreignKey:InboundID;references:Id"`
 	RequestID string   `json:"requestId" gorm:"uniqueIndex:idx_cluster_inbound_domain_request"`

@@ -165,6 +165,7 @@ func (s *ClusterDomainInboundService) ApplyDomainInboundCreate(ctx context.Conte
 		err := query.First(&wrapper).Error
 		if err == nil {
 			result.InboundID = wrapper.InboundID
+			result.RequestID = wrapper.RequestID
 			result.Created = false
 			return nil
 		}
@@ -254,7 +255,10 @@ func (s *ClusterDomainInboundService) prepareDomainInboundJSON(tx *gorm.DB, doma
 	if tagSeed := strings.TrimSpace(payload.TagSeed); tagSeed != "" {
 		baseTag = tagSeed
 	}
-	tag := buildClusterInboundTag(baseTag, payload.Prefix, displayName, payload.Suffix)
+	tag := buildLegacyClusterInboundTag(payload.Prefix, baseTag, nodeID, payload.Suffix)
+	if strings.TrimSpace(payload.GroupID) != "" || strings.TrimSpace(payload.TagSeed) != "" || len(payload.TargetMembers) > 0 {
+		tag = buildClusterInboundTag(baseTag, payload.Prefix, displayName, payload.Suffix)
+	}
 
 	delete(inbound, "id")
 	delete(inbound, "tls_id")
@@ -701,7 +705,7 @@ func buildClusterInboundTag(tagSeed string, prefix string, displayName string, s
 	parts := []string{
 		sanitizeDomainInboundPart(tagSeed, "inbound"),
 		sanitizeDomainInboundPart(prefix, ""),
-		sanitizeDomainInboundPart(displayName, "node"),
+		sanitizeDomainInboundPart(displayName, ""),
 		sanitizeDomainInboundPart(suffix, ""),
 	}
 	nonEmpty := parts[:0]
@@ -713,11 +717,20 @@ func buildClusterInboundTag(tagSeed string, prefix string, displayName string, s
 	return strings.Join(nonEmpty, "-")
 }
 
+func buildLegacyClusterInboundTag(prefix string, baseTag string, nodeID string, suffix string) string {
+	base := sanitizeDomainInboundPart(baseTag, "inbound")
+	node := sanitizeDomainInboundPart(nodeID, "node")
+	return prefix + base + "-" + node + suffix
+}
+
 func domainInboundLocalDisplayName(targets []clustertypes.DomainInboundTarget, nodeID string) string {
 	nodeID = strings.TrimSpace(nodeID)
+	if nodeID == "" {
+		return ""
+	}
 	for _, target := range targets {
 		if strings.TrimSpace(target.NodeID) == nodeID {
-			if displayName := strings.TrimSpace(target.DisplayName); displayName != "" {
+			if displayName := sanitizeDomainInboundPart(target.DisplayName, ""); displayName != "" {
 				return displayName
 			}
 			break

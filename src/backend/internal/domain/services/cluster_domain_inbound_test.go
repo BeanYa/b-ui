@@ -57,6 +57,76 @@ func TestDomainInboundWrapperMigratesAndEnforcesRequestPerDomain(t *testing.T) {
 	}
 }
 
+func TestDomainInboundWrapperEnforcesGroupPerDomainWhenGroupIDPresent(t *testing.T) {
+	db := initClusterInboundTestDB(t)
+	firstInbound := model.Inbound{Type: "vless", Tag: "cluster-vless-group-a"}
+	if err := db.Create(&firstInbound).Error; err != nil {
+		t.Fatalf("seed first inbound: %v", err)
+	}
+	first := model.ClusterInbound{
+		DomainID:  1,
+		Domain:    "edge.example.com",
+		NodeID:    "node-a",
+		MemberID:  "node-a",
+		GroupID:   "group-1",
+		InboundID: firstInbound.Id,
+		RequestID: "req-1",
+	}
+	if err := db.Create(&first).Error; err != nil {
+		t.Fatalf("create first wrapper: %v", err)
+	}
+	secondInbound := model.Inbound{Type: "vless", Tag: "cluster-vless-group-b"}
+	if err := db.Create(&secondInbound).Error; err != nil {
+		t.Fatalf("seed second inbound: %v", err)
+	}
+	second := model.ClusterInbound{
+		DomainID:  1,
+		Domain:    "edge.example.com",
+		NodeID:    "node-a",
+		MemberID:  "node-a",
+		GroupID:   "group-1",
+		InboundID: secondInbound.Id,
+		RequestID: "req-2",
+	}
+	if err := db.Create(&second).Error; err == nil {
+		t.Fatal("expected duplicate non-empty group id in same domain to fail")
+	}
+}
+
+func TestDomainInboundWrapperAllowsEmptyGroupIDsPerDomain(t *testing.T) {
+	db := initClusterInboundTestDB(t)
+	firstInbound := model.Inbound{Type: "vless", Tag: "cluster-vless-empty-group-a"}
+	if err := db.Create(&firstInbound).Error; err != nil {
+		t.Fatalf("seed first inbound: %v", err)
+	}
+	first := model.ClusterInbound{
+		DomainID:  1,
+		Domain:    "edge.example.com",
+		NodeID:    "node-a",
+		MemberID:  "node-a",
+		InboundID: firstInbound.Id,
+		RequestID: "req-1",
+	}
+	if err := db.Create(&first).Error; err != nil {
+		t.Fatalf("create first wrapper: %v", err)
+	}
+	secondInbound := model.Inbound{Type: "vless", Tag: "cluster-vless-empty-group-b"}
+	if err := db.Create(&secondInbound).Error; err != nil {
+		t.Fatalf("seed second inbound: %v", err)
+	}
+	second := model.ClusterInbound{
+		DomainID:  1,
+		Domain:    "edge.example.com",
+		NodeID:    "node-a",
+		MemberID:  "node-a",
+		InboundID: secondInbound.Id,
+		RequestID: "req-2",
+	}
+	if err := db.Create(&second).Error; err != nil {
+		t.Fatalf("expected empty group ids to remain legacy-compatible: %v", err)
+	}
+}
+
 func TestDomainInboundCreateRejectsMissingInbound(t *testing.T) {
 	db := initClusterInboundTestDB(t)
 	svc := NewClusterDomainInboundService(ClusterDomainInboundServiceOptions{
@@ -108,7 +178,7 @@ func TestDomainInboundCreateGeneratesPortAndCreatesWrapper(t *testing.T) {
 	if err := db.First(&inbound, result.InboundID).Error; err != nil {
 		t.Fatalf("load inbound: %v", err)
 	}
-	if inbound.Tag != "main-edge-node-a-prod" {
+	if inbound.Tag != "edge-main-node-a-prod" {
 		t.Fatalf("expected normalized tag, got %q", inbound.Tag)
 	}
 	var options map[string]interface{}
@@ -182,7 +252,7 @@ func TestDomainInboundCreateUsesGroupSeedDisplayNameAndIsIdempotent(t *testing.T
 	if err != nil {
 		t.Fatalf("apply second: %v", err)
 	}
-	if second.InboundID != first.InboundID || second.Created {
+	if second.InboundID != first.InboundID || second.RequestID != "req-group-1" || second.Created {
 		t.Fatalf("expected existing grouped inbound, first=%#v second=%#v", first, second)
 	}
 }
@@ -480,9 +550,16 @@ func TestDomainInboundCreateKeepsLocalResultWhenPeerBroadcastFails(t *testing.T)
 }
 
 func TestDomainInboundBuildTagSanitizesBaseAndNode(t *testing.T) {
-	tag := buildClusterInboundTag("edge-", "bad tag!", "node/a", "-prod")
+	tag := buildLegacyClusterInboundTag("edge-", "bad tag!", "node/a", "-prod")
 	if tag != "edge-bad-tag-node-a-prod" {
 		t.Fatalf("expected sanitized tag, got %q", tag)
+	}
+}
+
+func TestDomainInboundBuildLegacyTagPreservesPrefixBaseNodeSuffix(t *testing.T) {
+	tag := buildLegacyClusterInboundTag("edge-", "main", "node-a", "-prod")
+	if tag != "edge-main-node-a-prod" {
+		t.Fatalf("expected edge-main-node-a-prod, got %q", tag)
 	}
 }
 
@@ -494,6 +571,44 @@ func TestDomainInboundBuildTagUsesSeedPrefixDisplayNameSuffix(t *testing.T) {
 	tag = buildClusterInboundTag("main", "", "de", "")
 	if tag != "main-de" {
 		t.Fatalf("expected main-de, got %q", tag)
+	}
+}
+
+func TestDomainInboundBuildTagOmitsEmptySanitizedOptionalParts(t *testing.T) {
+	tag := buildClusterInboundTag("main", "!!!", "de", "---")
+	if tag != "main-de" {
+		t.Fatalf("expected main-de, got %q", tag)
+	}
+}
+
+func TestDomainInboundLocalDisplayNameFallsBackToNodeIDWhenDisplayNameSanitizesEmpty(t *testing.T) {
+	displayName := domainInboundLocalDisplayName([]clustertypes.DomainInboundTarget{
+		{MemberID: "member-a", NodeID: "node-a", DisplayName: "!!!"},
+	}, "node-a")
+	if displayName != "node-a" {
+		t.Fatalf("expected node-a fallback, got %q", displayName)
+	}
+	tag := buildClusterInboundTag("main", "edge", displayName, "prod")
+	if tag != "main-edge-node-a-prod" {
+		t.Fatalf("expected node fallback tag, got %q", tag)
+	}
+}
+
+func TestDomainInboundLocalDisplayNameDoesNotMatchEmptyNodeID(t *testing.T) {
+	displayName := domainInboundLocalDisplayName([]clustertypes.DomainInboundTarget{
+		{MemberID: "member-empty", NodeID: "", DisplayName: "de"},
+	}, "")
+	if displayName != "" {
+		t.Fatalf("expected empty display name for empty local node id, got %q", displayName)
+	}
+}
+
+func TestDomainInboundLocalDisplayNameUsesNodeIDForMissingTarget(t *testing.T) {
+	displayName := domainInboundLocalDisplayName([]clustertypes.DomainInboundTarget{
+		{MemberID: "member-b", NodeID: "node-b", DisplayName: "fr"},
+	}, "node-a")
+	if displayName != "node-a" {
+		t.Fatalf("expected node-a fallback, got %q", displayName)
 	}
 }
 
