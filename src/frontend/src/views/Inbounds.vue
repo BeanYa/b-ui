@@ -55,7 +55,7 @@
 
     <v-row class="app-grid">
       <v-col cols="12" md="6" lg="4" xl="3" v-for="(item, index) in inbounds" :key="item.tag">
-        <v-card class="app-entity-card inbound-card" elevation="5">
+        <v-card class="app-entity-card inbound-card" :class="{ 'inbound-card--domain': isClusterManaged(item) }" elevation="5">
           <v-card-title class="inbound-card__title">
             <div>
               <div class="inbound-card__name">{{ item.tag }}</div>
@@ -66,7 +66,8 @@
                 {{ item.tls_id > 0 ? $t('enable') : $t('disable') }}
               </v-chip>
               <v-chip v-if="isClusterManaged(item)" size="small" density="comfortable" color="secondary" variant="flat">
-                Hub
+                Domain
+                <v-tooltip activator="parent" location="top" text="Managed by Hub domain inbound group" />
               </v-chip>
               <v-chip v-if="onlines.includes(item.tag)" size="small" density="comfortable" color="success" variant="flat">
                 {{ $t('online') }}
@@ -99,7 +100,7 @@
           <v-card-actions class="app-card-actions">
             <v-btn icon="mdi-file-edit" :disabled="isClusterManaged(item)" @click="showModal(item.id)">
               <v-icon />
-              <v-tooltip activator="parent" location="top" :text="isClusterManaged(item) ? 'Hub-managed domain inbound is read-only' : $t('actions.edit')" />
+              <v-tooltip activator="parent" location="top" :text="isClusterManaged(item) ? 'Managed by Hub domain inbound group' : $t('actions.edit')" />
             </v-btn>
             <v-btn v-if="!isClusterManaged(item)" icon="mdi-file-remove" color="warning" @click="delOverlay[index] = true">
               <v-icon />
@@ -121,7 +122,7 @@
             </v-overlay>
             <v-btn icon="mdi-content-duplicate" :disabled="isClusterManaged(item)" :loading="cloneLoading" @click="clone(item.id)">
               <v-icon />
-              <v-tooltip activator="parent" location="top" :text="isClusterManaged(item) ? 'Hub-managed domain inbound is read-only' : $t('actions.clone')" />
+              <v-tooltip activator="parent" location="top" :text="isClusterManaged(item) ? 'Managed by Hub domain inbound group' : $t('actions.clone')" />
             </v-btn>
             <v-btn v-if="Data().enableTraffic" icon="mdi-chart-line" @click="showStats(item.tag)">
               <v-icon />
@@ -237,5 +238,10 @@ const closeStats = () => {
   flex-wrap: wrap;
   gap: 8px;
   justify-content: flex-end;
+}
+
+.inbound-card--domain {
+  border-color: color-mix(in srgb, var(--app-state-info) 36%, transparent);
+  box-shadow: 0 18px 46px color-mix(in srgb, var(--app-state-info) 10%, transparent);
 }
 </style>
