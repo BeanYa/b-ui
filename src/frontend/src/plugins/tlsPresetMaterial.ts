@@ -126,9 +126,36 @@ const ensureRealityClient = (client: oTls): NonNullable<oTls['reality']> => {
   return client.reality
 }
 
-const getDefaultMaterialProvider = async (): Promise<TlsPresetMaterialProvider> => {
-  const { default: HttpUtils } = await import('@/plugins/httputil')
+const remotePanelContext = async (): Promise<{ nodeId: string, hostname: string } | null> => {
+  const { default: Data } = await import('@/store/modules/data')
+  const data = Data()
+  if (!data.isRemote()) {
+    return null
+  }
+  return {
+    nodeId: data.remoteNodeId,
+    hostname: data.remoteHostname,
+  }
+}
 
+const loadRemotePartial = async (object: string): Promise<Record<string, unknown> | null> => {
+  const context = await remotePanelContext()
+  if (!context) {
+    return null
+  }
+  const { remotePanelPartial } = await import('@/features/remotePanelApi')
+  return remotePanelPartial(context.nodeId, {
+    object,
+    hostname: context.hostname,
+  }) as Promise<Record<string, unknown>>
+}
+
+const localHttpGet = async (path: string): Promise<any> => {
+  const { default: HttpUtils } = await import('@/plugins/httputil')
+  return HttpUtils.get(path)
+}
+
+const getDefaultMaterialProvider = async (): Promise<TlsPresetMaterialProvider> => {
   return {
     async generateTlsKeypair(serverName: string) {
       const { default: Data } = await import('@/store/modules/data')
@@ -147,23 +174,42 @@ const getDefaultMaterialProvider = async (): Promise<TlsPresetMaterialProvider> 
       return keypairs
     },
     async getTlsDomainHints() {
-      const msg = await HttpUtils.get('api/domainHints')
+      const remote = await loadRemotePartial('domainHints')
+      if (remote) {
+        const domainHints = remote.domainHints as { items?: unknown[] } | unknown[] | undefined
+        if (Array.isArray(domainHints)) {
+          return domainHints
+        }
+        return Array.isArray(domainHints?.items) ? domainHints.items : []
+      }
+
+      const msg = await localHttpGet('api/domainHints')
       if (!msg.success || !Array.isArray(msg.obj?.items)) {
         return []
       }
       return msg.obj.items as unknown[]
     },
     async getPanelCertSettings() {
-      const msg = await HttpUtils.get('api/settings')
+      const remote = await loadRemotePartial('settings')
+      if (remote) {
+        const settings = remote.settings as Record<string, unknown> | undefined
+        return panelCertSettingsFromRecord(settings)
+      }
+
+      const msg = await localHttpGet('api/settings')
       if (!msg.success || !msg.obj) {
         return { webDomain: '', webCertFile: '', webKeyFile: '' }
       }
-      return {
-        webDomain: String(msg.obj.webDomain ?? ''),
-        webCertFile: String(msg.obj.webCertFile ?? ''),
-        webKeyFile: String(msg.obj.webKeyFile ?? ''),
-      }
+      return panelCertSettingsFromRecord(msg.obj)
     },
+  }
+}
+
+const panelCertSettingsFromRecord = (settings?: Record<string, unknown>): { webDomain: string, webCertFile: string, webKeyFile: string } => {
+  return {
+    webDomain: String(settings?.webDomain ?? ''),
+    webCertFile: String(settings?.webCertFile ?? ''),
+    webKeyFile: String(settings?.webKeyFile ?? ''),
   }
 }
 

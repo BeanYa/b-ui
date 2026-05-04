@@ -15,6 +15,7 @@ type ClusterPanelActionService struct {
 	ConfigService
 	ServerService
 	StatsService
+	DomainHints DomainHintService
 }
 
 func (s *ClusterPanelActionService) Load(lu string, hostname string) (map[string]interface{}, error) {
@@ -127,6 +128,14 @@ func (s *ClusterPanelActionService) Partial(object string, id string, hostname s
 			return nil, err
 		}
 		data[object] = json.RawMessage(config)
+	case "settings":
+		settings, err := s.SettingService.GetAllSetting()
+		if err != nil {
+			return nil, err
+		}
+		data[object] = settings
+	case "domainHints":
+		data[object] = s.DomainHints.GetCatalog(false)
 	default:
 		return nil, actionUnsupportedObject(object)
 	}

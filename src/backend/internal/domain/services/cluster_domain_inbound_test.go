@@ -126,6 +126,224 @@ func TestDomainInboundCreateGeneratesPortAndCreatesWrapper(t *testing.T) {
 	}
 }
 
+func TestDomainInboundCreateMaterializesStandardTLSWithGeneratedCertificate(t *testing.T) {
+	db := initClusterInboundTestDB(t)
+	svc := NewClusterDomainInboundService(ClusterDomainInboundServiceOptions{
+		DB: db,
+		InboundSaver: domainInboundSaverFunc(func(tx *gorm.DB, act string, data json.RawMessage, initUserIds string, hostname string) error {
+			var inbound model.Inbound
+			if err := inbound.UnmarshalJSON(data); err != nil {
+				return err
+			}
+			return tx.Create(&inbound).Error
+		}),
+		Identity:      &stubDomainInboundIdentity{node: &model.ClusterLocalNode{NodeID: "node-a"}},
+		PortAllocator: func() (int, error) { return 32003, nil },
+		Now:           func() int64 { return 1700000000 },
+		TLSKeypairGenerator: func(serverName string) []string {
+			if serverName != "edge.example.com" {
+				t.Fatalf("expected server name edge.example.com, got %q", serverName)
+			}
+			return []string{
+				"-----BEGIN PRIVATE KEY-----",
+				"private-line",
+				"-----END PRIVATE KEY-----",
+				"-----BEGIN CERTIFICATE-----",
+				"cert-line",
+				"-----END CERTIFICATE-----",
+			}
+		},
+	})
+
+	result, err := svc.ApplyDomainInboundCreate(context.Background(), &model.ClusterDomain{Id: 1, Domain: "edge.example.com"}, clustertypes.DomainInboundCreatePayload{
+		RequestID:   "req-tls",
+		DomainID:    "edge.example.com",
+		Inbound:     json.RawMessage(`{"type":"vless","tag":"main"}`),
+		TLSTemplate: "standard",
+		TLS: &clustertypes.DomainInboundTLS{
+			Name:   "edge-main-tls",
+			Server: json.RawMessage(`{"enabled":true,"server_name":"edge.example.com","alpn":["h2","http/1.1"],"certificate_path":"","key_path":""}`),
+			Client: json.RawMessage(`{"insecure":true}`),
+		},
+	}, "hub", false)
+	if err != nil {
+		t.Fatalf("apply create: %v", err)
+	}
+
+	var inbound model.Inbound
+	if err := db.First(&inbound, result.InboundID).Error; err != nil {
+		t.Fatalf("load inbound: %v", err)
+	}
+	if inbound.TlsId == 0 {
+		t.Fatal("expected generated tls row to be bound to inbound")
+	}
+
+	var tlsConfig model.Tls
+	if err := db.First(&tlsConfig, inbound.TlsId).Error; err != nil {
+		t.Fatalf("load tls: %v", err)
+	}
+	var server map[string]interface{}
+	if err := json.Unmarshal(tlsConfig.Server, &server); err != nil {
+		t.Fatalf("decode tls server: %v", err)
+	}
+	if _, ok := server["certificate_path"]; ok {
+		t.Fatalf("expected generated certificate text instead of certificate_path, got %#v", server)
+	}
+	if _, ok := server["key_path"]; ok {
+		t.Fatalf("expected generated key text instead of key_path, got %#v", server)
+	}
+	if cert, ok := server["certificate"].([]interface{}); !ok || len(cert) == 0 {
+		t.Fatalf("expected generated certificate lines, got %#v", server["certificate"])
+	}
+	if key, ok := server["key"].([]interface{}); !ok || len(key) == 0 {
+		t.Fatalf("expected generated key lines, got %#v", server["key"])
+	}
+}
+
+func TestDomainInboundGeneratedTLSKeypairUsesInlineCertificateMaterial(t *testing.T) {
+	svc := NewClusterDomainInboundService(ClusterDomainInboundServiceOptions{
+		TLSKeypairGenerator: func(serverName string) []string {
+			if serverName != "''" {
+				t.Fatalf("expected blank server name to be normalized, got %q", serverName)
+			}
+			return []string{
+				"-----BEGIN PRIVATE KEY-----",
+				"private-line",
+				"-----END PRIVATE KEY-----",
+				"-----BEGIN CERTIFICATE-----",
+				"cert-line",
+				"-----END CERTIFICATE-----",
+			}
+		},
+	})
+	server := map[string]interface{}{
+		"enabled":          true,
+		"server_name":      "",
+		"certificate_path": "",
+		"key_path":         "",
+	}
+
+	if err := svc.ensureGeneratedTLSKeypair(server); err != nil {
+		t.Fatalf("generate tls keypair: %v", err)
+	}
+	if _, ok := server["certificate_path"]; ok {
+		t.Fatalf("expected certificate_path to be removed, got %#v", server)
+	}
+	if _, ok := server["key_path"]; ok {
+		t.Fatalf("expected key_path to be removed, got %#v", server)
+	}
+	if cert, ok := server["certificate"].([]string); !ok || len(cert) == 0 {
+		t.Fatalf("expected certificate lines, got %#v", server["certificate"])
+	}
+	if key, ok := server["key"].([]string); !ok || len(key) == 0 {
+		t.Fatalf("expected key lines, got %#v", server["key"])
+	}
+}
+
+func TestDomainInboundGeneratedTLSKeypairReplacesLocalProvidedMarkers(t *testing.T) {
+	svc := NewClusterDomainInboundService(ClusterDomainInboundServiceOptions{
+		TLSKeypairGenerator: func(serverName string) []string {
+			if serverName != "edge.example.com" {
+				t.Fatalf("expected server name edge.example.com, got %q", serverName)
+			}
+			return []string{
+				"-----BEGIN PRIVATE KEY-----",
+				"private-line",
+				"-----END PRIVATE KEY-----",
+				"-----BEGIN CERTIFICATE-----",
+				"cert-line",
+				"-----END CERTIFICATE-----",
+			}
+		},
+	})
+	server := map[string]interface{}{
+		"enabled":     true,
+		"server_name": "edge.example.com",
+		"certificate": map[string]interface{}{"LocalProvided": "GeneratedTLSCertificate"},
+		"key":         map[string]interface{}{"LocalProvided": "GeneratedTLSKey"},
+	}
+
+	if err := svc.ensureGeneratedTLSKeypair(server); err != nil {
+		t.Fatalf("generate tls keypair: %v", err)
+	}
+	if cert, ok := server["certificate"].([]string); !ok || len(cert) == 0 {
+		t.Fatalf("expected certificate lines, got %#v", server["certificate"])
+	}
+	if key, ok := server["key"].([]string); !ok || len(key) == 0 {
+		t.Fatalf("expected key lines, got %#v", server["key"])
+	}
+}
+
+func TestDomainInboundTLSLocalProvidedPanelCertificateUsesTargetSettings(t *testing.T) {
+	svc := NewClusterDomainInboundService(ClusterDomainInboundServiceOptions{
+		PanelCertificateProvider: func() (DomainInboundPanelCertificateSettings, error) {
+			return DomainInboundPanelCertificateSettings{
+				WebDomain:   "target-panel.example.com",
+				WebCertFile: "/target/fullchain.pem",
+				WebKeyFile:  "/target/privkey.pem",
+			}, nil
+		},
+	})
+	server := map[string]interface{}{
+		"enabled":          true,
+		"server_name":      map[string]interface{}{"LocalProvided": "PanelWebDomain"},
+		"certificate_path": map[string]interface{}{"LocalProvided": "PanelWebCertFile"},
+		"key_path":         map[string]interface{}{"LocalProvided": "PanelWebKeyFile"},
+	}
+	client := map[string]interface{}{}
+
+	if err := svc.resolveDomainInboundTLSLocalProvided(&model.ClusterDomain{Domain: "edge.example.com"}, server, client); err != nil {
+		t.Fatalf("resolve local provided tls: %v", err)
+	}
+	if server["server_name"] != "target-panel.example.com" {
+		t.Fatalf("expected target panel domain, got %#v", server["server_name"])
+	}
+	if server["certificate_path"] != "/target/fullchain.pem" {
+		t.Fatalf("expected target cert path, got %#v", server["certificate_path"])
+	}
+	if server["key_path"] != "/target/privkey.pem" {
+		t.Fatalf("expected target key path, got %#v", server["key_path"])
+	}
+}
+
+func TestDomainInboundTLSLocalProvidedRealityKeypairGeneratesClientPublicKey(t *testing.T) {
+	svc := NewClusterDomainInboundService(ClusterDomainInboundServiceOptions{})
+	server := map[string]interface{}{
+		"enabled":     true,
+		"server_name": "www.youtube.com",
+		"reality": map[string]interface{}{
+			"enabled":     true,
+			"private_key": map[string]interface{}{"LocalProvided": "RealityPrivateKey"},
+			"short_id":    "0123abcd",
+		},
+	}
+	client := map[string]interface{}{
+		"reality": map[string]interface{}{
+			"enabled":    true,
+			"public_key": map[string]interface{}{"LocalProvided": "RealityPublicKey"},
+			"short_id":   "0123abcd",
+		},
+	}
+
+	if err := svc.resolveDomainInboundTLSLocalProvided(&model.ClusterDomain{Domain: "edge.example.com"}, server, client); err != nil {
+		t.Fatalf("resolve local provided reality: %v", err)
+	}
+	if err := ensureRealityKeypair(server, client, "edge-main-node-a", 1700000000); err != nil {
+		t.Fatalf("generate reality keypair: %v", err)
+	}
+	serverReality := server["reality"].(map[string]interface{})
+	clientReality := client["reality"].(map[string]interface{})
+	if strings.TrimSpace(stringValue(serverReality["private_key"])) == "" {
+		t.Fatalf("expected generated private key, got %#v", serverReality["private_key"])
+	}
+	if strings.TrimSpace(stringValue(clientReality["public_key"])) == "" {
+		t.Fatalf("expected generated public key, got %#v", clientReality["public_key"])
+	}
+	if clientReality["short_id"] != "0123abcd" {
+		t.Fatalf("expected short id to be preserved, got %#v", clientReality["short_id"])
+	}
+}
+
 func TestDomainInboundCreateDuplicateRequestReturnsExistingInbound(t *testing.T) {
 	db := initClusterInboundTestDB(t)
 	saveCalls := 0
