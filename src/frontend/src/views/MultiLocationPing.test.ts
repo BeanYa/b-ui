@@ -1,0 +1,33 @@
+import { readFileSync } from 'node:fs'
+import { fileURLToPath } from 'node:url'
+import { describe, expect, it } from 'vitest'
+
+describe('MultiLocationPing view source', () => {
+  const readSource = () =>
+    readFileSync(fileURLToPath(new URL('./MultiLocationPing.vue', import.meta.url)), 'utf8')
+
+  it('sends inbound target host and port in the run request', () => {
+    const source = readSource()
+
+    expect(source).toContain('inboundTargetHost')
+    expect(source).toContain('inboundTargetPort')
+    expect(source).toContain("direction: 'inbound'")
+    expect(source).toContain('target: {')
+  })
+
+  it('sends outbound current-node requests without target node ids', () => {
+    const source = readSource()
+
+    expect(source).toContain("direction: 'outbound'")
+    expect(source).not.toContain('target_node_ids')
+    expect(source).not.toContain('targetNodeIds')
+  })
+
+  it('renders endpoint metadata columns for external results', () => {
+    const source = readSource()
+
+    expect(source).toContain('endpointLabel')
+    expect(source).toContain('endpointLocation')
+    expect(source).toContain('endpointAddressText')
+  })
+})
