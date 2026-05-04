@@ -59,6 +59,7 @@ type ClusterDomainInboundService struct {
 	tlsKeypairGenerator      func(serverName string) []string
 	panelCertificateProvider func() (DomainInboundPanelCertificateSettings, error)
 	now                      func() int64
+	updateInbound            func(*gorm.DB, uint, json.RawMessage, string) error
 }
 
 type DomainInboundCreateResult struct {
@@ -102,6 +103,9 @@ func NewClusterDomainInboundService(opts ClusterDomainInboundServiceOptions) *Cl
 	}
 	if s.now == nil {
 		s.now = func() int64 { return time.Now().Unix() }
+	}
+	if s.updateInbound == nil {
+		s.updateInbound = s.updateDomainInbound
 	}
 	return s
 }
@@ -299,7 +303,15 @@ func (s *ClusterDomainInboundService) ApplyDomainInboundUpdate(ctx context.Conte
 		if err != nil {
 			return err
 		}
-		if err := s.updateDomainInbound(tx, wrapper.InboundID, inboundJSON, tag); err != nil {
+		var duplicate model.ClusterInbound
+		err = tx.Where("domain_id = ? AND request_id = ? AND id <> ?", domain.Id, payload.RequestID, wrapper.Id).First(&duplicate).Error
+		if err == nil {
+			return fmt.Errorf("domain inbound request_id %q already exists for domain %q", payload.RequestID, domain.Domain)
+		}
+		if !errors.Is(err, gorm.ErrRecordNotFound) {
+			return err
+		}
+		if err := s.updateInbound(tx, wrapper.InboundID, inboundJSON, tag); err != nil {
 			return err
 		}
 		now := s.now()

@@ -651,6 +651,212 @@ func TestDomainInboundUpdateReplacesExistingInboundAndTLS(t *testing.T) {
 	}
 }
 
+func TestDomainInboundUpdateDuplicateRequestFailsBeforeMutatingInbound(t *testing.T) {
+	db := initClusterInboundTestDB(t)
+	firstInbound := model.Inbound{Type: "vless", Tag: "first-tag"}
+	if err := db.Create(&firstInbound).Error; err != nil {
+		t.Fatalf("seed first inbound: %v", err)
+	}
+	secondInbound := model.Inbound{Type: "vless", Tag: "second-tag"}
+	if err := db.Create(&secondInbound).Error; err != nil {
+		t.Fatalf("seed second inbound: %v", err)
+	}
+	firstWrapper := model.ClusterInbound{DomainID: 1, Domain: "edge.example.com", GroupID: "group-1", InboundID: firstInbound.Id, RequestID: "req-original"}
+	if err := db.Create(&firstWrapper).Error; err != nil {
+		t.Fatalf("seed first wrapper: %v", err)
+	}
+	secondWrapper := model.ClusterInbound{DomainID: 1, Domain: "edge.example.com", GroupID: "group-2", InboundID: secondInbound.Id, RequestID: "req-conflict"}
+	if err := db.Create(&secondWrapper).Error; err != nil {
+		t.Fatalf("seed second wrapper: %v", err)
+	}
+	mutateCalls := 0
+	svc := NewClusterDomainInboundService(ClusterDomainInboundServiceOptions{
+		DB:            db,
+		Identity:      &stubDomainInboundIdentity{node: &model.ClusterLocalNode{NodeID: "node-a"}},
+		PortAllocator: func() (int, error) { return 32011, nil },
+	})
+	svc.updateInbound = func(*gorm.DB, uint, json.RawMessage, string) error {
+		mutateCalls++
+		return nil
+	}
+
+	_, err := svc.ApplyDomainInboundUpdate(context.Background(), &model.ClusterDomain{Id: 1, Domain: "edge.example.com"}, clustertypes.DomainInboundUpdatePayload{
+		RequestID: "req-conflict",
+		DomainID:  "edge.example.com",
+		GroupID:   "group-1",
+		Inbound:   json.RawMessage(`{"type":"trojan","tag":"updated"}`),
+	}, "hub", false)
+	if err == nil || !strings.Contains(err.Error(), "request_id") || !strings.Contains(err.Error(), "already exists") {
+		t.Fatalf("expected duplicate request_id error, got %v", err)
+	}
+	if mutateCalls != 0 {
+		t.Fatalf("expected duplicate request precheck before inbound mutation, got %d calls", mutateCalls)
+	}
+}
+
+func TestDomainInboundUpdateClearsTLSAndDeletesOldTLSWhenUnused(t *testing.T) {
+	db := initClusterInboundTestDB(t)
+	tlsConfig := model.Tls{Name: "old-unused-tls", Server: json.RawMessage(`{}`), Client: json.RawMessage(`{}`)}
+	if err := db.Create(&tlsConfig).Error; err != nil {
+		t.Fatalf("seed tls: %v", err)
+	}
+	inbound := model.Inbound{Type: "vless", Tag: "tls-clear-tag", TlsId: tlsConfig.Id}
+	if err := db.Create(&inbound).Error; err != nil {
+		t.Fatalf("seed inbound: %v", err)
+	}
+	wrapper := model.ClusterInbound{DomainID: 1, Domain: "edge.example.com", GroupID: "group-clear-tls", InboundID: inbound.Id, RequestID: "req-create"}
+	if err := db.Create(&wrapper).Error; err != nil {
+		t.Fatalf("seed wrapper: %v", err)
+	}
+	svc := NewClusterDomainInboundService(ClusterDomainInboundServiceOptions{
+		DB:            db,
+		Identity:      &stubDomainInboundIdentity{node: &model.ClusterLocalNode{NodeID: "node-a"}},
+		PortAllocator: func() (int, error) { return 32012, nil },
+	})
+
+	_, err := svc.ApplyDomainInboundUpdate(context.Background(), &model.ClusterDomain{Id: 1, Domain: "edge.example.com"}, clustertypes.DomainInboundUpdatePayload{
+		RequestID: "req-clear-tls",
+		DomainID:  "edge.example.com",
+		GroupID:   "group-clear-tls",
+		Inbound:   json.RawMessage(`{"type":"vless","tag":"clear-tls"}`),
+	}, "hub", false)
+	if err != nil {
+		t.Fatalf("apply update: %v", err)
+	}
+	var updated model.Inbound
+	if err := db.First(&updated, inbound.Id).Error; err != nil {
+		t.Fatalf("load updated inbound: %v", err)
+	}
+	if updated.TlsId != 0 {
+		t.Fatalf("expected tls id cleared, got %d", updated.TlsId)
+	}
+	var tlsCount int64
+	if err := db.Model(model.Tls{}).Where("id = ?", tlsConfig.Id).Count(&tlsCount).Error; err != nil {
+		t.Fatalf("count tls: %v", err)
+	}
+	if tlsCount != 0 {
+		t.Fatalf("expected unused tls deleted, count=%d", tlsCount)
+	}
+}
+
+func TestDomainInboundUpdateKeepsOldTLSWhenReferencedByAnotherInbound(t *testing.T) {
+	db := initClusterInboundTestDB(t)
+	tlsConfig := model.Tls{Name: "shared-inbound-tls", Server: json.RawMessage(`{}`), Client: json.RawMessage(`{}`)}
+	if err := db.Create(&tlsConfig).Error; err != nil {
+		t.Fatalf("seed tls: %v", err)
+	}
+	inbound := model.Inbound{Type: "vless", Tag: "shared-primary", TlsId: tlsConfig.Id}
+	if err := db.Create(&inbound).Error; err != nil {
+		t.Fatalf("seed inbound: %v", err)
+	}
+	otherInbound := model.Inbound{Type: "vless", Tag: "shared-other", TlsId: tlsConfig.Id}
+	if err := db.Create(&otherInbound).Error; err != nil {
+		t.Fatalf("seed other inbound: %v", err)
+	}
+	wrapper := model.ClusterInbound{DomainID: 1, Domain: "edge.example.com", GroupID: "group-shared-inbound-tls", InboundID: inbound.Id, RequestID: "req-create"}
+	if err := db.Create(&wrapper).Error; err != nil {
+		t.Fatalf("seed wrapper: %v", err)
+	}
+	svc := NewClusterDomainInboundService(ClusterDomainInboundServiceOptions{DB: db, Identity: &stubDomainInboundIdentity{node: &model.ClusterLocalNode{NodeID: "node-a"}}, PortAllocator: func() (int, error) { return 32013, nil }})
+
+	_, err := svc.ApplyDomainInboundUpdate(context.Background(), &model.ClusterDomain{Id: 1, Domain: "edge.example.com"}, clustertypes.DomainInboundUpdatePayload{
+		RequestID: "req-shared-inbound-tls",
+		DomainID:  "edge.example.com",
+		GroupID:   "group-shared-inbound-tls",
+		Inbound:   json.RawMessage(`{"type":"vless","tag":"shared-updated"}`),
+	}, "hub", false)
+	if err != nil {
+		t.Fatalf("apply update: %v", err)
+	}
+	var tlsCount int64
+	if err := db.Model(model.Tls{}).Where("id = ?", tlsConfig.Id).Count(&tlsCount).Error; err != nil {
+		t.Fatalf("count tls: %v", err)
+	}
+	if tlsCount != 1 {
+		t.Fatalf("expected shared tls to remain, count=%d", tlsCount)
+	}
+}
+
+func TestDomainInboundUpdateKeepsOldTLSWhenReferencedByService(t *testing.T) {
+	db := initClusterInboundTestDB(t)
+	tlsConfig := model.Tls{Name: "shared-service-tls", Server: json.RawMessage(`{}`), Client: json.RawMessage(`{}`)}
+	if err := db.Create(&tlsConfig).Error; err != nil {
+		t.Fatalf("seed tls: %v", err)
+	}
+	inbound := model.Inbound{Type: "vless", Tag: "service-primary", TlsId: tlsConfig.Id}
+	if err := db.Create(&inbound).Error; err != nil {
+		t.Fatalf("seed inbound: %v", err)
+	}
+	service := model.Service{Type: "http", Tag: "service-shared", TlsId: tlsConfig.Id}
+	if err := db.Create(&service).Error; err != nil {
+		t.Fatalf("seed service: %v", err)
+	}
+	wrapper := model.ClusterInbound{DomainID: 1, Domain: "edge.example.com", GroupID: "group-shared-service-tls", InboundID: inbound.Id, RequestID: "req-create"}
+	if err := db.Create(&wrapper).Error; err != nil {
+		t.Fatalf("seed wrapper: %v", err)
+	}
+	svc := NewClusterDomainInboundService(ClusterDomainInboundServiceOptions{DB: db, Identity: &stubDomainInboundIdentity{node: &model.ClusterLocalNode{NodeID: "node-a"}}, PortAllocator: func() (int, error) { return 32014, nil }})
+
+	_, err := svc.ApplyDomainInboundUpdate(context.Background(), &model.ClusterDomain{Id: 1, Domain: "edge.example.com"}, clustertypes.DomainInboundUpdatePayload{
+		RequestID: "req-shared-service-tls",
+		DomainID:  "edge.example.com",
+		GroupID:   "group-shared-service-tls",
+		Inbound:   json.RawMessage(`{"type":"vless","tag":"service-updated"}`),
+	}, "hub", false)
+	if err != nil {
+		t.Fatalf("apply update: %v", err)
+	}
+	var tlsCount int64
+	if err := db.Model(model.Tls{}).Where("id = ?", tlsConfig.Id).Count(&tlsCount).Error; err != nil {
+		t.Fatalf("count tls: %v", err)
+	}
+	if tlsCount != 1 {
+		t.Fatalf("expected service-referenced tls to remain, count=%d", tlsCount)
+	}
+}
+
+func TestDomainInboundUpdateKeepsLocalUpdateWhenPeerBroadcastFails(t *testing.T) {
+	db := initClusterInboundTestDB(t)
+	inbound := model.Inbound{Type: "vless", Tag: "update-broadcast-tag"}
+	if err := db.Create(&inbound).Error; err != nil {
+		t.Fatalf("seed inbound: %v", err)
+	}
+	wrapper := model.ClusterInbound{DomainID: 1, Domain: "edge.example.com", GroupID: "group-update-broadcast", InboundID: inbound.Id, RequestID: "req-create"}
+	if err := db.Create(&wrapper).Error; err != nil {
+		t.Fatalf("seed wrapper: %v", err)
+	}
+	svc := NewClusterDomainInboundService(ClusterDomainInboundServiceOptions{
+		DB:            db,
+		Identity:      &stubDomainInboundIdentity{node: &model.ClusterLocalNode{NodeID: "node-a"}},
+		Broadcaster:   stubDomainInboundBroadcaster{updateErr: errors.New("cluster peer notify failed: 401 Unauthorized")},
+		PortAllocator: func() (int, error) { return 32015, nil },
+	})
+
+	_, err := svc.ApplyDomainInboundUpdate(context.Background(), &model.ClusterDomain{Id: 1, Domain: "edge.example.com"}, clustertypes.DomainInboundUpdatePayload{
+		RequestID: "req-update-broadcast",
+		DomainID:  "edge.example.com",
+		GroupID:   "group-update-broadcast",
+		Inbound:   json.RawMessage(`{"type":"trojan","tag":"broadcast-updated"}`),
+	}, "hub", true)
+	if err != nil {
+		t.Fatalf("expected local update despite broadcast failure, got %v", err)
+	}
+	var updated model.Inbound
+	if err := db.First(&updated, inbound.Id).Error; err != nil {
+		t.Fatalf("load updated inbound: %v", err)
+	}
+	if updated.Type != "trojan" || updated.Tag != "broadcast-updated-node-a" {
+		t.Fatalf("expected local update persisted, got %#v", updated)
+	}
+	var updatedWrapper model.ClusterInbound
+	if err := db.First(&updatedWrapper, wrapper.Id).Error; err != nil {
+		t.Fatalf("load updated wrapper: %v", err)
+	}
+	if updatedWrapper.RequestID != "req-update-broadcast" {
+		t.Fatalf("expected wrapper request id updated, got %#v", updatedWrapper)
+	}
+}
+
 func TestDomainInboundDeleteRemovesExistingWrapperAndInbound(t *testing.T) {
 	db := initClusterInboundTestDB(t)
 	tlsConfig := model.Tls{Name: "delete-tls", Server: json.RawMessage(`{}`), Client: json.RawMessage(`{}`)}
