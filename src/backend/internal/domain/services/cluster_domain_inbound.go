@@ -408,7 +408,7 @@ func (s *ClusterDomainInboundService) ApplyDomainInboundDelete(ctx context.Conte
 			}
 			wrapper = fallback
 		}
-		if err != nil {
+		if err != nil && !errors.Is(err, gorm.ErrRecordNotFound) {
 			return err
 		}
 		runtimeTag, _, _, err := s.deleteDomainInboundDB(tx, wrapper.InboundID)
@@ -604,9 +604,12 @@ func (s *ClusterDomainInboundService) prepareDomainInboundJSON(tx *gorm.DB, doma
 	if tagSeed := strings.TrimSpace(payload.TagSeed); tagSeed != "" {
 		baseTag = tagSeed
 	}
-	tag := buildLegacyClusterInboundTag(payload.Prefix, baseTag, nodeID, payload.Suffix)
-	if strings.TrimSpace(payload.GroupID) != "" || strings.TrimSpace(payload.TagSeed) != "" || len(payload.TargetMembers) > 0 {
-		tag = buildClusterInboundTag(baseTag, payload.Prefix, displayName, payload.Suffix)
+	tag := hubProvidedDomainInboundTargetTag(payload.TargetMembers, nodeID)
+	if tag == "" {
+		tag = buildLegacyClusterInboundTag(payload.Prefix, baseTag, nodeID, payload.Suffix)
+		if strings.TrimSpace(payload.GroupID) != "" || strings.TrimSpace(payload.TagSeed) != "" || len(payload.TargetMembers) > 0 {
+			tag = buildClusterInboundTag(baseTag, payload.Prefix, displayName, payload.Suffix)
+		}
 	}
 
 	delete(inbound, "id")
@@ -1070,6 +1073,19 @@ func buildLegacyClusterInboundTag(prefix string, baseTag string, nodeID string, 
 	base := sanitizeDomainInboundPart(baseTag, "inbound")
 	node := sanitizeDomainInboundPart(nodeID, "node")
 	return prefix + base + "-" + node + suffix
+}
+
+func hubProvidedDomainInboundTargetTag(targets []clustertypes.DomainInboundTarget, nodeID string) string {
+	nodeID = strings.TrimSpace(nodeID)
+	if nodeID == "" {
+		return ""
+	}
+	for _, target := range targets {
+		if strings.TrimSpace(target.NodeID) == nodeID {
+			return sanitizeDomainInboundPart(target.TargetTag, "")
+		}
+	}
+	return ""
 }
 
 func domainInboundLocalDisplayName(targets []clustertypes.DomainInboundTarget, nodeID string) string {

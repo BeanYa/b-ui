@@ -117,10 +117,12 @@ describe('Inbounds view domain-managed cards', () => {
     const localCard = html.slice(localStart)
 
     expect(domainCard).toContain('inbound-card--domain')
-    expect(domainCard).toContain('Domain')
+    expect(domainCard).toContain('Hub Managed')
+    expect(domainCard).toContain('Domain inbound managed by Hub')
     expect(domainCard).toContain('Managed by Hub domain inbound group')
     expect(localCard).not.toContain('inbound-card--domain')
-    expect(localCard).not.toContain('Domain')
+    expect(localCard).not.toContain('Hub Managed')
+    expect(localCard).not.toContain('Domain inbound managed by Hub')
     expect(localCard).not.toContain('Managed by Hub domain inbound group')
   })
 

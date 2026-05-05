@@ -65,8 +65,8 @@
               <v-chip size="small" density="comfortable" :color="item.tls_id > 0 ? 'info' : ''" variant="flat">
                 {{ item.tls_id > 0 ? $t('enable') : $t('disable') }}
               </v-chip>
-              <v-chip v-if="isClusterManaged(item)" size="small" density="comfortable" color="secondary" variant="flat">
-                Domain
+              <v-chip v-if="isClusterManaged(item)" class="inbound-card__managed-chip" size="small" density="comfortable" color="info" variant="flat">
+                Hub Managed
                 <v-tooltip activator="parent" location="top" text="Managed by Hub domain inbound group" />
               </v-chip>
               <v-chip v-if="onlines.includes(item.tag)" size="small" density="comfortable" color="success" variant="flat">
@@ -75,6 +75,10 @@
             </div>
           </v-card-title>
           <v-card-text class="app-entity-card__text">
+            <div v-if="isClusterManaged(item)" class="inbound-card__managed-banner">
+              <span>Domain inbound managed by Hub</span>
+              <strong>{{ item.cluster_domain || 'Domain scope' }}</strong>
+            </div>
             <v-row>
               <v-col>{{ $t('in.addr') }}</v-col>
               <v-col>{{ item.listen || '-' }}</v-col>
@@ -241,7 +245,44 @@ const closeStats = () => {
 }
 
 .inbound-card--domain {
-  border-color: color-mix(in srgb, var(--app-state-info) 36%, transparent);
-  box-shadow: 0 18px 46px color-mix(in srgb, var(--app-state-info) 10%, transparent);
+  background:
+    linear-gradient(135deg, color-mix(in srgb, var(--app-state-info) 16%, transparent), transparent 42%),
+    color-mix(in srgb, var(--app-surface-2) 92%, var(--app-state-info));
+  border: 1px solid color-mix(in srgb, var(--app-state-info) 62%, transparent);
+  box-shadow:
+    0 18px 46px color-mix(in srgb, var(--app-state-info) 16%, transparent),
+    inset 0 0 0 1px color-mix(in srgb, var(--app-state-info) 18%, transparent);
+}
+
+.inbound-card__managed-chip {
+  font-weight: 700;
+  letter-spacing: 0;
+}
+
+.inbound-card__managed-banner {
+  align-items: center;
+  background: color-mix(in srgb, var(--app-state-info) 12%, transparent);
+  border: 1px solid color-mix(in srgb, var(--app-state-info) 34%, transparent);
+  border-radius: 8px;
+  color: var(--app-text-1);
+  display: flex;
+  gap: 8px;
+  justify-content: space-between;
+  margin-bottom: 14px;
+  padding: 10px 12px;
+}
+
+.inbound-card__managed-banner span {
+  color: var(--app-text-2);
+  font-size: 12px;
+}
+
+.inbound-card__managed-banner strong {
+  color: var(--app-state-info);
+  font-size: 12px;
+  font-weight: 700;
+  max-width: 45%;
+  overflow-wrap: anywhere;
+  text-align: right;
 }
 </style>

@@ -1027,6 +1027,105 @@ func TestDomainInboundDeleteMissingGroupIsIdempotent(t *testing.T) {
 	}
 }
 
+func TestDomainInboundCreatePrefersHubTargetTag(t *testing.T) {
+	db := initClusterInboundTestDB(t)
+	svc := NewClusterDomainInboundService(ClusterDomainInboundServiceOptions{
+		DB: db,
+		InboundSaver: domainInboundSaverFunc(func(tx *gorm.DB, act string, data json.RawMessage, initUserIds string, hostname string) error {
+			var inbound model.Inbound
+			if err := inbound.UnmarshalJSON(data); err != nil {
+				return err
+			}
+			return tx.Create(&inbound).Error
+		}),
+		Identity:      &stubDomainInboundIdentity{node: &model.ClusterLocalNode{NodeID: "node-a"}},
+		PortAllocator: func() (int, error) { return 32006, nil },
+		Now:           func() int64 { return 1700000000 },
+	})
+
+	result, err := svc.ApplyDomainInboundCreate(context.Background(), &model.ClusterDomain{Id: 1, Domain: "edge.example.com"}, clustertypes.DomainInboundCreatePayload{
+		RequestID: "req-target-tag",
+		DomainID:  "edge.example.com",
+		GroupID:   "group-target-tag",
+		TagSeed:   "seed",
+		Prefix:    "pre",
+		Suffix:    "suf",
+		Inbound:   json.RawMessage(`{"type":"vless","tag":"legacy"}`),
+		TargetMembers: []clustertypes.DomainInboundTarget{
+			{MemberID: "member-a", NodeID: "node-a", DisplayName: "ignored", TargetTag: "seed-pre-Hub-Display-suf"},
+		},
+	}, "hub", false)
+	if err != nil {
+		t.Fatalf("apply create: %v", err)
+	}
+
+	var inbound model.Inbound
+	if err := db.First(&inbound, result.InboundID).Error; err != nil {
+		t.Fatalf("load inbound: %v", err)
+	}
+	if inbound.Tag != "seed-pre-Hub-Display-suf" {
+		t.Fatalf("expected hub-provided target tag, got %q", inbound.Tag)
+	}
+}
+
+func TestDomainInboundDeleteUsesFallbackWhenGroupMissing(t *testing.T) {
+	db := initClusterInboundTestDB(t)
+	inbound := model.Inbound{Type: "vless", Tag: "reported-adopted"}
+	if err := db.Create(&inbound).Error; err != nil {
+		t.Fatalf("seed inbound: %v", err)
+	}
+	wrapper := model.ClusterInbound{
+		DomainID:  1,
+		Domain:    "edge.example.com",
+		NodeID:    "node-a",
+		MemberID:  "member-a",
+		GroupID:   "original-group",
+		InboundID: inbound.Id,
+		RequestID: "reported-adopt-request",
+	}
+	if err := db.Create(&wrapper).Error; err != nil {
+		t.Fatalf("seed wrapper: %v", err)
+	}
+	svc := NewClusterDomainInboundService(ClusterDomainInboundServiceOptions{
+		DB:       db,
+		Identity: &stubDomainInboundIdentity{node: &model.ClusterLocalNode{NodeID: "node-a"}},
+	})
+	svc.deleteInboundRuntime = func(tag string) error { return nil }
+	svc.updateClientsOnInboundDelete = func(tx *gorm.DB, id uint, tag string) error { return nil }
+
+	err := svc.ApplyDomainInboundDelete(context.Background(), &model.ClusterDomain{Id: 1, Domain: "edge.example.com"}, clustertypes.DomainInboundDeletePayload{
+		RequestID: "req-delete-adopted",
+		DomainID:  "edge.example.com",
+		GroupID:   "hub-adopted-group",
+		TargetMembers: []clustertypes.DomainInboundTarget{
+			{
+				MemberID:               "member-a",
+				NodeID:                 "node-a",
+				RemoteInboundID:        inbound.Id,
+				DomainInboundRequestID: "reported-adopt-request",
+			},
+		},
+	}, "hub", false)
+	if err != nil {
+		t.Fatalf("apply delete: %v", err)
+	}
+
+	var wrapperCount int64
+	if err := db.Model(&model.ClusterInbound{}).Where("inbound_id = ?", inbound.Id).Count(&wrapperCount).Error; err != nil {
+		t.Fatalf("count wrappers: %v", err)
+	}
+	if wrapperCount != 0 {
+		t.Fatalf("expected fallback wrapper deleted, count=%d", wrapperCount)
+	}
+	var inboundCount int64
+	if err := db.Model(&model.Inbound{}).Where("id = ?", inbound.Id).Count(&inboundCount).Error; err != nil {
+		t.Fatalf("count inbounds: %v", err)
+	}
+	if inboundCount != 0 {
+		t.Fatalf("expected fallback inbound deleted, count=%d", inboundCount)
+	}
+}
+
 func TestDomainInboundDeleteFallsBackToReportedTargetWhenAdoptedGroupIsUnknown(t *testing.T) {
 	db := initClusterInboundTestDB(t)
 	inbound := model.Inbound{Type: "vless", Tag: "BeanStudioVless-edge-de-prod"}
