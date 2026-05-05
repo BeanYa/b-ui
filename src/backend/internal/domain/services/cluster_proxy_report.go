@@ -111,50 +111,30 @@ func (s *ClusterProxyReportService) reportProxyConfigs(domain clusterDomainInfo)
 	}
 
 	configs := make([]ClusterHubProxyConfigItem, 0)
+	wrappedInboundIDs := make(map[uint]struct{}, len(wrappers))
 	for _, wrapper := range wrappers {
 		if wrapper.Inbound == nil {
 			continue
 		}
-		inb := *wrapper.Inbound
-		var listenPort int
-		var options json.RawMessage
-		var tlsConfig json.RawMessage
+		wrappedInboundIDs[wrapper.InboundID] = struct{}{}
+	}
 
-		if inb.Options != nil {
-			var fields map[string]json.RawMessage
-			if err := json.Unmarshal(inb.Options, &fields); err == nil {
-				if lp, ok := fields["listen_port"]; ok {
-					var p float64
-					if err := json.Unmarshal(lp, &p); err == nil {
-						listenPort = int(p)
-					}
-				}
-				// Build options from protocol-specific fields (exclude listen and listen_port)
-				optMap := make(map[string]json.RawMessage)
-				for k, v := range fields {
-					if k != "listen" && k != "listen_port" && k != "sniff" && k != "sniff_override_destination" && k != "domain_strategy" && k != "udp_timeout" && k != "proxy_protocol" && k != "proxy_protocol_accept_no_header" {
-						optMap[k] = v
-					}
-				}
-				if len(optMap) > 0 {
-					options, _ = json.Marshal(optMap)
-				}
-			}
+	var inbounds []model.Inbound
+	if err := db.Model(model.Inbound{}).Preload("Tls").Order("id").Find(&inbounds).Error; err != nil {
+		return fmt.Errorf("get inbounds: %w", err)
+	}
+	for _, inb := range inbounds {
+		if _, wrapped := wrappedInboundIDs[inb.Id]; wrapped {
+			continue
 		}
+		configs = append(configs, buildClusterProxyReportConfig(inb, address, "node", ""))
+	}
 
-		tlsConfig = buildClusterProxyReportTLSConfig(inb.Tls)
-
-		configs = append(configs, ClusterHubProxyConfigItem{
-			InboundID:              inb.Id,
-			Type:                   inb.Type,
-			Tag:                    inb.Tag,
-			ListenPort:             listenPort,
-			Address:                address,
-			Options:                options,
-			TLSConfig:              tlsConfig,
-			Scope:                  "domain",
-			DomainInboundRequestID: wrapper.RequestID,
-		})
+	for _, wrapper := range wrappers {
+		if wrapper.Inbound == nil {
+			continue
+		}
+		configs = append(configs, buildClusterProxyReportConfig(*wrapper.Inbound, address, "domain", wrapper.RequestID))
 	}
 
 	body := ClusterHubReportProxyConfigsRequest{
@@ -167,6 +147,44 @@ func (s *ClusterProxyReportService) reportProxyConfigs(domain clusterDomainInfo)
 	}
 
 	return s.hubClient.ReportProxyConfigs(context.Background(), domain.HubURL, domain.Name, body)
+}
+
+func buildClusterProxyReportConfig(inb model.Inbound, address string, scope string, requestID string) ClusterHubProxyConfigItem {
+	var listenPort int
+	var options json.RawMessage
+
+	if inb.Options != nil {
+		var fields map[string]json.RawMessage
+		if err := json.Unmarshal(inb.Options, &fields); err == nil {
+			if lp, ok := fields["listen_port"]; ok {
+				var p float64
+				if err := json.Unmarshal(lp, &p); err == nil {
+					listenPort = int(p)
+				}
+			}
+			optMap := make(map[string]json.RawMessage)
+			for k, v := range fields {
+				if k != "listen" && k != "listen_port" && k != "sniff" && k != "sniff_override_destination" && k != "domain_strategy" && k != "udp_timeout" && k != "proxy_protocol" && k != "proxy_protocol_accept_no_header" {
+					optMap[k] = v
+				}
+			}
+			if len(optMap) > 0 {
+				options, _ = json.Marshal(optMap)
+			}
+		}
+	}
+
+	return ClusterHubProxyConfigItem{
+		InboundID:              inb.Id,
+		Type:                   inb.Type,
+		Tag:                    inb.Tag,
+		ListenPort:             listenPort,
+		Address:                address,
+		Options:                options,
+		TLSConfig:              buildClusterProxyReportTLSConfig(inb.Tls),
+		Scope:                  scope,
+		DomainInboundRequestID: requestID,
+	}
 }
 
 func buildClusterProxyReportTLSConfig(tls *model.Tls) json.RawMessage {
