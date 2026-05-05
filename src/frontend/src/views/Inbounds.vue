@@ -102,7 +102,7 @@
               <v-icon />
               <v-tooltip activator="parent" location="top" :text="isClusterManaged(item) ? 'Managed by Hub domain inbound group' : $t('actions.edit')" />
             </v-btn>
-            <v-btn v-if="!isClusterManaged(item)" icon="mdi-file-remove" color="warning" @click="delOverlay[index] = true">
+            <v-btn icon="mdi-file-remove" color="warning" @click="delOverlay[index] = true">
               <v-icon />
               <v-tooltip activator="parent" location="top" :text="$t('actions.del')" />
             </v-btn>

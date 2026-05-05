@@ -62,12 +62,30 @@ func TestManagedDomainResourcesAreAnnotatedAndReadOnly(t *testing.T) {
 	if _, err := (&ClientService{}).Save(db, "del", clientDelete, "edge.example.com"); err == nil || !strings.Contains(err.Error(), "read-only") {
 		t.Fatalf("expected managed client delete rejection, got %v", err)
 	}
-	inboundDelete, _ := json.Marshal(inbound.Tag)
-	if err := (&InboundService{}).Save(db, "del", inboundDelete, "", "edge.example.com"); err == nil || !strings.Contains(err.Error(), "read-only") {
-		t.Fatalf("expected managed inbound delete rejection, got %v", err)
+	inboundEdit, _ := inbound.MarshalJSON()
+	if err := (&InboundService{}).Save(db, "edit", inboundEdit, "", "edge.example.com"); err == nil || !strings.Contains(err.Error(), "read-only") {
+		t.Fatalf("expected managed inbound edit rejection, got %v", err)
 	}
 	tlsDelete, _ := json.Marshal(tlsConfig.Id)
 	if err := (&TlsService{}).Save(db, "del", tlsDelete, "edge.example.com"); err == nil || !strings.Contains(err.Error(), "read-only") {
 		t.Fatalf("expected managed tls delete rejection, got %v", err)
+	}
+	inboundDelete, _ := json.Marshal(inbound.Tag)
+	if err := (&InboundService{}).Save(db, "del", inboundDelete, "", "edge.example.com"); err != nil {
+		t.Fatalf("expected managed inbound delete to be allowed, got %v", err)
+	}
+	var wrapperCount int64
+	if err := db.Model(&model.ClusterInbound{}).Where("inbound_id = ?", inbound.Id).Count(&wrapperCount).Error; err != nil {
+		t.Fatalf("count managed inbound wrapper: %v", err)
+	}
+	if wrapperCount != 0 {
+		t.Fatalf("expected managed inbound wrapper to be removed, got %d", wrapperCount)
+	}
+	var tlsCount int64
+	if err := db.Model(&model.Tls{}).Where("id = ?", tlsConfig.Id).Count(&tlsCount).Error; err != nil {
+		t.Fatalf("count managed inbound tls: %v", err)
+	}
+	if tlsCount != 0 {
+		t.Fatalf("expected unused managed inbound tls to be removed, got %d", tlsCount)
 	}
 }

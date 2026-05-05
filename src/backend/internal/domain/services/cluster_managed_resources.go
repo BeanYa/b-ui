@@ -172,6 +172,18 @@ func rejectClusterManagedInboundTag(tx *gorm.DB, tag string) error {
 	return rejectClusterManagedInboundID(tx, inbound.Id)
 }
 
+func isClusterManagedInboundID(tx *gorm.DB, id uint) (bool, error) {
+	if id == 0 {
+		return false, nil
+	}
+	wrappers, err := clusterInboundsByInboundIDs(tx, []uint{id})
+	if err != nil {
+		return false, err
+	}
+	_, ok := wrappers[id]
+	return ok, nil
+}
+
 func rejectClusterManagedTLSID(tx *gorm.DB, id uint) error {
 	if id == 0 {
 		return nil

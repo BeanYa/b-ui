@@ -123,4 +123,17 @@ describe('Inbounds view domain-managed cards', () => {
     expect(localCard).not.toContain('Domain')
     expect(localCard).not.toContain('Managed by Hub domain inbound group')
   })
+
+  it('keeps delete available for Hub-managed inbounds', async () => {
+    const html = await renderInbounds()
+
+    const cardClass = 'app-entity-card inbound-card'
+    const domainStart = html.indexOf(cardClass)
+    const localStart = html.indexOf(cardClass, domainStart + cardClass.length)
+    const domainCard = html.slice(domainStart, localStart)
+
+    expect(domainCard).toContain('mdi-file-edit')
+    expect(domainCard).toContain('mdi-file-remove')
+    expect(domainCard).toContain('mdi-content-duplicate')
+  })
 })

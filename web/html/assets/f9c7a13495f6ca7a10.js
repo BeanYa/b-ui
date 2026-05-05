@@ -1,0 +1,1 @@
+import{Rt as e}from"./f9c7a13495f6ca7a2.js";var t=e(`v-spacer`,`div`,`VSpacer`);export{t};

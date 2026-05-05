@@ -2,6 +2,7 @@ package service
 
 import (
 	"encoding/json"
+	"errors"
 	"fmt"
 	"os"
 	"strings"
@@ -192,8 +193,24 @@ func (s *InboundService) Save(tx *gorm.DB, act string, data json.RawMessage, ini
 		if err != nil {
 			return err
 		}
-		if err := rejectClusterManagedInboundTag(tx, tag); err != nil {
+		var inbound model.Inbound
+		err = tx.Model(model.Inbound{}).Select("id", "tag", "tls_id").Where("tag = ?", tag).First(&inbound).Error
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return nil
+		}
+		if err != nil {
 			return err
+		}
+		managed, err := isClusterManagedInboundID(tx, inbound.Id)
+		if err != nil {
+			return err
+		}
+		if managed {
+			_, _, err := deleteClusterManagedInbound(tx, inbound.Id)
+			if err != nil {
+				return err
+			}
+			return tx.Where("inbound_id = ?", inbound.Id).Delete(&model.ClusterInbound{}).Error
 		}
 		if corePtr.IsRunning() {
 			err = corePtr.RemoveInbound(tag)
@@ -201,12 +218,7 @@ func (s *InboundService) Save(tx *gorm.DB, act string, data json.RawMessage, ini
 				return err
 			}
 		}
-		var id uint
-		err = tx.Model(model.Inbound{}).Select("id").Where("tag = ?", tag).Scan(&id).Error
-		if err != nil {
-			return err
-		}
-		err = s.ClientService.UpdateClientsOnInboundDelete(tx, id, tag)
+		err = s.ClientService.UpdateClientsOnInboundDelete(tx, inbound.Id, tag)
 		if err != nil {
 			return err
 		}
