@@ -401,11 +401,14 @@ func TestClusterSyncServiceReportsLocalPanelStatusAfterRestart(t *testing.T) {
 	})
 
 	currentVersion := canonicalizeReleaseTag(config.GetVersion())
+	secret := []byte("panel-secret-for-cluster-tests")
 	store := &stubClusterSyncStore{
 		domains: map[uint]*model.ClusterDomain{
 			1: {
-				Id:     1,
-				Domain: "edge.example.com",
+				Id:             1,
+				Domain:         "edge.example.com",
+				HubURL:         "https://hub.example.com",
+				TokenEncrypted: mustEncryptClusterToken(t, string(secret), "domain-token"),
 			},
 		},
 		members: map[string]*model.ClusterMember{
@@ -416,10 +419,11 @@ func TestClusterSyncServiceReportsLocalPanelStatusAfterRestart(t *testing.T) {
 	broadcaster := &stubClusterBroadcaster{}
 	hub := &stubClusterUpdateHubClient{}
 	service := &ClusterSyncService{
-		store:         store,
-		broadcaster:   broadcaster,
-		hubClient:     hub,
-		localIdentity: &ClusterLocalIdentityService{store: &stubClusterLocalNodeStore{node: &model.ClusterLocalNode{NodeID: "node-local"}}},
+		store:          store,
+		broadcaster:    broadcaster,
+		hubClient:      hub,
+		secretProvider: stubClusterSecretProvider{secret: secret},
+		localIdentity:  &ClusterLocalIdentityService{store: &stubClusterLocalNodeStore{node: &model.ClusterLocalNode{NodeID: "node-local"}}},
 	}
 
 	if err := service.ReportLocalPanelStatus(context.Background()); err != nil {
@@ -430,8 +434,8 @@ func TestClusterSyncServiceReportsLocalPanelStatusAfterRestart(t *testing.T) {
 	if member.Status != ClusterPanelUpdateStatusOnline || member.PanelVersion != currentVersion {
 		t.Fatalf("expected local member online with current version %s, got %#v", currentVersion, member)
 	}
-	if hub.setStatusCalls != 0 {
-		t.Fatalf("expected periodic panel status report to avoid hub writes, got %d calls", hub.setStatusCalls)
+	if hub.setStatusCalls != 1 || hub.lastStatus != ClusterPanelUpdateStatusOnline || hub.lastPanelVersion != currentVersion {
+		t.Fatalf("expected hub online status report with current version %s, got %#v", currentVersion, hub)
 	}
 	if broadcaster.statusCalls != 1 || broadcaster.statuses[0] != ClusterPanelUpdateStatusOnline || broadcaster.statusPanelVersions[0] != currentVersion {
 		t.Fatalf("expected peer online broadcast with current version, got %#v", broadcaster)

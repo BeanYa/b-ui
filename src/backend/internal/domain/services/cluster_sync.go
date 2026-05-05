@@ -316,6 +316,9 @@ func (s *ClusterSyncService) ReportLocalPanelStatus(ctx context.Context) error {
 		if err := s.saveLocalMemberStatus(ctx, &domain, local.NodeID, ClusterPanelUpdateStatusOnline, currentVersion); err != nil {
 			failures = append(failures, fmt.Sprintf("%s local: %v", domain.Domain, err))
 		}
+		if err := s.notifyHubMemberStatus(ctx, &domain, local.NodeID, ClusterPanelUpdateStatusOnline, currentVersion); err != nil {
+			failures = append(failures, fmt.Sprintf("%s hub: %v", domain.Domain, err))
+		}
 		if localChanged {
 			if err := s.publishPanelUpdateStatus(ctx, &domain, ClusterPanelUpdateStatusOnline, "", currentVersion, local.NodeID); err != nil {
 				failures = append(failures, fmt.Sprintf("%s peers: %v", domain.Domain, err))
