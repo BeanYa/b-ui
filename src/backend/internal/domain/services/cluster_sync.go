@@ -19,8 +19,9 @@ var errClusterMemberNotFound = errors.New("cluster member not found")
 var errClusterDomainNotFound = errors.New("cluster domain not found")
 
 const (
-	ClusterDomainUpdatePolicyAuto   = "auto"
-	ClusterDomainUpdatePolicyManual = "manual"
+	ClusterDomainUpdatePolicyAuto    = "auto"
+	ClusterDomainUpdatePolicyManual  = "manual"
+	ClusterDomainDefaultTimeLocation = "Asia/Shanghai"
 )
 
 const (
@@ -161,7 +162,7 @@ type ClusterSyncService struct {
 func NewRuntimeClusterSyncService() ClusterSyncService {
 	return ClusterSyncService{
 		store:        &dbClusterSyncStore{},
-		hubSyncer:    &ClusterHubSyncer{localIdentity: &ClusterLocalIdentityService{}},
+		hubSyncer:    &ClusterHubSyncer{localIdentity: &ClusterLocalIdentityService{}, timeLocationSyncer: newRuntimeClusterTimeLocationSyncer()},
 		broadcaster:  &ClusterHTTPBroadcaster{},
 		panelService: &PanelService{},
 		hubClient:    &ClusterHubClient{},
@@ -822,6 +823,14 @@ func effectiveClusterDomainUpdatePolicy(value string) string {
 		return ClusterDomainUpdatePolicyManual
 	}
 	return ClusterDomainUpdatePolicyAuto
+}
+
+func effectiveClusterDomainTimeLocation(value string) string {
+	timeLocation := strings.TrimSpace(value)
+	if timeLocation == "" {
+		return ClusterDomainDefaultTimeLocation
+	}
+	return timeLocation
 }
 
 func (s *ClusterSyncService) getPanelUpdater() clusterPanelUpdater {

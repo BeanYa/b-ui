@@ -189,12 +189,16 @@ func (s *ConfigService) Save(obj string, act string, data json.RawMessage, initU
 	var err error
 	var objs []string = []string{obj}
 	var inboundChanged bool
+	var settingsTimeLocationChanged bool
 
 	db := database.GetDB()
 	tx := db.Begin()
 	defer func() {
 		if err == nil {
 			tx.Commit()
+			if settingsTimeLocationChanged {
+				s.refreshClusterLogLocation()
+			}
 			// Trigger proxy config report to Hub after transaction commits
 			if inboundChanged && s.InboundService.proxyReport != nil {
 				s.InboundService.proxyReport.ReportForAllDomains()
@@ -244,6 +248,9 @@ func (s *ConfigService) Save(obj string, act string, data json.RawMessage, initU
 		go func() { _ = s.restartCoreWithConfig(configData) }()
 	case "settings":
 		err = s.SettingService.Save(tx, data)
+		if err == nil {
+			settingsTimeLocationChanged = settingsPayloadIncludesTimeLocation(data)
+		}
 	default:
 		return nil, common.NewError("unknown object: ", obj)
 	}
@@ -266,6 +273,24 @@ func (s *ConfigService) Save(obj string, act string, data json.RawMessage, initU
 	LastUpdate = time.Now().Unix()
 
 	return objs, nil
+}
+
+func settingsPayloadIncludesTimeLocation(data json.RawMessage) bool {
+	var settings map[string]json.RawMessage
+	if err := json.Unmarshal(data, &settings); err != nil {
+		return false
+	}
+	_, ok := settings["timeLocation"]
+	return ok
+}
+
+func (s *ConfigService) refreshClusterLogLocation() {
+	loc, err := s.SettingService.GetTimeLocation()
+	if err != nil {
+		logger.Warning("refresh cluster log time location failed:", err)
+		return
+	}
+	logger.SetClusterLogLocation(loc)
 }
 
 func (s *ConfigService) CheckChanges(lu string) (bool, error) {

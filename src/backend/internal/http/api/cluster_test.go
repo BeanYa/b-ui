@@ -400,6 +400,51 @@ func TestClusterMessageRouteAcceptsPeerMessage(t *testing.T) {
 	}
 }
 
+func TestClusterMessageRouteAcceptsDomainInboundDeleteBroadcast(t *testing.T) {
+	router, cluster := newTestClusterRouter()
+	body := bytes.NewBufferString(`{
+			"messageId":"msg-domain-inbound-delete",
+			"domainId":"edge.example.com",
+			"membershipVersion":3,
+			"sourceNodeId":"node-a",
+			"sourceSeq":1,
+			"category":"command",
+			"action":"domain.inbound.delete",
+			"protocolVersion":"v1",
+			"schemaVersion":1,
+			"route":{"mode":"broadcast"},
+			"payloadHash":"hash",
+			"payload":{"request_id":"req-delete","domain_id":"edge.example.com","group_id":"group-1"},
+			"signature":"sig"
+		}`)
+	req := httptest.NewRequest(http.MethodPost, "/_cluster/v1/events", body)
+	req.Header.Set("Content-Type", "application/json")
+	req.Header.Set("X-Cluster-Token", "peer-token")
+	recorder := httptest.NewRecorder()
+
+	router.ServeHTTP(recorder, req)
+
+	if recorder.Code != http.StatusOK {
+		t.Fatalf("expected status %d, got %d: %s", http.StatusOK, recorder.Code, recorder.Body.String())
+	}
+	var response Msg
+	if err := json.Unmarshal(recorder.Body.Bytes(), &response); err != nil {
+		t.Fatalf("decode response: %v", err)
+	}
+	if !response.Success || response.Msg != "cluster message received" {
+		t.Fatalf("expected cluster success response, got %#v", response)
+	}
+	if cluster.receivedPeerMessage == nil {
+		t.Fatal("expected domain inbound delete broadcast to be passed to service")
+	}
+	if cluster.receivedPeerMessage.Action != "domain.inbound.delete" || cluster.receivedPeerMessage.Route.Mode != "broadcast" {
+		t.Fatalf("expected domain inbound delete broadcast, got %#v", cluster.receivedPeerMessage)
+	}
+	if cluster.receivedToken != "peer-token" {
+		t.Fatalf("expected forwarded token, got %q", cluster.receivedToken)
+	}
+}
+
 func TestClusterMessageRouteRejectsOversizedBody(t *testing.T) {
 	router, cluster := newTestClusterRouter()
 	body := bytes.NewBufferString(`{

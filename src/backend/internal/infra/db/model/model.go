@@ -105,6 +105,7 @@ type ClusterDomain struct {
 	CommunicationProtocolVersion string `json:"communicationProtocolVersion" gorm:"default:v1"`
 	LastVersion                  int64  `json:"lastVersion" gorm:"default:0"`
 	UpdatePolicy                 string `json:"updatePolicy" gorm:"default:auto"`
+	TimeLocation                 string `json:"timeLocation" gorm:"default:Asia/Shanghai"`
 	LatestPanelVersion           string `json:"latestPanelVersion"`
 	PanelUpdateAvailable         bool   `json:"panelUpdateAvailable" gorm:"default:false"`
 	PingPolicyJSON               string `json:"pingPolicyJson" gorm:"column:ping_policy_json;type:text;default:'{\"enabled\":false,\"interval\":60,\"timeout\":2,\"alert_threshold\":300,\"probe_methods\":[\"icmp\",\"tcp\",\"http\"],\"max_concurrent\":5}'"`

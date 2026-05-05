@@ -141,6 +141,43 @@ func TestClusterServiceRegisterPersistsDomainUpdatePolicy(t *testing.T) {
 	}
 }
 
+func TestClusterServiceRegisterAppliesSnapshotTimeLocation(t *testing.T) {
+	store := &stubClusterServiceStore{}
+	timeLocations := &stubClusterTimeLocationSyncer{currentName: "UTC"}
+	hub := &stubClusterHubClient{
+		registerResponse: &ClusterHubOperationResponse{OperationID: "op-register", Status: "completed"},
+		snapshotResponse: &ClusterHubSnapshotResponse{
+			Version:      4,
+			TimeLocation: "Europe/Berlin",
+			Members:      []ClusterHubMemberResponse{{NodeID: "node-a", BaseURL: "https://node-a.example.com", PeerToken: "peer-token-a"}},
+		},
+	}
+	service := &ClusterService{
+		secretProvider:     stubClusterSecretProvider{secret: []byte("panel-secret-for-cluster-tests")},
+		localIdentity:      ClusterLocalIdentityService{store: &stubClusterLocalNodeStore{}},
+		store:              store,
+		hubClient:          hub,
+		timeLocationSyncer: timeLocations,
+	}
+
+	_, err := service.Register(ClusterRegisterRequest{
+		HubURL:  "https://hub.example.com",
+		Domain:  "edge.example.com",
+		Token:   "cluster-token",
+		BaseURL: "https://panel.example.com/app/",
+	})
+	if err != nil {
+		t.Fatalf("register cluster domain: %v", err)
+	}
+	if len(timeLocations.saved) != 1 || timeLocations.saved[0] != "Europe/Berlin" {
+		t.Fatalf("expected snapshot time location to be saved, got %#v", timeLocations.saved)
+	}
+	lastDomain := store.savedDomains[len(store.savedDomains)-1]
+	if lastDomain.TimeLocation != "Europe/Berlin" {
+		t.Fatalf("expected domain time location to be mirrored, got %q", lastDomain.TimeLocation)
+	}
+}
+
 func TestClusterServiceRegisterParsesJoinURI(t *testing.T) {
 	store := &stubClusterServiceStore{}
 	hub := &stubClusterHubClient{

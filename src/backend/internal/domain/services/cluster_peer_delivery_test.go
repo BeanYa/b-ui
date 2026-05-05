@@ -134,6 +134,23 @@ func TestPeerDeliveryRecordsAckAttempts(t *testing.T) {
 	}
 }
 
+func TestPeerDeliveryRejectsInvalidSuccessBody(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "text/html")
+		_, _ = w.Write([]byte("<html>ok</html>"))
+	}))
+	defer server.Close()
+
+	delivery := &ClusterPeerDeliveryService{HTTPClient: server.Client()}
+	err := delivery.Send(context.Background(), &PeerMessage{
+		MessageID: "msg-invalid-body",
+		Action:    "domain.inbound.delete",
+	}, model.ClusterMember{NodeID: "node-b", BaseURL: server.URL}, "peer-token")
+	if err == nil || !strings.Contains(err.Error(), "invalid cluster peer response") {
+		t.Fatalf("expected invalid cluster peer response, got %v", err)
+	}
+}
+
 func loadPeerAckState(t *testing.T, messageID string, targetNode string) model.ClusterPeerAckState {
 	t.Helper()
 	var ack model.ClusterPeerAckState

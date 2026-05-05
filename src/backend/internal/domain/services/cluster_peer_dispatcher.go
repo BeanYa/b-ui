@@ -529,7 +529,7 @@ func (d *ClusterPeerDispatcher) getSyncService() *ClusterSyncService {
 		d.syncService.store = &dbClusterSyncStore{}
 	}
 	if d.syncService.hubSyncer == nil {
-		d.syncService.hubSyncer = &ClusterHubSyncer{localIdentity: &d.identity}
+		d.syncService.hubSyncer = &ClusterHubSyncer{localIdentity: &d.identity, timeLocationSyncer: newRuntimeClusterTimeLocationSyncer()}
 	}
 	return d.syncService
 }

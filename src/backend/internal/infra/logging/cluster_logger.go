@@ -2,6 +2,7 @@ package logger
 
 import (
 	"fmt"
+	"io"
 	"path/filepath"
 	"sort"
 	"strings"
@@ -35,6 +36,8 @@ var (
 	clusterLogger *logging.Logger
 	clusterBufMu  sync.RWMutex
 	clusterBuf    []ClusterLogEntry
+	clusterLocMu  sync.RWMutex
+	clusterLogLoc = time.Local
 )
 
 func InitClusterLogger() {
@@ -46,7 +49,7 @@ func InitClusterLogger() {
 		Compress:   true,
 	}
 	backend := logging.NewLogBackend(writer, "", 0)
-	format := logging.MustStringFormatter(`[%{time:2006/01/02 15:04:05}] [%{level}]`)
+	format := clusterLogFormatter{}
 	backendFormatter := logging.NewBackendFormatter(backend, format)
 	backendLeveled := logging.AddModuleLevel(backendFormatter)
 	backendLeveled.SetLevel(logging.DEBUG, "cluster")
@@ -54,6 +57,22 @@ func InitClusterLogger() {
 	l := logging.MustGetLogger("cluster")
 	l.SetBackend(backendLeveled)
 	clusterLogger = l
+}
+
+type clusterLogFormatter struct{}
+
+func (f clusterLogFormatter) Format(calldepth int, record *logging.Record, output io.Writer) error {
+	_, err := fmt.Fprintf(output, "[%s] [%s] %s", formatClusterLogTime(record.Time), record.Level, record.Message())
+	return err
+}
+
+func SetClusterLogLocation(loc *time.Location) {
+	if loc == nil {
+		return
+	}
+	clusterLocMu.Lock()
+	clusterLogLoc = loc
+	clusterLocMu.Unlock()
 }
 
 func ClusterDebug(direction, action string, fields map[string]interface{}) {
@@ -89,10 +108,10 @@ func ClusterError(direction, action string, fields map[string]interface{}) {
 }
 
 func addClusterBuf(level, direction, action string, fields map[string]interface{}) {
-	now := time.Now().UTC()
+	now := time.Now()
 	entry := ClusterLogEntry{
-		Time:      now.Format("2006/01/02 15:04:05 UTC"),
-		TimeUTC:   now.Format(time.RFC3339),
+		Time:      formatClusterLogTime(now),
+		TimeUTC:   now.UTC().Format(time.RFC3339),
 		Level:     level,
 		Direction: direction,
 		Action:    action,
@@ -104,6 +123,21 @@ func addClusterBuf(level, direction, action string, fields map[string]interface{
 	}
 	clusterBuf = append(clusterBuf, entry)
 	clusterBufMu.Unlock()
+}
+
+func formatClusterLogTime(t time.Time) string {
+	loc := currentClusterLogLocation()
+	return fmt.Sprintf("%s %s", t.In(loc).Format("2006/01/02 15:04:05"), loc.String())
+}
+
+func currentClusterLogLocation() *time.Location {
+	clusterLocMu.RLock()
+	loc := clusterLogLoc
+	clusterLocMu.RUnlock()
+	if loc == nil {
+		return time.Local
+	}
+	return loc
 }
 
 // GetClusterLogs returns the last count entries filtered by domain name.

@@ -51,6 +51,7 @@ type ClusterDomainResponse struct {
 	CommunicationProtocolVersion string   `json:"communicationProtocolVersion"`
 	LastVersion                  int64    `json:"lastVersion"`
 	UpdatePolicy                 string   `json:"updatePolicy"`
+	TimeLocation                 string   `json:"timeLocation"`
 	LatestPanelVersion           string   `json:"latestPanelVersion,omitempty"`
 	PanelUpdateAvailable         bool     `json:"panelUpdateAvailable"`
 	SupportedActions             []string `json:"supportedActions"`
@@ -92,15 +93,16 @@ type ClusterPeerStatus struct {
 
 type ClusterService struct {
 	SettingService
-	localIdentity  ClusterLocalIdentityService
-	syncService    ClusterSyncService
-	hubClient      clusterHubClient
-	store          clusterServiceStore
-	secretProvider clusterSecretProvider
-	actionRouter   *router.ActionRouter
-	runtime        *cluster.Runtime
-	proxyReport    *ClusterProxyReportService
-	scatterManager *ScatterGatherManager
+	localIdentity      ClusterLocalIdentityService
+	syncService        ClusterSyncService
+	hubClient          clusterHubClient
+	store              clusterServiceStore
+	secretProvider     clusterSecretProvider
+	actionRouter       *router.ActionRouter
+	runtime            *cluster.Runtime
+	proxyReport        *ClusterProxyReportService
+	scatterManager     *ScatterGatherManager
+	timeLocationSyncer clusterTimeLocationSyncer
 }
 
 func NewClusterService() *ClusterService {
@@ -262,6 +264,9 @@ func (s *ClusterService) Register(request ClusterRegisterRequest) (*ClusterOpera
 	domain.CommunicationEndpointPath = snapshot.EffectiveCommunicationEndpointPath()
 	domain.CommunicationProtocolVersion = snapshot.EffectiveCommunicationProtocolVersion()
 	domain.UpdatePolicy = snapshot.EffectiveUpdatePolicy()
+	if err := applyClusterSnapshotTimeLocation(snapshot, domain, s.getTimeLocationSyncer()); err != nil {
+		return nil, err
+	}
 	if snapshot.UpdateTargetVersion != "" {
 		domain.LatestPanelVersion = canonicalizeReleaseTag(snapshot.UpdateTargetVersion)
 		domain.PanelUpdateAvailable = true
@@ -517,6 +522,7 @@ func (s *ClusterService) ListDomains() ([]ClusterDomainResponse, error) {
 			CommunicationProtocolVersion: effectiveClusterCommunicationProtocolVersion(domain.CommunicationProtocolVersion),
 			LastVersion:                  domain.LastVersion,
 			UpdatePolicy:                 effectiveClusterDomainUpdatePolicy(domain.UpdatePolicy),
+			TimeLocation:                 effectiveClusterDomainTimeLocation(domain.TimeLocation),
 			LatestPanelVersion:           domain.LatestPanelVersion,
 			PanelUpdateAvailable:         domain.PanelUpdateAvailable,
 			SupportedActions:             ClusterCommunicationSupportedActions(),
@@ -1416,6 +1422,16 @@ func (s *ClusterService) getSecretProvider() clusterSecretProvider {
 	return &s.SettingService
 }
 
+func (s *ClusterService) getTimeLocationSyncer() clusterTimeLocationSyncer {
+	if s.timeLocationSyncer != nil {
+		return s.timeLocationSyncer
+	}
+	if !canUseClusterSettingStore() {
+		return nil
+	}
+	return &s.SettingService
+}
+
 func (s *ClusterService) getHubClient() clusterHubClient {
 	if s.hubClient != nil {
 		return s.hubClient
@@ -1424,7 +1440,7 @@ func (s *ClusterService) getHubClient() clusterHubClient {
 }
 
 func (s *ClusterService) getHubSyncer() clusterHubSyncer {
-	return &ClusterHubSyncer{client: s.getHubClient(), store: s.getStore(), secretProvider: s.getSecretProvider(), localIdentity: &s.localIdentity}
+	return &ClusterHubSyncer{client: s.getHubClient(), store: s.getStore(), secretProvider: s.getSecretProvider(), localIdentity: &s.localIdentity, timeLocationSyncer: s.getTimeLocationSyncer()}
 }
 
 func (s *ClusterService) getScatterManager() *ScatterGatherManager {

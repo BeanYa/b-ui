@@ -3,10 +3,10 @@ package service
 import (
 	"encoding/json"
 	"os"
-	"runtime"
 	"strconv"
 	"strings"
 	"time"
+	_ "time/tzdata"
 
 	"github.com/BeanYa/b-ui/src/backend/internal/domain/config"
 	database "github.com/BeanYa/b-ui/src/backend/internal/infra/db"
@@ -297,14 +297,26 @@ func (s *SettingService) GetTimeLocation() (*time.Location, error) {
 	if err != nil {
 		return nil, err
 	}
-	if runtime.GOOS == "windows" {
-		l = "Local"
-	}
 	location, err := time.LoadLocation(l)
 	if err != nil {
 		defaultLocation := defaultValueMap["timeLocation"]
 		logger.Errorf("location <%v> not exist, using default location: %v", l, defaultLocation)
 		return time.LoadLocation(defaultLocation)
+	}
+	return location, nil
+}
+
+func (s *SettingService) SetTimeLocation(value string) (*time.Location, error) {
+	locationName := strings.TrimSpace(value)
+	if locationName == "" {
+		return nil, common.NewError("time location is required")
+	}
+	location, err := time.LoadLocation(locationName)
+	if err != nil {
+		return nil, err
+	}
+	if err := s.setString("timeLocation", locationName); err != nil {
+		return nil, err
 	}
 	return location, nil
 }

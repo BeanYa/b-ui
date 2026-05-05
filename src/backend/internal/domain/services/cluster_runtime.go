@@ -27,15 +27,21 @@ func ClusterCommunicationSupportedActions() []string {
 }
 
 type ClusterHubSyncer struct {
-	client         clusterHubClient
-	store          clusterServiceStore
-	secretProvider clusterSecretProvider
-	localIdentity  clusterLocalIdentityProvider
-	reachability   *ClusterReachabilityService
+	client             clusterHubClient
+	store              clusterServiceStore
+	secretProvider     clusterSecretProvider
+	localIdentity      clusterLocalIdentityProvider
+	reachability       *ClusterReachabilityService
+	timeLocationSyncer clusterTimeLocationSyncer
 }
 
 type clusterLocalIdentityProvider interface {
 	GetOrCreate() (*model.ClusterLocalNode, error)
+}
+
+type clusterTimeLocationSyncer interface {
+	GetTimeLocation() (*time.Location, error)
+	SetTimeLocation(string) (*time.Location, error)
 }
 
 type clusterDomainMirrorRemovedError struct {
@@ -165,6 +171,9 @@ func (s *ClusterHubSyncer) SyncDomain(ctx context.Context, domain *model.Cluster
 	domain.CommunicationEndpointPath = snapshot.EffectiveCommunicationEndpointPath()
 	domain.CommunicationProtocolVersion = snapshot.EffectiveCommunicationProtocolVersion()
 	domain.UpdatePolicy = snapshot.EffectiveUpdatePolicy()
+	if err := applyClusterSnapshotTimeLocation(snapshot, domain, s.getTimeLocationSyncer()); err != nil {
+		return err
+	}
 	if snapshot.UpdateTargetVersion != "" {
 		domain.LatestPanelVersion = canonicalizeReleaseTag(snapshot.UpdateTargetVersion)
 		domain.PanelUpdateAvailable = true
@@ -195,6 +204,58 @@ func (s *ClusterHubSyncer) getSecretProvider() clusterSecretProvider {
 		return s.secretProvider
 	}
 	return &SettingService{}
+}
+
+func (s *ClusterHubSyncer) getTimeLocationSyncer() clusterTimeLocationSyncer {
+	if s.timeLocationSyncer != nil {
+		return s.timeLocationSyncer
+	}
+	return nil
+}
+
+func canUseClusterSettingStore() bool {
+	db := database.GetDB()
+	return db != nil && db.Config != nil && db.Statement != nil
+}
+
+func newRuntimeClusterTimeLocationSyncer() clusterTimeLocationSyncer {
+	if !canUseClusterSettingStore() {
+		return nil
+	}
+	return &SettingService{}
+}
+
+func applyClusterSnapshotTimeLocation(snapshot *ClusterHubSnapshotResponse, domain *model.ClusterDomain, syncer clusterTimeLocationSyncer) error {
+	if snapshot == nil {
+		return nil
+	}
+	timeLocation := snapshot.EffectiveTimeLocation()
+	location, err := time.LoadLocation(timeLocation)
+	if err != nil {
+		return fmt.Errorf("invalid cluster domain time location %q: %w", timeLocation, err)
+	}
+	if domain != nil {
+		domain.TimeLocation = timeLocation
+	}
+	if syncer == nil {
+		return nil
+	}
+	current, err := syncer.GetTimeLocation()
+	if err != nil {
+		return err
+	}
+	if current != nil && current.String() == location.String() {
+		return nil
+	}
+	updatedLocation, err := syncer.SetTimeLocation(timeLocation)
+	if err != nil {
+		return err
+	}
+	if updatedLocation == nil {
+		updatedLocation = location
+	}
+	logger.SetClusterLogLocation(updatedLocation)
+	return nil
 }
 
 func (s *ClusterHubSyncer) getReachability() *ClusterReachabilityService {
@@ -535,7 +596,7 @@ func requireClusterPeerSuccess(response *http.Response) error {
 		Msg     string `json:"msg"`
 	}
 	if err := json.Unmarshal(body, &payload); err != nil {
-		return nil
+		return errors.New("invalid cluster peer response")
 	}
 	if !payload.Success {
 		if payload.Msg == "" {

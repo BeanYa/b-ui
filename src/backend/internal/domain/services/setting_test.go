@@ -1,8 +1,13 @@
 package service
 
 import (
+	"path/filepath"
 	"reflect"
+	"strings"
 	"testing"
+
+	database "github.com/BeanYa/b-ui/src/backend/internal/infra/db"
+	"github.com/BeanYa/b-ui/src/backend/internal/infra/db/model"
 )
 
 func TestSettingServiceExposesTerminalIdleTimeoutGetter(t *testing.T) {
@@ -37,5 +42,30 @@ func TestResolveSubTLSFilesUsesCustomTLSOnlyWhenBothSubscriptionPathsAreSet(t *t
 	certFile, keyFile = resolveSubTLSFiles("/tmp/sub.crt", "", "/tmp/panel.crt", "/tmp/panel.key")
 	if certFile != "/tmp/panel.crt" || keyFile != "/tmp/panel.key" {
 		t.Fatalf("expected incomplete custom TLS to keep linked panel files, got cert=%q key=%q", certFile, keyFile)
+	}
+}
+
+func TestGetTimeLocationUsesPanelSetting(t *testing.T) {
+	if err := database.InitDB(filepath.Join(t.TempDir(), "setting-time-location.db")); err != nil {
+		if strings.Contains(err.Error(), "go-sqlite3 requires cgo") || strings.Contains(err.Error(), "C compiler") {
+			t.Skipf("sqlite test database unavailable in this toolchain: %v", err)
+		}
+		t.Fatalf("init db: %v", err)
+	}
+
+	service := &SettingService{}
+	if _, err := service.GetAllSetting(); err != nil {
+		t.Fatalf("init default settings: %v", err)
+	}
+	if err := database.GetDB().Model(model.Setting{}).Where("key = ?", "timeLocation").Update("value", "Asia/Tokyo").Error; err != nil {
+		t.Fatalf("save panel time location: %v", err)
+	}
+
+	loc, err := service.GetTimeLocation()
+	if err != nil {
+		t.Fatalf("get time location: %v", err)
+	}
+	if got := loc.String(); got != "Asia/Tokyo" {
+		t.Fatalf("expected panel time location Asia/Tokyo, got %q", got)
 	}
 }

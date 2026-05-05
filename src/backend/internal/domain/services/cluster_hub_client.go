@@ -124,6 +124,7 @@ type ClusterHubSnapshotResponse struct {
 	DomainID            string                          `json:"domain_id"`
 	Version             int64                           `json:"version"`
 	UpdatePolicy        string                          `json:"update_policy"`
+	TimeLocation        string                          `json:"time_location"`
 	Communication       ClusterHubCommunicationResponse `json:"communication"`
 	Members             []ClusterHubMemberResponse      `json:"members"`
 	UpdateTargetVersion string                          `json:"update_target_version,omitempty"`
@@ -131,6 +132,14 @@ type ClusterHubSnapshotResponse struct {
 
 func (s ClusterHubSnapshotResponse) EffectiveUpdatePolicy() string {
 	return effectiveClusterDomainUpdatePolicy(s.UpdatePolicy)
+}
+
+func (s ClusterHubSnapshotResponse) EffectiveTimeLocation() string {
+	timeLocation := strings.TrimSpace(s.TimeLocation)
+	if timeLocation != "" {
+		return timeLocation
+	}
+	return ClusterDomainDefaultTimeLocation
 }
 
 func (s ClusterHubSnapshotResponse) EffectiveCommunicationEndpointPath() string {

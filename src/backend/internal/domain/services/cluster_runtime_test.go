@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"testing"
+	"time"
 
 	"github.com/BeanYa/b-ui/src/backend/internal/domain/services/cluster"
 	clustertypes "github.com/BeanYa/b-ui/src/backend/internal/domain/services/cluster/types"
@@ -79,6 +80,39 @@ func TestClusterHubSyncerSyncDomainPersistsDisplayNameFromSnapshot(t *testing.T)
 	member := store.replaceCalls[0].members[0]
 	if member.DisplayName != "JP Bean Tokyo" {
 		t.Fatalf("expected display name from snapshot, got %q", member.DisplayName)
+	}
+}
+
+func TestClusterHubSyncerSyncDomainAppliesSnapshotTimeLocation(t *testing.T) {
+	local := newTestClusterLocalNode(t, "node-local")
+	store := &stubClusterRuntimeStore{}
+	timeLocations := &stubClusterTimeLocationSyncer{currentName: "UTC"}
+	syncer := &ClusterHubSyncer{
+		client: &stubClusterRuntimeHubClient{snapshot: &ClusterHubSnapshotResponse{
+			Version:      7,
+			TimeLocation: "Asia/Tokyo",
+			Members: []ClusterHubMemberResponse{{
+				NodeID:    "node-local",
+				BaseURL:   "https://node-a.test:8443/panel/",
+				PeerToken: "peer-token-local",
+			}},
+		}},
+		store:              store,
+		secretProvider:     stubClusterSecretProvider{secret: []byte("panel-secret-for-cluster-tests")},
+		localIdentity:      &ClusterLocalIdentityService{store: &stubClusterLocalNodeStore{node: local}},
+		reachability:       newTestClusterRuntimeReachabilityService(10),
+		timeLocationSyncer: timeLocations,
+	}
+	domain := &model.ClusterDomain{Id: 1, Domain: "edge.example.com", HubURL: "https://hub.example.com", TokenEncrypted: mustEncryptClusterToken(t, "panel-secret-for-cluster-tests", "domain-token")}
+
+	if err := syncer.SyncDomain(context.Background(), domain, 7); err != nil {
+		t.Fatalf("sync domain: %v", err)
+	}
+	if len(timeLocations.saved) != 1 || timeLocations.saved[0] != "Asia/Tokyo" {
+		t.Fatalf("expected snapshot time location to be saved, got %#v", timeLocations.saved)
+	}
+	if domain.TimeLocation != "Asia/Tokyo" {
+		t.Fatalf("expected domain time location to be mirrored, got %q", domain.TimeLocation)
 	}
 }
 
@@ -366,6 +400,28 @@ type stubClusterRuntimeStore struct {
 	savedDomainState  []*model.ClusterDomain
 	reachabilityStore *stubClusterReachabilityStore
 	deletedDomainID   uint
+}
+
+type stubClusterTimeLocationSyncer struct {
+	currentName string
+	saved       []string
+}
+
+func (s *stubClusterTimeLocationSyncer) GetTimeLocation() (*time.Location, error) {
+	if s.currentName == "" {
+		s.currentName = "UTC"
+	}
+	return time.LoadLocation(s.currentName)
+}
+
+func (s *stubClusterTimeLocationSyncer) SetTimeLocation(name string) (*time.Location, error) {
+	loc, err := time.LoadLocation(name)
+	if err != nil {
+		return nil, err
+	}
+	s.currentName = name
+	s.saved = append(s.saved, name)
+	return loc, nil
 }
 
 func newTestClusterRuntimeReachabilityService(now int64) *ClusterReachabilityService {

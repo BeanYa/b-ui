@@ -41,6 +41,9 @@ func (a *APP) Init() error {
 
 	// Init Setting
 	a.SettingService.GetAllSetting()
+	if loc, err := a.SettingService.GetTimeLocation(); err == nil {
+		logger.SetClusterLogLocation(loc)
+	}
 
 	a.core = core.NewCore()
 
@@ -58,6 +61,7 @@ func (a *APP) Start() error {
 	if err != nil {
 		return err
 	}
+	logger.SetClusterLogLocation(loc)
 
 	trafficAge, err := a.SettingService.GetTrafficAge()
 	if err != nil {
