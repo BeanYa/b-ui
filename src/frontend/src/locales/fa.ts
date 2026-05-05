@@ -52,6 +52,7 @@ export default {
     settings: "پیکربندی",
     clusterCenter: "مرکز خوشه",
     clusterNodeDetail: "جزئیات گره خوشه",
+    clusterScatterTaskResult: "نتیجه وظیفه خوشه",
     multiLocationPing: "پینگ چندمکانی",
     webTerminal: "ترمینال وب",
   },

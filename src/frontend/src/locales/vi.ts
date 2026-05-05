@@ -52,6 +52,7 @@ export default {
     settings: "Cài đặt",
     clusterCenter: "Trung tâm cụm",
     clusterNodeDetail: "Chi tiết nút cụm",
+    clusterScatterTaskResult: "Kết quả tác vụ cụm",
     multiLocationPing: "Ping đa vị trí",
     webTerminal: "WebTerminal",
   },

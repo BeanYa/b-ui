@@ -9,10 +9,12 @@
     </v-alert>
 
     <template v-if="!pageLoading && !pageError">
-      <section class="app-page__hero">
+      <section class="app-page__hero scatter-result__hero">
         <div class="app-page__hero-head">
           <div class="app-page__hero-kicker">Scatter-Gather</div>
-          <h1 class="app-page__hero-title">{{ $t('clusterCenter.scatterTaskResult.title') }}</h1>
+          <h1 class="app-page__hero-title scatter-result__title">
+            {{ $t('clusterCenter.scatterTaskResult.title') }}
+          </h1>
           <p class="app-page__hero-copy">
             {{ result?.taskType }}
           </p>
@@ -72,7 +74,7 @@
         <v-card class="app-card-shell scatter-result__matrix-card">
           <v-card-title>{{ $t('clusterCenter.scatterTaskResult.latencyMatrix') }}</v-card-title>
           <v-card-text>
-            <div v-if="latencyData.nodeIds.length === 0" class="cluster-center__empty">
+            <div v-if="latencyData.nodes.length === 0" class="cluster-center__empty">
               {{ $t('clusterCenter.scatterTaskResult.matrixEmpty') }}
             </div>
             <div v-else class="scatter-result__table-wrap">
@@ -80,19 +82,25 @@
                 <thead>
                   <tr>
                     <th>{{ $t('clusterCenter.scatterTaskResult.source') }}\{{ $t('clusterCenter.scatterTaskResult.target') }}</th>
-                    <th v-for="nodeId in latencyData.nodeIds" :key="nodeId">{{ nodeId }}</th>
+                    <th v-for="node in latencyData.nodes" :key="node.nodeId" :title="node.nodeId">
+                      <span class="scatter-result__node-name">{{ node.displayName }}</span>
+                      <span class="scatter-result__node-meta">{{ node.nodeIdShort }}</span>
+                    </th>
                   </tr>
                 </thead>
                 <tbody>
-                  <tr v-for="sourceId in latencyData.nodeIds" :key="sourceId">
-                    <td class="scatter-result__source-cell">{{ sourceId }}</td>
+                  <tr v-for="sourceNode in latencyData.nodes" :key="sourceNode.nodeId">
+                    <td class="scatter-result__source-cell" :title="sourceNode.nodeId">
+                      <span class="scatter-result__node-name">{{ sourceNode.displayName }}</span>
+                      <span class="scatter-result__node-meta">{{ sourceNode.nodeIdShort }}</span>
+                    </td>
                     <td
-                      v-for="targetId in latencyData.nodeIds"
-                      :key="targetId"
-                      :style="matrixCellStyle(sourceId, targetId)"
+                      v-for="targetNode in latencyData.nodes"
+                      :key="targetNode.nodeId"
+                      :style="matrixCellStyle(sourceNode.nodeId, targetNode.nodeId)"
                       class="scatter-result__matrix-cell"
                     >
-                      {{ matrixCellValue(sourceId, targetId) }}
+                      {{ matrixCellValue(sourceNode.nodeId, targetNode.nodeId) }}
                     </td>
                   </tr>
                 </tbody>
@@ -116,8 +124,9 @@
                 </thead>
                 <tbody>
                   <tr v-for="summary in latencyData.summaries" :key="summary.nodeId">
-                    <td>
-                      <span class="scatter-result__node-id">{{ summary.nodeId }}</span>
+                    <td :title="summary.nodeId">
+                      <span class="scatter-result__node-name">{{ summary.displayName }}</span>
+                      <span class="scatter-result__node-meta scatter-result__node-id">{{ summary.nodeIdShort }}</span>
                     </td>
                     <td :style="latencyStyle(summary.avgMs)">
                       {{ summary.avgMs != null ? summary.avgMs.toFixed(1) + ' ms' : '-' }}
@@ -147,8 +156,9 @@
 <script lang="ts" setup>
 import { computed, onMounted, ref } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
+import api from '@/plugins/api'
 import { useClusterStore } from '@/store/modules/cluster'
-import type { ScatterTaskResultDetail } from '@/types/clusters'
+import type { ClusterMember, ScatterTaskResultDetail } from '@/types/clusters'
 
 const route = useRoute()
 const router = useRouter()
@@ -157,12 +167,21 @@ const clusterStore = useClusterStore()
 const pageLoading = ref(true)
 const pageError = ref<string | null>(null)
 const result = ref<ScatterTaskResultDetail | null>(null)
+const displayNameByNodeId = ref<Record<string, string>>({})
+
+interface LatencyNodeDisplay {
+  nodeId: string
+  displayName: string
+  nodeIdShort: string
+}
 
 interface LatencyDisplayData {
-  nodeIds: string[]
+  nodes: LatencyNodeDisplay[]
   matrix: Record<string, Record<string, number | null>>
   summaries: Array<{
     nodeId: string
+    displayName: string
+    nodeIdShort: string
     avgMs: number | null
     reachable: number
     total: number
@@ -174,27 +193,134 @@ const latencyData = computed<LatencyDisplayData | null>(() => {
   const data = result.value.result
   if (!data) return null
 
-  const matrix = (data.matrix || data.Matrix || {}) as Record<string, Record<string, number | null>>
-  const summariesRaw = (data.summaries || data.Summaries || []) as Array<{
+  const matrix = normalizeLatencyMatrix(data.matrix || data.Matrix || {})
+  const summariesRaw = data.summaries || data.Summaries || data.node_summary || data.NodeSummary || {}
+  const summariesInput = normalizeLatencySummaries(summariesRaw)
+  const nodeIds = collectLatencyNodeIds(matrix, summariesInput).sort((a, b) =>
+    resolveNodeDisplayName(a).localeCompare(resolveNodeDisplayName(b), undefined, { numeric: true, sensitivity: 'base' }),
+  )
+  const nodes = nodeIds.map(buildNodeDisplay)
+
+  const summaries = nodeIds.map(nodeId => {
+    const summary = summariesInput.get(nodeId)
+    const node = buildNodeDisplay(nodeId)
+
+    return {
+      nodeId,
+      displayName: node.displayName,
+      nodeIdShort: node.nodeIdShort,
+      avgMs: summary?.avgMs ?? null,
+      reachable: summary?.reachable ?? 0,
+      total: summary?.total ?? 0,
+    }
+  })
+
+  return { nodes, matrix, summaries }
+})
+
+function normalizeLatencyMatrix(raw: unknown): Record<string, Record<string, number | null>> {
+  if (!raw || typeof raw !== 'object') return {}
+
+  const matrix: Record<string, Record<string, number | null>> = {}
+  for (const [sourceId, row] of Object.entries(raw as Record<string, unknown>)) {
+    if (!row || typeof row !== 'object') continue
+    matrix[sourceId] = {}
+
+    for (const [targetId, value] of Object.entries(row as Record<string, unknown>)) {
+      matrix[sourceId][targetId] = typeof value === 'number' ? value : null
+    }
+  }
+
+  return matrix
+}
+
+function normalizeLatencySummaries(raw: unknown): Map<string, {
+  avgMs: number | null
+  reachable: number
+  total: number
+}> {
+  const summaries = new Map<string, {
+    avgMs: number | null
+    reachable: number
+    total: number
+  }>()
+
+  const addSummary = (nodeId: string, value: {
     node_id?: string
     nodeId?: string
     avg_ms?: number
     avgMs?: number
     reachable?: number
     total?: number
-  }>
+  }) => {
+    const resolvedNodeId = value.node_id || value.nodeId || nodeId
+    if (!resolvedNodeId) return
+    const reachable = value.reachable ?? 0
+    const total = value.total ?? 0
 
-  const nodeIds = Object.keys(matrix).sort()
+    summaries.set(resolvedNodeId, {
+      avgMs: reachable > 0 ? value.avg_ms ?? value.avgMs ?? null : null,
+      reachable,
+      total,
+    })
+  }
 
-  const summaries = summariesRaw.map(s => ({
-    nodeId: s.node_id || s.nodeId || '',
-    avgMs: s.avg_ms ?? s.avgMs ?? null,
-    reachable: s.reachable ?? 0,
-    total: s.total ?? 0,
-  }))
+  if (Array.isArray(raw)) {
+    for (const item of raw) {
+      if (item && typeof item === 'object') {
+        addSummary('', item as Parameters<typeof addSummary>[1])
+      }
+    }
+    return summaries
+  }
 
-  return { nodeIds, matrix, summaries }
-})
+  if (raw && typeof raw === 'object') {
+    for (const [nodeId, value] of Object.entries(raw as Record<string, unknown>)) {
+      if (value && typeof value === 'object') {
+        addSummary(nodeId, value as Parameters<typeof addSummary>[1])
+      }
+    }
+  }
+
+  return summaries
+}
+
+function collectLatencyNodeIds(
+  matrix: Record<string, Record<string, number | null>>,
+  summaries: Map<string, unknown>,
+): string[] {
+  const ids = new Set<string>()
+
+  for (const [sourceId, row] of Object.entries(matrix)) {
+    ids.add(sourceId)
+    for (const targetId of Object.keys(row)) {
+      ids.add(targetId)
+    }
+  }
+
+  for (const nodeId of summaries.keys()) {
+    ids.add(nodeId)
+  }
+
+  return [...ids]
+}
+
+function buildNodeDisplay(nodeId: string): LatencyNodeDisplay {
+  return {
+    nodeId,
+    displayName: resolveNodeDisplayName(nodeId),
+    nodeIdShort: shortenNodeId(nodeId),
+  }
+}
+
+function resolveNodeDisplayName(nodeId: string): string {
+  return displayNameByNodeId.value[nodeId] || nodeId
+}
+
+function shortenNodeId(nodeId: string): string {
+  if (nodeId.length <= 12) return nodeId
+  return `${nodeId.slice(0, 8)}...${nodeId.slice(-4)}`
+}
 
 function matrixCellValue(sourceId: string, targetId: string): string {
   const val = latencyData.value?.matrix[sourceId]?.[targetId]
@@ -248,6 +374,27 @@ function downloadJson() {
   URL.revokeObjectURL(url)
 }
 
+async function loadNodeDisplayNames(domainId: string) {
+  displayNameByNodeId.value = {}
+  const localDomainId = Number(domainId)
+  if (!Number.isFinite(localDomainId)) return
+
+  try {
+    const { data } = await api.get('api/cluster/members')
+    const members = Array.isArray(data?.obj) ? data.obj as ClusterMember[] : []
+    displayNameByNodeId.value = Object.fromEntries(
+      members
+        .filter(member => member.domainId === localDomainId)
+        .map(member => [
+          member.nodeId,
+          (member.displayName || member.name || member.nodeId).trim(),
+        ]),
+    )
+  } catch {
+    displayNameByNodeId.value = {}
+  }
+}
+
 onMounted(async () => {
   pageLoading.value = true
   pageError.value = null
@@ -258,7 +405,10 @@ onMounted(async () => {
       pageError.value = 'Missing domain or task ID'
       return
     }
-    const data = await clusterStore.fetchScatterTaskResult(domainId, taskId)
+    const [data] = await Promise.all([
+      clusterStore.fetchScatterTaskResult(domainId, taskId),
+      loadNodeDisplayNames(domainId),
+    ])
     if (!data) {
       pageError.value = 'Task result not found'
       return
@@ -275,6 +425,17 @@ onMounted(async () => {
 <style scoped>
 .scatter-result__error {
   margin-bottom: 16px;
+}
+
+.scatter-result__hero {
+  padding-block: clamp(26px, 4vw, 44px);
+}
+
+.scatter-result__title {
+  font-size: clamp(34px, 4.2vw, 58px);
+  letter-spacing: 0;
+  line-height: 0.98;
+  max-width: 780px;
 }
 
 .scatter-result__meta-card,
@@ -321,31 +482,64 @@ onMounted(async () => {
 
 .scatter-result__table-wrap {
   border: 1px solid var(--app-border-1);
-  border-radius: 18px;
+  border-radius: 14px;
   overflow: hidden;
   overflow-x: auto;
+  scrollbar-color: color-mix(in srgb, var(--app-text-3) 40%, transparent) transparent;
 }
 
 .scatter-result__matrix-table {
   border-collapse: collapse;
-  width: 100%;
+  min-width: 100%;
+  table-layout: fixed;
+  width: max-content;
 }
 
 .scatter-result__matrix-table th,
 .scatter-result__matrix-table td {
   border-bottom: 1px solid var(--app-border-1);
   border-right: 1px solid var(--app-border-1);
-  font-size: 12px;
-  padding: 8px 10px;
+  font-size: 11px;
+  line-height: 1.25;
+  min-width: 108px;
+  max-width: 132px;
+  padding: 9px 10px;
   text-align: center;
-  white-space: nowrap;
+  vertical-align: middle;
 }
 
 .scatter-result__matrix-table th {
-  color: var(--app-text-3);
-  font-weight: 600;
-  letter-spacing: 0.06em;
-  text-transform: uppercase;
+  background: color-mix(in srgb, var(--app-surface-2) 82%, transparent);
+  color: var(--app-text-2);
+  font-weight: 700;
+}
+
+.scatter-result__matrix-table th:first-child,
+.scatter-result__source-cell {
+  background: color-mix(in srgb, var(--app-surface-2) 88%, transparent);
+  left: 0;
+  min-width: 150px;
+  max-width: 180px;
+  position: sticky;
+  z-index: 2;
+}
+
+.scatter-result__matrix-table th:first-child {
+  z-index: 3;
+}
+
+.scatter-result__matrix-table tbody tr:nth-child(odd) td:nth-child(even),
+.scatter-result__matrix-table tbody tr:nth-child(even) td:nth-child(odd) {
+  background: color-mix(in srgb, var(--app-state-info) 7%, transparent);
+}
+
+.scatter-result__matrix-table tbody tr:nth-child(odd) td:nth-child(odd):not(:first-child),
+.scatter-result__matrix-table tbody tr:nth-child(even) td:nth-child(even) {
+  background: color-mix(in srgb, var(--app-surface-1) 82%, transparent);
+}
+
+.scatter-result__matrix-table tbody tr:hover td {
+  background: color-mix(in srgb, var(--app-state-info) 12%, transparent);
 }
 
 .scatter-result__matrix-table tbody tr:last-child td {
@@ -359,11 +553,33 @@ onMounted(async () => {
 
 .scatter-result__matrix-cell {
   font-family: var(--app-font-mono, ui-monospace, monospace);
+  font-size: 11px !important;
+}
+
+.scatter-result__node-name,
+.scatter-result__node-meta {
+  display: block;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.scatter-result__node-name {
+  color: var(--app-text-1);
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.scatter-result__node-meta {
+  color: var(--app-text-3);
+  font-family: var(--app-font-mono, ui-monospace, monospace);
+  font-size: 10px;
+  font-weight: 500;
+  margin-top: 3px;
 }
 
 .scatter-result__node-id {
   font-family: var(--app-font-mono, ui-monospace, monospace);
-  font-size: 12px;
 }
 
 .scatter-result__raw-json {

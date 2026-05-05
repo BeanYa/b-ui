@@ -52,6 +52,7 @@ export default {
     settings: "设置",
     clusterCenter: "集群中心",
     clusterNodeDetail: "集群节点详情",
+    clusterScatterTaskResult: "分发任务结果",
     multiLocationPing: "多地延迟测试",
     webTerminal: "WebTerminal",
   },
