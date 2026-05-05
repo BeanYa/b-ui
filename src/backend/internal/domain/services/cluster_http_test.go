@@ -11,6 +11,7 @@ import (
 	"sync/atomic"
 	"testing"
 
+	clustertypes "github.com/BeanYa/b-ui/src/backend/internal/domain/services/cluster/types"
 	"github.com/BeanYa/b-ui/src/backend/internal/infra/db/model"
 )
 
@@ -467,6 +468,203 @@ func TestClusterHTTPBroadcasterDoesNotSkipUnreachablePeersAndContinuesOthers(t *
 	}
 	if hits != 2 {
 		t.Fatalf("expected exactly two outbound hits (both peers), got %d", hits)
+	}
+}
+
+func TestClusterHTTPBroadcasterDomainInboundContinuesAfterPeerFailure(t *testing.T) {
+	var failedHits int
+	failingServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		failedHits++
+		w.Header().Set("Content-Type", "application/json")
+		_, _ = w.Write([]byte(`{"success":false,"msg":"node-b rejected command"}`))
+	}))
+	defer failingServer.Close()
+
+	var successfulHits int
+	successfulServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		successfulHits++
+		var message PeerMessage
+		if err := json.NewDecoder(r.Body).Decode(&message); err != nil {
+			t.Fatalf("decode peer message: %v", err)
+		}
+		if message.Action != PeerActionDomainInboundCreate {
+			t.Fatalf("expected domain inbound create, got %s", message.Action)
+		}
+		w.Header().Set("Content-Type", "application/json")
+		_, _ = w.Write([]byte(`{"success":true}`))
+	}))
+	defer successfulServer.Close()
+
+	domain := &model.ClusterDomain{Id: 1, Domain: "edge.example.com", CommunicationEndpointPath: "/_cluster", CommunicationProtocolVersion: "v1"}
+	broadcaster := &ClusterHTTPBroadcaster{
+		secretProvider: stubClusterSecretProvider{secret: []byte("panel-secret-for-cluster-tests")},
+		identity:       ClusterLocalIdentityService{store: &stubClusterLocalNodeStore{node: newTestClusterLocalNode(t, "node-local")}},
+		reachability:   newTestClusterReachabilityService(20),
+		store: &stubClusterBroadcastStore{members: []model.ClusterMember{
+			{
+				NodeID:             "node-b",
+				BaseURL:            failingServer.URL + "/panel/",
+				DomainID:           1,
+				PeerTokenEncrypted: mustEncryptClusterToken(t, "panel-secret-for-cluster-tests", "peer-token-b"),
+				Domain:             domain,
+			},
+			{
+				NodeID:             "node-c",
+				BaseURL:            successfulServer.URL + "/panel/",
+				DomainID:           1,
+				PeerTokenEncrypted: mustEncryptClusterToken(t, "panel-secret-for-cluster-tests", "peer-token-c"),
+				Domain:             domain,
+			},
+		}},
+		HTTPClient:     successfulServer.Client(),
+		saveAckAttempt: noopPeerAckAttempt,
+	}
+
+	err := broadcaster.BroadcastDomainInboundCreate(context.Background(), domain, clustertypes.DomainInboundCreatePayload{
+		RequestID: "req-domain-inbound",
+		DomainID:  "edge.example.com",
+		GroupID:   "group-domain-inbound",
+		TagSeed:   "vless",
+		Inbound:   json.RawMessage(`{"type":"vless","tag":"vless"}`),
+	})
+	if err == nil || !strings.Contains(err.Error(), "node-b rejected command") {
+		t.Fatalf("expected aggregate failure from failed peer, got %v", err)
+	}
+	if failedHits != 1 {
+		t.Fatalf("expected one failing peer hit, got %d", failedHits)
+	}
+	if successfulHits != 1 {
+		t.Fatalf("expected later peer to still receive broadcast, got %d hits", successfulHits)
+	}
+}
+
+func TestClusterHTTPBroadcasterDomainUserContinuesAfterPeerFailure(t *testing.T) {
+	var failedHits int
+	failingServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		failedHits++
+		w.Header().Set("Content-Type", "application/json")
+		_, _ = w.Write([]byte(`{"success":false,"msg":"node-b rejected user"}`))
+	}))
+	defer failingServer.Close()
+
+	var successfulHits int
+	successfulServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		successfulHits++
+		var message PeerMessage
+		if err := json.NewDecoder(r.Body).Decode(&message); err != nil {
+			t.Fatalf("decode peer message: %v", err)
+		}
+		if message.Action != PeerActionDomainUserUpsert {
+			t.Fatalf("expected domain user upsert, got %s", message.Action)
+		}
+		w.Header().Set("Content-Type", "application/json")
+		_, _ = w.Write([]byte(`{"success":true}`))
+	}))
+	defer successfulServer.Close()
+
+	domain := &model.ClusterDomain{Id: 1, Domain: "edge.example.com", CommunicationEndpointPath: "/_cluster", CommunicationProtocolVersion: "v1"}
+	broadcaster := &ClusterHTTPBroadcaster{
+		secretProvider: stubClusterSecretProvider{secret: []byte("panel-secret-for-cluster-tests")},
+		identity:       ClusterLocalIdentityService{store: &stubClusterLocalNodeStore{node: newTestClusterLocalNode(t, "node-local")}},
+		reachability:   newTestClusterReachabilityService(20),
+		store: &stubClusterBroadcastStore{members: []model.ClusterMember{
+			{
+				NodeID:             "node-b",
+				BaseURL:            failingServer.URL + "/panel/",
+				DomainID:           1,
+				PeerTokenEncrypted: mustEncryptClusterToken(t, "panel-secret-for-cluster-tests", "peer-token-b"),
+				Domain:             domain,
+			},
+			{
+				NodeID:             "node-c",
+				BaseURL:            successfulServer.URL + "/panel/",
+				DomainID:           1,
+				PeerTokenEncrypted: mustEncryptClusterToken(t, "panel-secret-for-cluster-tests", "peer-token-c"),
+				Domain:             domain,
+			},
+		}},
+		HTTPClient:     successfulServer.Client(),
+		saveAckAttempt: noopPeerAckAttempt,
+	}
+
+	err := broadcaster.BroadcastDomainUserUpsert(context.Background(), domain, clustertypes.DomainUserUpsertPayload{
+		RequestID: "req-domain-user",
+		DomainID:  "edge.example.com",
+		User: clustertypes.DomainUserPayload{
+			UUID:   "user-a",
+			Name:   "alice",
+			Enable: true,
+			Config: json.RawMessage(`{"vless":{"uuid":"11111111-1111-4111-8111-111111111111"}}`),
+		},
+	})
+	if err == nil || !strings.Contains(err.Error(), "node-b rejected user") {
+		t.Fatalf("expected aggregate failure from failed peer, got %v", err)
+	}
+	if failedHits != 1 {
+		t.Fatalf("expected one failing peer hit, got %d", failedHits)
+	}
+	if successfulHits != 1 {
+		t.Fatalf("expected later peer to still receive broadcast, got %d hits", successfulHits)
+	}
+}
+
+func TestClusterHTTPBroadcasterUpdateStatusContinuesAfterPeerFailure(t *testing.T) {
+	var failedHits int
+	failingServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		failedHits++
+		w.Header().Set("Content-Type", "application/json")
+		_, _ = w.Write([]byte(`{"success":false,"msg":"node-b rejected status"}`))
+	}))
+	defer failingServer.Close()
+
+	var successfulHits int
+	successfulServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		successfulHits++
+		var message PeerMessage
+		if err := json.NewDecoder(r.Body).Decode(&message); err != nil {
+			t.Fatalf("decode peer message: %v", err)
+		}
+		if message.Action != PeerActionDomainPanelUpdateStatus {
+			t.Fatalf("expected panel update status, got %s", message.Action)
+		}
+		w.Header().Set("Content-Type", "application/json")
+		_, _ = w.Write([]byte(`{"success":true}`))
+	}))
+	defer successfulServer.Close()
+
+	domain := &model.ClusterDomain{Id: 1, Domain: "edge.example.com", CommunicationEndpointPath: "/_cluster", CommunicationProtocolVersion: "v1"}
+	broadcaster := &ClusterHTTPBroadcaster{
+		secretProvider: stubClusterSecretProvider{secret: []byte("panel-secret-for-cluster-tests")},
+		identity:       ClusterLocalIdentityService{store: &stubClusterLocalNodeStore{node: newTestClusterLocalNode(t, "node-local")}},
+		reachability:   newTestClusterReachabilityService(20),
+		store: &stubClusterBroadcastStore{members: []model.ClusterMember{
+			{
+				NodeID:             "node-b",
+				BaseURL:            failingServer.URL + "/panel/",
+				DomainID:           1,
+				PeerTokenEncrypted: mustEncryptClusterToken(t, "panel-secret-for-cluster-tests", "peer-token-b"),
+				Domain:             domain,
+			},
+			{
+				NodeID:             "node-c",
+				BaseURL:            successfulServer.URL + "/panel/",
+				DomainID:           1,
+				PeerTokenEncrypted: mustEncryptClusterToken(t, "panel-secret-for-cluster-tests", "peer-token-c"),
+				Domain:             domain,
+			},
+		}},
+		HTTPClient:     successfulServer.Client(),
+		saveAckAttempt: noopPeerAckAttempt,
+	}
+
+	if err := broadcaster.BroadcastUpdateStatus(context.Background(), 1, "edge.example.com", ClusterPanelUpdateStatusOnline, "v999.0.0", "v999.0.0", ""); err != nil {
+		t.Fatalf("expected update status broadcast to remain best-effort, got %v", err)
+	}
+	if failedHits != 1 {
+		t.Fatalf("expected one failing peer hit, got %d", failedHits)
+	}
+	if successfulHits != 1 {
+		t.Fatalf("expected later peer to still receive broadcast, got %d hits", successfulHits)
 	}
 }
 

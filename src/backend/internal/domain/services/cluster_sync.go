@@ -197,10 +197,6 @@ func (s *ClusterSyncService) HandleIncomingNotifyVersion(ctx context.Context, do
 	return true, nil
 }
 
-func (s *ClusterSyncService) PollAndNotifyVersion(ctx context.Context) error {
-	return s.pollAndNotifyVersion(ctx, false)
-}
-
 func (s *ClusterSyncService) SyncNow(ctx context.Context) error {
 	return s.pollAndNotifyVersion(ctx, true)
 }
@@ -253,7 +249,7 @@ func (s *ClusterSyncService) pollAndNotifyVersion(ctx context.Context, forceSnap
 		_, _ = s.CheckAndBroadcastUpdate(ctx, &domain)
 	}
 
-	// Periodically reconcile proxy configs with hub
+	// Reconcile proxy configs with hub during explicit sync.
 	s.ReconcileProxyConfigs()
 
 	return removedMirrorErr
@@ -285,9 +281,6 @@ func (s *ClusterSyncService) ReportLocalPanelStatus(ctx context.Context) error {
 	reportDomains := make([]model.ClusterDomain, 0, len(domains))
 	for index := range domains {
 		if strings.TrimSpace(domains[index].Domain) == "" {
-			continue
-		}
-		if strings.TrimSpace(domains[index].HubURL) == "" || strings.TrimSpace(domains[index].TokenEncrypted) == "" {
 			continue
 		}
 		reportDomains = append(reportDomains, domains[index])
@@ -322,9 +315,6 @@ func (s *ClusterSyncService) ReportLocalPanelStatus(ctx context.Context) error {
 		}
 		if err := s.saveLocalMemberStatus(ctx, &domain, local.NodeID, ClusterPanelUpdateStatusOnline, currentVersion); err != nil {
 			failures = append(failures, fmt.Sprintf("%s local: %v", domain.Domain, err))
-		}
-		if err := s.notifyHubMemberStatus(ctx, &domain, local.NodeID, ClusterPanelUpdateStatusOnline, currentVersion); err != nil {
-			failures = append(failures, fmt.Sprintf("%s hub: %v", domain.Domain, err))
 		}
 		if localChanged {
 			if err := s.publishPanelUpdateStatus(ctx, &domain, ClusterPanelUpdateStatusOnline, "", currentVersion, local.NodeID); err != nil {

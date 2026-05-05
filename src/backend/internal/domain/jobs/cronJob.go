@@ -10,6 +10,11 @@ type CronJob struct {
 	cron *cron.Cron
 }
 
+type scheduledCronJob struct {
+	spec string
+	job  cron.Job
+}
+
 func NewCronJob() *CronJob {
 	return &CronJob{}
 }
@@ -19,31 +24,17 @@ func (c *CronJob) Start(loc *time.Location, trafficAge int) error {
 	c.cron.Start()
 
 	go func() {
-		// Start stats job
-		c.cron.AddJob("@every 10s", NewStatsJob(trafficAge > 0))
-		// Start expiry job
-		c.cron.AddJob("@every 1m", NewDepleteJob())
-		// Start deleting old stats
-		if trafficAge > 0 {
-			c.cron.AddJob("@daily", NewDelStatsJob(trafficAge))
+		jobs := scheduledCronJobs(trafficAge)
+		var panelStatusJob *ClusterPanelStatusReportJob
+		for _, scheduled := range jobs {
+			if job, ok := scheduled.job.(*ClusterPanelStatusReportJob); ok {
+				panelStatusJob = job
+			}
+			c.cron.AddJob(scheduled.spec, scheduled.job)
 		}
-		// Start core if it is not running
-		c.cron.AddJob("@every 5s", NewCheckCoreJob())
-		// Refresh built-in TLS/Reality domain hints
-		c.cron.AddJob("@every 6h", NewDomainHintJob())
-		// database WAL checkpoint
-		c.cron.AddJob("@every 10m", NewWALCheckpointJob())
-		// cluster version polling
-		c.cron.AddJob("@every 30m", NewClusterVersionPollJob())
-		panelStatusJob := NewClusterPanelStatusReportJob()
-		c.cron.AddJob("@every 1m", panelStatusJob)
-		go panelStatusJob.Run()
-		// low-frequency local-only peer reachability probing
-		c.cron.AddJob("@every 30s", NewClusterReachabilityProbeJob())
-		// periodic mesh ping based on per-domain ping policy
-		c.cron.AddJob("@every 30s", NewClusterMeshPingJob())
-		// cluster peer scheduled broadcasts
-		c.cron.AddJob("@every 30m", NewClusterPeerScheduleJob())
+		if panelStatusJob != nil {
+			go panelStatusJob.Run()
+		}
 	}()
 	go NewDomainHintJob().Run()
 
@@ -54,4 +45,34 @@ func (c *CronJob) Stop() {
 	if c.cron != nil {
 		c.cron.Stop()
 	}
+}
+
+func scheduledCronJobs(trafficAge int) []scheduledCronJob {
+	jobs := []scheduledCronJob{
+		// Start stats job
+		{spec: "@every 10s", job: NewStatsJob(trafficAge > 0)},
+		// Start expiry job
+		{spec: "@every 1m", job: NewDepleteJob()},
+	}
+	if trafficAge > 0 {
+		// Start deleting old stats
+		jobs = append(jobs, scheduledCronJob{spec: "@daily", job: NewDelStatsJob(trafficAge)})
+	}
+	jobs = append(jobs,
+		// Start core if it is not running
+		scheduledCronJob{spec: "@every 5s", job: NewCheckCoreJob()},
+		// Refresh built-in TLS/Reality domain hints
+		scheduledCronJob{spec: "@every 6h", job: NewDomainHintJob()},
+		// database WAL checkpoint
+		scheduledCronJob{spec: "@every 10m", job: NewWALCheckpointJob()},
+		// node-side panel status reconciliation; this does not poll hub
+		scheduledCronJob{spec: "@every 1m", job: NewClusterPanelStatusReportJob()},
+		// low-frequency local-only peer reachability probing
+		scheduledCronJob{spec: "@every 30s", job: NewClusterReachabilityProbeJob()},
+		// periodic mesh ping based on per-domain ping policy
+		scheduledCronJob{spec: "@every 30s", job: NewClusterMeshPingJob()},
+		// cluster peer scheduled broadcasts
+		scheduledCronJob{spec: "@every 30m", job: NewClusterPeerScheduleJob()},
+	)
+	return jobs
 }

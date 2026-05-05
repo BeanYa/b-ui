@@ -88,7 +88,7 @@ func TestClusterSyncServiceDoesNotRebroadcastReceivedNotifyVersion(t *testing.T)
 	}
 }
 
-func TestClusterSyncServiceVersionPollIsNoOpWhenHubVersionUnchanged(t *testing.T) {
+func TestClusterSyncServiceSyncNowRefreshesSnapshotWhenHubVersionUnchanged(t *testing.T) {
 	store := &stubClusterSyncStore{
 		domains: map[uint]*model.ClusterDomain{
 			1: {Id: 1, Domain: "edge.example.com", HubURL: "https://hub.example.com", LastVersion: 9},
@@ -97,21 +97,21 @@ func TestClusterSyncServiceVersionPollIsNoOpWhenHubVersionUnchanged(t *testing.T
 	hub := &stubClusterHubSyncer{latestVersions: []int64{9, 9}}
 	service := &ClusterSyncService{store: store, hubSyncer: hub}
 
-	if err := service.PollAndNotifyVersion(context.Background()); err != nil {
-		t.Fatalf("first poll: %v", err)
+	if err := service.SyncNow(context.Background()); err != nil {
+		t.Fatalf("first sync: %v", err)
 	}
-	if err := service.PollAndNotifyVersion(context.Background()); err != nil {
-		t.Fatalf("second poll: %v", err)
+	if err := service.SyncNow(context.Background()); err != nil {
+		t.Fatalf("second sync: %v", err)
 	}
-	if hub.syncCalls != 0 {
-		t.Fatalf("expected unchanged hub version to skip sync, got %d syncs", hub.syncCalls)
+	if hub.syncCalls != 2 {
+		t.Fatalf("expected explicit sync to refresh unchanged hub version, got %d syncs", hub.syncCalls)
 	}
 	if hub.versionChecks != 2 {
 		t.Fatalf("expected two hub version checks, got %d", hub.versionChecks)
 	}
 }
 
-func TestClusterSyncServiceVersionPollBackfillsMissingMemberDisplayNames(t *testing.T) {
+func TestClusterSyncServiceSyncNowBackfillsMissingMemberDisplayNames(t *testing.T) {
 	store := &stubClusterSyncStore{
 		domains: map[uint]*model.ClusterDomain{
 			1: {Id: 1, Domain: "edge.example.com", HubURL: "https://hub.example.com", LastVersion: 9},
@@ -123,8 +123,8 @@ func TestClusterSyncServiceVersionPollBackfillsMissingMemberDisplayNames(t *test
 	hub := &stubClusterHubSyncer{latestVersions: []int64{9}}
 	service := &ClusterSyncService{store: store, hubSyncer: hub}
 
-	if err := service.PollAndNotifyVersion(context.Background()); err != nil {
-		t.Fatalf("poll and backfill member display names: %v", err)
+	if err := service.SyncNow(context.Background()); err != nil {
+		t.Fatalf("sync and backfill member display names: %v", err)
 	}
 	if hub.syncCalls != 1 {
 		t.Fatalf("expected unchanged hub version to sync missing member display names, got %d syncs", hub.syncCalls)
@@ -134,7 +134,7 @@ func TestClusterSyncServiceVersionPollBackfillsMissingMemberDisplayNames(t *test
 	}
 }
 
-func TestClusterSyncServiceManualPollSyncsFromHubWhenRemoteVersionNewer(t *testing.T) {
+func TestClusterSyncServiceSyncNowSyncsFromHubWhenRemoteVersionNewer(t *testing.T) {
 	store := &stubClusterSyncStore{
 		domains: map[uint]*model.ClusterDomain{
 			1: {Id: 1, Domain: "edge.example.com", HubURL: "https://hub.example.com", LastVersion: 2},
@@ -143,8 +143,8 @@ func TestClusterSyncServiceManualPollSyncsFromHubWhenRemoteVersionNewer(t *testi
 	hub := &stubClusterHubSyncer{latestVersions: []int64{5}}
 	service := &ClusterSyncService{store: store, hubSyncer: hub}
 
-	if err := service.PollAndNotifyVersion(context.Background()); err != nil {
-		t.Fatalf("poll and sync: %v", err)
+	if err := service.SyncNow(context.Background()); err != nil {
+		t.Fatalf("sync now: %v", err)
 	}
 	if hub.syncCalls != 1 {
 		t.Fatalf("expected one hub snapshot sync, got %d", hub.syncCalls)
@@ -154,7 +154,7 @@ func TestClusterSyncServiceManualPollSyncsFromHubWhenRemoteVersionNewer(t *testi
 	}
 }
 
-func TestClusterSyncServicePollChecksPanelUpdatesWhenHubVersionUnchanged(t *testing.T) {
+func TestClusterSyncServiceSyncNowRefreshesSnapshotAndChecksPanelUpdatesWhenHubVersionUnchanged(t *testing.T) {
 	store := &stubClusterSyncStore{
 		domains: map[uint]*model.ClusterDomain{
 			1: {Id: 1, Domain: "edge.example.com", HubURL: "https://hub.example.com", LastVersion: 9, UpdatePolicy: ClusterDomainUpdatePolicyAuto},
@@ -164,18 +164,18 @@ func TestClusterSyncServicePollChecksPanelUpdatesWhenHubVersionUnchanged(t *test
 	panel := &stubClusterPanelUpdater{info: &PanelUpdateInfo{CurrentVersion: "v1.0.0", LatestVersion: "v1.0.0", Comparison: "same"}}
 	service := &ClusterSyncService{store: store, hubSyncer: hub, panelService: panel}
 
-	if err := service.PollAndNotifyVersion(context.Background()); err != nil {
-		t.Fatalf("poll and check panel update: %v", err)
+	if err := service.SyncNow(context.Background()); err != nil {
+		t.Fatalf("sync and check panel update: %v", err)
 	}
-	if hub.syncCalls != 0 {
-		t.Fatalf("expected unchanged hub version to skip snapshot sync, got %d syncs", hub.syncCalls)
+	if hub.syncCalls != 1 {
+		t.Fatalf("expected explicit sync to refresh unchanged hub version, got %d syncs", hub.syncCalls)
 	}
 	if panel.infoCalls != 1 {
 		t.Fatalf("expected panel update check even when hub version is unchanged, got %d checks", panel.infoCalls)
 	}
 }
 
-func TestClusterSyncServiceVersionPollRefreshesSnapshotWhenMemberIsUpdating(t *testing.T) {
+func TestClusterSyncServiceSyncNowRefreshesSnapshotWhenMemberIsUpdating(t *testing.T) {
 	store := &stubClusterSyncStore{
 		domains: map[uint]*model.ClusterDomain{
 			1: {Id: 1, Domain: "edge.example.com", HubURL: "https://hub.example.com", LastVersion: 9},
@@ -189,8 +189,8 @@ func TestClusterSyncServiceVersionPollRefreshesSnapshotWhenMemberIsUpdating(t *t
 	panel := &stubClusterPanelUpdater{info: &PanelUpdateInfo{CurrentVersion: "v1.0.0", LatestVersion: "v1.0.0", Comparison: "same"}}
 	service := &ClusterSyncService{store: store, hubSyncer: hub, panelService: panel}
 
-	if err := service.PollAndNotifyVersion(context.Background()); err != nil {
-		t.Fatalf("poll and refresh updating member: %v", err)
+	if err := service.SyncNow(context.Background()); err != nil {
+		t.Fatalf("sync and refresh updating member: %v", err)
 	}
 	if hub.syncCalls != 1 {
 		t.Fatalf("expected unchanged hub version to refresh snapshot for updating member, got %d syncs", hub.syncCalls)
@@ -400,15 +400,12 @@ func TestClusterSyncServiceReportsLocalPanelStatusAfterRestart(t *testing.T) {
 		panelUpdateStateFilePath = originalStatePath
 	})
 
-	secret := []byte("panel-secret-for-cluster-tests")
 	currentVersion := canonicalizeReleaseTag(config.GetVersion())
 	store := &stubClusterSyncStore{
 		domains: map[uint]*model.ClusterDomain{
 			1: {
-				Id:             1,
-				Domain:         "edge.example.com",
-				HubURL:         "https://hub.example.com",
-				TokenEncrypted: mustEncryptClusterToken(t, string(secret), "domain-token"),
+				Id:     1,
+				Domain: "edge.example.com",
 			},
 		},
 		members: map[string]*model.ClusterMember{
@@ -419,11 +416,10 @@ func TestClusterSyncServiceReportsLocalPanelStatusAfterRestart(t *testing.T) {
 	broadcaster := &stubClusterBroadcaster{}
 	hub := &stubClusterUpdateHubClient{}
 	service := &ClusterSyncService{
-		store:          store,
-		broadcaster:    broadcaster,
-		hubClient:      hub,
-		secretProvider: stubClusterSecretProvider{secret: secret},
-		localIdentity:  &ClusterLocalIdentityService{store: &stubClusterLocalNodeStore{node: &model.ClusterLocalNode{NodeID: "node-local"}}},
+		store:         store,
+		broadcaster:   broadcaster,
+		hubClient:     hub,
+		localIdentity: &ClusterLocalIdentityService{store: &stubClusterLocalNodeStore{node: &model.ClusterLocalNode{NodeID: "node-local"}}},
 	}
 
 	if err := service.ReportLocalPanelStatus(context.Background()); err != nil {
@@ -434,8 +430,8 @@ func TestClusterSyncServiceReportsLocalPanelStatusAfterRestart(t *testing.T) {
 	if member.Status != ClusterPanelUpdateStatusOnline || member.PanelVersion != currentVersion {
 		t.Fatalf("expected local member online with current version %s, got %#v", currentVersion, member)
 	}
-	if hub.setStatusCalls != 1 || hub.lastStatus != ClusterPanelUpdateStatusOnline || hub.lastPanelVersion != currentVersion {
-		t.Fatalf("expected hub online report with current version, got calls=%d status=%q version=%q", hub.setStatusCalls, hub.lastStatus, hub.lastPanelVersion)
+	if hub.setStatusCalls != 0 {
+		t.Fatalf("expected periodic panel status report to avoid hub writes, got %d calls", hub.setStatusCalls)
 	}
 	if broadcaster.statusCalls != 1 || broadcaster.statuses[0] != ClusterPanelUpdateStatusOnline || broadcaster.statusPanelVersions[0] != currentVersion {
 		t.Fatalf("expected peer online broadcast with current version, got %#v", broadcaster)
@@ -480,7 +476,7 @@ func TestClusterSyncServiceSkipsPanelStatusReportWithoutDomains(t *testing.T) {
 	}
 }
 
-func TestClusterSyncServiceSkipsPanelStatusReportWithoutReportableDomains(t *testing.T) {
+func TestClusterSyncServiceSkipsPanelStatusReportWithoutNamedDomains(t *testing.T) {
 	stateDir := t.TempDir()
 	originalStatePath := panelUpdateStateFilePath
 	panelUpdateStateFilePath = func() string {
@@ -492,7 +488,7 @@ func TestClusterSyncServiceSkipsPanelStatusReportWithoutReportableDomains(t *tes
 
 	store := &stubClusterSyncStore{
 		domains: map[uint]*model.ClusterDomain{
-			1: {Id: 1, Domain: "local-only.example.com"},
+			1: {Id: 1},
 		},
 		members: map[string]*model.ClusterMember{},
 	}
@@ -503,10 +499,10 @@ func TestClusterSyncServiceSkipsPanelStatusReportWithoutReportableDomains(t *tes
 	}
 
 	if err := service.ReportLocalPanelStatus(context.Background()); err != nil {
-		t.Fatalf("report local panel status without reportable domains: %v", err)
+		t.Fatalf("report local panel status without named domains: %v", err)
 	}
 	if identity.calls != 0 {
-		t.Fatalf("expected no local identity access without reportable domains, got %d calls", identity.calls)
+		t.Fatalf("expected no local identity access without named domains, got %d calls", identity.calls)
 	}
 }
 

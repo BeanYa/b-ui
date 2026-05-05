@@ -3,6 +3,7 @@ package service
 import (
 	"context"
 	"encoding/json"
+	"errors"
 
 	clustertypes "github.com/BeanYa/b-ui/src/backend/internal/domain/services/cluster/types"
 	"github.com/BeanYa/b-ui/src/backend/internal/infra/db/model"
@@ -43,6 +44,7 @@ func (b *ClusterHTTPBroadcaster) broadcastDomainUserCommand(ctx context.Context,
 		HTTPClient:     b.httpClient(),
 		saveAckAttempt: b.getAckAttemptSaver(),
 	}
+	var failures []error
 	for _, member := range members {
 		if member.Domain == nil || member.Domain.Id != domain.Id {
 			continue
@@ -63,10 +65,10 @@ func (b *ClusterHTTPBroadcaster) broadcastDomainUserCommand(ctx context.Context,
 			return err
 		}
 		if err := delivery.Send(ctx, message, member, token); err != nil {
-			return err
+			failures = append(failures, err)
 		}
 	}
-	return nil
+	return errors.Join(failures...)
 }
 
 func domainUserPayloadMap(payload interface{}) (map[string]interface{}, error) {
