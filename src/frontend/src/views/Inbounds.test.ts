@@ -117,13 +117,13 @@ describe('Inbounds view domain-managed cards', () => {
     const localCard = html.slice(localStart)
 
     expect(domainCard).toContain('inbound-card--domain')
-    expect(domainCard).toContain('Hub Managed')
-    expect(domainCard).toContain('Domain inbound managed by Hub')
-    expect(domainCard).toContain('Managed by Hub domain inbound group')
+    expect(domainCard).toContain('Domain Managed')
+    expect(domainCard).toContain('Domain inbound managed by domain resource operation')
+    expect(domainCard).toContain('Managed by domain resource operation')
     expect(localCard).not.toContain('inbound-card--domain')
-    expect(localCard).not.toContain('Hub Managed')
-    expect(localCard).not.toContain('Domain inbound managed by Hub')
-    expect(localCard).not.toContain('Managed by Hub domain inbound group')
+    expect(localCard).not.toContain('Domain Managed')
+    expect(localCard).not.toContain('Domain inbound managed by domain resource operation')
+    expect(localCard).not.toContain('Managed by domain resource operation')
   })
 
   it('keeps delete available for Hub-managed inbounds', async () => {

@@ -1,7 +1,9 @@
 package api
 
 import (
+	"context"
 	"encoding/json"
+	"errors"
 	"net/http"
 	"strconv"
 	"strings"
@@ -12,6 +14,10 @@ import (
 
 	"github.com/gin-gonic/gin"
 )
+
+func serviceErrUnsupported(feature string) error {
+	return errors.New(feature + " service is unavailable")
+}
 
 type clusterAPIService interface {
 	Register(service.ClusterRegisterRequest) (*service.ClusterOperationStatus, error)
@@ -24,9 +30,16 @@ type clusterAPIService interface {
 	ManualSync() (*service.ClusterOperationStatus, error)
 	CheckDomainPanelUpdate(uint) (*service.ClusterPanelUpdateCheckResult, error)
 	RequestMemberPanelUpdate(uint, string) (*service.ClusterPanelMemberUpdateResult, error)
+	CreateDomainInboundResource(context.Context, uint, service.ClusterDomainInboundCommandInput) (*service.ClusterDomainOperationView, error)
+	UpdateDomainInboundResource(context.Context, uint, string, service.ClusterDomainInboundCommandInput) (*service.ClusterDomainOperationView, error)
+	DeleteDomainInboundResource(context.Context, uint, string) (*service.ClusterDomainOperationView, error)
+	CreateDomainUserResource(context.Context, uint, service.ClusterDomainUserCommandInput) (*service.ClusterDomainOperationView, error)
+	UpdateDomainUserResource(context.Context, uint, string, service.ClusterDomainUserCommandInput) (*service.ClusterDomainOperationView, error)
+	DeleteDomainUserResource(context.Context, uint, string) (*service.ClusterDomainOperationView, error)
 	DeleteMember(uint) error
 	LeaveDomain(uint) error
 	ReceivePeerMessage(*service.PeerMessage, string) error
+	ReceivePeerMessageWithResult(*service.PeerMessage, string) (*clustertypes.DomainResourceCommandResult, error)
 	ReceiveMessage(*service.ClusterEnvelope, string) error
 	Heartbeat(remoteNodeID string, token string) (*service.ClusterPeerStatus, error)
 	Ping(remoteNodeID string, token string) (*service.ClusterPeerStatus, error)
@@ -35,6 +48,10 @@ type clusterAPIService interface {
 	ListScatterTasks(domainID string) ([]service.TaskSummary, error)
 	CreateScatterTask(domainID string, taskType string, scope string, params map[string]any) (*service.TaskSummary, error)
 	GetScatterTaskResult(domainID string, taskID string) (*service.TaskResultDetail, error)
+}
+
+type clusterDomainOperationRetryService interface {
+	RetryDomainOperation(context.Context, string) (*service.ClusterDomainOperationView, error)
 }
 
 func (a *APIHandler) requireClusterAdmin(c *gin.Context) bool {
@@ -167,6 +184,127 @@ func (a *APIHandler) requestClusterMemberPanelUpdate(c *gin.Context) {
 	jsonObj(c, result, err)
 }
 
+func (a *APIHandler) createClusterDomainInboundResource(c *gin.Context) {
+	if !a.requireClusterAdmin(c) {
+		return
+	}
+	id, err := strconv.ParseUint(c.Param("id"), 10, 64)
+	if err != nil {
+		jsonMsg(c, "cluster domain inbound resource create", err)
+		return
+	}
+	var input service.ClusterDomainInboundCommandInput
+	if err := c.ShouldBindJSON(&input); err != nil {
+		jsonMsg(c, "cluster domain inbound resource create", err)
+		return
+	}
+	result, err := a.clusterService.CreateDomainInboundResource(c.Request.Context(), uint(id), input)
+	jsonObj(c, result, err)
+}
+
+func (a *APIHandler) updateClusterDomainInboundResource(c *gin.Context) {
+	if !a.requireClusterAdmin(c) {
+		return
+	}
+	id, err := strconv.ParseUint(c.Param("id"), 10, 64)
+	if err != nil {
+		jsonMsg(c, "cluster domain inbound resource update", err)
+		return
+	}
+	var input service.ClusterDomainInboundCommandInput
+	if err := c.ShouldBindJSON(&input); err != nil {
+		jsonMsg(c, "cluster domain inbound resource update", err)
+		return
+	}
+	result, err := a.clusterService.UpdateDomainInboundResource(c.Request.Context(), uint(id), strings.TrimSpace(c.Param("groupId")), input)
+	jsonObj(c, result, err)
+}
+
+func (a *APIHandler) deleteClusterDomainInboundResource(c *gin.Context) {
+	if !a.requireClusterAdmin(c) {
+		return
+	}
+	id, err := strconv.ParseUint(c.Param("id"), 10, 64)
+	if err != nil {
+		jsonMsg(c, "cluster domain inbound resource delete", err)
+		return
+	}
+	result, err := a.clusterService.DeleteDomainInboundResource(c.Request.Context(), uint(id), strings.TrimSpace(c.Param("groupId")))
+	jsonObj(c, result, err)
+}
+
+func (a *APIHandler) createClusterDomainUserResource(c *gin.Context) {
+	if !a.requireClusterAdmin(c) {
+		return
+	}
+	id, err := strconv.ParseUint(c.Param("id"), 10, 64)
+	if err != nil {
+		jsonMsg(c, "cluster domain user resource create", err)
+		return
+	}
+	var input service.ClusterDomainUserCommandInput
+	if err := c.ShouldBindJSON(&input); err != nil {
+		jsonMsg(c, "cluster domain user resource create", err)
+		return
+	}
+	result, err := a.clusterService.CreateDomainUserResource(c.Request.Context(), uint(id), input)
+	jsonObj(c, result, err)
+}
+
+func (a *APIHandler) updateClusterDomainUserResource(c *gin.Context) {
+	if !a.requireClusterAdmin(c) {
+		return
+	}
+	id, err := strconv.ParseUint(c.Param("id"), 10, 64)
+	if err != nil {
+		jsonMsg(c, "cluster domain user resource update", err)
+		return
+	}
+	var input service.ClusterDomainUserCommandInput
+	if err := c.ShouldBindJSON(&input); err != nil {
+		jsonMsg(c, "cluster domain user resource update", err)
+		return
+	}
+	result, err := a.clusterService.UpdateDomainUserResource(c.Request.Context(), uint(id), strings.TrimSpace(c.Param("uuid")), input)
+	jsonObj(c, result, err)
+}
+
+func (a *APIHandler) deleteClusterDomainUserResource(c *gin.Context) {
+	if !a.requireClusterAdmin(c) {
+		return
+	}
+	id, err := strconv.ParseUint(c.Param("id"), 10, 64)
+	if err != nil {
+		jsonMsg(c, "cluster domain user resource delete", err)
+		return
+	}
+	result, err := a.clusterService.DeleteDomainUserResource(c.Request.Context(), uint(id), strings.TrimSpace(c.Param("uuid")))
+	jsonObj(c, result, err)
+}
+
+func (a *APIHandler) retryClusterDomainOperation(c *gin.Context) {
+	if !a.requireClusterAdmin(c) {
+		return
+	}
+	retryService, ok := a.clusterService.(clusterDomainOperationRetryService)
+	if !ok {
+		jsonMsg(c, "cluster domain operation retry", serviceErrUnsupported("cluster domain operation retry"))
+		return
+	}
+	result, err := retryService.RetryDomainOperation(c.Request.Context(), strings.TrimSpace(c.Param("operationId")))
+	jsonObj(c, result, err)
+}
+
+func registerClusterDomainResourceRoutes(g gin.IRoutes, handler *APIHandler) {
+	g.POST("/cluster/domains/:id/resources/inbounds", handler.createClusterDomainInboundResource)
+	g.PUT("/cluster/domains/:id/resources/inbounds/:groupId", handler.updateClusterDomainInboundResource)
+	g.DELETE("/cluster/domains/:id/resources/inbounds/:groupId", handler.deleteClusterDomainInboundResource)
+	g.POST("/cluster/domains/:id/resources/users", handler.createClusterDomainUserResource)
+	g.PUT("/cluster/domains/:id/resources/users/:uuid", handler.updateClusterDomainUserResource)
+	g.DELETE("/cluster/domains/:id/resources/users/:uuid", handler.deleteClusterDomainUserResource)
+	g.POST("/cluster/domain-operations/:operationId/retry", handler.retryClusterDomainOperation)
+}
+
 func (a *APIHandler) deleteClusterMember(c *gin.Context) {
 	if !a.requireClusterAdmin(c) {
 		return
@@ -247,6 +385,7 @@ func RegisterClusterMessageRoute(router gin.IRoutes, clusterService clusterAPISe
 		}
 		token := c.GetHeader("X-Cluster-Token")
 		remoteIP := c.ClientIP()
+		var result *clustertypes.DomainResourceCommandResult
 		if _, ok := fields["protocolVersion"]; ok {
 			var message service.PeerMessage
 			if err := json.Unmarshal(body, &message); err != nil {
@@ -262,7 +401,7 @@ func RegisterClusterMessageRoute(router gin.IRoutes, clusterService clusterAPISe
 				"remote_ip":    remoteIP,
 				"payload_keys": logger.PayloadKeys(message.Payload),
 			})
-			err = clusterService.ReceivePeerMessage(&message, token)
+			result, err = clusterService.ReceivePeerMessageWithResult(&message, token)
 		} else {
 			var envelope service.ClusterEnvelope
 			if err := json.Unmarshal(body, &envelope); err != nil {
@@ -284,6 +423,14 @@ func RegisterClusterMessageRoute(router gin.IRoutes, clusterService clusterAPISe
 				"error":     err.Error(),
 			})
 			c.JSON(http.StatusUnauthorized, Msg{Success: false, Msg: clusterMessage(err)})
+			return
+		}
+		if result != nil {
+			c.JSON(http.StatusOK, gin.H{
+				"success": true,
+				"msg":     clusterMessage(nil),
+				"result":  result,
+			})
 			return
 		}
 		c.JSON(http.StatusOK, Msg{Success: true, Msg: clusterMessage(nil)})

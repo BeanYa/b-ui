@@ -198,6 +198,56 @@
         </v-card-text>
       </v-card>
 
+      <v-card class="app-card-shell cluster-center__domain-resources" :loading="domainResourceLoading">
+        <v-card-title>
+          <div class="cluster-center__card-title">
+            <span>{{ $t('clusterCenter.domainResources.title') }}</span>
+            <span class="cluster-center__domain-prompt">{{ $t('clusterCenter.domainResources.domainManaged') }}</span>
+          </div>
+        </v-card-title>
+        <v-card-text>
+          <div class="cluster-center__domain-resource-actions">
+            <v-btn
+              size="small"
+              color="primary"
+              variant="outlined"
+              :loading="domainResourceLoading"
+              @click="createDomainInboundFromDetail"
+            >
+              {{ $t('clusterCenter.domainResources.createInbound') }}
+            </v-btn>
+            <v-btn
+              size="small"
+              color="primary"
+              variant="outlined"
+              :loading="domainResourceLoading"
+              @click="createDomainUserFromDetail"
+            >
+              {{ $t('clusterCenter.domainResources.createUser') }}
+            </v-btn>
+            <v-btn
+              size="small"
+              color="warning"
+              variant="outlined"
+              :disabled="!lastDomainResourceOperation"
+              :loading="domainResourceLoading"
+              @click="retryLastDomainResourceOperation"
+            >
+              {{ $t('clusterCenter.domainResources.retry') }}
+            </v-btn>
+          </div>
+          <div v-if="lastDomainResourceOperation" class="cluster-center__operation-status">
+            <span class="cluster-center__meta-label">{{ lastDomainResourceOperation.operationId }}</span>
+            <v-chip size="small" :color="domainOperationStatusColor(lastDomainResourceOperation.status)" variant="flat">
+              {{ lastDomainResourceOperation.status }}
+            </v-chip>
+          </div>
+          <div v-else class="cluster-center__empty">
+            {{ $t('clusterCenter.domainResources.noOperation') }}
+          </div>
+        </v-card-text>
+      </v-card>
+
       <v-card class="app-card-shell cluster-center__logs">
         <v-card-title>
           <div class="cluster-center__card-title">
@@ -604,6 +654,8 @@ import { push } from 'notivue'
 
 import ClusterDomainActionTree from '@/components/ClusterDomainActionTree.vue'
 import { parseClusterHubJoinUri } from '@/features/clusterHubUri'
+import { createDomainInboundResource, createDomainUserResource, retryDomainResourceOperation } from '@/features/domainResourcesApi'
+import type { DomainResourceOperationView } from '@/features/domainResourcesApi'
 import { i18n } from '@/locales'
 import HttpUtils from '@/plugins/httputil'
 import { usePingStore } from '@/store/modules/ping'
@@ -665,6 +717,8 @@ const existingDomainData = ref<{ domain: string; hubUrl: string }>({ domain: '',
 const selectedDomain = computed(() => domains.value.find((domain) => domain.id === selectedDomainId.value) ?? null)
 const selectedDomainMembers = computed(() => members.value.filter((member) => member.domainId === selectedDomainId.value))
 const domainUpdateChecks = ref<Record<number, ClusterPanelUpdateCheck>>({})
+const domainResourceLoading = ref(false)
+const lastDomainResourceOperation = ref<DomainResourceOperationView | null>(null)
 
 const domainMemberCount = (domainId: number) => members.value.filter((member) => member.domainId === domainId).length
 const formatClusterVersionLabel = (version: number) => `${version}`
@@ -833,6 +887,63 @@ const checkDomainPanelUpdate = async (domain: ClusterDomain) => {
       }
     : item)
   return result
+}
+
+const createDomainInboundFromDetail = async () => {
+  if (!selectedDomain.value) return
+  domainResourceLoading.value = true
+  try {
+    lastDomainResourceOperation.value = await createDomainInboundResource(selectedDomain.value.id, {
+      group_id: `domain-${selectedDomain.value.id}`,
+      inbound: { tag: `domain-${selectedDomain.value.id}` },
+    })
+  } catch (error: any) {
+    push.error({ title: i18n.global.t('failed'), message: error?.message ?? String(error) })
+  } finally {
+    domainResourceLoading.value = false
+  }
+}
+
+const createDomainUserFromDetail = async () => {
+  if (!selectedDomain.value) return
+  domainResourceLoading.value = true
+  try {
+    lastDomainResourceOperation.value = await createDomainUserResource(selectedDomain.value.id, {
+      user: {
+        name: `domain-user-${selectedDomain.value.id}`,
+        enable: true,
+        config: {},
+      },
+      inbounds: [],
+    })
+  } catch (error: any) {
+    push.error({ title: i18n.global.t('failed'), message: error?.message ?? String(error) })
+  } finally {
+    domainResourceLoading.value = false
+  }
+}
+
+const retryLastDomainResourceOperation = async () => {
+  if (!lastDomainResourceOperation.value?.operationId) return
+  domainResourceLoading.value = true
+  try {
+    lastDomainResourceOperation.value = await retryDomainResourceOperation(lastDomainResourceOperation.value.operationId)
+  } catch (error: any) {
+    push.error({ title: i18n.global.t('failed'), message: error?.message ?? String(error) })
+  } finally {
+    domainResourceLoading.value = false
+  }
+}
+
+const domainOperationStatusColor = (status: string) => {
+  switch (status) {
+    case 'applied': return 'green'
+    case 'failed':
+    case 'timeout': return 'red'
+    case 'partial': return 'orange'
+    case 'dispatching': return 'blue'
+    default: return 'grey'
+  }
 }
 
 const isUsableAbsoluteUrl = (value: string) => {

@@ -125,6 +125,56 @@ func TestPeerDispatcherHandlesDomainInboundCreateCommand(t *testing.T) {
 	}
 }
 
+func TestPeerDispatcherReturnsDomainInboundCreateResult(t *testing.T) {
+	store := newMemoryPeerStore()
+	creator := &stubPeerDomainInboundCreator{}
+	dispatcher := ClusterPeerDispatcher{
+		eventStore:           store,
+		domainInboundCreator: creator,
+		identity:             ClusterLocalIdentityService{store: &stubClusterLocalNodeStore{node: newTestClusterLocalNode(t, "node-local")}},
+	}
+	message := &PeerMessage{
+		MessageID:   "msg-domain-inbound-create-result",
+		DomainID:    "edge.example.com",
+		PayloadHash: "hash",
+		Category:    PeerCategoryCommand,
+		Action:      PeerActionDomainInboundCreate,
+		Payload: map[string]interface{}{
+			"request_id":   "req-1",
+			"operation_id": "op-1",
+			"domain_id":    "edge.example.com",
+			"group_id":     "group-1",
+			"revision":     float64(7),
+			"inbound": map[string]interface{}{
+				"type": "vless",
+				"tag":  "main",
+			},
+			"target_members": []interface{}{
+				map[string]interface{}{
+					"node_id":    "node-local",
+					"member_id":  "member-local",
+					"target_tag": "main-node-local",
+				},
+			},
+		},
+		Route: RoutePlan{Mode: RouteModeBroadcast},
+	}
+
+	result, err := dispatcher.DispatchWithResult(context.Background(), &model.ClusterDomain{Id: 1, Domain: "edge.example.com"}, &model.ClusterMember{NodeID: "node-a"}, message)
+	if err != nil {
+		t.Fatalf("dispatch: %v", err)
+	}
+	if result == nil {
+		t.Fatal("expected result")
+	}
+	if result.Status != "applied" || result.ResourceKind != "domain_inbound" || result.ResourceID != "group-1" {
+		t.Fatalf("unexpected result: %#v", result)
+	}
+	if result.OperationID != "op-1" || result.NodeID != "node-local" || result.MemberID != "member-local" || result.LocalResourceID != 99 || result.TargetTag != "main-node-local" || result.Revision != 7 {
+		t.Fatalf("unexpected result metadata: %#v", result)
+	}
+}
+
 func TestPeerDispatcherHandlesDomainInboundUpdateCommand(t *testing.T) {
 	store := newMemoryPeerStore()
 	applier := &stubPeerDomainInboundApplier{}

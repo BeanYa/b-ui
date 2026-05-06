@@ -179,6 +179,40 @@ type ClusterClient struct {
 	UpdatedAt   int64   `json:"updatedAt"`
 }
 
+type ClusterDomainOperation struct {
+	Id                uint   `json:"id" gorm:"primaryKey;autoIncrement"`
+	OperationID       string `json:"operationId" gorm:"uniqueIndex"`
+	DomainID          uint   `json:"domainId" gorm:"index"`
+	Domain            string `json:"domain" gorm:"index"`
+	ResourceKind      string `json:"resourceKind" gorm:"index"`
+	ResourceID        string `json:"resourceId" gorm:"index"`
+	Action            string `json:"action"`
+	Revision          int64  `json:"revision" gorm:"default:1"`
+	CoordinatorNodeID string `json:"coordinatorNodeId" gorm:"index"`
+	Status            string `json:"status" gorm:"index"`
+	DesiredPayload    []byte `json:"desiredPayload" gorm:"type:blob"`
+	SummaryJSON       []byte `json:"summaryJson" gorm:"type:blob"`
+	CreatedAt         int64  `json:"createdAt"`
+	UpdatedAt         int64  `json:"updatedAt"`
+}
+
+type ClusterDomainOperationInstance struct {
+	Id              uint   `json:"id" gorm:"primaryKey;autoIncrement"`
+	OperationID     string `json:"operationId" gorm:"uniqueIndex:idx_cluster_domain_operation_node;index"`
+	MemberID        string `json:"memberId" gorm:"index"`
+	NodeID          string `json:"nodeId" gorm:"uniqueIndex:idx_cluster_domain_operation_node;index"`
+	DisplayName     string `json:"displayName"`
+	TargetTag       string `json:"targetTag"`
+	Status          string `json:"status" gorm:"index"`
+	AttemptCount    int    `json:"attemptCount"`
+	LocalResourceID uint   `json:"localResourceId"`
+	ResponseJSON    []byte `json:"responseJson" gorm:"type:blob"`
+	Error           string `json:"error"`
+	LastAttemptAt   int64  `json:"lastAttemptAt"`
+	CreatedAt       int64  `json:"createdAt"`
+	UpdatedAt       int64  `json:"updatedAt"`
+}
+
 type ClusterPeerReachability struct {
 	Id                    uint   `json:"id" gorm:"primaryKey;autoIncrement"`
 	DomainID              uint   `json:"domainId" gorm:"uniqueIndex:idx_cluster_reachability_domain_target"`

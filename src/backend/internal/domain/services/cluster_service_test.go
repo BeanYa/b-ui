@@ -1252,6 +1252,7 @@ type stubClusterHubClient struct {
 	latestVersionResponse  *ClusterHubVersionResponse
 	snapshotResponse       *ClusterHubSnapshotResponse
 	deleteResponse         *ClusterHubOperationResponse
+	resourceStateErr       error
 	registerErr            error
 	latestVersionErr       error
 	deleteErr              error
@@ -1262,10 +1263,14 @@ type stubClusterHubClient struct {
 	lastSnapshotHubURL     string
 	lastSnapshotDomain     string
 	lastSnapshotToken      string
+	lastResourceStateHubURL string
+	lastResourceStateDomain string
+	lastResourceStateToken  string
 	lastRegisterRequest    ClusterHubRegisterNodeRequest
 	lastDeleteMemberID     string
 	lastClaimTargetVersion string
 	claimResponse          *ClusterHubClaimUpdateResponse
+	lastResourceStateBody  ClusterHubResourceStateReportRequest
 }
 
 func (s *stubClusterHubClient) RegisterNode(_ context.Context, hubURL string, request ClusterHubRegisterNodeRequest) (*ClusterHubOperationResponse, error) {
@@ -1326,6 +1331,14 @@ func (s *stubClusterHubClient) ReportProxyConfigs(_ context.Context, _ string, _
 
 func (s *stubClusterHubClient) ReportDomainReport(_ context.Context, _ string, _ string, _ ClusterHubReportRequest) error {
 	return nil
+}
+
+func (s *stubClusterHubClient) ReportDomainResourceState(_ context.Context, hubURL string, domain string, token string, body ClusterHubResourceStateReportRequest) error {
+	s.lastResourceStateHubURL = hubURL
+	s.lastResourceStateDomain = domain
+	s.lastResourceStateToken = token
+	s.lastResourceStateBody = body
+	return s.resourceStateErr
 }
 
 type stubClusterSecretProvider struct{ secret []byte }

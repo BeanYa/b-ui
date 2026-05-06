@@ -122,6 +122,8 @@ func InitDB(dbPath string) error {
 		&model.ClusterMember{},
 		&model.ClusterInbound{},
 		&model.ClusterClient{},
+		&model.ClusterDomainOperation{},
+		&model.ClusterDomainOperationInstance{},
 		&model.ClusterPeerReachability{},
 		&model.ClusterPeerEventLog{},
 		&model.ClusterPeerEventState{},

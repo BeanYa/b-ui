@@ -192,7 +192,7 @@
         <template v-slot:item.name="{ item }">
           <div class="client-name-cell">
             <span>{{ item.name }}</span>
-            <v-chip v-if="isClusterManaged(item)" size="x-small" density="comfortable" color="secondary" variant="flat">Hub</v-chip>
+            <v-chip v-if="isClusterManaged(item)" size="x-small" density="comfortable" color="secondary" variant="flat">Domain</v-chip>
           </div>
         </template>
         <template v-slot:item.inbounds="{ item }">
@@ -238,7 +238,7 @@
           </div>
         </template>
         <template v-slot:item.actions="{ item }">
-        <v-tooltip v-if="isClusterManaged(item)" location="top" text="Hub-managed domain user is read-only">
+        <v-tooltip v-if="isClusterManaged(item)" location="top" text="Domain-managed user is read-only">
           <template v-slot:activator="{ props }">
             <v-icon class="me-2" color="disabled" v-bind="props">mdi-lock-outline</v-icon>
           </template>

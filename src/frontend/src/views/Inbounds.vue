@@ -66,8 +66,8 @@
                 {{ item.tls_id > 0 ? $t('enable') : $t('disable') }}
               </v-chip>
               <v-chip v-if="isClusterManaged(item)" class="inbound-card__managed-chip" size="small" density="comfortable" color="info" variant="flat">
-                Hub Managed
-                <v-tooltip activator="parent" location="top" text="Managed by Hub domain inbound group" />
+                Domain Managed
+                <v-tooltip activator="parent" location="top" text="Managed by domain resource operation" />
               </v-chip>
               <v-chip v-if="onlines.includes(item.tag)" size="small" density="comfortable" color="success" variant="flat">
                 {{ $t('online') }}
@@ -76,7 +76,7 @@
           </v-card-title>
           <v-card-text class="app-entity-card__text">
             <div v-if="isClusterManaged(item)" class="inbound-card__managed-banner">
-              <span>Domain inbound managed by Hub</span>
+              <span>Domain inbound managed by domain resource operation</span>
               <strong>{{ item.cluster_domain || 'Domain scope' }}</strong>
             </div>
             <v-row>
@@ -104,7 +104,7 @@
           <v-card-actions class="app-card-actions">
             <v-btn icon="mdi-file-edit" :disabled="isClusterManaged(item)" @click="showModal(item.id)">
               <v-icon />
-              <v-tooltip activator="parent" location="top" :text="isClusterManaged(item) ? 'Managed by Hub domain inbound group' : $t('actions.edit')" />
+              <v-tooltip activator="parent" location="top" :text="isClusterManaged(item) ? 'Managed by domain resource operation' : $t('actions.edit')" />
             </v-btn>
             <v-btn icon="mdi-file-remove" color="warning" @click="delOverlay[index] = true">
               <v-icon />
@@ -126,7 +126,7 @@
             </v-overlay>
             <v-btn icon="mdi-content-duplicate" :disabled="isClusterManaged(item)" :loading="cloneLoading" @click="clone(item.id)">
               <v-icon />
-              <v-tooltip activator="parent" location="top" :text="isClusterManaged(item) ? 'Managed by Hub domain inbound group' : $t('actions.clone')" />
+              <v-tooltip activator="parent" location="top" :text="isClusterManaged(item) ? 'Managed by domain resource operation' : $t('actions.clone')" />
             </v-btn>
             <v-btn v-if="Data().enableTraffic" icon="mdi-chart-line" @click="showStats(item.tag)">
               <v-icon />

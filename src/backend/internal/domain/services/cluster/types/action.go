@@ -21,6 +21,19 @@ type ActionResponse struct {
 	Data         interface{} `json:"data,omitempty"`
 }
 
+type DomainResourceCommandResult struct {
+	Status          string `json:"status"`
+	OperationID     string `json:"operation_id,omitempty"`
+	NodeID          string `json:"node_id"`
+	MemberID        string `json:"member_id,omitempty"`
+	ResourceKind    string `json:"resource_kind"`
+	ResourceID      string `json:"resource_id"`
+	LocalResourceID uint   `json:"local_resource_id,omitempty"`
+	TargetTag       string `json:"target_tag,omitempty"`
+	Revision        int64  `json:"revision"`
+	Error           string `json:"error,omitempty"`
+}
+
 // ActionHandler processes a single action type.
 type ActionHandler func(ctx context.Context, req ActionRequest) (ActionResponse, error)
 

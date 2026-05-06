@@ -8,6 +8,7 @@ import (
 	"strings"
 	"testing"
 
+	clustertypes "github.com/BeanYa/b-ui/src/backend/internal/domain/services/cluster/types"
 	database "github.com/BeanYa/b-ui/src/backend/internal/infra/db"
 	"github.com/BeanYa/b-ui/src/backend/internal/infra/db/model"
 )
@@ -148,6 +149,34 @@ func TestPeerDeliveryRejectsInvalidSuccessBody(t *testing.T) {
 	}, model.ClusterMember{NodeID: "node-b", BaseURL: server.URL}, "peer-token")
 	if err == nil || !strings.Contains(err.Error(), "invalid cluster peer response") {
 		t.Fatalf("expected invalid cluster peer response, got %v", err)
+	}
+}
+
+func TestClusterPeerDeliverySendWithResultParsesCommandResult(t *testing.T) {
+	expected := clustertypes.DomainResourceCommandResult{
+		Status:       "applied",
+		OperationID:  "op-1",
+		NodeID:       "node-b",
+		ResourceKind: "domain_inbound",
+		ResourceID:   "group-1",
+		Revision:     7,
+	}
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		_, _ = w.Write([]byte(`{"success":true,"msg":"cluster message received","result":{"status":"applied","operation_id":"op-1","node_id":"node-b","resource_kind":"domain_inbound","resource_id":"group-1","revision":7}}`))
+	}))
+	defer server.Close()
+
+	delivery := &ClusterPeerDeliveryService{HTTPClient: server.Client()}
+	result, err := delivery.SendWithResult(context.Background(), &PeerMessage{
+		MessageID: "msg-with-result",
+		Action:    PeerActionDomainInboundCreate,
+	}, model.ClusterMember{NodeID: "node-b", BaseURL: server.URL}, "peer-token")
+	if err != nil {
+		t.Fatalf("send with result: %v", err)
+	}
+	if result == nil || *result != expected {
+		t.Fatalf("expected %#v, got %#v", expected, result)
 	}
 }
 
