@@ -394,6 +394,10 @@ func (s *stubClusterRuntimeHubClient) ReportDomainReport(context.Context, string
 	return nil
 }
 
+func (s *stubClusterRuntimeHubClient) ReportDomainResourceState(context.Context, string, string, string, ClusterHubResourceStateReportRequest) error {
+	return nil
+}
+
 type stubClusterRuntimeStore struct {
 	replaceCalls      []stubClusterRuntimeReplaceCall
 	membersByDomain   map[uint][]model.ClusterMember

@@ -149,6 +149,25 @@ describe('ClusterCenter view source', () => {
     expect(source).toContain('await checkDomainPanelUpdate(domain)')
   })
 
+  it('marks domain resources as Domain-managed and exposes create/retry status controls in domain detail', () => {
+    const source = readFileSync(fileURLToPath(new URL('./ClusterCenter.vue', import.meta.url)), 'utf8')
+
+    expect(source).toContain('createDomainUserResource')
+    expect(source).toContain("$t('clusterCenter.domainResources.title')")
+    expect(source).toContain("$t('clusterCenter.domainResources.domainManaged')")
+    expect(source).toContain("$t('clusterCenter.domainResources.createInbound')")
+    expect(source).toContain("$t('clusterCenter.domainResources.createUser')")
+    expect(source).toContain("$t('clusterCenter.domainResources.retry')")
+    expect(source).toContain('const createDomainInboundFromDetail = async () => {')
+    expect(source).toContain('await createDomainInboundResource(selectedDomain.value.id, {')
+    expect(source).toContain('const createDomainUserFromDetail = async () => {')
+    expect(source).toContain('await createDomainUserResource(selectedDomain.value.id, {')
+    expect(source).toContain('const retryLastDomainResourceOperation = async () => {')
+    expect(source).toContain('await retryDomainResourceOperation(lastDomainResourceOperation.value.operationId)')
+    expect(source).not.toContain('Hub-managed')
+    expect(source).not.toContain('Hub managed')
+  })
+
   it('renders member panel versions as update buttons with warning marks when outdated', () => {
     const source = readFileSync(fileURLToPath(new URL('./ClusterCenter.vue', import.meta.url)), 'utf8')
 

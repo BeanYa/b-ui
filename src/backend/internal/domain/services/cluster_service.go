@@ -143,6 +143,45 @@ func (s *ClusterService) newDomainCleanupService() *ClusterDomainCleanupService 
 	})
 }
 
+func (s *ClusterService) newDomainResourceCoordinator() *ClusterDomainResourceCoordinator {
+	return &ClusterDomainResourceCoordinator{
+		DB:             database.GetDB(),
+		OperationStore: &ClusterDomainOperationStore{DB: database.GetDB()},
+		PeerSender:     &ClusterPeerDeliveryService{HTTPClient: s.peerHTTPClient()},
+		HubClient:      s.getHubClient(),
+		Identity:       &s.localIdentity,
+		SecretProvider: s.getSecretProvider(),
+	}
+}
+
+func (s *ClusterService) CreateDomainInboundResource(ctx context.Context, domainID uint, input ClusterDomainInboundCommandInput) (*ClusterDomainOperationView, error) {
+	return s.newDomainResourceCoordinator().CreateDomainInbound(ctx, domainID, input)
+}
+
+func (s *ClusterService) UpdateDomainInboundResource(ctx context.Context, domainID uint, groupID string, input ClusterDomainInboundCommandInput) (*ClusterDomainOperationView, error) {
+	return s.newDomainResourceCoordinator().UpdateDomainInbound(ctx, domainID, groupID, input)
+}
+
+func (s *ClusterService) DeleteDomainInboundResource(ctx context.Context, domainID uint, groupID string) (*ClusterDomainOperationView, error) {
+	return s.newDomainResourceCoordinator().DeleteDomainInbound(ctx, domainID, groupID)
+}
+
+func (s *ClusterService) CreateDomainUserResource(ctx context.Context, domainID uint, input ClusterDomainUserCommandInput) (*ClusterDomainOperationView, error) {
+	return s.newDomainResourceCoordinator().CreateDomainUser(ctx, domainID, input)
+}
+
+func (s *ClusterService) UpdateDomainUserResource(ctx context.Context, domainID uint, userUUID string, input ClusterDomainUserCommandInput) (*ClusterDomainOperationView, error) {
+	return s.newDomainResourceCoordinator().UpdateDomainUser(ctx, domainID, userUUID, input)
+}
+
+func (s *ClusterService) DeleteDomainUserResource(ctx context.Context, domainID uint, userUUID string) (*ClusterDomainOperationView, error) {
+	return s.newDomainResourceCoordinator().DeleteDomainUser(ctx, domainID, userUUID)
+}
+
+func (s *ClusterService) RetryDomainOperation(ctx context.Context, operationID string) (*ClusterDomainOperationView, error) {
+	return s.newDomainResourceCoordinator().RetryDomainOperation(ctx, operationID)
+}
+
 func (s *ClusterService) newDomainInboundBroadcaster() *ClusterHTTPBroadcaster {
 	return &ClusterHTTPBroadcaster{
 		identity:       s.localIdentity,
@@ -1098,46 +1137,51 @@ func (s *ClusterService) resolvedRouter() *router.ActionRouter {
 }
 
 func (s *ClusterService) ReceivePeerMessage(message *PeerMessage, token string) error {
+	_, err := s.ReceivePeerMessageWithResult(message, token)
+	return err
+}
+
+func (s *ClusterService) ReceivePeerMessageWithResult(message *PeerMessage, token string) (*clustertypes.DomainResourceCommandResult, error) {
 	domain, err := s.getStore().GetDomainByName(message.DomainID)
 	if err != nil {
-		return err
+		return nil, err
 	}
 	localIdentity, err := s.localIdentity.GetOrCreate()
 	if err != nil {
-		return err
+		return nil, err
 	}
 	localMember, err := findClusterMemberByDomainNodeID(s.getStore(), domain.Id, localIdentity.NodeID)
 	if err != nil {
-		return err
+		return nil, err
 	}
 	if localMember == nil {
-		return errClusterMemberNotFound
+		return nil, errClusterMemberNotFound
 	}
 	if err := s.validateClusterPeerToken(localMember, token); err != nil {
-		return err
+		return nil, err
 	}
 	member, err := findClusterMemberByDomainNodeID(s.getStore(), domain.Id, message.SourceNodeID)
 	if err != nil {
-		return err
+		return nil, err
 	}
 	if member == nil || message.MembershipVersion > domain.LastVersion {
 		if err := s.refreshPeerMembership(context.Background(), domain, message.MembershipVersion); err != nil {
-			return err
+			return nil, err
 		}
 		domain, err = s.getStore().GetDomainByName(message.DomainID)
 		if err != nil {
-			return err
+			return nil, err
 		}
 		member, err = findClusterMemberByDomainNodeID(s.getStore(), domain.Id, message.SourceNodeID)
 		if err != nil {
-			return err
+			return nil, err
 		}
 	}
 	if member == nil {
-		return errClusterMemberNotFound
+		return nil, errClusterMemberNotFound
 	}
 	if err := VerifyClusterPeerMessage(message, member.PublicKey, time.Now().Unix()); err != nil {
-		return err
+		return nil, err
 	}
 	syncService := s.peerSyncService()
 	dispatcher := ClusterPeerDispatcher{
@@ -1149,7 +1193,7 @@ func (s *ClusterService) ReceivePeerMessage(message *PeerMessage, token string) 
 		domainCleaner:        s.newDomainCleanupService(),
 		scatterGatherManager: s.getScatterManager(),
 	}
-	return dispatcher.Dispatch(context.Background(), domain, member, message)
+	return dispatcher.DispatchWithResult(context.Background(), domain, member, message)
 }
 
 func (s *ClusterService) refreshPeerMembership(ctx context.Context, domain *model.ClusterDomain, version int64) error {

@@ -75,6 +75,15 @@ func (d *ClusterPeerDispatcher) SetScatterGatherManager(mgr *ScatterGatherManage
 }
 
 func (d *ClusterPeerDispatcher) Dispatch(ctx context.Context, domain *model.ClusterDomain, source *model.ClusterMember, message *PeerMessage) error {
+	_, err := d.dispatch(ctx, domain, source, message)
+	return err
+}
+
+func (d *ClusterPeerDispatcher) DispatchWithResult(ctx context.Context, domain *model.ClusterDomain, source *model.ClusterMember, message *PeerMessage) (*clustertypes.DomainResourceCommandResult, error) {
+	return d.dispatch(ctx, domain, source, message)
+}
+
+func (d *ClusterPeerDispatcher) dispatch(ctx context.Context, domain *model.ClusterDomain, source *model.ClusterMember, message *PeerMessage) (*clustertypes.DomainResourceCommandResult, error) {
 	resultFields := map[string]interface{}{
 		"action":    message.Action,
 		"category":  message.Category,
@@ -96,33 +105,33 @@ func (d *ClusterPeerDispatcher) Dispatch(ctx context.Context, domain *model.Clus
 	store := d.getStore()
 	state, err := store.RecordReceived(message)
 	if err != nil {
-		return err
+		return nil, err
 	}
 	if isTerminalPeerEventState(state.Status) {
 		resultFields["status"] = string(state.Status)
 		resultFields["reason"] = "already_processed"
-		return nil
+		return nil, nil
 	}
 	claimed, err := store.ClaimProcessing(state.MessageID)
 	if err != nil {
-		return err
+		return nil, err
 	}
 	if !claimed {
 		resultFields["status"] = PeerEventStatusIgnored
 		resultFields["reason"] = "already_claimed"
-		return nil
+		return nil, nil
 	}
 
 	if validTarget, reason, err := d.validateInboundRouteTarget(message); err != nil {
 		_ = store.MarkEventState(state.MessageID, PeerEventStatusFailed, err.Error())
 		resultFields["status"] = PeerEventStatusFailed
 		resultFields["error"] = err.Error()
-		return err
+		return nil, err
 	} else if !validTarget {
 		_ = store.MarkEventState(state.MessageID, PeerEventStatusIgnored, reason)
 		resultFields["status"] = PeerEventStatusIgnored
 		resultFields["reason"] = reason
-		return nil
+		return nil, nil
 	}
 
 	if message.Category == PeerCategoryEvent && message.Action == PeerActionDomainClusterChanged {
@@ -132,7 +141,7 @@ func (d *ClusterPeerDispatcher) Dispatch(ctx context.Context, domain *model.Clus
 				_ = store.MarkEventState(state.MessageID, PeerEventStatusFailed, chainErr.Error())
 				resultFields["status"] = PeerEventStatusFailed
 				resultFields["error"] = chainErr.Error()
-				return chainErr
+				return nil, chainErr
 			}
 			status := PeerEventStatusFailed
 			errorMessage := err.Error()
@@ -141,25 +150,25 @@ func (d *ClusterPeerDispatcher) Dispatch(ctx context.Context, domain *model.Clus
 				errorMessage = ""
 			}
 			if markErr := store.MarkEventState(state.MessageID, status, errorMessage); markErr != nil {
-				return markErr
+				return nil, markErr
 			}
 			resultFields["status"] = status
 			if errorMessage != "" {
 				resultFields["error"] = errorMessage
 			}
 			if forwardedNextStep {
-				return nil
+				return nil, nil
 			}
-			return err
+			return nil, err
 		}
 		if _, err := d.completeChainStep(ctx, domain, message, PeerEventStatusSucceeded, ""); err != nil {
 			_ = store.MarkEventState(state.MessageID, PeerEventStatusFailed, err.Error())
 			resultFields["status"] = PeerEventStatusFailed
 			resultFields["error"] = err.Error()
-			return err
+			return nil, err
 		}
 		resultFields["status"] = PeerEventStatusSucceeded
-		return store.MarkEventState(state.MessageID, PeerEventStatusSucceeded, "")
+		return nil, store.MarkEventState(state.MessageID, PeerEventStatusSucceeded, "")
 	}
 
 	if message.Category == PeerCategoryEvent && message.Action == PeerActionDomainPanelUpdateAvailable {
@@ -169,7 +178,7 @@ func (d *ClusterPeerDispatcher) Dispatch(ctx context.Context, domain *model.Clus
 				_ = store.MarkEventState(state.MessageID, PeerEventStatusFailed, chainErr.Error())
 				resultFields["status"] = PeerEventStatusFailed
 				resultFields["error"] = chainErr.Error()
-				return chainErr
+				return nil, chainErr
 			}
 			status := PeerEventStatusFailed
 			errorMessage := err.Error()
@@ -178,25 +187,25 @@ func (d *ClusterPeerDispatcher) Dispatch(ctx context.Context, domain *model.Clus
 				errorMessage = ""
 			}
 			if markErr := store.MarkEventState(state.MessageID, status, errorMessage); markErr != nil {
-				return markErr
+				return nil, markErr
 			}
 			resultFields["status"] = status
 			if errorMessage != "" {
 				resultFields["error"] = errorMessage
 			}
 			if forwardedNextStep {
-				return nil
+				return nil, nil
 			}
-			return err
+			return nil, err
 		}
 		if _, err := d.completeChainStep(ctx, domain, message, PeerEventStatusSucceeded, ""); err != nil {
 			_ = store.MarkEventState(state.MessageID, PeerEventStatusFailed, err.Error())
 			resultFields["status"] = PeerEventStatusFailed
 			resultFields["error"] = err.Error()
-			return err
+			return nil, err
 		}
 		resultFields["status"] = PeerEventStatusSucceeded
-		return store.MarkEventState(state.MessageID, PeerEventStatusSucceeded, "")
+		return nil, store.MarkEventState(state.MessageID, PeerEventStatusSucceeded, "")
 	}
 
 	if message.Category == PeerCategoryCommand && message.Action == PeerActionDomainPanelUpdateRequest {
@@ -206,7 +215,7 @@ func (d *ClusterPeerDispatcher) Dispatch(ctx context.Context, domain *model.Clus
 				_ = store.MarkEventState(state.MessageID, PeerEventStatusFailed, chainErr.Error())
 				resultFields["status"] = PeerEventStatusFailed
 				resultFields["error"] = chainErr.Error()
-				return chainErr
+				return nil, chainErr
 			}
 			status := PeerEventStatusFailed
 			errorMessage := err.Error()
@@ -215,25 +224,25 @@ func (d *ClusterPeerDispatcher) Dispatch(ctx context.Context, domain *model.Clus
 				errorMessage = ""
 			}
 			if markErr := store.MarkEventState(state.MessageID, status, errorMessage); markErr != nil {
-				return markErr
+				return nil, markErr
 			}
 			resultFields["status"] = status
 			if errorMessage != "" {
 				resultFields["error"] = errorMessage
 			}
 			if forwardedNextStep {
-				return nil
+				return nil, nil
 			}
-			return err
+			return nil, err
 		}
 		if _, err := d.completeChainStep(ctx, domain, message, PeerEventStatusSucceeded, ""); err != nil {
 			_ = store.MarkEventState(state.MessageID, PeerEventStatusFailed, err.Error())
 			resultFields["status"] = PeerEventStatusFailed
 			resultFields["error"] = err.Error()
-			return err
+			return nil, err
 		}
 		resultFields["status"] = PeerEventStatusSucceeded
-		return store.MarkEventState(state.MessageID, PeerEventStatusSucceeded, "")
+		return nil, store.MarkEventState(state.MessageID, PeerEventStatusSucceeded, "")
 	}
 
 	if message.Category == PeerCategoryEvent && message.Action == PeerActionDomainPanelUpdateStatus {
@@ -243,7 +252,7 @@ func (d *ClusterPeerDispatcher) Dispatch(ctx context.Context, domain *model.Clus
 				_ = store.MarkEventState(state.MessageID, PeerEventStatusFailed, chainErr.Error())
 				resultFields["status"] = PeerEventStatusFailed
 				resultFields["error"] = chainErr.Error()
-				return chainErr
+				return nil, chainErr
 			}
 			status := PeerEventStatusFailed
 			errorMessage := err.Error()
@@ -252,25 +261,25 @@ func (d *ClusterPeerDispatcher) Dispatch(ctx context.Context, domain *model.Clus
 				errorMessage = ""
 			}
 			if markErr := store.MarkEventState(state.MessageID, status, errorMessage); markErr != nil {
-				return markErr
+				return nil, markErr
 			}
 			resultFields["status"] = status
 			if errorMessage != "" {
 				resultFields["error"] = errorMessage
 			}
 			if forwardedNextStep {
-				return nil
+				return nil, nil
 			}
-			return err
+			return nil, err
 		}
 		if _, err := d.completeChainStep(ctx, domain, message, PeerEventStatusSucceeded, ""); err != nil {
 			_ = store.MarkEventState(state.MessageID, PeerEventStatusFailed, err.Error())
 			resultFields["status"] = PeerEventStatusFailed
 			resultFields["error"] = err.Error()
-			return err
+			return nil, err
 		}
 		resultFields["status"] = PeerEventStatusSucceeded
-		return store.MarkEventState(state.MessageID, PeerEventStatusSucceeded, "")
+		return nil, store.MarkEventState(state.MessageID, PeerEventStatusSucceeded, "")
 	}
 
 	if message.Category == PeerCategoryQuery && message.Action == PeerActionTaskScatter {
@@ -278,65 +287,85 @@ func (d *ClusterPeerDispatcher) Dispatch(ctx context.Context, domain *model.Clus
 			_ = store.MarkEventState(state.MessageID, PeerEventStatusFailed, err.Error())
 			resultFields["status"] = PeerEventStatusFailed
 			resultFields["error"] = err.Error()
-			return err
+			return nil, err
 		}
 		resultFields["status"] = PeerEventStatusSucceeded
-		return store.MarkEventState(state.MessageID, PeerEventStatusSucceeded, "")
+		return nil, store.MarkEventState(state.MessageID, PeerEventStatusSucceeded, "")
 	}
 
 	if message.Category == PeerCategoryCommand && message.Action == PeerActionDomainInboundCreate {
-		if err := d.handleDomainInboundCreate(ctx, domain, source, message); err != nil {
+		result, err := d.handleDomainInboundCreate(ctx, domain, source, message)
+		if err != nil {
 			_ = store.MarkEventState(state.MessageID, PeerEventStatusFailed, err.Error())
 			resultFields["status"] = PeerEventStatusFailed
 			resultFields["error"] = err.Error()
-			return err
+			return nil, err
 		}
 		resultFields["status"] = PeerEventStatusSucceeded
-		return store.MarkEventState(state.MessageID, PeerEventStatusSucceeded, "")
+		if err := store.MarkEventState(state.MessageID, PeerEventStatusSucceeded, ""); err != nil {
+			return nil, err
+		}
+		return result, nil
 	}
 
 	if message.Category == PeerCategoryCommand && message.Action == PeerActionDomainInboundUpdate {
-		if err := d.handleDomainInboundUpdate(ctx, domain, source, message); err != nil {
+		result, err := d.handleDomainInboundUpdate(ctx, domain, source, message)
+		if err != nil {
 			_ = store.MarkEventState(state.MessageID, PeerEventStatusFailed, err.Error())
 			resultFields["status"] = PeerEventStatusFailed
 			resultFields["error"] = err.Error()
-			return err
+			return nil, err
 		}
 		resultFields["status"] = PeerEventStatusSucceeded
-		return store.MarkEventState(state.MessageID, PeerEventStatusSucceeded, "")
+		if err := store.MarkEventState(state.MessageID, PeerEventStatusSucceeded, ""); err != nil {
+			return nil, err
+		}
+		return result, nil
 	}
 
 	if message.Category == PeerCategoryCommand && message.Action == PeerActionDomainInboundDelete {
-		if err := d.handleDomainInboundDelete(ctx, domain, source, message); err != nil {
+		result, err := d.handleDomainInboundDelete(ctx, domain, source, message)
+		if err != nil {
 			_ = store.MarkEventState(state.MessageID, PeerEventStatusFailed, err.Error())
 			resultFields["status"] = PeerEventStatusFailed
 			resultFields["error"] = err.Error()
-			return err
+			return nil, err
 		}
 		resultFields["status"] = PeerEventStatusSucceeded
-		return store.MarkEventState(state.MessageID, PeerEventStatusSucceeded, "")
+		if err := store.MarkEventState(state.MessageID, PeerEventStatusSucceeded, ""); err != nil {
+			return nil, err
+		}
+		return result, nil
 	}
 
 	if message.Category == PeerCategoryCommand && message.Action == PeerActionDomainUserUpsert {
-		if err := d.handleDomainUserUpsert(ctx, domain, source, message); err != nil {
+		result, err := d.handleDomainUserUpsert(ctx, domain, source, message)
+		if err != nil {
 			_ = store.MarkEventState(state.MessageID, PeerEventStatusFailed, err.Error())
 			resultFields["status"] = PeerEventStatusFailed
 			resultFields["error"] = err.Error()
-			return err
+			return nil, err
 		}
 		resultFields["status"] = PeerEventStatusSucceeded
-		return store.MarkEventState(state.MessageID, PeerEventStatusSucceeded, "")
+		if err := store.MarkEventState(state.MessageID, PeerEventStatusSucceeded, ""); err != nil {
+			return nil, err
+		}
+		return result, nil
 	}
 
 	if message.Category == PeerCategoryCommand && message.Action == PeerActionDomainUserDelete {
-		if err := d.handleDomainUserDelete(ctx, domain, source, message); err != nil {
+		result, err := d.handleDomainUserDelete(ctx, domain, source, message)
+		if err != nil {
 			_ = store.MarkEventState(state.MessageID, PeerEventStatusFailed, err.Error())
 			resultFields["status"] = PeerEventStatusFailed
 			resultFields["error"] = err.Error()
-			return err
+			return nil, err
 		}
 		resultFields["status"] = PeerEventStatusSucceeded
-		return store.MarkEventState(state.MessageID, PeerEventStatusSucceeded, "")
+		if err := store.MarkEventState(state.MessageID, PeerEventStatusSucceeded, ""); err != nil {
+			return nil, err
+		}
+		return result, nil
 	}
 
 	if message.Category == PeerCategoryCommand && message.Action == PeerActionDomainCleanup {
@@ -344,10 +373,10 @@ func (d *ClusterPeerDispatcher) Dispatch(ctx context.Context, domain *model.Clus
 			_ = store.MarkEventState(state.MessageID, PeerEventStatusFailed, err.Error())
 			resultFields["status"] = PeerEventStatusFailed
 			resultFields["error"] = err.Error()
-			return err
+			return nil, err
 		}
 		resultFields["status"] = PeerEventStatusSucceeded
-		return store.MarkEventState(state.MessageID, PeerEventStatusSucceeded, "")
+		return nil, store.MarkEventState(state.MessageID, PeerEventStatusSucceeded, "")
 	}
 
 	if message.Category == PeerCategoryEvent {
@@ -355,10 +384,10 @@ func (d *ClusterPeerDispatcher) Dispatch(ctx context.Context, domain *model.Clus
 			_ = store.MarkEventState(state.MessageID, PeerEventStatusFailed, err.Error())
 			resultFields["status"] = PeerEventStatusFailed
 			resultFields["error"] = err.Error()
-			return err
+			return nil, err
 		}
 		resultFields["status"] = PeerEventStatusUnsupported
-		return store.MarkEventState(state.MessageID, PeerEventStatusUnsupported, "")
+		return nil, store.MarkEventState(state.MessageID, PeerEventStatusUnsupported, "")
 	}
 
 	if message.Category == PeerCategoryResponse {
@@ -367,14 +396,14 @@ func (d *ClusterPeerDispatcher) Dispatch(ctx context.Context, domain *model.Clus
 				_ = store.MarkEventState(state.MessageID, PeerEventStatusFailed, err.Error())
 				resultFields["status"] = PeerEventStatusFailed
 				resultFields["error"] = err.Error()
-				return err
+				return nil, err
 			}
 			resultFields["status"] = PeerEventStatusSucceeded
-			return store.MarkEventState(state.MessageID, PeerEventStatusSucceeded, "")
+			return nil, store.MarkEventState(state.MessageID, PeerEventStatusSucceeded, "")
 		}
 		resultFields["status"] = PeerEventStatusIgnored
 		resultFields["reason"] = "response_unhandled"
-		return store.MarkEventState(state.MessageID, PeerEventStatusIgnored, "response_unhandled")
+		return nil, store.MarkEventState(state.MessageID, PeerEventStatusIgnored, "response_unhandled")
 	}
 
 	err = errors.New("unsupported_action")
@@ -383,7 +412,7 @@ func (d *ClusterPeerDispatcher) Dispatch(ctx context.Context, domain *model.Clus
 		_ = store.MarkEventState(state.MessageID, PeerEventStatusFailed, chainErr.Error())
 		resultFields["status"] = PeerEventStatusFailed
 		resultFields["error"] = chainErr.Error()
-		return chainErr
+		return nil, chainErr
 	}
 	status := PeerEventStatusFailed
 	errorMessage := err.Error()
@@ -392,16 +421,16 @@ func (d *ClusterPeerDispatcher) Dispatch(ctx context.Context, domain *model.Clus
 		errorMessage = ""
 	}
 	if markErr := store.MarkEventState(state.MessageID, status, errorMessage); markErr != nil {
-		return markErr
+		return nil, markErr
 	}
 	resultFields["status"] = status
 	if errorMessage != "" {
 		resultFields["error"] = errorMessage
 	}
 	if forwardedNextStep {
-		return nil
+		return nil, nil
 	}
-	return err
+	return nil, err
 }
 
 func (d *ClusterPeerDispatcher) handleDomainClusterChanged(ctx context.Context, domain *model.ClusterDomain, source *model.ClusterMember, message *PeerMessage) error {
@@ -649,15 +678,15 @@ func clusterPeerChainRouteStep(route RoutePlan, stepID string) (RouteStep, bool)
 	return RouteStep{}, false
 }
 
-func (d *ClusterPeerDispatcher) handleDomainInboundCreate(ctx context.Context, domain *model.ClusterDomain, source *model.ClusterMember, message *PeerMessage) error {
-	raw, err := json.Marshal(message.Payload)
+func (d *ClusterPeerDispatcher) handleDomainInboundCreate(ctx context.Context, domain *model.ClusterDomain, source *model.ClusterMember, message *PeerMessage) (*clustertypes.DomainResourceCommandResult, error) {
+	raw, err := json.Marshal(peerDomainResourcePayload(message.Payload))
 	if err != nil {
-		return err
+		return nil, err
 	}
 
 	var payload clustertypes.DomainInboundCreatePayload
 	if err := json.Unmarshal(raw, &payload); err != nil {
-		return fmt.Errorf("invalid_domain_inbound_payload: %w", err)
+		return nil, fmt.Errorf("invalid_domain_inbound_payload: %w", err)
 	}
 
 	creator := d.domainInboundCreator
@@ -669,19 +698,22 @@ func (d *ClusterPeerDispatcher) handleDomainInboundCreate(ctx context.Context, d
 	if source != nil {
 		sourceNode = source.NodeID
 	}
-	_, err = creator.ApplyDomainInboundCreate(ctx, domain, payload, sourceNode, false)
-	return err
+	applyResult, err := creator.ApplyDomainInboundCreate(ctx, domain, payload, sourceNode, false)
+	if err != nil {
+		return nil, err
+	}
+	return d.newDomainInboundCommandResult(message, source, payload.GroupID, payload.TargetMembers, applyResult.InboundID), nil
 }
 
-func (d *ClusterPeerDispatcher) handleDomainInboundUpdate(ctx context.Context, domain *model.ClusterDomain, source *model.ClusterMember, message *PeerMessage) error {
-	raw, err := json.Marshal(message.Payload)
+func (d *ClusterPeerDispatcher) handleDomainInboundUpdate(ctx context.Context, domain *model.ClusterDomain, source *model.ClusterMember, message *PeerMessage) (*clustertypes.DomainResourceCommandResult, error) {
+	raw, err := json.Marshal(peerDomainResourcePayload(message.Payload))
 	if err != nil {
-		return err
+		return nil, err
 	}
 
 	var payload clustertypes.DomainInboundUpdatePayload
 	if err := json.Unmarshal(raw, &payload); err != nil {
-		return fmt.Errorf("invalid_domain_inbound_update_payload: %w", err)
+		return nil, fmt.Errorf("invalid_domain_inbound_update_payload: %w", err)
 	}
 
 	creator := d.domainInboundCreator
@@ -693,19 +725,22 @@ func (d *ClusterPeerDispatcher) handleDomainInboundUpdate(ctx context.Context, d
 	if source != nil {
 		sourceNode = source.NodeID
 	}
-	_, err = creator.ApplyDomainInboundUpdate(ctx, domain, payload, sourceNode, false)
-	return err
+	applyResult, err := creator.ApplyDomainInboundUpdate(ctx, domain, payload, sourceNode, false)
+	if err != nil {
+		return nil, err
+	}
+	return d.newDomainInboundCommandResult(message, source, payload.GroupID, payload.TargetMembers, applyResult.InboundID), nil
 }
 
-func (d *ClusterPeerDispatcher) handleDomainInboundDelete(ctx context.Context, domain *model.ClusterDomain, source *model.ClusterMember, message *PeerMessage) error {
-	raw, err := json.Marshal(message.Payload)
+func (d *ClusterPeerDispatcher) handleDomainInboundDelete(ctx context.Context, domain *model.ClusterDomain, source *model.ClusterMember, message *PeerMessage) (*clustertypes.DomainResourceCommandResult, error) {
+	raw, err := json.Marshal(peerDomainResourcePayload(message.Payload))
 	if err != nil {
-		return err
+		return nil, err
 	}
 
 	var payload clustertypes.DomainInboundDeletePayload
 	if err := json.Unmarshal(raw, &payload); err != nil {
-		return fmt.Errorf("invalid_domain_inbound_delete_payload: %w", err)
+		return nil, fmt.Errorf("invalid_domain_inbound_delete_payload: %w", err)
 	}
 
 	creator := d.domainInboundCreator
@@ -717,18 +752,21 @@ func (d *ClusterPeerDispatcher) handleDomainInboundDelete(ctx context.Context, d
 	if source != nil {
 		sourceNode = source.NodeID
 	}
-	return creator.ApplyDomainInboundDelete(ctx, domain, payload, sourceNode, false)
+	if err := creator.ApplyDomainInboundDelete(ctx, domain, payload, sourceNode, false); err != nil {
+		return nil, err
+	}
+	return d.newDomainInboundCommandResult(message, source, payload.GroupID, payload.TargetMembers, 0), nil
 }
 
-func (d *ClusterPeerDispatcher) handleDomainUserUpsert(ctx context.Context, domain *model.ClusterDomain, source *model.ClusterMember, message *PeerMessage) error {
-	raw, err := json.Marshal(message.Payload)
+func (d *ClusterPeerDispatcher) handleDomainUserUpsert(ctx context.Context, domain *model.ClusterDomain, source *model.ClusterMember, message *PeerMessage) (*clustertypes.DomainResourceCommandResult, error) {
+	raw, err := json.Marshal(peerDomainResourcePayload(message.Payload))
 	if err != nil {
-		return err
+		return nil, err
 	}
 
 	var payload clustertypes.DomainUserUpsertPayload
 	if err := json.Unmarshal(raw, &payload); err != nil {
-		return fmt.Errorf("invalid_domain_user_payload: %w", err)
+		return nil, fmt.Errorf("invalid_domain_user_payload: %w", err)
 	}
 
 	applier := d.domainUserApplier
@@ -740,19 +778,22 @@ func (d *ClusterPeerDispatcher) handleDomainUserUpsert(ctx context.Context, doma
 	if source != nil {
 		sourceNode = source.NodeID
 	}
-	_, err = applier.ApplyDomainUserUpsert(ctx, domain, payload, sourceNode, false)
-	return err
+	applyResult, err := applier.ApplyDomainUserUpsert(ctx, domain, payload, sourceNode, false)
+	if err != nil {
+		return nil, err
+	}
+	return d.newDomainUserCommandResult(message, source, payload.User.UUID, applyResult.ClientID), nil
 }
 
-func (d *ClusterPeerDispatcher) handleDomainUserDelete(ctx context.Context, domain *model.ClusterDomain, source *model.ClusterMember, message *PeerMessage) error {
-	raw, err := json.Marshal(message.Payload)
+func (d *ClusterPeerDispatcher) handleDomainUserDelete(ctx context.Context, domain *model.ClusterDomain, source *model.ClusterMember, message *PeerMessage) (*clustertypes.DomainResourceCommandResult, error) {
+	raw, err := json.Marshal(peerDomainResourcePayload(message.Payload))
 	if err != nil {
-		return err
+		return nil, err
 	}
 
 	var payload clustertypes.DomainUserDeletePayload
 	if err := json.Unmarshal(raw, &payload); err != nil {
-		return fmt.Errorf("invalid_domain_user_delete_payload: %w", err)
+		return nil, fmt.Errorf("invalid_domain_user_delete_payload: %w", err)
 	}
 
 	applier := d.domainUserApplier
@@ -764,8 +805,11 @@ func (d *ClusterPeerDispatcher) handleDomainUserDelete(ctx context.Context, doma
 	if source != nil {
 		sourceNode = source.NodeID
 	}
-	_, err = applier.ApplyDomainUserDelete(ctx, domain, payload, sourceNode, false)
-	return err
+	applyResult, err := applier.ApplyDomainUserDelete(ctx, domain, payload, sourceNode, false)
+	if err != nil {
+		return nil, err
+	}
+	return d.newDomainUserCommandResult(message, source, payload.UUID, applyResult.ClientID), nil
 }
 
 func (d *ClusterPeerDispatcher) handleDomainCleanup(ctx context.Context, domain *model.ClusterDomain, source *model.ClusterMember, message *PeerMessage) error {
@@ -790,6 +834,105 @@ func (d *ClusterPeerDispatcher) handleDomainCleanup(ctx context.Context, domain 
 	}
 	_, err = cleaner.ApplyDomainCleanup(ctx, domain, payload, sourceNode, false)
 	return err
+}
+
+func (d *ClusterPeerDispatcher) newDomainInboundCommandResult(message *PeerMessage, source *model.ClusterMember, groupID string, targets []clustertypes.DomainInboundTarget, localResourceID uint) *clustertypes.DomainResourceCommandResult {
+	localNodeID := d.localNodeIDForResult()
+	result := d.newDomainResourceCommandResult(message, source, ClusterDomainResourceInbound, groupID)
+	result.NodeID = localNodeID
+	if target, ok := findDomainInboundTarget(targets, localNodeID); ok {
+		if target.MemberID != "" {
+			result.MemberID = target.MemberID
+		}
+		result.TargetTag = target.TargetTag
+	} else {
+		result.TargetTag = hubProvidedDomainInboundTargetTag(targets, localNodeID)
+	}
+	result.LocalResourceID = localResourceID
+	return result
+}
+
+func (d *ClusterPeerDispatcher) newDomainUserCommandResult(message *PeerMessage, source *model.ClusterMember, userUUID string, localResourceID uint) *clustertypes.DomainResourceCommandResult {
+	result := d.newDomainResourceCommandResult(message, source, ClusterDomainResourceUser, userUUID)
+	result.LocalResourceID = localResourceID
+	return result
+}
+
+func (d *ClusterPeerDispatcher) newDomainResourceCommandResult(message *PeerMessage, source *model.ClusterMember, resourceKind string, resourceID string) *clustertypes.DomainResourceCommandResult {
+	result := &clustertypes.DomainResourceCommandResult{
+		Status:       ClusterDomainOperationApplied,
+		OperationID:  peerCommandOperationID(message.Payload),
+		NodeID:       d.localNodeIDForResult(),
+		ResourceKind: resourceKind,
+		ResourceID:   resourceID,
+		Revision:     peerCommandRevision(message.Payload),
+	}
+	if source != nil {
+		result.MemberID = source.NodeID
+	}
+	return result
+}
+
+func (d *ClusterPeerDispatcher) localNodeIDForResult() string {
+	local, err := d.identity.GetOrCreate()
+	if err != nil || local == nil {
+		return ""
+	}
+	return local.NodeID
+}
+
+func peerCommandOperationID(payload map[string]interface{}) string {
+	if payload == nil {
+		return ""
+	}
+	value, _ := payload["operation_id"].(string)
+	return value
+}
+
+func peerCommandRevision(payload map[string]interface{}) int64 {
+	if payload == nil {
+		return 1
+	}
+	switch value := payload["revision"].(type) {
+	case int:
+		return int64(value)
+	case int64:
+		return value
+	case int32:
+		return int64(value)
+	case uint:
+		return int64(value)
+	case uint64:
+		return int64(value)
+	case float64:
+		return int64(value)
+	case float32:
+		return int64(value)
+	case json.Number:
+		if parsed, err := value.Int64(); err == nil {
+			return parsed
+		}
+	}
+	return 1
+}
+
+func peerDomainResourcePayload(payload map[string]interface{}) interface{} {
+	if payload == nil {
+		return nil
+	}
+	if nested, ok := payload["payload"]; ok {
+		return nested
+	}
+	return payload
+}
+
+func findDomainInboundTarget(targets []clustertypes.DomainInboundTarget, nodeID string) (clustertypes.DomainInboundTarget, bool) {
+	for _, target := range targets {
+		if target.NodeID == nodeID {
+			return target, true
+		}
+	}
+	return clustertypes.DomainInboundTarget{}, false
 }
 
 func clonePeerPayload(payload map[string]interface{}) map[string]interface{} {

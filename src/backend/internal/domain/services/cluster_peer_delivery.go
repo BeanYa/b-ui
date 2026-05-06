@@ -4,9 +4,12 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"errors"
+	"io"
 	"net/http"
 	"time"
 
+	clustertypes "github.com/BeanYa/b-ui/src/backend/internal/domain/services/cluster/types"
 	"github.com/BeanYa/b-ui/src/backend/internal/infra/db/model"
 	logger "github.com/BeanYa/b-ui/src/backend/internal/infra/logging"
 )
@@ -17,8 +20,21 @@ type ClusterPeerDeliveryService struct {
 }
 
 func (s *ClusterPeerDeliveryService) Send(ctx context.Context, message *PeerMessage, member model.ClusterMember, token string) error {
+	_, err := s.sendPeerMessage(ctx, message, member, token)
+	return err
+}
+
+func (s *ClusterPeerDeliveryService) SendWithResult(ctx context.Context, message *PeerMessage, member model.ClusterMember, token string) (*clustertypes.DomainResourceCommandResult, error) {
+	body, err := s.sendPeerMessage(ctx, message, member, token)
+	if err != nil {
+		return nil, err
+	}
+	return parseClusterPeerCommandResult(body)
+}
+
+func (s *ClusterPeerDeliveryService) sendPeerMessage(ctx context.Context, message *PeerMessage, member model.ClusterMember, token string) ([]byte, error) {
 	start := time.Now()
-	err := s.sendJSON(ctx, message, member, token)
+	body, err := s.sendJSON(ctx, message, member, token)
 	latency := logger.ClusterLatency(start)
 	domainName := ""
 	if member.Domain != nil {
@@ -47,15 +63,15 @@ func (s *ClusterPeerDeliveryService) Send(ctx context.Context, message *PeerMess
 			errorMessage = err.Error()
 		}
 		if ackErr := s.getAckAttemptSaver()(message.MessageID, member.NodeID, status, errorMessage); ackErr != nil && err == nil {
-			return ackErr
+			return nil, ackErr
 		}
 	}
-	return err
+	return body, err
 }
 
 func (s *ClusterPeerDeliveryService) SendEnvelope(ctx context.Context, envelope *ClusterEnvelope, member model.ClusterMember, token string) error {
 	start := time.Now()
-	err := s.sendJSON(ctx, envelope, member, token)
+	_, err := s.sendJSON(ctx, envelope, member, token)
 	latency := logger.ClusterLatency(start)
 	domainName := ""
 	if member.Domain != nil {
@@ -77,30 +93,30 @@ func (s *ClusterPeerDeliveryService) SendEnvelope(ctx context.Context, envelope 
 	return err
 }
 
-func (s *ClusterPeerDeliveryService) sendJSON(ctx context.Context, payload interface{}, member model.ClusterMember, token string) error {
+func (s *ClusterPeerDeliveryService) sendJSON(ctx context.Context, payload interface{}, member model.ClusterMember, token string) ([]byte, error) {
 	body, err := json.Marshal(payload)
 	if err != nil {
-		return err
+		return nil, err
 	}
 	messageURL, err := clusterPeerMessageURL(member.BaseURL)
 	if err != nil {
-		return err
+		return nil, err
 	}
 	request, err := http.NewRequestWithContext(ctx, http.MethodPost, messageURL, bytes.NewReader(body))
 	if err != nil {
-		return err
+		return nil, err
 	}
 	request.Header.Set("Content-Type", "application/json")
 	request.Header.Set("X-Cluster-Token", token)
 	response, err := s.httpClient().Do(request)
 	if err != nil {
-		return err
+		return nil, err
 	}
 	defer response.Body.Close()
 	if err := requireHTTPSuccess(response, "cluster peer notify"); err != nil {
-		return err
+		return nil, err
 	}
-	return requireClusterPeerSuccess(response)
+	return readValidClusterPeerResponseBody(response)
 }
 
 func (s *ClusterPeerDeliveryService) httpClient() *http.Client {
@@ -190,4 +206,36 @@ func containsClusterNodeID(nodeIDs []string, nodeID string) bool {
 		}
 	}
 	return false
+}
+
+func readValidClusterPeerResponseBody(response *http.Response) ([]byte, error) {
+	body, err := io.ReadAll(response.Body)
+	if err != nil {
+		return nil, err
+	}
+	if _, err := parseClusterPeerCommandResult(body); err != nil {
+		return nil, err
+	}
+	return body, nil
+}
+
+func parseClusterPeerCommandResult(body []byte) (*clustertypes.DomainResourceCommandResult, error) {
+	if len(bytes.TrimSpace(body)) == 0 {
+		return nil, nil
+	}
+	var payload struct {
+		Success bool                                      `json:"success"`
+		Msg     string                                    `json:"msg"`
+		Result  *clustertypes.DomainResourceCommandResult `json:"result"`
+	}
+	if err := json.Unmarshal(body, &payload); err != nil {
+		return nil, errors.New("invalid cluster peer response")
+	}
+	if !payload.Success {
+		if payload.Msg == "" {
+			return nil, errors.New("cluster peer notify failed")
+		}
+		return nil, errors.New(payload.Msg)
+	}
+	return payload.Result, nil
 }

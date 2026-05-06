@@ -80,7 +80,7 @@
           <v-card-actions class="app-card-actions">
           <v-btn icon="mdi-file-edit" :disabled="isClusterManaged(item)" @click="showModal(item.id)">
             <v-icon />
-            <v-tooltip activator="parent" location="top" :text="isClusterManaged(item) ? 'Hub-managed domain TLS is read-only' : $t('actions.edit')"></v-tooltip>
+            <v-tooltip activator="parent" location="top" :text="isClusterManaged(item) ? 'Domain-managed TLS is read-only' : $t('actions.edit')"></v-tooltip>
           </v-btn>
           <v-btn v-if="tlsInbounds(item.id).length == 0 && !isClusterManaged(item)" icon="mdi-file-remove" color="warning" @click="delOverlay[index] = true">
             <v-icon />
@@ -102,7 +102,7 @@
           </v-overlay>
           <v-btn icon="mdi-content-duplicate" :disabled="isClusterManaged(item)" @click="clone(item)">
             <v-icon />
-            <v-tooltip activator="parent" location="top" :text="isClusterManaged(item) ? 'Hub-managed domain TLS is read-only' : $t('actions.clone')"></v-tooltip>
+            <v-tooltip activator="parent" location="top" :text="isClusterManaged(item) ? 'Domain-managed TLS is read-only' : $t('actions.clone')"></v-tooltip>
           </v-btn>
           </v-card-actions>
         </v-card>

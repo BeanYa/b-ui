@@ -25,6 +25,7 @@ type clusterHubClient interface {
 	SetMemberStatus(context.Context, string, string, string, string, string, string, string) (*ClusterHubMemberStatusResponse, error)
 	ReportProxyConfigs(ctx context.Context, hubURL string, domain string, body ClusterHubReportProxyConfigsRequest) error
 	ReportDomainReport(ctx context.Context, hubURL string, domain string, report ClusterHubReportRequest) error
+	ReportDomainResourceState(ctx context.Context, hubURL string, domain string, token string, body ClusterHubResourceStateReportRequest) error
 }
 
 type ClusterHubRegisterNodeRequest struct {
@@ -113,6 +114,14 @@ type ClusterHubReportRequest struct {
 	ReportType  string `json:"report_type"`
 	GeneratedAt string `json:"generated_at"`
 	Data        any    `json:"data"`
+}
+
+type ClusterHubResourceStateReportRequest struct {
+	ReportID         string                         `json:"report_id"`
+	OperationID      string                         `json:"operation_id"`
+	ReportedByNodeID string                         `json:"reported_by_node_id"`
+	Resources        ClusterHubDomainResources      `json:"resources"`
+	OperationSummary ClusterHubDomainOperationState `json:"operation_summary"`
 }
 
 type ClusterHubCommunicationResponse struct {
@@ -443,6 +452,38 @@ func (c *ClusterHubClient) ReportDomainReport(ctx context.Context, hubURL string
 		return err
 	}
 	c.logHubCall("report_domain", domain, start, nil)
+	return nil
+}
+
+func (c *ClusterHubClient) ReportDomainResourceState(ctx context.Context, hubURL string, domain string, token string, body ClusterHubResourceStateReportRequest) error {
+	start := time.Now()
+	if err := validateClusterHubURL(hubURL); err != nil {
+		c.logHubCall("report_domain_resource_state", domain, start, err)
+		return err
+	}
+	payload, err := json.Marshal(body)
+	if err != nil {
+		c.logHubCall("report_domain_resource_state", domain, start, err)
+		return err
+	}
+	request, err := http.NewRequestWithContext(ctx, http.MethodPut, strings.TrimRight(hubURL, "/")+"/v1/domains/"+url.PathEscape(domain)+"/resource-state", bytes.NewReader(payload))
+	if err != nil {
+		c.logHubCall("report_domain_resource_state", domain, start, err)
+		return err
+	}
+	request.Header.Set("Content-Type", "application/json")
+	request.Header.Set("X-Domain-Token", token)
+	response, err := c.httpClient().Do(request)
+	if err != nil {
+		c.logHubCall("report_domain_resource_state", domain, start, err)
+		return err
+	}
+	defer response.Body.Close()
+	if err := requireHTTPSuccess(response, "hub report domain resource state"); err != nil {
+		c.logHubCall("report_domain_resource_state", domain, start, err)
+		return err
+	}
+	c.logHubCall("report_domain_resource_state", domain, start, nil)
 	return nil
 }
 

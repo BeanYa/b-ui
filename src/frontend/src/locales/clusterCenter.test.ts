@@ -29,6 +29,14 @@ describe('cluster center locale copy', () => {
     ] as const
     const requiredFieldKeys = ['joinUri', 'localBaseUrl'] as const
     const requiredActionKeys = ['manage', 'pingAll', 'confirmRegister', 'confirmDelete'] as const
+    const requiredDomainResourceKeys = [
+      'title',
+      'domainManaged',
+      'createInbound',
+      'createUser',
+      'retry',
+      'noOperation',
+    ] as const
 
     for (const messages of locales) {
       for (const key of requiredKeys) {
@@ -46,6 +54,16 @@ describe('cluster center locale copy', () => {
       expect(messages.clusterCenter.validation.displayName).toBeTruthy()
       expect(messages.clusterCenter.validation.invalidJoinUri).toBeTruthy()
       expect(messages.clusterCenter.joinUriHint).toBeTruthy()
+      const domainResources = (messages.clusterCenter as {
+        domainResources?: Record<(typeof requiredDomainResourceKeys)[number], string>
+      }).domainResources
+      if (messages === en) {
+        for (const key of requiredDomainResourceKeys) {
+          expect(domainResources?.[key]).toBeTruthy()
+          expect(domainResources?.[key]).not.toBe(`clusterCenter.domainResources.${key}`)
+        }
+      }
+      expect(domainResources?.domainManaged ?? 'Domain-managed resources').not.toMatch(/Hub-managed|Hub managed/)
     }
   })
 

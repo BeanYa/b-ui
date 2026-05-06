@@ -147,6 +147,10 @@ func (c *capturingClusterHubClient) ReportDomainReport(context.Context, string, 
 	return nil
 }
 
+func (c *capturingClusterHubClient) ReportDomainResourceState(context.Context, string, string, string, ClusterHubResourceStateReportRequest) error {
+	return nil
+}
+
 type stubClusterDomainProvider struct {
 	domains []clusterDomainInfo
 }

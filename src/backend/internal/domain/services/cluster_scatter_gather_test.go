@@ -443,6 +443,9 @@ func (s *stubHubClient) ReportProxyConfigs(_ context.Context, _ string, _ string
 func (s *stubHubClient) ReportDomainReport(_ context.Context, _ string, _ string, _ ClusterHubReportRequest) error {
 	return nil
 }
+func (s *stubHubClient) ReportDomainResourceState(_ context.Context, _ string, _ string, _ string, _ ClusterHubResourceStateReportRequest) error {
+	return nil
+}
 
 var _ clusterSecretProvider = (*stubSecretProvider)(nil)
 var _ clusterHubClient = (*stubHubClient)(nil)

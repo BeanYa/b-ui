@@ -2,6 +2,7 @@ package api
 
 import (
 	"bytes"
+	"context"
 	"encoding/json"
 	"errors"
 	"net/http"
@@ -140,6 +141,111 @@ func TestClusterMemberPanelUpdateRoute(t *testing.T) {
 	}
 	if cluster.memberPanelUpdateCalls != 1 || cluster.updatedMemberID != 8 || cluster.updatedTargetVersion != "v999.0.0" {
 		t.Fatalf("expected panel update for member 8, got calls=%d id=%d target=%q", cluster.memberPanelUpdateCalls, cluster.updatedMemberID, cluster.updatedTargetVersion)
+	}
+}
+
+func TestClusterDomainInboundCreateRouteUsesDomainResourceCoordinator(t *testing.T) {
+	router, cluster := newTestClusterRouter()
+	req := httptest.NewRequest(http.MethodPost, "/api/cluster/domains/7/resources/inbounds", bytes.NewBufferString(`{"group_id":"group-1","inbound":{"tag":"main"}}`))
+	req.Header.Set("Content-Type", "application/json")
+	req.Header.Set("Cookie", loginCookie(t, router, "admin"))
+	recorder := httptest.NewRecorder()
+
+	router.ServeHTTP(recorder, req)
+
+	if recorder.Code != http.StatusOK {
+		t.Fatalf("expected status %d, got %d: %s", http.StatusOK, recorder.Code, recorder.Body.String())
+	}
+	if cluster.createdDomainInboundID != 7 {
+		t.Fatalf("expected domain id 7, got %d", cluster.createdDomainInboundID)
+	}
+	if cluster.createdDomainInboundInput.GroupID != "group-1" {
+		t.Fatalf("expected group id to be forwarded, got %#v", cluster.createdDomainInboundInput)
+	}
+	if cluster.createdDomainInboundInput.Inbound["tag"] != "main" {
+		t.Fatalf("expected inbound payload to be forwarded, got %#v", cluster.createdDomainInboundInput.Inbound)
+	}
+}
+
+func TestClusterDomainUserCreateRouteUsesDomainResourceCoordinator(t *testing.T) {
+	router, cluster := newTestClusterRouter()
+	req := httptest.NewRequest(http.MethodPost, "/api/cluster/domains/7/resources/users", bytes.NewBufferString(`{"user":{"uuid":"user-1","name":"Alice","enable":true,"config":{"level":1}},"inbounds":["group-1"]}`))
+	req.Header.Set("Content-Type", "application/json")
+	req.Header.Set("Cookie", loginCookie(t, router, "admin"))
+	recorder := httptest.NewRecorder()
+
+	router.ServeHTTP(recorder, req)
+
+	if recorder.Code != http.StatusOK {
+		t.Fatalf("expected status %d, got %d: %s", http.StatusOK, recorder.Code, recorder.Body.String())
+	}
+	if cluster.createdDomainUserID != 7 {
+		t.Fatalf("expected domain id 7, got %d", cluster.createdDomainUserID)
+	}
+	if cluster.createdDomainUserInput.User.UUID != "user-1" || cluster.createdDomainUserInput.User.Name != "Alice" || !cluster.createdDomainUserInput.User.Enable {
+		t.Fatalf("expected user payload to be forwarded, got %#v", cluster.createdDomainUserInput.User)
+	}
+	if string(cluster.createdDomainUserInput.User.Config) != `{"level":1}` {
+		t.Fatalf("expected user config to be forwarded, got %s", cluster.createdDomainUserInput.User.Config)
+	}
+	if len(cluster.createdDomainUserInput.Inbounds) != 1 || cluster.createdDomainUserInput.Inbounds[0] != "group-1" {
+		t.Fatalf("expected inbound selectors to be forwarded, got %#v", cluster.createdDomainUserInput.Inbounds)
+	}
+}
+
+func TestClusterDomainResourceCrudRoutesUseCoordinator(t *testing.T) {
+	router, cluster := newTestClusterRouter()
+	cookie := loginCookie(t, router, "admin")
+
+	requests := []struct {
+		method string
+		path   string
+		body   string
+	}{
+		{http.MethodPut, "/api/cluster/domains/7/resources/inbounds/group-1", `{"inbound":{"tag":"updated"}}`},
+		{http.MethodDelete, "/api/cluster/domains/7/resources/inbounds/group-1", `{}`},
+		{http.MethodPut, "/api/cluster/domains/7/resources/users/user-1", `{"user":{"name":"Alice Updated","enable":true,"config":{"level":2}},"inbounds":["group-1"]}`},
+		{http.MethodDelete, "/api/cluster/domains/7/resources/users/user-1", `{}`},
+	}
+	for _, item := range requests {
+		req := httptest.NewRequest(item.method, item.path, bytes.NewBufferString(item.body))
+		req.Header.Set("Content-Type", "application/json")
+		req.Header.Set("Cookie", cookie)
+		recorder := httptest.NewRecorder()
+		router.ServeHTTP(recorder, req)
+		if recorder.Code != http.StatusOK {
+			t.Fatalf("%s %s expected status %d, got %d: %s", item.method, item.path, http.StatusOK, recorder.Code, recorder.Body.String())
+		}
+	}
+
+	if cluster.updatedDomainInboundID != 7 || cluster.updatedDomainInboundGroupID != "group-1" || cluster.updatedDomainInboundInput.Inbound["tag"] != "updated" {
+		t.Fatalf("expected inbound update to be forwarded, got id=%d group=%q input=%#v", cluster.updatedDomainInboundID, cluster.updatedDomainInboundGroupID, cluster.updatedDomainInboundInput)
+	}
+	if cluster.deletedDomainInboundID != 7 || cluster.deletedDomainInboundGroupID != "group-1" {
+		t.Fatalf("expected inbound delete to be forwarded, got id=%d group=%q", cluster.deletedDomainInboundID, cluster.deletedDomainInboundGroupID)
+	}
+	if cluster.updatedDomainUserID != 7 || cluster.updatedDomainUserUUID != "user-1" || cluster.updatedDomainUserInput.User.Name != "Alice Updated" {
+		t.Fatalf("expected user update to be forwarded, got id=%d uuid=%q input=%#v", cluster.updatedDomainUserID, cluster.updatedDomainUserUUID, cluster.updatedDomainUserInput)
+	}
+	if cluster.deletedDomainUserID != 7 || cluster.deletedDomainUserUUID != "user-1" {
+		t.Fatalf("expected user delete to be forwarded, got id=%d uuid=%q", cluster.deletedDomainUserID, cluster.deletedDomainUserUUID)
+	}
+}
+
+func TestClusterDomainOperationRetryRouteUsesCoordinator(t *testing.T) {
+	router, cluster := newTestClusterRouter()
+	req := httptest.NewRequest(http.MethodPost, "/api/cluster/domain-operations/op-1/retry", bytes.NewBufferString(`{}`))
+	req.Header.Set("Content-Type", "application/json")
+	req.Header.Set("Cookie", loginCookie(t, router, "admin"))
+	recorder := httptest.NewRecorder()
+
+	router.ServeHTTP(recorder, req)
+
+	if recorder.Code != http.StatusOK {
+		t.Fatalf("expected status %d, got %d: %s", http.StatusOK, recorder.Code, recorder.Body.String())
+	}
+	if cluster.retriedDomainOperationID != "op-1" {
+		t.Fatalf("expected operation id op-1, got %q", cluster.retriedDomainOperationID)
 	}
 }
 
@@ -445,6 +551,60 @@ func TestClusterMessageRouteAcceptsDomainInboundDeleteBroadcast(t *testing.T) {
 	}
 }
 
+func TestClusterMessageRouteReturnsPeerCommandResultEnvelope(t *testing.T) {
+	router, cluster := newTestClusterRouter()
+	cluster.receivedPeerResult = &clustertypes.DomainResourceCommandResult{
+		Status:          "applied",
+		OperationID:     "op-1",
+		NodeID:          "node-local",
+		MemberID:        "node-a",
+		ResourceKind:    "domain_inbound",
+		ResourceID:      "group-1",
+		LocalResourceID: 99,
+		TargetTag:       "main-node-local",
+		Revision:        7,
+	}
+	body := bytes.NewBufferString(`{
+			"messageId":"msg-domain-inbound-create",
+			"domainId":"edge.example.com",
+			"membershipVersion":3,
+			"sourceNodeId":"node-a",
+			"sourceSeq":1,
+			"category":"command",
+			"action":"domain.inbound.create",
+			"protocolVersion":"v1",
+			"schemaVersion":1,
+			"route":{"mode":"broadcast"},
+			"payloadHash":"hash",
+			"payload":{"request_id":"req-create","domain_id":"edge.example.com","group_id":"group-1"},
+			"signature":"sig"
+		}`)
+	req := httptest.NewRequest(http.MethodPost, "/_cluster/v1/events", body)
+	req.Header.Set("Content-Type", "application/json")
+	req.Header.Set("X-Cluster-Token", "peer-token")
+	recorder := httptest.NewRecorder()
+
+	router.ServeHTTP(recorder, req)
+
+	if recorder.Code != http.StatusOK {
+		t.Fatalf("expected status %d, got %d: %s", http.StatusOK, recorder.Code, recorder.Body.String())
+	}
+	var response struct {
+		Success bool                                      `json:"success"`
+		Msg     string                                    `json:"msg"`
+		Result  *clustertypes.DomainResourceCommandResult `json:"result"`
+	}
+	if err := json.Unmarshal(recorder.Body.Bytes(), &response); err != nil {
+		t.Fatalf("decode response: %v", err)
+	}
+	if !response.Success || response.Msg != "cluster message received" {
+		t.Fatalf("expected cluster success response, got %#v", response)
+	}
+	if response.Result == nil || *response.Result != *cluster.receivedPeerResult {
+		t.Fatalf("expected peer result %#v, got %#v", cluster.receivedPeerResult, response.Result)
+	}
+}
+
 func TestClusterMessageRouteRejectsOversizedBody(t *testing.T) {
 	router, cluster := newTestClusterRouter()
 	body := bytes.NewBufferString(`{
@@ -592,41 +752,57 @@ func newTestClusterRouterWithUserService(userService apiUserService) (*gin.Engin
 }
 
 type stubClusterAPIService struct {
-	registerCalls          int
-	listDomainsCalls       int
-	listMembersCalls       int
-	manualSyncCalls        int
-	checkUpdateCalls       int
-	memberPanelUpdateCalls int
-	receiveCalls           int
-	deletedMemberID        uint
-	leftDomainID           uint
-	checkedDomainID        uint
-	updatedMemberID        uint
-	updatedTargetVersion   string
-	receivedToken          string
-	receivedEnvelope       *service.ClusterEnvelope
-	receivedPeerMessage    *service.PeerMessage
-	receiveErr             error
-	domains                []service.ClusterDomainResponse
-	members                []service.ClusterMemberResponse
-	registeredRequest      service.ClusterRegisterRequest
-	heartbeatResponse      *service.ClusterPeerStatus
-	pingResponse           *service.ClusterPeerStatus
-	memberConnection       *service.ClusterMemberConnectionResponse
-	memberConnectionNodeID string
-	memberInfo             *clustertypes.InfoResponse
-	memberInfoNodeID       string
-	memberAction           *clustertypes.ActionResponse
-	memberActionNodeID     string
-	memberActionRequest    clustertypes.ActionRequest
-	scatterTasks           []service.TaskSummary
-	scatterTaskResult      *service.TaskResultDetail
-	scatterDomainID        string
-	scatterTaskID          string
-	scatterTaskType        string
-	scatterTaskScope       string
-	scatterTaskParams      map[string]any
+	registerCalls               int
+	listDomainsCalls            int
+	listMembersCalls            int
+	manualSyncCalls             int
+	checkUpdateCalls            int
+	memberPanelUpdateCalls      int
+	receiveCalls                int
+	deletedMemberID             uint
+	leftDomainID                uint
+	checkedDomainID             uint
+	updatedMemberID             uint
+	updatedTargetVersion        string
+	receivedToken               string
+	receivedEnvelope            *service.ClusterEnvelope
+	receivedPeerMessage         *service.PeerMessage
+	receivedPeerResult          *clustertypes.DomainResourceCommandResult
+	receiveErr                  error
+	domains                     []service.ClusterDomainResponse
+	members                     []service.ClusterMemberResponse
+	registeredRequest           service.ClusterRegisterRequest
+	heartbeatResponse           *service.ClusterPeerStatus
+	pingResponse                *service.ClusterPeerStatus
+	memberConnection            *service.ClusterMemberConnectionResponse
+	memberConnectionNodeID      string
+	memberInfo                  *clustertypes.InfoResponse
+	memberInfoNodeID            string
+	memberAction                *clustertypes.ActionResponse
+	memberActionNodeID          string
+	memberActionRequest         clustertypes.ActionRequest
+	createdDomainInboundID      uint
+	createdDomainInboundInput   service.ClusterDomainInboundCommandInput
+	updatedDomainInboundID      uint
+	updatedDomainInboundGroupID string
+	updatedDomainInboundInput   service.ClusterDomainInboundCommandInput
+	deletedDomainInboundID      uint
+	deletedDomainInboundGroupID string
+	createdDomainUserID         uint
+	createdDomainUserInput      service.ClusterDomainUserCommandInput
+	updatedDomainUserID         uint
+	updatedDomainUserUUID       string
+	updatedDomainUserInput      service.ClusterDomainUserCommandInput
+	deletedDomainUserID         uint
+	deletedDomainUserUUID       string
+	retriedDomainOperationID    string
+	scatterTasks                []service.TaskSummary
+	scatterTaskResult           *service.TaskResultDetail
+	scatterDomainID             string
+	scatterTaskID               string
+	scatterTaskType             string
+	scatterTaskScope            string
+	scatterTaskParams           map[string]any
 }
 
 func (s *stubClusterAPIService) Register(request service.ClusterRegisterRequest) (*service.ClusterOperationStatus, error) {
@@ -703,6 +879,94 @@ func (s *stubClusterAPIService) RequestMemberPanelUpdate(id uint, targetVersion 
 	}, nil
 }
 
+func (s *stubClusterAPIService) CreateDomainInboundResource(_ context.Context, domainID uint, input service.ClusterDomainInboundCommandInput) (*service.ClusterDomainOperationView, error) {
+	s.createdDomainInboundID = domainID
+	s.createdDomainInboundInput = input
+	return &service.ClusterDomainOperationView{
+		OperationID:  "op-domain-inbound",
+		DomainID:     domainID,
+		ResourceKind: service.ClusterDomainResourceInbound,
+		ResourceID:   input.GroupID,
+		Action:       service.ClusterDomainOperationCreate,
+		Status:       service.ClusterDomainOperationApplied,
+	}, nil
+}
+
+func (s *stubClusterAPIService) UpdateDomainInboundResource(_ context.Context, domainID uint, groupID string, input service.ClusterDomainInboundCommandInput) (*service.ClusterDomainOperationView, error) {
+	s.updatedDomainInboundID = domainID
+	s.updatedDomainInboundGroupID = groupID
+	s.updatedDomainInboundInput = input
+	return &service.ClusterDomainOperationView{
+		OperationID:  "op-domain-inbound-update",
+		DomainID:     domainID,
+		ResourceKind: service.ClusterDomainResourceInbound,
+		ResourceID:   groupID,
+		Action:       service.ClusterDomainOperationUpdate,
+		Status:       service.ClusterDomainOperationApplied,
+	}, nil
+}
+
+func (s *stubClusterAPIService) DeleteDomainInboundResource(_ context.Context, domainID uint, groupID string) (*service.ClusterDomainOperationView, error) {
+	s.deletedDomainInboundID = domainID
+	s.deletedDomainInboundGroupID = groupID
+	return &service.ClusterDomainOperationView{
+		OperationID:  "op-domain-inbound-delete",
+		DomainID:     domainID,
+		ResourceKind: service.ClusterDomainResourceInbound,
+		ResourceID:   groupID,
+		Action:       service.ClusterDomainOperationDelete,
+		Status:       service.ClusterDomainOperationApplied,
+	}, nil
+}
+
+func (s *stubClusterAPIService) CreateDomainUserResource(_ context.Context, domainID uint, input service.ClusterDomainUserCommandInput) (*service.ClusterDomainOperationView, error) {
+	s.createdDomainUserID = domainID
+	s.createdDomainUserInput = input
+	return &service.ClusterDomainOperationView{
+		OperationID:  "op-domain-user",
+		DomainID:     domainID,
+		ResourceKind: service.ClusterDomainResourceUser,
+		ResourceID:   input.User.UUID,
+		Action:       service.ClusterDomainOperationCreate,
+		Status:       service.ClusterDomainOperationApplied,
+	}, nil
+}
+
+func (s *stubClusterAPIService) UpdateDomainUserResource(_ context.Context, domainID uint, userUUID string, input service.ClusterDomainUserCommandInput) (*service.ClusterDomainOperationView, error) {
+	s.updatedDomainUserID = domainID
+	s.updatedDomainUserUUID = userUUID
+	s.updatedDomainUserInput = input
+	return &service.ClusterDomainOperationView{
+		OperationID:  "op-domain-user-update",
+		DomainID:     domainID,
+		ResourceKind: service.ClusterDomainResourceUser,
+		ResourceID:   userUUID,
+		Action:       service.ClusterDomainOperationUpdate,
+		Status:       service.ClusterDomainOperationApplied,
+	}, nil
+}
+
+func (s *stubClusterAPIService) DeleteDomainUserResource(_ context.Context, domainID uint, userUUID string) (*service.ClusterDomainOperationView, error) {
+	s.deletedDomainUserID = domainID
+	s.deletedDomainUserUUID = userUUID
+	return &service.ClusterDomainOperationView{
+		OperationID:  "op-domain-user-delete",
+		DomainID:     domainID,
+		ResourceKind: service.ClusterDomainResourceUser,
+		ResourceID:   userUUID,
+		Action:       service.ClusterDomainOperationDelete,
+		Status:       service.ClusterDomainOperationApplied,
+	}, nil
+}
+
+func (s *stubClusterAPIService) RetryDomainOperation(_ context.Context, operationID string) (*service.ClusterDomainOperationView, error) {
+	s.retriedDomainOperationID = operationID
+	return &service.ClusterDomainOperationView{
+		OperationID: operationID,
+		Status:      service.ClusterDomainOperationApplied,
+	}, nil
+}
+
 func (s *stubClusterAPIService) DeleteMember(id uint) error {
 	s.deletedMemberID = id
 	return nil
@@ -732,6 +996,13 @@ func (s *stubClusterAPIService) ReceivePeerMessage(message *service.PeerMessage,
 	copy := *message
 	s.receivedPeerMessage = &copy
 	return nil
+}
+
+func (s *stubClusterAPIService) ReceivePeerMessageWithResult(message *service.PeerMessage, token string) (*clustertypes.DomainResourceCommandResult, error) {
+	if err := s.ReceivePeerMessage(message, token); err != nil {
+		return nil, err
+	}
+	return s.receivedPeerResult, nil
 }
 
 func (s *stubClusterAPIService) Heartbeat(remoteNodeID string, token string) (*service.ClusterPeerStatus, error) {
