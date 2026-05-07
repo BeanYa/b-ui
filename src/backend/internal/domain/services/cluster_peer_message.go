@@ -122,7 +122,11 @@ func NewClusterPeerMessage(domain string, membershipVersion int64, sourceNodeID 
 }
 
 func ClusterPeerPayloadHash(payload map[string]interface{}) (string, error) {
-	canonical, err := json.Marshal(payload)
+	normalized, err := normalizeClusterPeerPayload(payload)
+	if err != nil {
+		return "", err
+	}
+	canonical, err := json.Marshal(normalized)
 	if err != nil {
 		return "", err
 	}
@@ -193,5 +197,25 @@ func VerifyClusterPeerMessage(message *PeerMessage, publicKey string, now int64)
 func clusterPeerSigningPayload(message *PeerMessage) ([]byte, error) {
 	unsigned := *message
 	unsigned.Signature = ""
+	normalized, err := normalizeClusterPeerPayload(unsigned.Payload)
+	if err != nil {
+		return nil, err
+	}
+	unsigned.Payload = normalized
 	return json.Marshal(unsigned)
+}
+
+func normalizeClusterPeerPayload(payload map[string]interface{}) (map[string]interface{}, error) {
+	if payload == nil {
+		return nil, nil
+	}
+	canonical, err := json.Marshal(payload)
+	if err != nil {
+		return nil, err
+	}
+	var normalized map[string]interface{}
+	if err := json.Unmarshal(canonical, &normalized); err != nil {
+		return nil, err
+	}
+	return normalized, nil
 }

@@ -56,6 +56,66 @@ func TestSignAndVerifyPeerMessage(t *testing.T) {
 	}
 }
 
+func TestVerifyPeerMessageSurvivesJSONRoundTripWithTypedPayloadValues(t *testing.T) {
+	publicKey, privateKey, err := ed25519.GenerateKey(nil)
+	if err != nil {
+		t.Fatalf("generate key: %v", err)
+	}
+	local := &model.ClusterLocalNode{
+		NodeID:     "node-a",
+		PublicKey:  base64.StdEncoding.EncodeToString(publicKey),
+		PrivateKey: base64.StdEncoding.EncodeToString(privateKey),
+	}
+	message, err := NewClusterPeerMessage("edge.example.com", 7, "node-a", 7, PeerCategoryCommand, PeerActionDomainInboundCreate, map[string]any{
+		"operation_id":        "domain-inbound-op-1",
+		"request_id":          "domain-inbound-op-1",
+		"domain_id":           "edge.example.com",
+		"resource_kind":       ClusterDomainResourceInbound,
+		"resource_id":         "group-1",
+		"revision":            int64(7),
+		"coordinator_node_id": "node-a",
+		"target_members": []struct {
+			MemberID        string `json:"member_id"`
+			NodeID          string `json:"node_id"`
+			DisplayName     string `json:"display_name"`
+			RemoteInboundID uint   `json:"remote_inbound_id,omitempty"`
+		}{{
+			MemberID:    "member-b",
+			NodeID:      "node-b",
+			DisplayName: "Node B",
+		}},
+		"payload": map[string]any{
+			"request_id": "domain-inbound-op-1",
+			"domain_id":  "edge.example.com",
+			"group_id":   "group-1",
+			"inbound": map[string]any{
+				"type": "vless",
+				"tag":  "main",
+				"port": float64(443),
+			},
+		},
+	})
+	if err != nil {
+		t.Fatalf("new message: %v", err)
+	}
+	message.Route = RoutePlan{Mode: RouteModeDirect, Targets: []string{"node-b"}}
+	if err := SignClusterPeerMessage(local, message); err != nil {
+		t.Fatalf("sign: %v", err)
+	}
+
+	body, err := json.Marshal(message)
+	if err != nil {
+		t.Fatalf("marshal message: %v", err)
+	}
+	var received PeerMessage
+	if err := json.Unmarshal(body, &received); err != nil {
+		t.Fatalf("unmarshal message: %v", err)
+	}
+	if err := VerifyClusterPeerMessage(&received, local.PublicKey, time.Now().Unix()); err != nil {
+		t.Fatalf("verify after JSON round trip: %v", err)
+	}
+}
+
 func TestVerifyPeerMessageRejectsExpiredMessage(t *testing.T) {
 	publicKey, privateKey, err := ed25519.GenerateKey(nil)
 	if err != nil {
