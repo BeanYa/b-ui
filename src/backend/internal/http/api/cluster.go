@@ -422,7 +422,7 @@ func RegisterClusterMessageRoute(router gin.IRoutes, clusterService clusterAPISe
 				"remote_ip": remoteIP,
 				"error":     err.Error(),
 			})
-			c.JSON(http.StatusUnauthorized, Msg{Success: false, Msg: clusterMessage(err)})
+			c.JSON(http.StatusOK, gin.H{"status": "rejected", "code": "request_rejected", "message": clusterMessage(err)})
 			return
 		}
 		if result != nil {
@@ -445,7 +445,7 @@ func RegisterClusterMessageRoute(router gin.IRoutes, clusterService clusterAPISe
 				"remote_ip":      remoteIP,
 				"error":          err.Error(),
 			})
-			c.JSON(http.StatusInternalServerError, gin.H{"status": "failed", "code": "internal_error", "message": err.Error()})
+			c.JSON(http.StatusOK, gin.H{"status": "failed", "code": "internal_error", "message": err.Error()})
 			return
 		}
 		logger.ClusterDebug(logger.ClusterInbound, "heartbeat", map[string]interface{}{
@@ -465,7 +465,7 @@ func RegisterClusterMessageRoute(router gin.IRoutes, clusterService clusterAPISe
 				"remote_ip":      remoteIP,
 				"error":          err.Error(),
 			})
-			c.JSON(http.StatusInternalServerError, gin.H{"status": "failed", "code": "internal_error", "message": err.Error()})
+			c.JSON(http.StatusOK, gin.H{"status": "failed", "code": "internal_error", "message": err.Error()})
 			return
 		}
 		logger.ClusterDebug(logger.ClusterInbound, "ping", map[string]interface{}{

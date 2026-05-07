@@ -661,7 +661,7 @@ func TestClusterMessageReceiveReturnsNon200OnBindFailure(t *testing.T) {
 	}
 }
 
-func TestClusterMessageReceiveReturnsNon200OnServiceFailure(t *testing.T) {
+func TestClusterMessageReceiveReturnsProtocolBodyOnServiceFailure(t *testing.T) {
 	router, cluster := newTestClusterRouter()
 	cluster.receiveErr = errors.New("verification failed")
 	body, err := json.Marshal(service.ClusterEnvelope{SchemaVersion: 1, MessageType: "sync.notify_version", SourceNodeID: "node-a", Domain: "edge.example.com", Version: 9, SentAt: 1700000000, Signature: "sig"})
@@ -675,8 +675,53 @@ func TestClusterMessageReceiveReturnsNon200OnServiceFailure(t *testing.T) {
 
 	router.ServeHTTP(recorder, req)
 
-	if recorder.Code == http.StatusOK {
-		t.Fatalf("expected non-200 status for service failure, got %d", recorder.Code)
+	if recorder.Code != http.StatusOK {
+		t.Fatalf("expected status %d for protocol service failure, got %d: %s", http.StatusOK, recorder.Code, recorder.Body.String())
+	}
+	var response struct {
+		Status  string `json:"status"`
+		Code    string `json:"code"`
+		Message string `json:"message"`
+	}
+	decodeResponse(t, recorder, &response)
+	if response.Status != "rejected" || response.Code != "request_rejected" || response.Message != "cluster message: verification failed" {
+		t.Fatalf("expected protocol rejection body, got %#v", response)
+	}
+}
+
+func TestClusterHeartbeatReturnsProtocolBodyOnServiceFailure(t *testing.T) {
+	router, cluster := newTestClusterRouter()
+	cluster.heartbeatErr = errors.New("heartbeat rejected")
+	req := httptest.NewRequest(http.MethodGet, "/_cluster/v1/heartbeat?node_id=node-a", nil)
+	recorder := httptest.NewRecorder()
+
+	router.ServeHTTP(recorder, req)
+
+	if recorder.Code != http.StatusOK {
+		t.Fatalf("expected status %d for heartbeat business failure, got %d: %s", http.StatusOK, recorder.Code, recorder.Body.String())
+	}
+	var response service.ClusterPeerStatus
+	decodeResponse(t, recorder, &response)
+	if response.Status != "failed" || response.Code != "internal_error" || response.Message != "heartbeat rejected" {
+		t.Fatalf("expected heartbeat protocol failure body, got %#v", response)
+	}
+}
+
+func TestClusterPingReturnsProtocolBodyOnServiceFailure(t *testing.T) {
+	router, cluster := newTestClusterRouter()
+	cluster.pingErr = errors.New("ping rejected")
+	req := httptest.NewRequest(http.MethodGet, "/_cluster/v1/ping?node_id=node-a", nil)
+	recorder := httptest.NewRecorder()
+
+	router.ServeHTTP(recorder, req)
+
+	if recorder.Code != http.StatusOK {
+		t.Fatalf("expected status %d for ping business failure, got %d: %s", http.StatusOK, recorder.Code, recorder.Body.String())
+	}
+	var response service.ClusterPeerStatus
+	decodeResponse(t, recorder, &response)
+	if response.Status != "failed" || response.Code != "internal_error" || response.Message != "ping rejected" {
+		t.Fatalf("expected ping protocol failure body, got %#v", response)
 	}
 }
 
@@ -782,7 +827,9 @@ type stubClusterAPIService struct {
 	members                     []service.ClusterMemberResponse
 	registeredRequest           service.ClusterRegisterRequest
 	heartbeatResponse           *service.ClusterPeerStatus
+	heartbeatErr                error
 	pingResponse                *service.ClusterPeerStatus
+	pingErr                     error
 	memberConnection            *service.ClusterMemberConnectionResponse
 	memberConnectionNodeID      string
 	memberInfo                  *clustertypes.InfoResponse
@@ -1015,6 +1062,9 @@ func (s *stubClusterAPIService) ReceivePeerMessageWithResult(message *service.Pe
 }
 
 func (s *stubClusterAPIService) Heartbeat(remoteNodeID string, token string) (*service.ClusterPeerStatus, error) {
+	if s.heartbeatErr != nil {
+		return nil, s.heartbeatErr
+	}
 	if s.heartbeatResponse != nil {
 		return s.heartbeatResponse, nil
 	}
@@ -1022,6 +1072,9 @@ func (s *stubClusterAPIService) Heartbeat(remoteNodeID string, token string) (*s
 }
 
 func (s *stubClusterAPIService) Ping(remoteNodeID string, token string) (*service.ClusterPeerStatus, error) {
+	if s.pingErr != nil {
+		return nil, s.pingErr
+	}
 	if s.pingResponse != nil {
 		return s.pingResponse, nil
 	}
