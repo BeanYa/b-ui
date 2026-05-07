@@ -36,7 +36,24 @@ export interface DomainResourceOperationInstanceView {
 
 export interface CreateDomainInboundResourcePayload {
   group_id: string
+  tag_seed?: string
+  target_members?: {
+    member_id?: string
+    node_id?: string
+    display_name?: string
+    target_tag?: string
+    remote_inbound_id?: number
+    domain_inbound_request_id?: string
+  }[]
+  prefix?: string
+  suffix?: string
   inbound: Record<string, unknown>
+  tls_template?: string
+  tls?: {
+    name: string
+    server: Record<string, unknown>
+    client: Record<string, unknown>
+  }
 }
 
 export interface CreateDomainUserResourcePayload {
@@ -44,7 +61,19 @@ export interface CreateDomainUserResourcePayload {
     uuid?: string
     name: string
     enable: boolean
+    desc?: string
+    group?: string
     config: Record<string, unknown>
+    volume?: number
+    expiry?: number
+    down?: number
+    up?: number
+    delay_start?: boolean
+    auto_reset?: boolean
+    reset_days?: number
+    next_reset?: number
+    total_up?: number
+    total_down?: number
   }
   inbounds?: string[]
 }

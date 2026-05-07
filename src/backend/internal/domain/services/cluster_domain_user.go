@@ -12,6 +12,8 @@ import (
 	clustertypes "github.com/BeanYa/b-ui/src/backend/internal/domain/services/cluster/types"
 	database "github.com/BeanYa/b-ui/src/backend/internal/infra/db"
 	"github.com/BeanYa/b-ui/src/backend/internal/infra/db/model"
+	"github.com/BeanYa/b-ui/src/backend/internal/shared/util/common"
+	"github.com/google/uuid"
 	"gorm.io/gorm"
 )
 
@@ -98,6 +100,11 @@ func (s *ClusterDomainUserService) ApplyDomainUserUpsert(ctx context.Context, do
 	if len(strings.TrimSpace(string(payload.User.Config))) == 0 {
 		return nil, errors.New("user config is required")
 	}
+	resolvedConfig, err := resolveDomainUserConfigLocalProvided(payload.User.Config)
+	if err != nil {
+		return nil, err
+	}
+	payload.User.Config = resolvedConfig
 
 	local, err := s.identity.GetOrCreate()
 	if err != nil {
@@ -275,6 +282,71 @@ func (s *ClusterDomainUserService) ApplyDomainUserDelete(ctx context.Context, do
 		}
 	}
 	return result, nil
+}
+
+const (
+	localProvidedDomainUserUUID     = "DomainUserUUID"
+	localProvidedDomainUserPassword = "DomainUserPassword"
+	localProvidedDomainUserAuth     = "DomainUserAuth"
+)
+
+func resolveDomainUserConfigLocalProvided(raw json.RawMessage) (json.RawMessage, error) {
+	var config map[string]interface{}
+	if err := json.Unmarshal(raw, &config); err != nil {
+		return nil, err
+	}
+	if err := resolveDomainUserConfigValue(config, "user.config"); err != nil {
+		return nil, err
+	}
+	data, err := json.Marshal(config)
+	if err != nil {
+		return nil, err
+	}
+	return data, nil
+}
+
+func resolveDomainUserConfigValue(value interface{}, path string) error {
+	if kind, ok := localProvidedKind(value); ok {
+		return unsupportedLocalProvided(path, kind)
+	}
+	switch typed := value.(type) {
+	case map[string]interface{}:
+		for key, child := range typed {
+			nextPath := path + "." + key
+			if kind, ok := localProvidedKind(child); ok {
+				resolved, err := resolveDomainUserLocalProvided(kind)
+				if err != nil {
+					return unsupportedLocalProvided(nextPath, kind)
+				}
+				typed[key] = resolved
+				continue
+			}
+			if err := resolveDomainUserConfigValue(child, nextPath); err != nil {
+				return err
+			}
+		}
+	case []interface{}:
+		for index, child := range typed {
+			nextPath := fmt.Sprintf("%s[%d]", path, index)
+			if err := resolveDomainUserConfigValue(child, nextPath); err != nil {
+				return err
+			}
+		}
+	}
+	return nil
+}
+
+func resolveDomainUserLocalProvided(kind string) (string, error) {
+	switch strings.TrimSpace(kind) {
+	case localProvidedDomainUserUUID:
+		return uuid.New().String(), nil
+	case localProvidedDomainUserPassword:
+		return common.Random(16), nil
+	case localProvidedDomainUserAuth:
+		return common.Random(16), nil
+	default:
+		return "", fmt.Errorf("unsupported local provided %q", kind)
+	}
 }
 
 func (s *ClusterDomainUserService) HandleDomainUserUpsert(ctx context.Context, req clustertypes.ActionRequest, payload clustertypes.DomainUserUpsertPayload) (map[string]interface{}, error) {

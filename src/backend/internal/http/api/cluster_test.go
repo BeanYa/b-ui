@@ -146,7 +146,7 @@ func TestClusterMemberPanelUpdateRoute(t *testing.T) {
 
 func TestClusterDomainInboundCreateRouteUsesDomainResourceCoordinator(t *testing.T) {
 	router, cluster := newTestClusterRouter()
-	req := httptest.NewRequest(http.MethodPost, "/api/cluster/domains/7/resources/inbounds", bytes.NewBufferString(`{"group_id":"group-1","inbound":{"tag":"main"}}`))
+	req := httptest.NewRequest(http.MethodPost, "/api/cluster/domains/7/resources/inbounds", bytes.NewBufferString(`{"group_id":"group-1","tag_seed":"edge-main","prefix":"edge","suffix":"prod","inbound":{"type":"vless","tag":"main","listen_port":{"LocalProvided":"DomainInboundListenPort"}},"tls_template":"standard","tls":{"name":"edge-main-tls","server":{"enabled":true,"server_name":{"LocalProvided":"DomainName"},"certificate":{"LocalProvided":"GeneratedTLSCertificate"},"key":{"LocalProvided":"GeneratedTLSKey"}},"client":{"insecure":true}}}`))
 	req.Header.Set("Content-Type", "application/json")
 	req.Header.Set("Cookie", loginCookie(t, router, "admin"))
 	recorder := httptest.NewRecorder()
@@ -162,8 +162,17 @@ func TestClusterDomainInboundCreateRouteUsesDomainResourceCoordinator(t *testing
 	if cluster.createdDomainInboundInput.GroupID != "group-1" {
 		t.Fatalf("expected group id to be forwarded, got %#v", cluster.createdDomainInboundInput)
 	}
-	if cluster.createdDomainInboundInput.Inbound["tag"] != "main" {
+	if cluster.createdDomainInboundInput.TagSeed != "edge-main" || cluster.createdDomainInboundInput.Prefix != "edge" || cluster.createdDomainInboundInput.Suffix != "prod" {
+		t.Fatalf("expected tag metadata to be forwarded, got %#v", cluster.createdDomainInboundInput)
+	}
+	if cluster.createdDomainInboundInput.Inbound["tag"] != "main" || cluster.createdDomainInboundInput.Inbound["type"] != "vless" {
 		t.Fatalf("expected inbound payload to be forwarded, got %#v", cluster.createdDomainInboundInput.Inbound)
+	}
+	if cluster.createdDomainInboundInput.TLSTemplate != "standard" || cluster.createdDomainInboundInput.TLS == nil {
+		t.Fatalf("expected tls payload to be forwarded, got %#v", cluster.createdDomainInboundInput)
+	}
+	if string(cluster.createdDomainInboundInput.TLS.Server) == "" || string(cluster.createdDomainInboundInput.TLS.Client) == "" {
+		t.Fatalf("expected tls server/client raw payloads to be forwarded, got %#v", cluster.createdDomainInboundInput.TLS)
 	}
 }
 

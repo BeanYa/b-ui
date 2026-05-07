@@ -331,6 +331,74 @@ func TestDomainInboundCreateMaterializesStandardTLSWithGeneratedCertificate(t *t
 	}
 }
 
+func TestDomainInboundCreatePreservesManualListenPortAndAllocatesLocalProvidedPort(t *testing.T) {
+	db := initClusterInboundTestDB(t)
+	allocatorCalls := 0
+	svc := NewClusterDomainInboundService(ClusterDomainInboundServiceOptions{
+		DB: db,
+		InboundSaver: domainInboundSaverFunc(func(tx *gorm.DB, act string, data json.RawMessage, initUserIds string, hostname string) error {
+			var inbound model.Inbound
+			if err := inbound.UnmarshalJSON(data); err != nil {
+				return err
+			}
+			return tx.Create(&inbound).Error
+		}),
+		Identity: &stubDomainInboundIdentity{node: &model.ClusterLocalNode{NodeID: "node-a"}},
+		PortAllocator: func() (int, error) {
+			allocatorCalls++
+			return 32123, nil
+		},
+	})
+
+	manual, err := svc.ApplyDomainInboundCreate(context.Background(), &model.ClusterDomain{Id: 1, Domain: "edge.example.com"}, clustertypes.DomainInboundCreatePayload{
+		RequestID: "req-manual-port",
+		DomainID:  "edge.example.com",
+		GroupID:   "manual-port",
+		Inbound:   json.RawMessage(`{"type":"vless","tag":"manual","listen":"::","listen_port":443}`),
+	}, "hub", false)
+	if err != nil {
+		t.Fatalf("apply manual port create: %v", err)
+	}
+	if allocatorCalls != 0 {
+		t.Fatalf("manual listen_port should not allocate target port, calls=%d", allocatorCalls)
+	}
+	var manualInbound model.Inbound
+	if err := db.First(&manualInbound, manual.InboundID).Error; err != nil {
+		t.Fatalf("load manual inbound: %v", err)
+	}
+	var manualOptions map[string]interface{}
+	if err := json.Unmarshal(manualInbound.Options, &manualOptions); err != nil {
+		t.Fatalf("decode manual options: %v", err)
+	}
+	if manualOptions["listen_port"] != float64(443) {
+		t.Fatalf("expected manual listen_port 443, got %#v", manualOptions["listen_port"])
+	}
+
+	auto, err := svc.ApplyDomainInboundCreate(context.Background(), &model.ClusterDomain{Id: 1, Domain: "edge.example.com"}, clustertypes.DomainInboundCreatePayload{
+		RequestID: "req-auto-port",
+		DomainID:  "edge.example.com",
+		GroupID:   "auto-port",
+		Inbound:   json.RawMessage(`{"type":"vless","tag":"auto","listen_port":{"LocalProvided":"DomainInboundListenPort"}}`),
+	}, "hub", false)
+	if err != nil {
+		t.Fatalf("apply auto port create: %v", err)
+	}
+	if allocatorCalls != 1 {
+		t.Fatalf("local provided listen_port should allocate once, calls=%d", allocatorCalls)
+	}
+	var autoInbound model.Inbound
+	if err := db.First(&autoInbound, auto.InboundID).Error; err != nil {
+		t.Fatalf("load auto inbound: %v", err)
+	}
+	var autoOptions map[string]interface{}
+	if err := json.Unmarshal(autoInbound.Options, &autoOptions); err != nil {
+		t.Fatalf("decode auto options: %v", err)
+	}
+	if autoOptions["listen_port"] != float64(32123) {
+		t.Fatalf("expected target allocated listen_port 32123, got %#v", autoOptions["listen_port"])
+	}
+}
+
 func TestDomainInboundGeneratedTLSKeypairUsesInlineCertificateMaterial(t *testing.T) {
 	svc := NewClusterDomainInboundService(ClusterDomainInboundServiceOptions{
 		TLSKeypairGenerator: func(serverName string) []string {

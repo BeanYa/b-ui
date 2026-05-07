@@ -626,11 +626,13 @@ func (s *ClusterDomainInboundService) prepareDomainInboundJSON(tx *gorm.DB, doma
 	if err := validateDomainInboundListenPortLocalProvided(inbound["listen_port"]); err != nil {
 		return nil, "", err
 	}
-	port, err := s.portAllocator()
-	if err != nil {
-		return nil, "", err
+	if _, ok := localProvidedKind(inbound["listen_port"]); ok || inbound["listen_port"] == nil {
+		port, err := s.portAllocator()
+		if err != nil {
+			return nil, "", err
+		}
+		inbound["listen_port"] = port
 	}
-	inbound["listen_port"] = port
 	if err := rejectUnresolvedLocalProvided(inbound, "inbound"); err != nil {
 		return nil, "", err
 	}

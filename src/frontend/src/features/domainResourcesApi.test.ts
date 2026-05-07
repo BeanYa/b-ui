@@ -45,7 +45,25 @@ describe('domain resources API', () => {
 
     const operation = await createDomainInboundResource(7, {
       group_id: 'group-1',
-      inbound: { tag: 'main', type: 'vless' },
+      tag_seed: 'edge-main',
+      prefix: 'edge',
+      suffix: 'prod',
+      inbound: {
+        tag: 'main',
+        type: 'vless',
+        listen_port: { LocalProvided: 'DomainInboundListenPort' },
+      },
+      tls_template: 'standard',
+      tls: {
+        name: 'edge-main-tls',
+        server: {
+          enabled: true,
+          server_name: { LocalProvided: 'DomainName' },
+          certificate: { LocalProvided: 'GeneratedTLSCertificate' },
+          key: { LocalProvided: 'GeneratedTLSKey' },
+        },
+        client: { insecure: true },
+      },
     })
 
     expect(operation.instances?.[0]?.error).toBe('inbound type is required')
@@ -53,7 +71,25 @@ describe('domain resources API', () => {
       'api/cluster/domains/7/resources/inbounds',
       {
         group_id: 'group-1',
-        inbound: { tag: 'main', type: 'vless' },
+        tag_seed: 'edge-main',
+        prefix: 'edge',
+        suffix: 'prod',
+        inbound: {
+          tag: 'main',
+          type: 'vless',
+          listen_port: { LocalProvided: 'DomainInboundListenPort' },
+        },
+        tls_template: 'standard',
+        tls: {
+          name: 'edge-main-tls',
+          server: {
+            enabled: true,
+            server_name: { LocalProvided: 'DomainName' },
+            certificate: { LocalProvided: 'GeneratedTLSCertificate' },
+            key: { LocalProvided: 'GeneratedTLSKey' },
+          },
+          client: { insecure: true },
+        },
       },
       {
         headers: { 'Content-Type': 'application/json' },
