@@ -1364,13 +1364,13 @@ interface ClusterLogEntry {
 const clusterLogs = ref<ClusterLogEntry[]>([])
 const logContainer = ref<HTMLElement | null>(null)
 let clusterLogTimer: ReturnType<typeof setInterval> | null = null
-const userScrolledUp = ref(false)
+const userScrolledAwayFromLatest = ref(false)
 
 function onLogContainerScroll() {
   const el = logContainer.value
   if (!el) return
   const atBottom = el.scrollHeight - el.scrollTop - el.clientHeight < 5
-  userScrolledUp.value = !atBottom
+  userScrolledAwayFromLatest.value = !atBottom
 }
 
 function formatLogFields(fields: Record<string, unknown>): string {
@@ -1388,14 +1388,14 @@ async function loadClusterLogs() {
   if (!selectedDomainId.value) return
   const msg = await HttpUtils.get('api/cluster/logs', { domain_id: selectedDomainId.value, count: 200 })
   if (msg.success && Array.isArray(msg.obj)) {
-    clusterLogs.value = msg.obj
+    clusterLogs.value = [...msg.obj].reverse()
     await nextTick()
     scrollLogToBottom()
   }
 }
 
 function scrollLogToBottom() {
-  if (userScrolledUp.value) return
+  if (userScrolledAwayFromLatest.value) return
   const el = logContainer.value
   if (el) el.scrollTop = el.scrollHeight
 }
@@ -1415,7 +1415,7 @@ function stopClusterLogPoll() {
 
 watch(selectedDomainId, (id) => {
   clusterLogs.value = []
-  userScrolledUp.value = false
+  userScrolledAwayFromLatest.value = false
   if (id) {
     startClusterLogPoll()
     clusterStore.startPolling(selectedDomain.value?.domain ?? '')

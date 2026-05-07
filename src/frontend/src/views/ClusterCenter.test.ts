@@ -364,6 +364,22 @@ describe('ClusterCenter view source', () => {
     expect(source).toContain('function upsertMeshPairResult(results: MeshPairResult[], result: MeshPairResult): MeshPairResult[]')
   })
 
+  it('renders cluster logs oldest-to-newest and keeps refreshes anchored to the latest entry at the bottom', () => {
+    const source = readFileSync(fileURLToPath(new URL('./ClusterCenter.vue', import.meta.url)), 'utf8')
+    const loadStart = source.indexOf('async function loadClusterLogs()')
+    const loadEnd = source.indexOf('function startClusterLogPoll()', loadStart)
+    const loadSource = source.slice(loadStart, loadEnd)
+
+    expect(loadStart).toBeGreaterThan(-1)
+    expect(loadSource).toContain('clusterLogs.value = [...msg.obj].reverse()')
+    expect(loadSource).toContain('scrollLogToBottom()')
+    expect(loadSource).not.toContain('scrollLogToTop()')
+    expect(source).toContain('function scrollLogToBottom()')
+    expect(source).toContain('const atBottom = el.scrollHeight - el.scrollTop - el.clientHeight < 5')
+    expect(source).toContain('el.scrollTop = el.scrollHeight')
+    expect(source).not.toContain('el.scrollTop = 0')
+  })
+
   it('refreshes cluster member state after Ping All finishes', () => {
     const source = readFileSync(fileURLToPath(new URL('./ClusterCenter.vue', import.meta.url)), 'utf8')
     const functionStart = source.indexOf('async function pingAllDomainMembers()')
