@@ -19,6 +19,19 @@ export interface DomainResourceOperationView {
   revision?: number
   status: string
   summary?: DomainResourceOperationSummary
+  instances?: DomainResourceOperationInstanceView[]
+}
+
+export interface DomainResourceOperationInstanceView {
+  memberId?: string
+  nodeId: string
+  displayName?: string
+  targetTag?: string
+  status: string
+  attemptCount?: number
+  localResourceId?: number
+  error?: string
+  updatedAt?: number
 }
 
 export interface CreateDomainInboundResourcePayload {

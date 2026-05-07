@@ -25,19 +25,35 @@ describe('domain resources API', () => {
 
   it('creates domain inbound resources through the local cluster endpoint with JSON payload shape', async () => {
     vi.mocked(api.post).mockResolvedValue({
-      data: { success: true, msg: '', obj: { operationId: 'op-1', status: 'applied' } },
+      data: {
+        success: true,
+        msg: '',
+        obj: {
+          operationId: 'op-1',
+          status: 'failed',
+          instances: [
+            {
+              nodeId: 'local-node',
+              displayName: 'local-node',
+              status: 'failed',
+              error: 'inbound type is required',
+            },
+          ],
+        },
+      },
     })
 
-    await createDomainInboundResource(7, {
+    const operation = await createDomainInboundResource(7, {
       group_id: 'group-1',
-      inbound: { tag: 'main' },
+      inbound: { tag: 'main', type: 'vless' },
     })
 
+    expect(operation.instances?.[0]?.error).toBe('inbound type is required')
     expect(api.post).toHaveBeenCalledWith(
       'api/cluster/domains/7/resources/inbounds',
       {
         group_id: 'group-1',
-        inbound: { tag: 'main' },
+        inbound: { tag: 'main', type: 'vless' },
       },
       {
         headers: { 'Content-Type': 'application/json' },

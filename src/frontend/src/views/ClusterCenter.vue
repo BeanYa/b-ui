@@ -212,7 +212,7 @@
               color="primary"
               variant="outlined"
               :loading="domainResourceLoading"
-              @click="createDomainInboundFromDetail"
+              @click="openDomainInboundResourceDialog"
             >
               {{ $t('clusterCenter.domainResources.createInbound') }}
             </v-btn>
@@ -221,7 +221,7 @@
               color="primary"
               variant="outlined"
               :loading="domainResourceLoading"
-              @click="createDomainUserFromDetail"
+              @click="openDomainUserResourceDialog"
             >
               {{ $t('clusterCenter.domainResources.createUser') }}
             </v-btn>
@@ -242,7 +242,22 @@
               {{ lastDomainResourceOperation.status }}
             </v-chip>
           </div>
-          <div v-else class="cluster-center__empty">
+          <div v-if="domainOperationInstanceErrors.length > 0" class="cluster-center__operation-errors">
+            <div class="cluster-center__operation-errors-title">
+              {{ $t('clusterCenter.domainResources.operationErrors') }}
+            </div>
+            <div
+              v-for="instance in domainOperationInstanceErrors"
+              :key="instance.nodeId"
+              class="cluster-center__operation-error"
+            >
+              <span class="cluster-center__operation-error-node">
+                {{ instance.displayName || instance.nodeId }}
+              </span>
+              <span class="cluster-center__operation-error-message">{{ instance.error }}</span>
+            </div>
+          </div>
+          <div v-if="!lastDomainResourceOperation" class="cluster-center__empty">
             {{ $t('clusterCenter.domainResources.noOperation') }}
           </div>
         </v-card-text>
@@ -554,6 +569,88 @@
       </v-card>
     </v-dialog>
 
+    <v-dialog v-model="domainInboundDialog" class="app-dialog app-dialog--wide" max-width="720">
+      <v-card class="app-card-shell cluster-center__domain-resource-dialog">
+        <v-card-title>{{ $t('clusterCenter.domainResources.inboundDialogTitle') }}</v-card-title>
+        <v-card-text class="cluster-center__dialog-body cluster-center__resource-dialog-body">
+          <v-text-field
+            v-model="domainInboundForm.groupId"
+            :label="$t('clusterCenter.domainResources.groupId')"
+            hide-details
+          />
+          <v-textarea
+            v-model="domainInboundForm.inboundJson"
+            class="cluster-center__json-input"
+            :label="$t('clusterCenter.domainResources.inboundJson')"
+            auto-grow
+            rows="8"
+            spellcheck="false"
+            hide-details
+          />
+          <v-alert v-if="domainResourceFormError" type="error" variant="tonal" density="compact">
+            {{ domainResourceFormError }}
+          </v-alert>
+        </v-card-text>
+        <v-card-actions>
+          <v-spacer />
+          <v-btn variant="text" @click="domainInboundDialog = false">{{ $t('clusterCenter.actions.cancel') }}</v-btn>
+          <v-btn color="primary" :loading="domainResourceLoading" @click="submitDomainInboundResource">
+            {{ $t('clusterCenter.domainResources.submit') }}
+          </v-btn>
+        </v-card-actions>
+      </v-card>
+    </v-dialog>
+
+    <v-dialog v-model="domainUserDialog" class="app-dialog app-dialog--wide" max-width="720">
+      <v-card class="app-card-shell cluster-center__domain-resource-dialog">
+        <v-card-title>{{ $t('clusterCenter.domainResources.userDialogTitle') }}</v-card-title>
+        <v-card-text class="cluster-center__dialog-body cluster-center__resource-dialog-body">
+          <div class="cluster-center__resource-form-grid">
+            <v-text-field
+              v-model="domainUserForm.name"
+              :label="$t('clusterCenter.domainResources.userName')"
+              hide-details
+            />
+            <v-text-field
+              v-model="domainUserForm.uuid"
+              :label="$t('clusterCenter.domainResources.userUuid')"
+              hide-details
+            />
+          </div>
+          <v-switch
+            v-model="domainUserForm.enable"
+            :label="$t('clusterCenter.domainResources.userEnable')"
+            color="primary"
+            hide-details
+          />
+          <v-text-field
+            v-model="domainUserForm.inbounds"
+            :label="$t('clusterCenter.domainResources.userInbounds')"
+            hide-details
+          />
+          <v-textarea
+            v-model="domainUserForm.configJson"
+            class="cluster-center__json-input"
+            :label="$t('clusterCenter.domainResources.userConfigJson')"
+            auto-grow
+            rows="6"
+            spellcheck="false"
+            hide-details
+          />
+          <v-alert v-if="domainResourceFormError" type="error" variant="tonal" density="compact">
+            {{ domainResourceFormError }}
+          </v-alert>
+        </v-card-text>
+        <v-card-actions>
+          <v-spacer />
+          <v-btn variant="text" @click="domainUserDialog = false">{{ $t('clusterCenter.actions.cancel') }}</v-btn>
+          <v-btn color="primary" :loading="domainResourceLoading" @click="submitDomainUserResource">
+            {{ $t('clusterCenter.domainResources.submit') }}
+          </v-btn>
+        </v-card-actions>
+      </v-card>
+    </v-dialog>
+
     <v-dialog v-model="pingSettingsDialog" max-width="500">
       <v-card>
         <v-card-title>{{ $t('clusterCenter.pingSettings.title') }}</v-card-title>
@@ -719,6 +816,24 @@ const selectedDomainMembers = computed(() => members.value.filter((member) => me
 const domainUpdateChecks = ref<Record<number, ClusterPanelUpdateCheck>>({})
 const domainResourceLoading = ref(false)
 const lastDomainResourceOperation = ref<DomainResourceOperationView | null>(null)
+const domainInboundDialog = ref(false)
+const domainUserDialog = ref(false)
+const domainResourceFormError = ref('')
+const domainInboundForm = ref({
+  groupId: '',
+  inboundJson: '',
+})
+const domainUserForm = ref({
+  name: '',
+  uuid: '',
+  enable: true,
+  inbounds: '',
+  configJson: '',
+})
+const domainOperationInstanceErrors = computed(() =>
+  (lastDomainResourceOperation.value?.instances ?? [])
+    .filter((instance) => instance.error && instance.error.trim() !== ''),
+)
 
 const domainMemberCount = (domainId: number) => members.value.filter((member) => member.domainId === domainId).length
 const formatClusterVersionLabel = (version: number) => `${version}`
@@ -889,14 +1004,82 @@ const checkDomainPanelUpdate = async (domain: ClusterDomain) => {
   return result
 }
 
-const createDomainInboundFromDetail = async () => {
+const defaultDomainInboundJson = (domain: ClusterDomain) => JSON.stringify({
+  type: 'vless',
+  tag: `domain-${domain.id}`,
+}, null, 2)
+
+const defaultDomainUserConfigJson = (domain: ClusterDomain) => JSON.stringify({
+  vless: {
+    uuid: '',
+    flow: '',
+  },
+  vmess: {
+    uuid: '',
+  },
+  metadata: {
+    domain: domain.domain,
+  },
+}, null, 2)
+
+const parseDomainResourceJson = (value: string, label: string): Record<string, unknown> | null => {
+  try {
+    const parsed = JSON.parse(value)
+    if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) {
+      domainResourceFormError.value = i18n.global.t('clusterCenter.domainResources.invalidJsonObject', { field: label }).toString()
+      return null
+    }
+    return parsed as Record<string, unknown>
+  } catch (error: any) {
+    domainResourceFormError.value = i18n.global.t('clusterCenter.domainResources.invalidJson', {
+      field: label,
+      message: error?.message ?? String(error),
+    }).toString()
+    return null
+  }
+}
+
+const openDomainInboundResourceDialog = () => {
   if (!selectedDomain.value) return
+  domainResourceFormError.value = ''
+  domainInboundForm.value = {
+    groupId: `domain-${selectedDomain.value.id}`,
+    inboundJson: defaultDomainInboundJson(selectedDomain.value),
+  }
+  domainInboundDialog.value = true
+}
+
+const openDomainUserResourceDialog = () => {
+  if (!selectedDomain.value) return
+  domainResourceFormError.value = ''
+  domainUserForm.value = {
+    name: `domain-user-${selectedDomain.value.id}`,
+    uuid: '',
+    enable: true,
+    inbounds: domainInboundForm.value.groupId || `domain-${selectedDomain.value.id}`,
+    configJson: defaultDomainUserConfigJson(selectedDomain.value),
+  }
+  domainUserDialog.value = true
+}
+
+const submitDomainInboundResource = async () => {
+  if (!selectedDomain.value) return
+  const groupId = domainInboundForm.value.groupId.trim()
+  if (!groupId) {
+    domainResourceFormError.value = i18n.global.t('clusterCenter.domainResources.groupIdRequired').toString()
+    return
+  }
+  const inbound = parseDomainResourceJson(domainInboundForm.value.inboundJson, i18n.global.t('clusterCenter.domainResources.inboundJson').toString())
+  if (!inbound) return
+
+  domainResourceFormError.value = ''
   domainResourceLoading.value = true
   try {
     lastDomainResourceOperation.value = await createDomainInboundResource(selectedDomain.value.id, {
-      group_id: `domain-${selectedDomain.value.id}`,
-      inbound: { tag: `domain-${selectedDomain.value.id}` },
+      group_id: groupId,
+      inbound,
     })
+    domainInboundDialog.value = false
   } catch (error: any) {
     push.error({ title: i18n.global.t('failed'), message: error?.message ?? String(error) })
   } finally {
@@ -904,18 +1087,32 @@ const createDomainInboundFromDetail = async () => {
   }
 }
 
-const createDomainUserFromDetail = async () => {
+const submitDomainUserResource = async () => {
   if (!selectedDomain.value) return
+  const name = domainUserForm.value.name.trim()
+  if (!name) {
+    domainResourceFormError.value = i18n.global.t('clusterCenter.domainResources.userNameRequired').toString()
+    return
+  }
+  const config = parseDomainResourceJson(domainUserForm.value.configJson, i18n.global.t('clusterCenter.domainResources.userConfigJson').toString())
+  if (!config) return
+
+  domainResourceFormError.value = ''
   domainResourceLoading.value = true
   try {
     lastDomainResourceOperation.value = await createDomainUserResource(selectedDomain.value.id, {
       user: {
-        name: `domain-user-${selectedDomain.value.id}`,
-        enable: true,
-        config: {},
+        uuid: domainUserForm.value.uuid.trim() || undefined,
+        name,
+        enable: domainUserForm.value.enable,
+        config,
       },
-      inbounds: [],
+      inbounds: domainUserForm.value.inbounds
+        .split(',')
+        .map((item) => item.trim())
+        .filter(Boolean),
     })
+    domainUserDialog.value = false
   } catch (error: any) {
     push.error({ title: i18n.global.t('failed'), message: error?.message ?? String(error) })
   } finally {
@@ -2133,5 +2330,88 @@ function formatAutoPingTime(): string {
 
 .cluster-center__jobs {
   height: 100%;
+}
+
+.cluster-center__domain-resource-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+}
+
+.cluster-center__domain-resources {
+  overflow: hidden;
+}
+
+.cluster-center__operation-status {
+  align-items: center;
+  background: color-mix(in srgb, var(--app-surface-2) 82%, transparent);
+  border: 1px solid var(--app-border-1);
+  border-radius: 12px;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  margin-top: 14px;
+  padding: 10px 12px;
+}
+
+.cluster-center__operation-errors {
+  background: color-mix(in srgb, #e55353 8%, var(--app-surface-2));
+  border: 1px solid color-mix(in srgb, #e55353 32%, var(--app-border-1));
+  border-radius: 12px;
+  display: grid;
+  gap: 8px;
+  margin-top: 10px;
+  padding: 12px;
+}
+
+.cluster-center__operation-errors-title {
+  color: #e55353;
+  font-size: 12px;
+  font-weight: 700;
+  text-transform: uppercase;
+}
+
+.cluster-center__operation-error {
+  display: grid;
+  gap: 4px;
+}
+
+.cluster-center__operation-error-node {
+  color: var(--app-text-2);
+  font-family: var(--app-font-mono, ui-monospace, monospace);
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.cluster-center__operation-error-message {
+  color: var(--app-text-1);
+  font-size: 13px;
+  overflow-wrap: anywhere;
+}
+
+.cluster-center__domain-resource-dialog :deep(.v-card-title) {
+  padding-bottom: 8px;
+}
+
+.cluster-center__resource-dialog-body {
+  gap: 14px;
+}
+
+.cluster-center__resource-form-grid {
+  display: grid;
+  gap: 12px;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+}
+
+.cluster-center__json-input :deep(textarea) {
+  font-family: var(--app-font-mono, ui-monospace, monospace);
+  font-size: 12px;
+  line-height: 1.6;
+}
+
+@media (max-width: 640px) {
+  .cluster-center__resource-form-grid {
+    grid-template-columns: 1fr;
+  }
 }
 </style>
