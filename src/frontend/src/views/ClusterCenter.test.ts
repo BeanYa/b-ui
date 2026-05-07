@@ -13,9 +13,20 @@ describe('ClusterCenter view source', () => {
     expect(source).toContain("HttpUtils.post('api/cluster/sync'")
     expect(source).toContain('HttpUtils.post(`api/cluster/domains/${domain.id}/update-check`, {})')
     expect(source).toContain('HttpUtils.post(`api/cluster/members/${member.id}/panel-update`, {')
-    expect(source).toContain("HttpUtils.delete(`api/cluster/members/${member.id}`)")
-    expect(source).toContain("HttpUtils.delete(`api/cluster/domains/${domain.id}`)")
+    expect(source).toContain("HttpUtils.delete(`api/cluster/members/${member.id}${force ? '?force=1' : ''}`)")
+    expect(source).toContain("HttpUtils.delete(`api/cluster/domains/${domain.id}${force ? '?force=1' : ''}`)")
     expect(source).toContain("HttpUtils.get(`api/cluster/operations/${operationId}`)")
+  })
+
+  it('offers a second force-delete confirmation after cluster delete failures', () => {
+    const source = readFileSync(fileURLToPath(new URL('./ClusterCenter.vue', import.meta.url)), 'utf8')
+
+    expect(source).toContain('const pendingForceDelete = ref(false)')
+    expect(source).toContain("message.includes('delete cluster member')")
+    expect(source).toContain("message.includes('leave cluster domain')")
+    expect(source).toContain('requestDeleteMember(member, true)')
+    expect(source).toContain('requestLeaveDomain(true)')
+    expect(source).toContain("pendingForceDelete ? $t('clusterCenter.actions.forceDelete')")
   })
 
   it('auto-syncs saved domain mirrors when the cluster center opens and surfaces cleanup messages', () => {
@@ -364,8 +375,8 @@ describe('ClusterCenter view source', () => {
 
     expect(source).toContain('const confirmActionDialog = ref(false)')
     expect(source).toContain("const pendingAction = ref<'delete' | 'leave' | null>(null)")
-    expect(source).toContain('const requestDeleteMember = (member: ClusterMember) => {')
-    expect(source).toContain('const requestLeaveDomain = () => {')
+    expect(source).toContain('const requestDeleteMember = (member: ClusterMember, force = false) => {')
+    expect(source).toContain('const requestLeaveDomain = (force = false) => {')
     expect(source).toContain('const confirmAction = async () => {')
     expect(source).toContain("$t('clusterCenter.confirmDeleteTitle')")
     expect(source).toContain("$t('clusterCenter.confirmDeleteMember')")

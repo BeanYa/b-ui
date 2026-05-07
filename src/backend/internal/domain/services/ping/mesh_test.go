@@ -41,7 +41,7 @@ func TestMeshServiceHTTPPing(t *testing.T) {
 
 	members := []MeshMember{
 		{MemberID: "local-1", NodeID: "local-1", Name: "local", BaseURL: "http://localhost:9999", PeerToken: ""},
-		{MemberID: "peer-1", NodeID: "peer-1", Name: "peer", BaseURL: "http://mesh-http.invalid", PeerToken: ""},
+		{MemberID: "peer-1", NodeID: "peer-1", Name: "peer", BaseURL: "http://mesh-http.invalid", PeerToken: "peer-token"},
 	}
 
 	results := svc.runMesh(context.Background(), "test.example.com", members, "local-1", 1)
@@ -59,6 +59,24 @@ func TestMeshServiceHTTPPing(t *testing.T) {
 				t.Fatalf("expected http method, got %v", *r.Method)
 			}
 		}
+	}
+}
+
+func TestMeshServiceHTTPPingRequiresPeerToken(t *testing.T) {
+	var requests int
+	svc := &MeshService{
+		httpClient: &http.Client{Transport: roundTripFunc(func(req *http.Request) (*http.Response, error) {
+			requests++
+			return nil, errors.New("unexpected request without token")
+		})},
+	}
+
+	_, err := svc.httpPing(context.Background(), "http://mesh-http.invalid", "")
+	if err == nil {
+		t.Fatal("expected missing peer token to fail")
+	}
+	if requests != 0 {
+		t.Fatalf("expected no HTTP request without peer token, got %d", requests)
 	}
 }
 

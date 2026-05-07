@@ -20,7 +20,7 @@ type clusterHubClient interface {
 	RegisterNode(context.Context, string, ClusterHubRegisterNodeRequest) (*ClusterHubOperationResponse, error)
 	GetLatestVersion(context.Context, string, string, string) (*ClusterHubVersionResponse, error)
 	GetSnapshot(context.Context, string, string, string) (*ClusterHubSnapshotResponse, error)
-	DeleteMember(context.Context, string, string, string, string) (*ClusterHubOperationResponse, error)
+	DeleteMember(context.Context, string, string, string, string, bool) (*ClusterHubOperationResponse, error)
 	ClaimUpdate(context.Context, string, string, string, string, string) (*ClusterHubClaimUpdateResponse, error)
 	SetMemberStatus(context.Context, string, string, string, string, string, string, string) (*ClusterHubMemberStatusResponse, error)
 	ReportProxyConfigs(ctx context.Context, hubURL string, domain string, body ClusterHubReportProxyConfigsRequest) error
@@ -306,15 +306,18 @@ func (c *ClusterHubClient) GetSnapshot(ctx context.Context, hubURL string, domai
 	return result, nil
 }
 
-func (c *ClusterHubClient) DeleteMember(ctx context.Context, hubURL string, domain string, domainToken string, memberID string) (*ClusterHubOperationResponse, error) {
+func (c *ClusterHubClient) DeleteMember(ctx context.Context, hubURL string, domain string, domainToken string, memberID string, force bool) (*ClusterHubOperationResponse, error) {
 	start := time.Now()
 	if err := validateClusterHubURL(hubURL); err != nil {
 		c.logHubCall("delete_member", domain, start, err)
 		return nil, err
 	}
-	payload := map[string]string{
+	payload := map[string]any{
 		"request_id":   fmt.Sprintf("delete-%d", time.Now().UnixNano()),
 		"domain_token": domainToken,
+	}
+	if force {
+		payload["force"] = true
 	}
 	body, err := json.Marshal(payload)
 	if err != nil {

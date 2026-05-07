@@ -130,7 +130,7 @@ func (c *capturingClusterHubClient) GetSnapshot(context.Context, string, string,
 	return nil, nil
 }
 
-func (c *capturingClusterHubClient) DeleteMember(context.Context, string, string, string, string) (*ClusterHubOperationResponse, error) {
+func (c *capturingClusterHubClient) DeleteMember(context.Context, string, string, string, string, bool) (*ClusterHubOperationResponse, error) {
 	return nil, nil
 }
 

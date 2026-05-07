@@ -11,7 +11,7 @@ export const useClusterStore = defineStore('ClusterStore', () => {
   async function fetchScatterTasks(domainId: string): Promise<ScatterTaskSummary[]> {
     tasksLoading.value = true
     try {
-      const msg = await HttpUtils.get(`_cluster/v1/domains/${encodeURIComponent(domainId)}/tasks`)
+      const msg = await HttpUtils.get(`api/cluster/domains/${encodeURIComponent(domainId)}/tasks`)
       if (msg.success && Array.isArray(msg.obj)) {
         tasks.value = msg.obj
         return msg.obj
@@ -28,7 +28,7 @@ export const useClusterStore = defineStore('ClusterStore', () => {
     scope: string,
     params: Record<string, any>,
   ): Promise<ScatterTaskSummary | null> {
-    const msg = await HttpUtils.post(`_cluster/v1/domains/${encodeURIComponent(domainId)}/tasks`, {
+    const msg = await HttpUtils.post(`api/cluster/domains/${encodeURIComponent(domainId)}/tasks`, {
       taskType,
       scope,
       params,
@@ -46,7 +46,7 @@ export const useClusterStore = defineStore('ClusterStore', () => {
     taskId: string,
   ): Promise<ScatterTaskResultDetail | null> {
     const msg = await HttpUtils.get(
-      `_cluster/v1/domains/${encodeURIComponent(domainId)}/tasks/${encodeURIComponent(taskId)}/result`,
+      `api/cluster/domains/${encodeURIComponent(domainId)}/tasks/${encodeURIComponent(taskId)}/result`,
     )
     if (msg.success && msg.obj) {
       return msg.obj as ScatterTaskResultDetail

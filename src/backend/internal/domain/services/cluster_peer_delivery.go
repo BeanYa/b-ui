@@ -95,6 +95,9 @@ func (s *ClusterPeerDeliveryService) SendEnvelope(ctx context.Context, envelope 
 }
 
 func (s *ClusterPeerDeliveryService) sendJSON(ctx context.Context, payload interface{}, member model.ClusterMember, token string) ([]byte, error) {
+	if strings.TrimSpace(token) == "" {
+		return nil, errClusterPeerTokenRequired
+	}
 	body, err := json.Marshal(payload)
 	if err != nil {
 		return nil, err

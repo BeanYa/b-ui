@@ -374,7 +374,7 @@ func (s *stubClusterRuntimeHubClient) GetSnapshot(_ context.Context, _ string, d
 	return s.snapshot, nil
 }
 
-func (s *stubClusterRuntimeHubClient) DeleteMember(context.Context, string, string, string, string) (*ClusterHubOperationResponse, error) {
+func (s *stubClusterRuntimeHubClient) DeleteMember(context.Context, string, string, string, string, bool) (*ClusterHubOperationResponse, error) {
 	return nil, nil
 }
 

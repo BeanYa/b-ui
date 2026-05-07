@@ -91,7 +91,7 @@ func TestClusterHubClientEscapesDomainAndMemberIDsInRequestPaths(t *testing.T) {
 	if _, err := client.GetSnapshot(context.Background(), server.URL, "edge/id.example.com", "domain-token"); err != nil {
 		t.Fatalf("get snapshot: %v", err)
 	}
-	if _, err := client.DeleteMember(context.Background(), server.URL, "edge/id.example.com", "domain-token", "member/one"); err != nil {
+	if _, err := client.DeleteMember(context.Background(), server.URL, "edge/id.example.com", "domain-token", "member/one", false); err != nil {
 		t.Fatalf("delete member: %v", err)
 	}
 

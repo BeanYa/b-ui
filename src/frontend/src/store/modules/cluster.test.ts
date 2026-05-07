@@ -38,7 +38,7 @@ describe('cluster store scatter tasks', () => {
     await store.createScatterTask('domain.example', 'mesh.latency', 'domain', {})
 
     expect(mockPost).toHaveBeenCalledWith(
-      '_cluster/v1/domains/domain.example/tasks',
+      'api/cluster/domains/domain.example/tasks',
       {
         taskType: 'mesh.latency',
         scope: 'domain',

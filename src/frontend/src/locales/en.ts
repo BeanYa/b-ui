@@ -322,6 +322,7 @@ export default {
         updatePanel: "Update Panel",
         confirmRegister: "Confirm Registration",
         confirmDelete: "Confirm Delete",
+        forceDelete: "Force Delete",
       },
       pingSettings: {
         title: "Ping Settings",
@@ -337,6 +338,9 @@ export default {
     confirmDeleteMember: "Remove this member from the domain?",
     confirmLeaveTitle: "Confirm Leave Domain",
     confirmLeaveDomain: "Leave the current domain? Your local node will be removed from this domain.",
+    confirmForceDeleteTitle: "Confirm Force Delete",
+    confirmForceDeleteMember: "Cleanup failed. Force delete this member from the Hub table and let nodes converge from Hub state?",
+    confirmForceLeaveDomain: "Cleanup failed. Force leave by removing this node from the Hub table and let nodes converge from Hub state?",
     domainResources: {
       title: "Domain Resources",
       domainManaged: "Domain-managed resources",

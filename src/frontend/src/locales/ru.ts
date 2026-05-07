@@ -310,6 +310,7 @@ export default {
         updatePanel: "Обновить панель",
         confirmRegister: "Подтвердить регистрацию",
         confirmDelete: "Подтвердить удаление",
+        forceDelete: "Удалить принудительно",
       },
       pingSettings: {
         title: "Ping Settings",
@@ -325,6 +326,9 @@ export default {
       confirmDeleteMember: "Удалить этого участника из домена?",
       confirmLeaveTitle: "Подтвердить выход из домена",
       confirmLeaveDomain: "Покинуть текущий домен? Ваш локальный узел будет удалён из этого домена.",
+      confirmForceDeleteTitle: "Подтвердить принудительное удаление",
+      confirmForceDeleteMember: "Очистка не удалась. Удалить участника только из таблицы Hub и синхронизировать узлы по состоянию Hub?",
+      confirmForceLeaveDomain: "Очистка не удалась. Удалить локальный узел только из таблицы Hub и синхронизировать узлы по состоянию Hub?",
     joinUriHint: "URI начинается с buihub://, например buihub://hub.example.com/domain?id=example.com&domain_token=xxx",
     validation: {
       required: "URL Hub, ID домена и токен домена обязательны.",

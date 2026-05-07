@@ -133,16 +133,19 @@ func (s *ClusterPeerProbeService) ProbeIdlePeers(ctx context.Context) error {
 }
 
 func (s *ClusterPeerProbeService) probeMember(ctx context.Context, member model.ClusterMember, localNodeID string) error {
-	peerToken := ""
-	if member.PeerTokenEncrypted != "" {
-		secret, err := s.getSecretProvider().GetSecret()
-		if err != nil {
-			return err
-		}
-		peerToken, err = DecryptClusterDomainToken(secret, member.PeerTokenEncrypted)
-		if err != nil {
-			return err
-		}
+	if strings.TrimSpace(member.PeerTokenEncrypted) == "" {
+		return errClusterPeerTokenRequired
+	}
+	secret, err := s.getSecretProvider().GetSecret()
+	if err != nil {
+		return err
+	}
+	peerToken, err := DecryptClusterDomainToken(secret, member.PeerTokenEncrypted)
+	if err != nil {
+		return err
+	}
+	if strings.TrimSpace(peerToken) == "" {
+		return errClusterPeerTokenRequired
 	}
 	heartbeatURL, err := clusterPeerActionURL(
 		member.BaseURL,
@@ -160,9 +163,7 @@ func (s *ClusterPeerProbeService) probeMember(ctx context.Context, member model.
 	if err != nil {
 		return err
 	}
-	if peerToken != "" {
-		request.Header.Set("X-Cluster-Token", peerToken)
-	}
+	request.Header.Set("X-Cluster-Token", peerToken)
 	response, err := s.httpClientOrDefault().Do(request)
 	if err != nil {
 		return err

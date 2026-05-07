@@ -74,6 +74,7 @@ type ClusterMemberConnectionResponse struct {
 	NodeID      string `json:"nodeId"`
 	Name        string `json:"name"`
 	DisplayName string `json:"displayName"`
+	Domain      string `json:"domain"`
 	BaseURL     string `json:"baseUrl"`
 	Token       string `json:"token,omitempty"`
 }
@@ -223,6 +224,7 @@ const maxClusterOperations = 128
 var errClusterHubURLRequired = errors.New("cluster hub URL is required")
 var errClusterDomainRequired = errors.New("cluster domain is required")
 var errClusterTokenRequired = errors.New("cluster domain token is required")
+var errClusterPeerTokenRequired = errors.New("cluster peer token is required")
 var errClusterBaseURLRequired = errors.New("cluster node base URL is required")
 var errClusterJoinURIInvalid = errors.New("cluster join URI is invalid")
 
@@ -608,7 +610,7 @@ func (s *ClusterService) GetMemberConnection(nodeID string) (*ClusterMemberConne
 		return nil, err
 	}
 	if member.PeerTokenEncrypted == "" {
-		return nil, errClusterTokenRequired
+		return nil, errClusterPeerTokenRequired
 	}
 	secret, err := s.getSecretProvider().GetSecret()
 	if err != nil {
@@ -618,10 +620,18 @@ func (s *ClusterService) GetMemberConnection(nodeID string) (*ClusterMemberConne
 	if err != nil {
 		return nil, err
 	}
+	if strings.TrimSpace(token) == "" {
+		return nil, errClusterPeerTokenRequired
+	}
+	domainName := ""
+	if domain, err := s.getStore().GetDomain(member.DomainID); err == nil && domain != nil {
+		domainName = strings.TrimSpace(domain.Domain)
+	}
 	return &ClusterMemberConnectionResponse{
 		NodeID:      member.NodeID,
 		Name:        member.Name,
 		DisplayName: member.DisplayName,
+		Domain:      domainName,
 		BaseURL:     member.BaseURL,
 		Token:       token,
 	}, nil
@@ -645,9 +655,7 @@ func (s *ClusterService) GetMemberInfo(nodeID string) (*clustertypes.InfoRespons
 	if err != nil {
 		return nil, err
 	}
-	if connection.Token != "" {
-		request.Header.Set("X-Cluster-Token", connection.Token)
-	}
+	request.Header.Set("X-Cluster-Token", connection.Token)
 	response, err := s.peerHTTPClient().Do(request)
 	if err != nil {
 		return nil, err
@@ -677,6 +685,16 @@ func (s *ClusterService) SendMemberAction(nodeID string, actionRequest clusterty
 	if err != nil {
 		return nil, err
 	}
+	targetDomain := strings.TrimSpace(connection.Domain)
+	if targetDomain == "" {
+		return nil, errClusterDomainRequired
+	}
+	requestDomain := strings.TrimSpace(actionRequest.Domain)
+	if requestDomain == "" {
+		actionRequest.Domain = targetDomain
+	} else if requestDomain != targetDomain {
+		return nil, errors.New("cluster action domain mismatch")
+	}
 	body, err := json.Marshal(actionRequest)
 	if err != nil {
 		return nil, err
@@ -686,9 +704,7 @@ func (s *ClusterService) SendMemberAction(nodeID string, actionRequest clusterty
 		return nil, err
 	}
 	request.Header.Set("Content-Type", "application/json")
-	if connection.Token != "" {
-		request.Header.Set("X-Cluster-Token", connection.Token)
-	}
+	request.Header.Set("X-Cluster-Token", connection.Token)
 	response, err := s.peerHTTPClient().Do(request)
 	if err != nil {
 		return nil, err
@@ -821,7 +837,7 @@ func (s *ClusterService) RequestMemberPanelUpdate(id uint, targetVersion string)
 	}
 
 	if member.PeerTokenEncrypted == "" {
-		return nil, errClusterTokenRequired
+		return nil, errClusterPeerTokenRequired
 	}
 	secret, err := s.getSecretProvider().GetSecret()
 	if err != nil {
@@ -830,6 +846,9 @@ func (s *ClusterService) RequestMemberPanelUpdate(id uint, targetVersion string)
 	peerToken, err := DecryptClusterDomainToken(secret, member.PeerTokenEncrypted)
 	if err != nil {
 		return nil, err
+	}
+	if strings.TrimSpace(peerToken) == "" {
+		return nil, errClusterPeerTokenRequired
 	}
 	message, err := NewClusterPeerMessage(domain.Domain, domain.LastVersion, local.NodeID, domain.LastVersion, PeerCategoryCommand, PeerActionDomainPanelUpdateRequest, map[string]interface{}{
 		"target_version": resolvedTarget,
@@ -876,7 +895,7 @@ func (s *ClusterService) RequestMemberPanelUpdate(id uint, targetVersion string)
 	}, nil
 }
 
-func (s *ClusterService) DeleteMember(id uint) error {
+func (s *ClusterService) DeleteMember(id uint, force bool) error {
 	store := s.getStore()
 	member, err := store.GetMember(id)
 	if err != nil {
@@ -898,13 +917,13 @@ func (s *ClusterService) DeleteMember(id uint) error {
 		return err
 	}
 	client := s.getHubClient()
-	if _, err := client.DeleteMember(context.Background(), domain.HubURL, domain.Domain, domainToken, member.NodeID); err != nil {
+	if _, err := client.DeleteMember(context.Background(), domain.HubURL, domain.Domain, domainToken, member.NodeID, force); err != nil {
 		return err
 	}
 	return store.DeleteMember(id)
 }
 
-func (s *ClusterService) LeaveDomain(id uint) error {
+func (s *ClusterService) LeaveDomain(id uint, force bool) error {
 	store := s.getStore()
 	domain, err := store.GetDomain(id)
 	if err != nil {
@@ -925,13 +944,13 @@ func (s *ClusterService) LeaveDomain(id uint) error {
 	if err != nil {
 		return err
 	}
-	if s.store == nil {
+	if !force && s.store == nil {
 		if _, err := s.newDomainCleanupService().CleanupLocalDomainResources(context.Background(), domain); err != nil {
 			return err
 		}
 	}
 	client := s.getHubClient()
-	if _, err := client.DeleteMember(context.Background(), domain.HubURL, domain.Domain, domainToken, localIdentity.NodeID); err != nil {
+	if _, err := client.DeleteMember(context.Background(), domain.HubURL, domain.Domain, domainToken, localIdentity.NodeID, force); err != nil {
 		return err
 	}
 	return store.DeleteDomain(id)
@@ -994,7 +1013,13 @@ func (s *ClusterService) Heartbeat(remoteNodeID string, token string) (*ClusterP
 		return nil, err
 	}
 	now := time.Now().Unix()
-	if remoteNodeID == "" || token == "" || remoteNodeID == localIdentity.NodeID {
+	if strings.TrimSpace(token) == "" {
+		return clusterPeerInvalidTokenStatus(errClusterPeerTokenRequired), nil
+	}
+	if remoteNodeID == "" || remoteNodeID == localIdentity.NodeID {
+		if err := s.validateAnyLocalClusterPeerToken(localIdentity.NodeID, token); err != nil {
+			return clusterPeerInvalidTokenStatus(err), nil
+		}
 		return &ClusterPeerStatus{
 			Status: "processed",
 			Code:   "ok",
@@ -1044,7 +1069,13 @@ func (s *ClusterService) Ping(remoteNodeID string, token string) (*ClusterPeerSt
 		return nil, err
 	}
 	now := time.Now().Unix()
-	if remoteNodeID == "" || token == "" || remoteNodeID == localIdentity.NodeID {
+	if strings.TrimSpace(token) == "" {
+		return clusterPeerInvalidTokenStatus(errClusterPeerTokenRequired), nil
+	}
+	if remoteNodeID == "" || remoteNodeID == localIdentity.NodeID {
+		if err := s.validateAnyLocalClusterPeerToken(localIdentity.NodeID, token); err != nil {
+			return clusterPeerInvalidTokenStatus(err), nil
+		}
 		return &ClusterPeerStatus{
 			Status: "processed",
 			Code:   "ok",
@@ -1089,6 +1120,16 @@ func (s *ClusterService) Ping(remoteNodeID string, token string) (*ClusterPeerSt
 }
 
 func (s *ClusterService) Info(c *gin.Context) {
+	token := c.GetHeader("X-Cluster-Token")
+	localIdentity, err := s.localIdentity.GetOrCreate()
+	if err != nil {
+		c.JSON(http.StatusOK, gin.H{"status": "failed", "code": "internal_error", "message": err.Error()})
+		return
+	}
+	if err := s.validateAnyLocalClusterPeerToken(localIdentity.NodeID, token); err != nil {
+		c.JSON(http.StatusOK, gin.H{"status": "rejected", "code": "invalid_token", "message": err.Error()})
+		return
+	}
 	r := s.resolvedRouter()
 	c.JSON(http.StatusOK, clustertypes.InfoResponse{
 		Actions: r.Actions(),
@@ -1101,6 +1142,14 @@ func (s *ClusterService) HandleAction(c *gin.Context) {
 		c.JSON(http.StatusBadRequest, clustertypes.ActionResponse{
 			Status:       "error",
 			ErrorMessage: "invalid request: " + err.Error(),
+		})
+		return
+	}
+	if err := s.validateClusterDomainPeerToken(req.Domain, c.GetHeader("X-Cluster-Token")); err != nil {
+		c.JSON(http.StatusOK, clustertypes.ActionResponse{
+			Status:       "error",
+			Action:       req.Action,
+			ErrorMessage: err.Error(),
 		})
 		return
 	}
@@ -1222,6 +1271,9 @@ func (s *ClusterService) peerSyncService() ClusterSyncService {
 }
 
 func (s *ClusterService) validateClusterPeerToken(member *model.ClusterMember, token string) error {
+	if member == nil || strings.TrimSpace(token) == "" || strings.TrimSpace(member.PeerTokenEncrypted) == "" {
+		return errors.New("cluster peer token not found")
+	}
 	secret, err := s.getSecretProvider().GetSecret()
 	if err != nil {
 		return err
@@ -1230,10 +1282,82 @@ func (s *ClusterService) validateClusterPeerToken(member *model.ClusterMember, t
 	if err != nil {
 		return err
 	}
+	if strings.TrimSpace(decrypted) == "" {
+		return errors.New("cluster peer token not found")
+	}
 	if decrypted != token {
 		return errors.New("cluster peer token not found")
 	}
 	return nil
+}
+
+func clusterPeerInvalidTokenStatus(err error) *ClusterPeerStatus {
+	message := "cluster peer token not found"
+	if err != nil {
+		message = err.Error()
+	}
+	return &ClusterPeerStatus{
+		Status:  "rejected",
+		Code:    "invalid_token",
+		Message: message,
+	}
+}
+
+func (s *ClusterService) validateAnyClusterPeerToken(token string) error {
+	if strings.TrimSpace(token) == "" {
+		return errClusterPeerTokenRequired
+	}
+	members, err := s.getStore().ListMembers()
+	if err != nil {
+		return err
+	}
+	for i := range members {
+		if s.validateClusterPeerToken(&members[i], token) == nil {
+			return nil
+		}
+	}
+	return errors.New("cluster peer token not found")
+}
+
+func (s *ClusterService) validateAnyLocalClusterPeerToken(localNodeID string, token string) error {
+	if strings.TrimSpace(token) == "" {
+		return errClusterPeerTokenRequired
+	}
+	members, err := s.getStore().ListMembers()
+	if err != nil {
+		return err
+	}
+	for i := range members {
+		if members[i].NodeID != localNodeID {
+			continue
+		}
+		if s.validateClusterPeerToken(&members[i], token) == nil {
+			return nil
+		}
+	}
+	return errors.New("cluster peer token not found")
+}
+
+func (s *ClusterService) validateClusterDomainPeerToken(domainID string, token string) error {
+	if strings.TrimSpace(token) == "" {
+		return errClusterPeerTokenRequired
+	}
+	domain, err := s.getStore().GetDomainByName(domainID)
+	if err != nil {
+		return err
+	}
+	localIdentity, err := s.localIdentity.GetOrCreate()
+	if err != nil {
+		return err
+	}
+	localMember, err := findClusterMemberByDomainNodeID(s.getStore(), domain.Id, localIdentity.NodeID)
+	if err != nil {
+		return err
+	}
+	if localMember == nil {
+		return errClusterMemberNotFound
+	}
+	return s.validateClusterPeerToken(localMember, token)
 }
 
 func (s *ClusterService) findLocalMemberByRemoteNodeID(remoteNodeID string, localNodeID string) (*model.ClusterMember, *model.ClusterDomain, error) {
@@ -1524,7 +1648,21 @@ func (s *ClusterService) getScatterManager() *ScatterGatherManager {
 	return mgr
 }
 
-func (s *ClusterService) ListScatterTasks(domainID string) ([]TaskSummary, error) {
+func (s *ClusterService) ListScatterTasks(domainID string, token string) ([]TaskSummary, error) {
+	if err := s.validateClusterDomainPeerToken(domainID, token); err != nil {
+		return nil, err
+	}
+	return s.listScatterTasks(domainID)
+}
+
+func (s *ClusterService) ListScatterTasksForAdmin(domainID string) ([]TaskSummary, error) {
+	if err := s.requireClusterDomain(domainID); err != nil {
+		return nil, err
+	}
+	return s.listScatterTasks(domainID)
+}
+
+func (s *ClusterService) listScatterTasks(domainID string) ([]TaskSummary, error) {
 	tasks, err := GetScatterTasksByDomain(database.GetDB(), domainID)
 	if err != nil {
 		return nil, err
@@ -1570,7 +1708,21 @@ func (s *ClusterService) ListScatterTasks(domainID string) ([]TaskSummary, error
 	return result, nil
 }
 
-func (s *ClusterService) CreateScatterTask(domainID string, taskType string, scope string, params map[string]any) (*TaskSummary, error) {
+func (s *ClusterService) CreateScatterTask(domainID string, token string, taskType string, scope string, params map[string]any) (*TaskSummary, error) {
+	if err := s.validateClusterDomainPeerToken(domainID, token); err != nil {
+		return nil, err
+	}
+	return s.createScatterTask(domainID, taskType, scope, params)
+}
+
+func (s *ClusterService) CreateScatterTaskForAdmin(domainID string, taskType string, scope string, params map[string]any) (*TaskSummary, error) {
+	if err := s.requireClusterDomain(domainID); err != nil {
+		return nil, err
+	}
+	return s.createScatterTask(domainID, taskType, scope, params)
+}
+
+func (s *ClusterService) createScatterTask(domainID string, taskType string, scope string, params map[string]any) (*TaskSummary, error) {
 	if _, ok := GetScatterHandler(taskType); !ok {
 		return nil, fmt.Errorf("unknown task type: %s", taskType)
 	}
@@ -1630,10 +1782,27 @@ func (s *ClusterService) resolveDomainMemberCount(domainID string) (int, error) 
 	return 0, nil
 }
 
-func (s *ClusterService) GetScatterTaskResult(domainID string, taskID string) (*TaskResultDetail, error) {
+func (s *ClusterService) GetScatterTaskResult(domainID string, token string, taskID string) (*TaskResultDetail, error) {
+	if err := s.validateClusterDomainPeerToken(domainID, token); err != nil {
+		return nil, err
+	}
+	return s.getScatterTaskResult(domainID, taskID)
+}
+
+func (s *ClusterService) GetScatterTaskResultForAdmin(domainID string, taskID string) (*TaskResultDetail, error) {
+	if err := s.requireClusterDomain(domainID); err != nil {
+		return nil, err
+	}
+	return s.getScatterTaskResult(domainID, taskID)
+}
+
+func (s *ClusterService) getScatterTaskResult(domainID string, taskID string) (*TaskResultDetail, error) {
 	task, err := GetScatterTaskByID(database.GetDB(), taskID)
 	if err != nil {
 		return nil, err
+	}
+	if task.DomainID != domainID {
+		return nil, errors.New("scatter task domain mismatch")
 	}
 	detail := &TaskResultDetail{
 		TaskID:   task.TaskID,
@@ -1650,6 +1819,14 @@ func (s *ClusterService) GetScatterTaskResult(domainID string, taskID string) (*
 		}
 	}
 	return detail, nil
+}
+
+func (s *ClusterService) requireClusterDomain(domainID string) error {
+	if strings.TrimSpace(domainID) == "" {
+		return errClusterDomainRequired
+	}
+	_, err := s.getStore().GetDomainByName(domainID)
+	return err
 }
 
 func findClusterMemberByDomainNodeID(store clusterServiceStore, domainID uint, nodeID string) (*model.ClusterMember, error) {

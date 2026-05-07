@@ -291,6 +291,9 @@ func TestClusterServiceRegisterMapsExistingBaseURLToLocalIdentity(t *testing.T) 
 func TestClusterServiceGetMemberConnectionDecryptsPeerTokenByNodeID(t *testing.T) {
 	secret := []byte("panel-secret-for-cluster-tests")
 	store := &stubClusterServiceStore{
+		domains: map[string]*model.ClusterDomain{
+			"edge.example.com": {Id: 1, Domain: "edge.example.com"},
+		},
 		members: map[string]*model.ClusterMember{
 			serviceMemberKey(1, "node-a"): {
 				NodeID:             "node-a",
@@ -317,6 +320,9 @@ func TestClusterServiceGetMemberConnectionDecryptsPeerTokenByNodeID(t *testing.T
 	if connection.Token != "peer-token-a" {
 		t.Fatalf("expected decrypted peer token, got %q", connection.Token)
 	}
+	if connection.Domain != "edge.example.com" {
+		t.Fatalf("expected member domain, got %q", connection.Domain)
+	}
 }
 
 func TestClusterServiceGetMemberInfoProxiesToPeerInfoEndpoint(t *testing.T) {
@@ -331,6 +337,9 @@ func TestClusterServiceGetMemberInfoProxiesToPeerInfoEndpoint(t *testing.T) {
 	}))
 	defer server.Close()
 	store := &stubClusterServiceStore{
+		domains: map[string]*model.ClusterDomain{
+			"edge.example.com": {Id: 1, Domain: "edge.example.com"},
+		},
 		members: map[string]*model.ClusterMember{
 			serviceMemberKey(1, "node-a"): {
 				NodeID:             "node-a",
@@ -376,6 +385,9 @@ func TestClusterServiceSendMemberActionProxiesToPeerActionEndpoint(t *testing.T)
 	}))
 	defer server.Close()
 	store := &stubClusterServiceStore{
+		domains: map[string]*model.ClusterDomain{
+			"edge.example.com": {Id: 1, Domain: "edge.example.com"},
+		},
 		members: map[string]*model.ClusterMember{
 			serviceMemberKey(1, "node-a"): {
 				NodeID:             "node-a",
@@ -406,6 +418,9 @@ func TestClusterServiceSendMemberActionProxiesToPeerActionEndpoint(t *testing.T)
 	}
 	if receivedRequest.Action != "inbound.list" {
 		t.Fatalf("expected forwarded action request, got %#v", receivedRequest)
+	}
+	if receivedRequest.Domain != "edge.example.com" {
+		t.Fatalf("expected forwarded action domain, got %q", receivedRequest.Domain)
 	}
 	if resp.Status != "success" || resp.Action != "inbound.list" {
 		t.Fatalf("expected proxied action response, got %#v", resp)
@@ -572,7 +587,7 @@ func TestClusterServiceDeleteMemberDeletesHubMembershipBeforeLocalMirror(t *test
 		hubClient:      hub,
 	}
 
-	if err := service.DeleteMember(7); err != nil {
+	if err := service.DeleteMember(7, false); err != nil {
 		t.Fatalf("delete member: %v", err)
 	}
 	if store.deletedMemberID != 7 {
@@ -602,7 +617,7 @@ func TestClusterServiceLeaveDomainDeletesLocalNodeFromHubAndRemovesDomainMirror(
 		},
 	}
 
-	if err := service.LeaveDomain(1); err != nil {
+	if err := service.LeaveDomain(1, false); err != nil {
 		t.Fatalf("leave domain: %v", err)
 	}
 	if hub.lastDeleteMemberID != "node-local" {
@@ -933,6 +948,92 @@ func TestClusterServiceReceiveMessageAcceptsLocalMemberPeerTokenForCorrectDomain
 	}
 }
 
+func TestClusterServiceDeleteMemberForwardsForceDeleteToHub(t *testing.T) {
+	secret := []byte("panel-secret-for-cluster-tests")
+	store := &stubClusterServiceStore{
+		domains: map[string]*model.ClusterDomain{
+			"edge.example.com": {
+				Id:             1,
+				Domain:         "edge.example.com",
+				HubURL:         "https://hub.example.com",
+				TokenEncrypted: mustEncryptClusterToken(t, string(secret), "domain-token"),
+			},
+		},
+		members: map[string]*model.ClusterMember{
+			serviceMemberKey(1, "node-peer"): {
+				Id:       7,
+				NodeID:   "node-peer",
+				DomainID: 1,
+			},
+		},
+	}
+	hub := &stubClusterHubClient{}
+	service := &ClusterService{
+		secretProvider: stubClusterSecretProvider{secret: secret},
+		store:          store,
+		hubClient:      hub,
+	}
+
+	if err := service.DeleteMember(7, true); err != nil {
+		t.Fatalf("force delete member: %v", err)
+	}
+	if hub.lastDeleteMemberID != "node-peer" || !hub.lastDeleteForce {
+		t.Fatalf("expected force delete forwarded to hub, got member=%q force=%v", hub.lastDeleteMemberID, hub.lastDeleteForce)
+	}
+}
+
+func TestClusterServiceValidatePeerTokenRejectsEmptyStoredAndRequestTokens(t *testing.T) {
+	secret := []byte("panel-secret-for-cluster-tests")
+	service := &ClusterService{
+		secretProvider: stubClusterSecretProvider{secret: secret},
+	}
+	memberWithEmptyStoredToken := &model.ClusterMember{
+		NodeID:             "node-local",
+		PeerTokenEncrypted: "",
+	}
+
+	if err := service.validateClusterPeerToken(memberWithEmptyStoredToken, ""); err == nil {
+		t.Fatal("expected empty stored and request peer tokens to be rejected")
+	}
+	memberWithEncryptedEmptyToken := &model.ClusterMember{
+		NodeID:             "node-local",
+		PeerTokenEncrypted: mustEncryptClusterToken(t, string(secret), ""),
+	}
+	if err := service.validateClusterPeerToken(memberWithEncryptedEmptyToken, ""); err == nil {
+		t.Fatal("expected encrypted empty peer token to be rejected")
+	}
+}
+
+func TestClusterServiceHeartbeatRejectsMissingToken(t *testing.T) {
+	service := &ClusterService{
+		localIdentity: ClusterLocalIdentityService{store: &stubClusterLocalNodeStore{node: &model.ClusterLocalNode{NodeID: "node-local"}}},
+		store:         &stubClusterServiceStore{},
+	}
+
+	status, err := service.Heartbeat("node-remote", "")
+	if err != nil {
+		t.Fatalf("heartbeat: %v", err)
+	}
+	if status.Status != "rejected" || status.Code != "invalid_token" {
+		t.Fatalf("expected missing token rejection, got %#v", status)
+	}
+}
+
+func TestClusterServicePingRejectsMissingToken(t *testing.T) {
+	service := &ClusterService{
+		localIdentity: ClusterLocalIdentityService{store: &stubClusterLocalNodeStore{node: &model.ClusterLocalNode{NodeID: "node-local"}}},
+		store:         &stubClusterServiceStore{},
+	}
+
+	status, err := service.Ping("node-remote", "")
+	if err != nil {
+		t.Fatalf("ping: %v", err)
+	}
+	if status.Status != "rejected" || status.Code != "invalid_token" {
+		t.Fatalf("expected missing token rejection, got %#v", status)
+	}
+}
+
 func TestClusterServiceReceivePeerMessageInitializesInjectedSyncDependencies(t *testing.T) {
 	secret := []byte("panel-secret-for-cluster-tests")
 	sourcePublicKey, _, err := ed25519.GenerateKey(rand.Reader)
@@ -1248,29 +1349,30 @@ func (s *stubClusterServiceStore) ReplaceDomainMembers(_ uint, members []model.C
 }
 
 type stubClusterHubClient struct {
-	registerResponse       *ClusterHubOperationResponse
-	latestVersionResponse  *ClusterHubVersionResponse
-	snapshotResponse       *ClusterHubSnapshotResponse
-	deleteResponse         *ClusterHubOperationResponse
-	resourceStateErr       error
-	registerErr            error
-	latestVersionErr       error
-	deleteErr              error
-	registerCalls          int
-	snapshotCalls          int
-	versionChecks          int
-	lastHubURL             string
-	lastSnapshotHubURL     string
-	lastSnapshotDomain     string
-	lastSnapshotToken      string
+	registerResponse        *ClusterHubOperationResponse
+	latestVersionResponse   *ClusterHubVersionResponse
+	snapshotResponse        *ClusterHubSnapshotResponse
+	deleteResponse          *ClusterHubOperationResponse
+	resourceStateErr        error
+	registerErr             error
+	latestVersionErr        error
+	deleteErr               error
+	registerCalls           int
+	snapshotCalls           int
+	versionChecks           int
+	lastHubURL              string
+	lastSnapshotHubURL      string
+	lastSnapshotDomain      string
+	lastSnapshotToken       string
 	lastResourceStateHubURL string
 	lastResourceStateDomain string
 	lastResourceStateToken  string
-	lastRegisterRequest    ClusterHubRegisterNodeRequest
-	lastDeleteMemberID     string
-	lastClaimTargetVersion string
-	claimResponse          *ClusterHubClaimUpdateResponse
-	lastResourceStateBody  ClusterHubResourceStateReportRequest
+	lastRegisterRequest     ClusterHubRegisterNodeRequest
+	lastDeleteMemberID      string
+	lastDeleteForce         bool
+	lastClaimTargetVersion  string
+	claimResponse           *ClusterHubClaimUpdateResponse
+	lastResourceStateBody   ClusterHubResourceStateReportRequest
 }
 
 func (s *stubClusterHubClient) RegisterNode(_ context.Context, hubURL string, request ClusterHubRegisterNodeRequest) (*ClusterHubOperationResponse, error) {
@@ -1302,8 +1404,9 @@ func (s *stubClusterHubClient) GetSnapshot(_ context.Context, hubURL string, dom
 	return s.snapshotResponse, nil
 }
 
-func (s *stubClusterHubClient) DeleteMember(_ context.Context, _ string, _ string, _ string, memberID string) (*ClusterHubOperationResponse, error) {
+func (s *stubClusterHubClient) DeleteMember(_ context.Context, _ string, _ string, _ string, memberID string, force bool) (*ClusterHubOperationResponse, error) {
 	s.lastDeleteMemberID = memberID
+	s.lastDeleteForce = force
 	if s.deleteErr != nil {
 		return nil, s.deleteErr
 	}

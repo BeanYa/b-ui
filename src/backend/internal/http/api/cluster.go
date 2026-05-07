@@ -37,8 +37,8 @@ type clusterAPIService interface {
 	CreateDomainUserResource(context.Context, uint, service.ClusterDomainUserCommandInput) (*service.ClusterDomainOperationView, error)
 	UpdateDomainUserResource(context.Context, uint, string, service.ClusterDomainUserCommandInput) (*service.ClusterDomainOperationView, error)
 	DeleteDomainUserResource(context.Context, uint, string) (*service.ClusterDomainOperationView, error)
-	DeleteMember(uint) error
-	LeaveDomain(uint) error
+	DeleteMember(uint, bool) error
+	LeaveDomain(uint, bool) error
 	ReceivePeerMessage(*service.PeerMessage, string) error
 	ReceivePeerMessageWithResult(*service.PeerMessage, string) (*clustertypes.DomainResourceCommandResult, error)
 	ReceiveMessage(*service.ClusterEnvelope, string) error
@@ -46,9 +46,12 @@ type clusterAPIService interface {
 	Ping(remoteNodeID string, token string) (*service.ClusterPeerStatus, error)
 	HandleAction(c *gin.Context)
 	Info(c *gin.Context)
-	ListScatterTasks(domainID string) ([]service.TaskSummary, error)
-	CreateScatterTask(domainID string, taskType string, scope string, params map[string]any) (*service.TaskSummary, error)
-	GetScatterTaskResult(domainID string, taskID string) (*service.TaskResultDetail, error)
+	ListScatterTasksForAdmin(domainID string) ([]service.TaskSummary, error)
+	CreateScatterTaskForAdmin(domainID string, taskType string, scope string, params map[string]any) (*service.TaskSummary, error)
+	GetScatterTaskResultForAdmin(domainID string, taskID string) (*service.TaskResultDetail, error)
+	ListScatterTasks(domainID string, token string) ([]service.TaskSummary, error)
+	CreateScatterTask(domainID string, token string, taskType string, scope string, params map[string]any) (*service.TaskSummary, error)
+	GetScatterTaskResult(domainID string, token string, taskID string) (*service.TaskResultDetail, error)
 }
 
 type clusterDomainOperationRetryService interface {
@@ -320,6 +323,39 @@ func registerClusterDomainResourceRoutes(g gin.IRoutes, handler *APIHandler) {
 	g.POST("/cluster/domain-operations/:operationId/retry", handler.retryClusterDomainOperation)
 }
 
+func (a *APIHandler) listClusterScatterTasks(c *gin.Context) {
+	if !a.requireClusterAdmin(c) {
+		return
+	}
+	tasks, err := a.clusterService.ListScatterTasksForAdmin(c.Param("id"))
+	jsonObj(c, tasks, err)
+}
+
+func (a *APIHandler) createClusterScatterTask(c *gin.Context) {
+	if !a.requireClusterAdmin(c) {
+		return
+	}
+	var req struct {
+		TaskType string         `json:"taskType"`
+		Scope    string         `json:"scope"`
+		Params   map[string]any `json:"params"`
+	}
+	if err := c.ShouldBindJSON(&req); err != nil {
+		jsonMsg(c, "create scatter task", err)
+		return
+	}
+	result, err := a.clusterService.CreateScatterTaskForAdmin(c.Param("id"), req.TaskType, req.Scope, req.Params)
+	jsonObj(c, result, err)
+}
+
+func (a *APIHandler) getClusterScatterTaskResult(c *gin.Context) {
+	if !a.requireClusterAdmin(c) {
+		return
+	}
+	result, err := a.clusterService.GetScatterTaskResultForAdmin(c.Param("id"), c.Param("taskId"))
+	jsonObj(c, result, err)
+}
+
 func (a *APIHandler) deleteClusterMember(c *gin.Context) {
 	if !a.requireClusterAdmin(c) {
 		return
@@ -329,7 +365,7 @@ func (a *APIHandler) deleteClusterMember(c *gin.Context) {
 		jsonMsg(c, "delete cluster member", err)
 		return
 	}
-	jsonMsg(c, "delete cluster member", a.clusterService.DeleteMember(uint(id)))
+	jsonMsg(c, "delete cluster member", a.clusterService.DeleteMember(uint(id), requestForceDelete(c)))
 }
 
 func (a *APIHandler) leaveClusterDomain(c *gin.Context) {
@@ -341,7 +377,7 @@ func (a *APIHandler) leaveClusterDomain(c *gin.Context) {
 		jsonMsg(c, "leave cluster domain", err)
 		return
 	}
-	jsonMsg(c, "leave cluster domain", a.clusterService.LeaveDomain(uint(id)))
+	jsonMsg(c, "leave cluster domain", a.clusterService.LeaveDomain(uint(id), requestForceDelete(c)))
 }
 
 func (a *APIHandler) getClusterLogs(c *gin.Context) {
@@ -500,7 +536,7 @@ func RegisterClusterMessageRoute(router gin.IRoutes, clusterService clusterAPISe
 		clusterService.HandleAction(c)
 	})
 	router.GET("/_cluster/v1/domains/:domainId/tasks", func(c *gin.Context) {
-		tasks, err := clusterService.ListScatterTasks(c.Param("domainId"))
+		tasks, err := clusterService.ListScatterTasks(c.Param("domainId"), c.GetHeader("X-Cluster-Token"))
 		jsonObj(c, tasks, err)
 	})
 	router.POST("/_cluster/v1/domains/:domainId/tasks", func(c *gin.Context) {
@@ -513,13 +549,24 @@ func RegisterClusterMessageRoute(router gin.IRoutes, clusterService clusterAPISe
 			jsonMsg(c, "create scatter task", err)
 			return
 		}
-		result, err := clusterService.CreateScatterTask(c.Param("domainId"), req.TaskType, req.Scope, req.Params)
+		result, err := clusterService.CreateScatterTask(c.Param("domainId"), c.GetHeader("X-Cluster-Token"), req.TaskType, req.Scope, req.Params)
 		jsonObj(c, result, err)
 	})
 	router.GET("/_cluster/v1/domains/:domainId/tasks/:taskId/result", func(c *gin.Context) {
-		result, err := clusterService.GetScatterTaskResult(c.Param("domainId"), c.Param("taskId"))
+		result, err := clusterService.GetScatterTaskResult(c.Param("domainId"), c.GetHeader("X-Cluster-Token"), c.Param("taskId"))
 		jsonObj(c, result, err)
 	})
+}
+
+func requestForceDelete(c *gin.Context) bool {
+	force := c.Query("force")
+	if force == "1" || strings.EqualFold(force, "true") {
+		return true
+	}
+	if c.Request != nil {
+		force = c.Request.FormValue("force")
+	}
+	return force == "1" || strings.EqualFold(force, "true")
 }
 
 func extractDomainFromBody(fields map[string]json.RawMessage) string {

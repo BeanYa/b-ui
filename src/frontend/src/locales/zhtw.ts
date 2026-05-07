@@ -321,6 +321,7 @@ export default {
         updatePanel: "更新面板",
         confirmRegister: "確認註冊",
         confirmDelete: "確認刪除",
+        forceDelete: "強制刪除",
       },
       pingSettings: {
         title: "Ping 設定",
@@ -336,6 +337,9 @@ export default {
       confirmDeleteMember: "確認將該成員從域中移除？",
       confirmLeaveTitle: "確認退出域",
       confirmLeaveDomain: "確認退出當前域？本機節點將離開此域。",
+      confirmForceDeleteTitle: "確認強制刪除",
+      confirmForceDeleteMember: "清理失敗。確認只從 Hub 資訊表刪除該成員，並以 Hub 資訊表為準同步節點？",
+      confirmForceLeaveDomain: "清理失敗。確認只從 Hub 資訊表移除本機節點，並以 Hub 資訊表為準同步節點？",
     joinUriHint: "URI 以 buihub:// 開頭，例如 buihub://hub.example.com/domain?id=example.com&domain_token=xxx。",
     validation: {
       required: "Hub 位址、域Id 與域認證令牌為必填欄位。",

@@ -222,14 +222,15 @@ func (s *MeshService) probePair(ctx context.Context, src, tgt MeshMember) MeshPa
 }
 
 func (s *MeshService) httpPing(ctx context.Context, baseURL string, peerToken string) (float64, error) {
+	if strings.TrimSpace(peerToken) == "" {
+		return 0, fmt.Errorf("cluster peer token is required")
+	}
 	pingURL := strings.TrimRight(baseURL, "/") + "/_cluster/v1/ping"
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet, pingURL, nil)
 	if err != nil {
 		return 0, err
 	}
-	if peerToken != "" {
-		req.Header.Set("X-Cluster-Token", peerToken)
-	}
+	req.Header.Set("X-Cluster-Token", peerToken)
 
 	start := time.Now()
 	resp, err := s.httpClientOrDefault().Do(req)

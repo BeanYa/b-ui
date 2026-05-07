@@ -488,6 +488,38 @@ func TestClusterLeaveDomainUsesService(t *testing.T) {
 	}
 }
 
+func TestClusterDeleteMemberForwardsForceDeleteFlag(t *testing.T) {
+	router, cluster := newTestClusterRouter()
+	req := httptest.NewRequest(http.MethodDelete, "/api/cluster/members/7?force=true", nil)
+	req.Header.Set("Cookie", loginCookie(t, router, "admin"))
+	recorder := httptest.NewRecorder()
+
+	router.ServeHTTP(recorder, req)
+
+	if recorder.Code != http.StatusOK {
+		t.Fatalf("expected status %d, got %d", http.StatusOK, recorder.Code)
+	}
+	if cluster.deletedMemberID != 7 || !cluster.deletedMemberForce {
+		t.Fatalf("expected force delete for member 7, got id=%d force=%v", cluster.deletedMemberID, cluster.deletedMemberForce)
+	}
+}
+
+func TestClusterLeaveDomainForwardsForceDeleteFlag(t *testing.T) {
+	router, cluster := newTestClusterRouter()
+	req := httptest.NewRequest(http.MethodDelete, "/api/cluster/domains/9?force=1", nil)
+	req.Header.Set("Cookie", loginCookie(t, router, "admin"))
+	recorder := httptest.NewRecorder()
+
+	router.ServeHTTP(recorder, req)
+
+	if recorder.Code != http.StatusOK {
+		t.Fatalf("expected status %d, got %d", http.StatusOK, recorder.Code)
+	}
+	if cluster.leftDomainID != 9 || !cluster.leftDomainForce {
+		t.Fatalf("expected force leave for domain 9, got id=%d force=%v", cluster.leftDomainID, cluster.leftDomainForce)
+	}
+}
+
 func TestClusterMessageRouteAcceptsLegacyEnvelope(t *testing.T) {
 	router, cluster := newTestClusterRouter()
 	body, err := json.Marshal(service.ClusterEnvelope{SchemaVersion: 1, MessageType: "sync.notify_version", SourceNodeID: "node-a", Domain: "edge.example.com", Version: 9, SentAt: 1700000000, Signature: "sig"})
@@ -852,7 +884,9 @@ type stubClusterAPIService struct {
 	memberPanelUpdateCalls      int
 	receiveCalls                int
 	deletedMemberID             uint
+	deletedMemberForce          bool
 	leftDomainID                uint
+	leftDomainForce             bool
 	checkedDomainID             uint
 	updatedMemberID             uint
 	updatedTargetVersion        string
@@ -899,6 +933,7 @@ type stubClusterAPIService struct {
 	scatterTaskType             string
 	scatterTaskScope            string
 	scatterTaskParams           map[string]any
+	scatterToken                string
 }
 
 func (s *stubClusterAPIService) Register(request service.ClusterRegisterRequest) (*service.ClusterOperationStatus, error) {
@@ -1068,13 +1103,15 @@ func (s *stubClusterAPIService) ListDomainResources(_ context.Context, domainID 
 	return s.domainResources, nil
 }
 
-func (s *stubClusterAPIService) DeleteMember(id uint) error {
+func (s *stubClusterAPIService) DeleteMember(id uint, force bool) error {
 	s.deletedMemberID = id
+	s.deletedMemberForce = force
 	return nil
 }
 
-func (s *stubClusterAPIService) LeaveDomain(id uint) error {
+func (s *stubClusterAPIService) LeaveDomain(id uint, force bool) error {
 	s.leftDomainID = id
+	s.leftDomainForce = force
 	return nil
 }
 
@@ -1126,13 +1163,21 @@ func (s *stubClusterAPIService) Ping(remoteNodeID string, token string) (*servic
 	return &service.ClusterPeerStatus{Status: "processed", Code: "ok", NodeID: "node-local"}, nil
 }
 
-func (s *stubClusterAPIService) ListScatterTasks(domainID string) ([]service.TaskSummary, error) {
+func (s *stubClusterAPIService) ListScatterTasks(domainID string, token string) ([]service.TaskSummary, error) {
 	s.scatterDomainID = domainID
+	s.scatterToken = token
 	return s.scatterTasks, nil
 }
 
-func (s *stubClusterAPIService) CreateScatterTask(domainID string, taskType string, scope string, params map[string]any) (*service.TaskSummary, error) {
+func (s *stubClusterAPIService) ListScatterTasksForAdmin(domainID string) ([]service.TaskSummary, error) {
 	s.scatterDomainID = domainID
+	s.scatterToken = ""
+	return s.scatterTasks, nil
+}
+
+func (s *stubClusterAPIService) CreateScatterTask(domainID string, token string, taskType string, scope string, params map[string]any) (*service.TaskSummary, error) {
+	s.scatterDomainID = domainID
+	s.scatterToken = token
 	s.scatterTaskType = taskType
 	s.scatterTaskScope = scope
 	s.scatterTaskParams = params
@@ -1144,8 +1189,13 @@ func (s *stubClusterAPIService) CreateScatterTask(domainID string, taskType stri
 	}, nil
 }
 
-func (s *stubClusterAPIService) GetScatterTaskResult(domainID string, taskID string) (*service.TaskResultDetail, error) {
+func (s *stubClusterAPIService) CreateScatterTaskForAdmin(domainID string, taskType string, scope string, params map[string]any) (*service.TaskSummary, error) {
+	return s.CreateScatterTask(domainID, "", taskType, scope, params)
+}
+
+func (s *stubClusterAPIService) GetScatterTaskResult(domainID string, token string, taskID string) (*service.TaskResultDetail, error) {
 	s.scatterDomainID = domainID
+	s.scatterToken = token
 	s.scatterTaskID = taskID
 	if s.scatterTaskResult != nil {
 		return s.scatterTaskResult, nil
@@ -1156,7 +1206,15 @@ func (s *stubClusterAPIService) GetScatterTaskResult(domainID string, taskID str
 	}, nil
 }
 
+func (s *stubClusterAPIService) GetScatterTaskResultForAdmin(domainID string, taskID string) (*service.TaskResultDetail, error) {
+	return s.GetScatterTaskResult(domainID, "", taskID)
+}
+
 func (s *stubClusterAPIService) HandleAction(c *gin.Context) {
+	if c.GetHeader("X-Cluster-Token") == "" {
+		c.JSON(http.StatusOK, gin.H{"status": "error", "error_message": "cluster token is required"})
+		return
+	}
 	var body map[string]any
 	if err := c.ShouldBindJSON(&body); err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"status": "error", "message": "invalid json"})
@@ -1175,12 +1233,17 @@ func (s *stubClusterAPIService) HandleAction(c *gin.Context) {
 }
 
 func (s *stubClusterAPIService) Info(c *gin.Context) {
+	if c.GetHeader("X-Cluster-Token") == "" {
+		c.JSON(http.StatusOK, gin.H{"status": "rejected", "code": "invalid_token", "message": "cluster token is required"})
+		return
+	}
 	c.JSON(http.StatusOK, gin.H{"actions": []string{}})
 }
 
 func TestClusterInfoEndpoint(t *testing.T) {
 	router, _ := newTestClusterRouter()
 	req := httptest.NewRequest(http.MethodGet, "/_cluster/v1/info", nil)
+	req.Header.Set("X-Cluster-Token", "peer-token")
 	recorder := httptest.NewRecorder()
 
 	router.ServeHTTP(recorder, req)
@@ -1200,10 +1263,28 @@ func TestClusterInfoEndpoint(t *testing.T) {
 	}
 }
 
+func TestClusterInfoEndpointRejectsMissingToken(t *testing.T) {
+	router, _ := newTestClusterRouter()
+	req := httptest.NewRequest(http.MethodGet, "/_cluster/v1/info", nil)
+	recorder := httptest.NewRecorder()
+
+	router.ServeHTTP(recorder, req)
+
+	if recorder.Code != http.StatusOK {
+		t.Fatalf("expected status %d, got %d", http.StatusOK, recorder.Code)
+	}
+	var response map[string]any
+	decodeResponse(t, recorder, &response)
+	if response["status"] != "rejected" || response["code"] != "invalid_token" {
+		t.Fatalf("expected invalid token rejection, got %#v", response)
+	}
+}
+
 func TestClusterActionEndpoint_UnsupportedAction(t *testing.T) {
 	router, _ := newTestClusterRouter()
-	req := httptest.NewRequest(http.MethodPost, "/_cluster/v1/action", bytes.NewBufferString(`{"action":"unknown.action"}`))
+	req := httptest.NewRequest(http.MethodPost, "/_cluster/v1/action", bytes.NewBufferString(`{"domain":"edge.example.com","action":"unknown.action"}`))
 	req.Header.Set("Content-Type", "application/json")
+	req.Header.Set("X-Cluster-Token", "peer-token")
 	recorder := httptest.NewRecorder()
 
 	router.ServeHTTP(recorder, req)
@@ -1221,16 +1302,74 @@ func TestClusterActionEndpoint_UnsupportedAction(t *testing.T) {
 	}
 }
 
+func TestClusterActionEndpointRejectsMissingToken(t *testing.T) {
+	router, _ := newTestClusterRouter()
+	req := httptest.NewRequest(http.MethodPost, "/_cluster/v1/action", bytes.NewBufferString(`{"domain":"edge.example.com","action":"domain.cleanup"}`))
+	req.Header.Set("Content-Type", "application/json")
+	recorder := httptest.NewRecorder()
+
+	router.ServeHTTP(recorder, req)
+
+	if recorder.Code != http.StatusOK {
+		t.Fatalf("expected status %d, got %d", http.StatusOK, recorder.Code)
+	}
+	var response map[string]any
+	decodeResponse(t, recorder, &response)
+	if response["status"] != "error" {
+		t.Fatalf("expected action token rejection, got %#v", response)
+	}
+	if !strings.Contains(response["error_message"].(string), "token") {
+		t.Fatalf("expected token error message, got %#v", response)
+	}
+}
+
 func TestClusterActionEndpoint_InvalidJSON(t *testing.T) {
 	router, _ := newTestClusterRouter()
 	req := httptest.NewRequest(http.MethodPost, "/_cluster/v1/action", bytes.NewBufferString(`{invalid`))
 	req.Header.Set("Content-Type", "application/json")
+	req.Header.Set("X-Cluster-Token", "peer-token")
 	recorder := httptest.NewRecorder()
 
 	router.ServeHTTP(recorder, req)
 
 	if recorder.Code != http.StatusBadRequest {
 		t.Fatalf("expected status %d, got %d", http.StatusBadRequest, recorder.Code)
+	}
+}
+
+func TestClusterScatterTaskRoutesForwardClusterToken(t *testing.T) {
+	router, cluster := newTestClusterRouter()
+	req := httptest.NewRequest(http.MethodGet, "/_cluster/v1/domains/edge.example.com/tasks", nil)
+	req.Header.Set("X-Cluster-Token", "peer-token")
+	recorder := httptest.NewRecorder()
+
+	router.ServeHTTP(recorder, req)
+
+	if recorder.Code != http.StatusOK {
+		t.Fatalf("expected status %d, got %d", http.StatusOK, recorder.Code)
+	}
+	if cluster.scatterDomainID != "edge.example.com" || cluster.scatterToken != "peer-token" {
+		t.Fatalf("expected task list token/domain forwarded, got domain=%q token=%q", cluster.scatterDomainID, cluster.scatterToken)
+	}
+}
+
+func TestClusterScatterTaskAdminRoutesUseSessionAuth(t *testing.T) {
+	router, cluster := newTestClusterRouter()
+	req := httptest.NewRequest(http.MethodPost, "/api/cluster/domains/edge.example.com/tasks", bytes.NewBufferString(`{"taskType":"mesh.latency","scope":"domain","params":{"sample":true}}`))
+	req.Header.Set("Content-Type", "application/json")
+	req.Header.Set("Cookie", loginCookie(t, router, "admin"))
+	recorder := httptest.NewRecorder()
+
+	router.ServeHTTP(recorder, req)
+
+	if recorder.Code != http.StatusOK {
+		t.Fatalf("expected status %d, got %d", http.StatusOK, recorder.Code)
+	}
+	if cluster.scatterDomainID != "edge.example.com" || cluster.scatterToken != "" {
+		t.Fatalf("expected admin task route to avoid peer token, got domain=%q token=%q", cluster.scatterDomainID, cluster.scatterToken)
+	}
+	if cluster.scatterTaskType != "mesh.latency" || cluster.scatterTaskScope != "domain" {
+		t.Fatalf("expected task request forwarded, got type=%q scope=%q", cluster.scatterTaskType, cluster.scatterTaskScope)
 	}
 }
 

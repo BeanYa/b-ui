@@ -428,7 +428,7 @@ func (s *stubHubClient) GetLatestVersion(_ context.Context, _ string, _ string, 
 func (s *stubHubClient) GetSnapshot(_ context.Context, _ string, _ string, _ string) (*ClusterHubSnapshotResponse, error) {
 	return nil, nil
 }
-func (s *stubHubClient) DeleteMember(_ context.Context, _ string, _ string, _ string, _ string) (*ClusterHubOperationResponse, error) {
+func (s *stubHubClient) DeleteMember(_ context.Context, _ string, _ string, _ string, _ string, _ bool) (*ClusterHubOperationResponse, error) {
 	return nil, nil
 }
 func (s *stubHubClient) ClaimUpdate(_ context.Context, _ string, _ string, _ string, _ string, _ string) (*ClusterHubClaimUpdateResponse, error) {

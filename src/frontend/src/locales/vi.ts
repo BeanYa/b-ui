@@ -309,6 +309,7 @@ export default {
         updatePanel: "Cập nhật panel",
         confirmRegister: "Xác nhận đăng ký",
         confirmDelete: "Xác nhận xóa",
+        forceDelete: "Xóa cưỡng bức",
       },
       pingSettings: {
         title: "Ping Settings",
@@ -324,6 +325,9 @@ export default {
       confirmDeleteMember: "Xóa thành viên này khỏi miền?",
       confirmLeaveTitle: "Xác nhận rời miền",
       confirmLeaveDomain: "Rời miền hiện tại? Nút cục bộ của bạn sẽ bị xóa khỏi miền này.",
+      confirmForceDeleteTitle: "Xác nhận xóa cưỡng bức",
+      confirmForceDeleteMember: "Dọn dẹp thất bại. Chỉ xóa thành viên này khỏi bảng Hub và để các nút hội tụ theo trạng thái Hub?",
+      confirmForceLeaveDomain: "Dọn dẹp thất bại. Chỉ xóa nút này khỏi bảng Hub và để các nút hội tụ theo trạng thái Hub?",
     joinUriHint: "URI bắt đầu bằng buihub://, ví dụ buihub://hub.example.com/domain?id=example.com&domain_token=xxx",
     validation: {
       required: "URL Hub, ID miền và token miền là bắt buộc.",
