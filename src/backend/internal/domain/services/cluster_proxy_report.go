@@ -127,14 +127,14 @@ func (s *ClusterProxyReportService) reportProxyConfigs(domain clusterDomainInfo)
 		if _, wrapped := wrappedInboundIDs[inb.Id]; wrapped {
 			continue
 		}
-		configs = append(configs, buildClusterProxyReportConfig(inb, address, "node", ""))
+		configs = append(configs, buildClusterProxyReportConfig(inb, address, "node", "", ""))
 	}
 
 	for _, wrapper := range wrappers {
 		if wrapper.Inbound == nil {
 			continue
 		}
-		configs = append(configs, buildClusterProxyReportConfig(*wrapper.Inbound, address, "domain", wrapper.RequestID))
+		configs = append(configs, buildClusterProxyReportConfig(*wrapper.Inbound, address, "domain", wrapper.RequestID, wrapper.GroupID))
 	}
 
 	body := ClusterHubReportProxyConfigsRequest{
@@ -149,7 +149,7 @@ func (s *ClusterProxyReportService) reportProxyConfigs(domain clusterDomainInfo)
 	return s.hubClient.ReportProxyConfigs(context.Background(), domain.HubURL, domain.Name, body)
 }
 
-func buildClusterProxyReportConfig(inb model.Inbound, address string, scope string, requestID string) ClusterHubProxyConfigItem {
+func buildClusterProxyReportConfig(inb model.Inbound, address string, scope string, requestID string, groupID string) ClusterHubProxyConfigItem {
 	var listenPort int
 	var options json.RawMessage
 
@@ -184,6 +184,7 @@ func buildClusterProxyReportConfig(inb model.Inbound, address string, scope stri
 		TLSConfig:              buildClusterProxyReportTLSConfig(inb.Tls),
 		Scope:                  scope,
 		DomainInboundRequestID: requestID,
+		DomainInboundGroupID:   groupID,
 	}
 }
 

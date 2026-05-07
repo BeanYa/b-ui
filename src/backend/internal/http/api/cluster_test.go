@@ -178,7 +178,7 @@ func TestClusterDomainInboundCreateRouteUsesDomainResourceCoordinator(t *testing
 
 func TestClusterDomainUserCreateRouteUsesDomainResourceCoordinator(t *testing.T) {
 	router, cluster := newTestClusterRouter()
-	req := httptest.NewRequest(http.MethodPost, "/api/cluster/domains/7/resources/users", bytes.NewBufferString(`{"user":{"uuid":"user-1","name":"Alice","enable":true,"config":{"level":1}},"inbounds":["group-1"]}`))
+	req := httptest.NewRequest(http.MethodPost, "/api/cluster/domains/7/resources/users", bytes.NewBufferString(`{"user":{"uuid":"user-1","name":"Alice","enable":true,"config":{"level":1},"bound_inbound_group_ids":["group-1"]},"bound_inbound_group_ids":["group-1"]}`))
 	req.Header.Set("Content-Type", "application/json")
 	req.Header.Set("Cookie", loginCookie(t, router, "admin"))
 	recorder := httptest.NewRecorder()
@@ -197,8 +197,46 @@ func TestClusterDomainUserCreateRouteUsesDomainResourceCoordinator(t *testing.T)
 	if string(cluster.createdDomainUserInput.User.Config) != `{"level":1}` {
 		t.Fatalf("expected user config to be forwarded, got %s", cluster.createdDomainUserInput.User.Config)
 	}
-	if len(cluster.createdDomainUserInput.Inbounds) != 1 || cluster.createdDomainUserInput.Inbounds[0] != "group-1" {
-		t.Fatalf("expected inbound selectors to be forwarded, got %#v", cluster.createdDomainUserInput.Inbounds)
+	if len(cluster.createdDomainUserInput.BoundInboundGroupIDs) != 1 || cluster.createdDomainUserInput.BoundInboundGroupIDs[0] != "group-1" {
+		t.Fatalf("expected bound inbound group ids to be forwarded, got %#v", cluster.createdDomainUserInput.BoundInboundGroupIDs)
+	}
+	if len(cluster.createdDomainUserInput.User.BoundInboundGroupIDs) != 1 || cluster.createdDomainUserInput.User.BoundInboundGroupIDs[0] != "group-1" {
+		t.Fatalf("expected user bound inbound group ids to be forwarded, got %#v", cluster.createdDomainUserInput.User.BoundInboundGroupIDs)
+	}
+}
+
+func TestClusterDomainResourcesRouteListsReadModel(t *testing.T) {
+	router, cluster := newTestClusterRouter()
+	cluster.domainResources = service.ClusterHubDomainResources{
+		Inbounds: []service.ClusterHubDomainResourceInbound{{GroupID: "group-1", Type: "vless", Status: "active"}},
+		Users: []service.ClusterHubDomainResourceUser{{
+			UUID:                 "user-1",
+			Name:                 "Alice",
+			Enable:               true,
+			SubToken:             "stable-token",
+			BoundInboundGroupIDs: []string{"group-1"},
+		}},
+	}
+	req := httptest.NewRequest(http.MethodGet, "/api/cluster/domains/7/resources", nil)
+	req.Header.Set("Cookie", loginCookie(t, router, "admin"))
+	recorder := httptest.NewRecorder()
+
+	router.ServeHTTP(recorder, req)
+
+	if recorder.Code != http.StatusOK {
+		t.Fatalf("expected status %d, got %d: %s", http.StatusOK, recorder.Code, recorder.Body.String())
+	}
+	if cluster.listDomainResourcesID != 7 {
+		t.Fatalf("expected resources request for domain 7, got %d", cluster.listDomainResourcesID)
+	}
+	var response Msg
+	decodeResponse(t, recorder, &response)
+	body, err := json.Marshal(response.Obj)
+	if err != nil {
+		t.Fatalf("marshal resources response: %v", err)
+	}
+	if !bytes.Contains(body, []byte(`"group_id":"group-1"`)) || !bytes.Contains(body, []byte(`"bound_inbound_group_ids":["group-1"]`)) {
+		t.Fatalf("expected resource read model in response, got %s", body)
 	}
 }
 
@@ -852,6 +890,8 @@ type stubClusterAPIService struct {
 	deletedDomainUserID         uint
 	deletedDomainUserUUID       string
 	retriedDomainOperationID    string
+	domainResources             service.ClusterHubDomainResources
+	listDomainResourcesID       uint
 	scatterTasks                []service.TaskSummary
 	scatterTaskResult           *service.TaskResultDetail
 	scatterDomainID             string
@@ -1021,6 +1061,11 @@ func (s *stubClusterAPIService) RetryDomainOperation(_ context.Context, operatio
 		OperationID: operationID,
 		Status:      service.ClusterDomainOperationApplied,
 	}, nil
+}
+
+func (s *stubClusterAPIService) ListDomainResources(_ context.Context, domainID uint) (service.ClusterHubDomainResources, error) {
+	s.listDomainResourcesID = domainID
+	return s.domainResources, nil
 }
 
 func (s *stubClusterAPIService) DeleteMember(id uint) error {

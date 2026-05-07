@@ -41,6 +41,22 @@ describe('DomainResourceInboundEditor source', () => {
     expect(source).not.toContain('JSON.parse')
   })
 
+  it('lets operators broadcast all nodes or pick a target member list', () => {
+    expect(source).toContain("targetScope = ref<'all' | 'pick'>('all')")
+    expect(source).toContain('selectedTargetNodeIds')
+    expect(source).toContain('targetScopeItems')
+    expect(source).toContain("$t('clusterCenter.domainResources.targetScope')")
+    expect(source).toContain("i18n.global.t('clusterCenter.domainResources.broadcastAll')")
+    expect(source).toContain("$t('clusterCenter.domainResources.pickList')")
+    expect(source).toContain('v-if="targetScope === \'pick\'"')
+    expect(source).toContain('targetMemberItems')
+    expect(source).toContain('buildTargetMembers')
+    expect(source).toContain('target_members: buildTargetMembers()')
+    expect(source).toContain('targetMembersRequired')
+    expect(source).toContain('member.isLocal')
+    expect(source).toContain("i18n.global.t('clusterCenter.domainResources.localNode')")
+  })
+
   it('does not generate sing-box legacy inbound sniff fields', () => {
     expect(source).not.toContain('raw.sniff')
     expect(source).not.toContain('sniff_override_destination')

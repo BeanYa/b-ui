@@ -27,8 +27,9 @@ type ClusterDomainInboundCommandInput struct {
 }
 
 type ClusterDomainUserCommandInput struct {
-	User     clustertypes.DomainUserPayload `json:"user"`
-	Inbounds []string                       `json:"inbounds,omitempty"`
+	User                 clustertypes.DomainUserPayload `json:"user"`
+	BoundInboundGroupIDs []string                       `json:"bound_inbound_group_ids,omitempty"`
+	Inbounds             []string                       `json:"inbounds,omitempty"`
 }
 
 type clusterDomainPeerSender interface {
@@ -61,6 +62,9 @@ func (c *ClusterDomainResourceCoordinator) CreateDomainInbound(ctx context.Conte
 	if err != nil {
 		return nil, err
 	}
+	if err := validateSelectedDomainResourceTargets(payload.TargetMembers, members, local.NodeID); err != nil {
+		return nil, err
+	}
 	operationID := payload.RequestID
 	desiredPayload, err := json.Marshal(payload)
 	if err != nil {
@@ -83,29 +87,31 @@ func (c *ClusterDomainResourceCoordinator) CreateDomainInbound(ctx context.Conte
 		return nil, err
 	}
 
-	localResult, localErr := NewClusterDomainInboundService(ClusterDomainInboundServiceOptions{
-		DB:            db,
-		Identity:      c.identity(),
-		PortAllocator: c.PortAllocator,
-	}).ApplyDomainInboundCreate(ctx, domain, payload, local.NodeID, false)
-	localCommandResult := &clustertypes.DomainResourceCommandResult{
-		Status:       "applied",
-		OperationID:  operationID,
-		NodeID:       local.NodeID,
-		MemberID:     local.NodeID,
-		ResourceKind: ClusterDomainResourceInbound,
-		ResourceID:   payload.GroupID,
-		Revision:     domain.LastVersion,
-	}
-	if localResult != nil {
-		localCommandResult.LocalResourceID = localResult.InboundID
-	}
-	if err := c.saveInstanceResult(store, operationID, model.ClusterMember{NodeID: local.NodeID, DisplayName: local.NodeID}, "", localCommandResult, localErr); err != nil {
-		return nil, err
+	if shouldApplyLocalDomainResourceTarget(payload.TargetMembers, local.NodeID) {
+		localResult, localErr := NewClusterDomainInboundService(ClusterDomainInboundServiceOptions{
+			DB:            db,
+			Identity:      c.identity(),
+			PortAllocator: c.PortAllocator,
+		}).ApplyDomainInboundCreate(ctx, domain, payload, local.NodeID, false)
+		localCommandResult := &clustertypes.DomainResourceCommandResult{
+			Status:       "applied",
+			OperationID:  operationID,
+			NodeID:       local.NodeID,
+			MemberID:     local.NodeID,
+			ResourceKind: ClusterDomainResourceInbound,
+			ResourceID:   payload.GroupID,
+			Revision:     domain.LastVersion,
+		}
+		if localResult != nil {
+			localCommandResult.LocalResourceID = localResult.InboundID
+		}
+		if err := c.saveInstanceResult(store, operationID, model.ClusterMember{NodeID: local.NodeID, DisplayName: local.NodeID}, "", localCommandResult, localErr); err != nil {
+			return nil, err
+		}
 	}
 
 	commandPayload := domainResourcePeerPayload(domain, local.NodeID, operationID, payload.RequestID, ClusterDomainResourceInbound, payload.GroupID, domain.LastVersion, payload.TargetMembers, payloadMap)
-	if err := c.dispatchDomainResourceTargets(ctx, store, domain, local, operationID, PeerActionDomainInboundCreate, commandPayload, eligibleDomainResourceTargets(members, local.NodeID), false); err != nil {
+	if err := c.dispatchDomainResourceTargets(ctx, store, domain, local, operationID, PeerActionDomainInboundCreate, commandPayload, selectedDomainResourceTargets(members, local.NodeID, payload.TargetMembers), false); err != nil {
 		return nil, err
 	}
 
@@ -200,6 +206,9 @@ func (c *ClusterDomainResourceCoordinator) UpdateDomainInbound(ctx context.Conte
 	if err != nil {
 		return nil, err
 	}
+	if err := validateSelectedDomainResourceTargets(payload.TargetMembers, members, local.NodeID); err != nil {
+		return nil, err
+	}
 	operationID := payload.RequestID
 	desiredPayload, err := json.Marshal(payload)
 	if err != nil {
@@ -222,29 +231,31 @@ func (c *ClusterDomainResourceCoordinator) UpdateDomainInbound(ctx context.Conte
 		return nil, err
 	}
 
-	localResult, localErr := NewClusterDomainInboundService(ClusterDomainInboundServiceOptions{
-		DB:            db,
-		Identity:      c.identity(),
-		PortAllocator: c.PortAllocator,
-	}).ApplyDomainInboundUpdate(ctx, domain, payload, local.NodeID, false)
-	localCommandResult := &clustertypes.DomainResourceCommandResult{
-		Status:       "applied",
-		OperationID:  operationID,
-		NodeID:       local.NodeID,
-		MemberID:     local.NodeID,
-		ResourceKind: ClusterDomainResourceInbound,
-		ResourceID:   payload.GroupID,
-		Revision:     domain.LastVersion,
-	}
-	if localResult != nil {
-		localCommandResult.LocalResourceID = localResult.InboundID
-	}
-	if err := c.saveInstanceResult(store, operationID, model.ClusterMember{NodeID: local.NodeID, DisplayName: local.NodeID}, "", localCommandResult, localErr); err != nil {
-		return nil, err
+	if shouldApplyLocalDomainResourceTarget(payload.TargetMembers, local.NodeID) {
+		localResult, localErr := NewClusterDomainInboundService(ClusterDomainInboundServiceOptions{
+			DB:            db,
+			Identity:      c.identity(),
+			PortAllocator: c.PortAllocator,
+		}).ApplyDomainInboundUpdate(ctx, domain, payload, local.NodeID, false)
+		localCommandResult := &clustertypes.DomainResourceCommandResult{
+			Status:       "applied",
+			OperationID:  operationID,
+			NodeID:       local.NodeID,
+			MemberID:     local.NodeID,
+			ResourceKind: ClusterDomainResourceInbound,
+			ResourceID:   payload.GroupID,
+			Revision:     domain.LastVersion,
+		}
+		if localResult != nil {
+			localCommandResult.LocalResourceID = localResult.InboundID
+		}
+		if err := c.saveInstanceResult(store, operationID, model.ClusterMember{NodeID: local.NodeID, DisplayName: local.NodeID}, "", localCommandResult, localErr); err != nil {
+			return nil, err
+		}
 	}
 
 	commandPayload := domainResourcePeerPayload(domain, local.NodeID, operationID, payload.RequestID, ClusterDomainResourceInbound, payload.GroupID, domain.LastVersion, payload.TargetMembers, payloadMap)
-	if err := c.dispatchDomainResourceTargets(ctx, store, domain, local, operationID, PeerActionDomainInboundUpdate, commandPayload, eligibleDomainResourceTargets(members, local.NodeID), false); err != nil {
+	if err := c.dispatchDomainResourceTargets(ctx, store, domain, local, operationID, PeerActionDomainInboundUpdate, commandPayload, selectedDomainResourceTargets(members, local.NodeID, payload.TargetMembers), false); err != nil {
 		return nil, err
 	}
 	return c.finishDomainResourceOperation(ctx, store, domain, operationID)
@@ -264,6 +275,9 @@ func (c *ClusterDomainResourceCoordinator) DeleteDomainInbound(ctx context.Conte
 	}
 	payload, payloadMap, err := c.domainInboundDeletePayload(domain, groupID)
 	if err != nil {
+		return nil, err
+	}
+	if err := validateSelectedDomainResourceTargets(payload.TargetMembers, members, local.NodeID); err != nil {
 		return nil, err
 	}
 	operationID := payload.RequestID
@@ -288,26 +302,28 @@ func (c *ClusterDomainResourceCoordinator) DeleteDomainInbound(ctx context.Conte
 		return nil, err
 	}
 
-	localErr := NewClusterDomainInboundService(ClusterDomainInboundServiceOptions{
-		DB:            db,
-		Identity:      c.identity(),
-		PortAllocator: c.PortAllocator,
-	}).ApplyDomainInboundDelete(ctx, domain, payload, local.NodeID, false)
-	localCommandResult := &clustertypes.DomainResourceCommandResult{
-		Status:       "applied",
-		OperationID:  operationID,
-		NodeID:       local.NodeID,
-		MemberID:     local.NodeID,
-		ResourceKind: ClusterDomainResourceInbound,
-		ResourceID:   payload.GroupID,
-		Revision:     domain.LastVersion,
-	}
-	if err := c.saveInstanceResult(store, operationID, model.ClusterMember{NodeID: local.NodeID, DisplayName: local.NodeID}, "", localCommandResult, localErr); err != nil {
-		return nil, err
+	if shouldApplyLocalDomainResourceTarget(payload.TargetMembers, local.NodeID) {
+		localErr := NewClusterDomainInboundService(ClusterDomainInboundServiceOptions{
+			DB:            db,
+			Identity:      c.identity(),
+			PortAllocator: c.PortAllocator,
+		}).ApplyDomainInboundDelete(ctx, domain, payload, local.NodeID, false)
+		localCommandResult := &clustertypes.DomainResourceCommandResult{
+			Status:       "applied",
+			OperationID:  operationID,
+			NodeID:       local.NodeID,
+			MemberID:     local.NodeID,
+			ResourceKind: ClusterDomainResourceInbound,
+			ResourceID:   payload.GroupID,
+			Revision:     domain.LastVersion,
+		}
+		if err := c.saveInstanceResult(store, operationID, model.ClusterMember{NodeID: local.NodeID, DisplayName: local.NodeID}, "", localCommandResult, localErr); err != nil {
+			return nil, err
+		}
 	}
 
 	commandPayload := domainResourcePeerPayload(domain, local.NodeID, operationID, payload.RequestID, ClusterDomainResourceInbound, payload.GroupID, domain.LastVersion, payload.TargetMembers, payloadMap)
-	if err := c.dispatchDomainResourceTargets(ctx, store, domain, local, operationID, PeerActionDomainInboundDelete, commandPayload, eligibleDomainResourceTargets(members, local.NodeID), false); err != nil {
+	if err := c.dispatchDomainResourceTargets(ctx, store, domain, local, operationID, PeerActionDomainInboundDelete, commandPayload, selectedDomainResourceTargets(members, local.NodeID, payload.TargetMembers), false); err != nil {
 		return nil, err
 	}
 	return c.finishDomainResourceOperation(ctx, store, domain, operationID)
@@ -468,7 +484,7 @@ func (c *ClusterDomainResourceCoordinator) RetryDomainOperation(ctx context.Cont
 		return nil, err
 	}
 	commandPayload := domainResourcePeerPayload(domain, local.NodeID, operationID, requestID, resourceKind, resourceID, domain.LastVersion, targetMembers, payloadMap)
-	if err := c.dispatchDomainResourceTargets(ctx, store, domain, local, operationID, action, commandPayload, c.retryTargets(operationID, members, local.NodeID), true); err != nil {
+	if err := c.dispatchDomainResourceTargets(ctx, store, domain, local, operationID, action, commandPayload, c.retryTargets(operationID, members, local.NodeID, targetMembers), true); err != nil {
 		return nil, err
 	}
 
@@ -478,10 +494,25 @@ func (c *ClusterDomainResourceCoordinator) RetryDomainOperation(ctx context.Cont
 	return c.reportDomainResourceOperation(ctx, store, domain, operationID)
 }
 
-func (c *ClusterDomainResourceCoordinator) retryTargets(operationID string, members []model.ClusterMember, localNodeID string) []model.ClusterMember {
+func (c *ClusterDomainResourceCoordinator) ListDomainResources(ctx context.Context, domainID uint) (ClusterHubDomainResources, error) {
+	if err := ctx.Err(); err != nil {
+		return ClusterHubDomainResources{}, err
+	}
+	db := c.db()
+	if db == nil {
+		return ClusterHubDomainResources{}, errors.New("cluster domain resource coordinator db is required")
+	}
+	var domain model.ClusterDomain
+	if err := db.First(&domain, domainID).Error; err != nil {
+		return ClusterHubDomainResources{}, err
+	}
+	return c.buildDomainResources(domainID)
+}
+
+func (c *ClusterDomainResourceCoordinator) retryTargets(operationID string, members []model.ClusterMember, localNodeID string, targetMembers []clustertypes.DomainInboundTarget) []model.ClusterMember {
 	instances, err := c.operationStore().ListInstances(operationID)
 	if err != nil || len(instances) == 0 {
-		return eligibleDomainResourceTargets(members, localNodeID)
+		return selectedDomainResourceTargets(members, localNodeID, targetMembers)
 	}
 	retryNodes := map[string]struct{}{}
 	for _, instance := range instances {
@@ -491,7 +522,7 @@ func (c *ClusterDomainResourceCoordinator) retryTargets(operationID string, memb
 		}
 	}
 	targets := make([]model.ClusterMember, 0, len(retryNodes))
-	for _, member := range eligibleDomainResourceTargets(members, localNodeID) {
+	for _, member := range selectedDomainResourceTargets(members, localNodeID, targetMembers) {
 		if _, ok := retryNodes[member.NodeID]; ok {
 			targets = append(targets, member)
 		}
@@ -577,6 +608,9 @@ func (c *ClusterDomainResourceCoordinator) domainInboundDeletePayload(domain *mo
 func (c *ClusterDomainResourceCoordinator) domainUserUpsertPayload(domain *model.ClusterDomain, input ClusterDomainUserCommandInput) (clustertypes.DomainUserUpsertPayload, map[string]interface{}, error) {
 	input.User.UUID = strings.TrimSpace(input.User.UUID)
 	input.User.Name = strings.TrimSpace(input.User.Name)
+	boundGroups := normalizeDomainUserBoundGroups(input.User.BoundInboundGroupIDs, input.BoundInboundGroupIDs)
+	boundGroups = normalizeDomainUserBoundGroups(boundGroups, input.Inbounds)
+	input.User.BoundInboundGroupIDs = boundGroups
 	if input.User.UUID == "" {
 		input.User.UUID = uuid.New().String()
 	}
@@ -590,7 +624,7 @@ func (c *ClusterDomainResourceCoordinator) domainUserUpsertPayload(domain *model
 		RequestID: fmt.Sprintf("domain-user-%s", uuid.New().String()),
 		DomainID:  domain.Domain,
 		User:      input.User,
-		Inbounds:  input.Inbounds,
+		Inbounds:  domainUserGroupSelectors(boundGroups),
 	}
 	payloadMap, err := domainInboundPayloadMap(payload)
 	if err != nil {
@@ -833,6 +867,60 @@ func eligibleDomainResourceTargets(members []model.ClusterMember, localNodeID st
 		targets = append(targets, member)
 	}
 	return targets
+}
+
+func selectedDomainResourceTargets(members []model.ClusterMember, localNodeID string, targetMembers []clustertypes.DomainInboundTarget) []model.ClusterMember {
+	eligible := eligibleDomainResourceTargets(members, localNodeID)
+	if len(targetMembers) == 0 {
+		return eligible
+	}
+
+	selected := map[string]struct{}{}
+	for _, target := range targetMembers {
+		if nodeID := strings.TrimSpace(target.NodeID); nodeID != "" {
+			selected[nodeID] = struct{}{}
+		}
+		if memberID := strings.TrimSpace(target.MemberID); memberID != "" {
+			selected[memberID] = struct{}{}
+		}
+	}
+
+	targets := make([]model.ClusterMember, 0, len(eligible))
+	for _, member := range eligible {
+		if _, ok := selected[member.NodeID]; ok {
+			targets = append(targets, member)
+		}
+	}
+	return targets
+}
+
+func shouldApplyLocalDomainResourceTarget(targetMembers []clustertypes.DomainInboundTarget, localNodeID string) bool {
+	if len(targetMembers) == 0 {
+		return true
+	}
+	localNodeID = strings.TrimSpace(localNodeID)
+	if localNodeID == "" {
+		return false
+	}
+	for _, target := range targetMembers {
+		if strings.TrimSpace(target.NodeID) == localNodeID || strings.TrimSpace(target.MemberID) == localNodeID {
+			return true
+		}
+	}
+	return false
+}
+
+func validateSelectedDomainResourceTargets(targetMembers []clustertypes.DomainInboundTarget, members []model.ClusterMember, localNodeID string) error {
+	if len(targetMembers) == 0 {
+		return nil
+	}
+	if shouldApplyLocalDomainResourceTarget(targetMembers, localNodeID) {
+		return nil
+	}
+	if len(selectedDomainResourceTargets(members, localNodeID, targetMembers)) > 0 {
+		return nil
+	}
+	return errors.New("target_members must include at least one domain member")
 }
 
 func clusterDomainMemberDisplayName(member model.ClusterMember) string {

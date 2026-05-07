@@ -30,6 +30,7 @@ type clusterAPIService interface {
 	ManualSync() (*service.ClusterOperationStatus, error)
 	CheckDomainPanelUpdate(uint) (*service.ClusterPanelUpdateCheckResult, error)
 	RequestMemberPanelUpdate(uint, string) (*service.ClusterPanelMemberUpdateResult, error)
+	ListDomainResources(context.Context, uint) (service.ClusterHubDomainResources, error)
 	CreateDomainInboundResource(context.Context, uint, service.ClusterDomainInboundCommandInput) (*service.ClusterDomainOperationView, error)
 	UpdateDomainInboundResource(context.Context, uint, string, service.ClusterDomainInboundCommandInput) (*service.ClusterDomainOperationView, error)
 	DeleteDomainInboundResource(context.Context, uint, string) (*service.ClusterDomainOperationView, error)
@@ -184,6 +185,19 @@ func (a *APIHandler) requestClusterMemberPanelUpdate(c *gin.Context) {
 	jsonObj(c, result, err)
 }
 
+func (a *APIHandler) listClusterDomainResources(c *gin.Context) {
+	if !a.requireClusterAdmin(c) {
+		return
+	}
+	id, err := strconv.ParseUint(c.Param("id"), 10, 64)
+	if err != nil {
+		jsonMsg(c, "cluster domain resources", err)
+		return
+	}
+	result, err := a.clusterService.ListDomainResources(c.Request.Context(), uint(id))
+	jsonObj(c, result, err)
+}
+
 func (a *APIHandler) createClusterDomainInboundResource(c *gin.Context) {
 	if !a.requireClusterAdmin(c) {
 		return
@@ -296,6 +310,7 @@ func (a *APIHandler) retryClusterDomainOperation(c *gin.Context) {
 }
 
 func registerClusterDomainResourceRoutes(g gin.IRoutes, handler *APIHandler) {
+	g.GET("/cluster/domains/:id/resources", handler.listClusterDomainResources)
 	g.POST("/cluster/domains/:id/resources/inbounds", handler.createClusterDomainInboundResource)
 	g.PUT("/cluster/domains/:id/resources/inbounds/:groupId", handler.updateClusterDomainInboundResource)
 	g.DELETE("/cluster/domains/:id/resources/inbounds/:groupId", handler.deleteClusterDomainInboundResource)

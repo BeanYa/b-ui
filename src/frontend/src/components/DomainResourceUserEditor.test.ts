@@ -20,10 +20,27 @@ describe('DomainResourceUserEditor source', () => {
     expect(source).toContain('manualSecrets')
   })
 
-  it('emits the typed domain user create payload', () => {
+  it('renders domain inbound groups as a chip multi-select instead of raw selector text', () => {
+    expect(source).toContain('availableInboundGroups')
+    expect(source).toContain('v-select')
+    expect(source).toContain('multiple')
+    expect(source).toContain('chips')
+    expect(source).toContain("$t('clusterCenter.domainResources.userInboundGroups')")
+    expect(source).not.toContain('inboundsText')
+    expect(source).not.toContain("$t('clusterCenter.domainResources.userInbounds')")
+  })
+
+  it('defaults group bindings from the latest domain inbound group', () => {
+    expect(source).toContain('selectedInboundGroupIds')
+    expect(source).toContain('[props.defaultInboundGroup]')
+  })
+
+  it('emits the typed domain user create payload with group bindings', () => {
     expect(source).toContain('CreateDomainUserResourcePayload')
     expect(source).toContain('defineEmits')
     expect(source).toContain("emit('submit', payload)")
-    expect(source).toContain('inbounds')
+    expect(source).toContain('const boundInboundGroupIds = [...selectedInboundGroupIds.value]')
+    expect(source).toContain('bound_inbound_group_ids: boundInboundGroupIds')
+    expect(source).not.toContain('inbounds:')
   })
 })

@@ -32,6 +32,33 @@
         </v-col>
       </v-row>
 
+      <v-card class="domain-resource-editor__section" :subtitle="$t('clusterCenter.domainResources.targetNodes')">
+        <v-row>
+          <v-col cols="12" md="4">
+            <v-select
+              v-model="targetScope"
+              :items="targetScopeItems"
+              :label="$t('clusterCenter.domainResources.targetScope')"
+              hide-details
+            />
+          </v-col>
+          <v-col v-if="targetScope === 'pick'" cols="12" md="8">
+            <v-select
+              v-model="selectedTargetNodeIds"
+              :items="targetMemberItems"
+              :label="$t('clusterCenter.domainResources.pickList')"
+              item-title="title"
+              item-value="value"
+              multiple
+              chips
+              closable-chips
+              clearable
+              hide-details
+            />
+          </v-col>
+        </v-row>
+      </v-card>
+
       <v-card class="domain-resource-editor__section" :subtitle="$t('objects.listen')">
         <v-row>
           <v-col cols="12" md="4">
@@ -122,10 +149,11 @@ import {
 } from '@/features/domainResourceLocalProvided'
 import { i18n } from '@/locales'
 import { InTypes, createInbound, type Inbound } from '@/types/inbounds'
-import type { ClusterDomain } from '@/types/clusters'
+import type { ClusterDomain, ClusterMember } from '@/types/clusters'
 
 const props = defineProps<{
   domain: ClusterDomain
+  members?: ClusterMember[]
   loading?: boolean
   error?: string
 }>()
@@ -144,6 +172,8 @@ const listenPortSource = ref<'auto' | 'manual'>('auto')
 const manualListenPort = ref(443)
 const tlsTemplate = ref<DomainInboundTlsTemplate>('standard')
 const errorMessage = ref('')
+const targetScope = ref<'all' | 'pick'>('all')
+const selectedTargetNodeIds = ref<string[]>([])
 
 const hasTlsProtocols = [
   InTypes.HTTP,
@@ -173,6 +203,18 @@ const sourceItems = computed(() => [
   { title: i18n.global.t('clusterCenter.domainResources.manualValue').toString(), value: 'manual' },
 ])
 
+const targetScopeItems = computed(() => [
+  { title: i18n.global.t('clusterCenter.domainResources.broadcastAll').toString(), value: 'all' },
+  { title: i18n.global.t('clusterCenter.domainResources.pickList').toString(), value: 'pick' },
+])
+
+const targetMemberItems = computed(() => (props.members ?? [])
+  .filter((member) => member.nodeId?.trim())
+  .map((member) => ({
+    title: targetMemberLabel(member),
+    value: member.nodeId,
+  })))
+
 const tlsTemplateItems = computed(() => [
   { title: i18n.global.t('none').toString(), value: 'none' },
   { title: i18n.global.t('tls.presets.standard').toString(), value: 'standard' },
@@ -183,6 +225,27 @@ const tlsTemplateItems = computed(() => [
 ])
 
 const hasTls = computed(() => hasTlsProtocols.includes(inbound.value.type))
+
+const targetMemberLabel = (member: ClusterMember) => {
+  const displayName = (member.displayName || member.name || member.nodeId).trim()
+  const label = !displayName || displayName === member.nodeId
+    ? member.nodeId
+    : `${displayName} (${member.nodeId})`
+  if (member.isLocal) return `${label} - ${i18n.global.t('clusterCenter.domainResources.localNode')}`
+  return label
+}
+
+const buildTargetMembers = (): CreateDomainInboundResourcePayload['target_members'] => {
+  if (targetScope.value !== 'pick') return undefined
+  const selected = new Set(selectedTargetNodeIds.value)
+  return (props.members ?? [])
+    .filter((member) => selected.has(member.nodeId))
+    .map((member) => ({
+      member_id: member.nodeId,
+      node_id: member.nodeId,
+      display_name: member.displayName || member.name || member.nodeId,
+    }))
+}
 
 const resetForm = () => {
   const domainPart = sanitizeDomainResourcePart(props.domain.domain, `domain-${props.domain.id}`)
@@ -200,6 +263,8 @@ const resetForm = () => {
   manualListenPort.value = 443
   tlsTemplate.value = 'standard'
   errorMessage.value = ''
+  targetScope.value = 'all'
+  selectedTargetNodeIds.value = []
 }
 
 const changeType = () => {
@@ -243,6 +308,10 @@ const submit = () => {
     errorMessage.value = i18n.global.t('clusterCenter.domainResources.listenPortInvalid').toString()
     return
   }
+  if (targetScope.value === 'pick' && selectedTargetNodeIds.value.length === 0) {
+    errorMessage.value = i18n.global.t('clusterCenter.domainResources.targetMembersRequired').toString()
+    return
+  }
 
   errorMessage.value = ''
   const tlsPayload = createDomainInboundTls(
@@ -255,6 +324,7 @@ const submit = () => {
     tag_seed: tagSeed.value.trim() || trimmedGroupId,
     prefix: prefix.value.trim(),
     suffix: suffix.value.trim(),
+    target_members: buildTargetMembers(),
     inbound: scrubInbound(),
     tls_template: tlsPayload.tls_template,
     tls: tlsPayload.tls,
@@ -266,6 +336,10 @@ watch(() => props.domain.id, resetForm, { immediate: true })
 watch(() => props.error, (value) => {
   errorMessage.value = value ?? ''
 })
+watch(() => props.members, () => {
+  const availableNodeIds = new Set((props.members ?? []).map((member) => member.nodeId))
+  selectedTargetNodeIds.value = selectedTargetNodeIds.value.filter((nodeId) => availableNodeIds.has(nodeId))
+}, { deep: true })
 </script>
 
 <style scoped>

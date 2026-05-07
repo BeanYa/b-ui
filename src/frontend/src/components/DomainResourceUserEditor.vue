@@ -23,7 +23,15 @@
         </v-col>
       </v-row>
 
-      <v-text-field v-model="inboundsText" :label="$t('clusterCenter.domainResources.userInbounds')" hide-details />
+      <v-select
+        v-model="selectedInboundGroupIds"
+        :items="inboundGroupItems"
+        :label="$t('clusterCenter.domainResources.userInboundGroups')"
+        multiple
+        chips
+        closable-chips
+        hide-details
+      />
 
       <v-card class="domain-resource-editor__section" :subtitle="$t('clusterCenter.domainResources.secretSources')">
         <v-row>
@@ -109,11 +117,17 @@ import { i18n } from '@/locales'
 import { randomConfigs } from '@/types/clients'
 import type { ClusterDomain } from '@/types/clusters'
 
+export interface DomainInboundGroupOption {
+  groupId: string
+  label?: string
+}
+
 const props = defineProps<{
   domain: ClusterDomain
   loading?: boolean
   error?: string
   defaultInboundGroup?: string
+  availableInboundGroups?: DomainInboundGroupOption[]
 }>()
 
 const emit = defineEmits<{
@@ -126,7 +140,7 @@ const hubUserUuid = ref('')
 const enable = ref(true)
 const group = ref('')
 const desc = ref('')
-const inboundsText = ref('')
+const selectedInboundGroupIds = ref<string[]>([])
 const uuidSource = ref<DomainUserSecretSource>('auto')
 const passwordSource = ref<DomainUserSecretSource>('auto')
 const authSource = ref<DomainUserSecretSource>('auto')
@@ -147,6 +161,19 @@ const sourceItems = computed(() => [
   { title: i18n.global.t('clusterCenter.domainResources.manualValue').toString(), value: 'manual' },
 ])
 
+const inboundGroupItems = computed(() => {
+  const items = new Map<string, string>()
+  for (const group of props.availableInboundGroups ?? []) {
+    const groupId = group.groupId.trim()
+    if (groupId) items.set(groupId, group.label?.trim() || groupId)
+  }
+  const defaultGroupId = props.defaultInboundGroup?.trim() || `domain-${props.domain.id}`
+  if (defaultGroupId && !items.has(defaultGroupId)) {
+    items.set(defaultGroupId, defaultGroupId)
+  }
+  return [...items.entries()].map(([value, title]) => ({ title, value }))
+})
+
 const previewConfig = computed(() => createDomainUserConfig(name.value || 'domain-user', secretSources.value, manualSecrets.value))
 const configKeys = computed(() => Object.keys(randomConfigs(name.value || 'domain-user')))
 
@@ -157,12 +184,19 @@ const resetForm = () => {
   enable.value = true
   group.value = props.domain.domain
   desc.value = ''
-  inboundsText.value = props.defaultInboundGroup || `domain-${props.domain.id}`
+  selectedInboundGroupIds.value = props.defaultInboundGroup ? [props.defaultInboundGroup] : [`domain-${props.domain.id}`]
   uuidSource.value = 'auto'
   passwordSource.value = 'auto'
   authSource.value = 'auto'
   manualSecrets.value = { uuid: '', password: '', auth: '' }
   errorMessage.value = ''
+}
+
+const normalizeSelectedInboundGroupIds = () => {
+  const available = new Set(inboundGroupItems.value.map((item) => item.value))
+  selectedInboundGroupIds.value = selectedInboundGroupIds.value
+    .map((item) => item.trim())
+    .filter((item, index, items) => item && items.indexOf(item) === index && available.has(item))
 }
 
 const configValueLabel = (value: unknown): string => {
@@ -179,6 +213,8 @@ const submit = () => {
     return
   }
   errorMessage.value = ''
+  normalizeSelectedInboundGroupIds()
+  const boundInboundGroupIds = [...selectedInboundGroupIds.value]
   const payload: CreateDomainUserResourcePayload = {
     user: {
       uuid: hubUserUuid.value.trim() || undefined,
@@ -187,11 +223,9 @@ const submit = () => {
       group: group.value.trim() || undefined,
       desc: desc.value.trim() || undefined,
       config: createDomainUserConfig(trimmedName, secretSources.value, manualSecrets.value),
+      bound_inbound_group_ids: boundInboundGroupIds,
     },
-    inbounds: inboundsText.value
-      .split(',')
-      .map((item) => item.trim())
-      .filter(Boolean),
+    bound_inbound_group_ids: boundInboundGroupIds,
   }
   emit('submit', payload)
 }
@@ -199,9 +233,10 @@ const submit = () => {
 watch(() => props.domain.id, resetForm, { immediate: true })
 watch(() => props.defaultInboundGroup, (value) => {
   if (value) {
-    inboundsText.value = value
+    selectedInboundGroupIds.value = [value]
   }
 })
+watch(inboundGroupItems, normalizeSelectedInboundGroupIds)
 watch(() => props.error, (value) => {
   errorMessage.value = value ?? ''
 })

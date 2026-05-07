@@ -33,6 +33,7 @@ func TestClusterProxyReportReportsNodeAndWrappedDomainInbounds(t *testing.T) {
 		Domain:    "edge.example.com",
 		NodeID:    "node-a",
 		MemberID:  "node-a",
+		GroupID:   "edge-main",
 		InboundID: domainInbound.Id,
 		RequestID: "req-1",
 	}).Error; err != nil {
@@ -74,6 +75,9 @@ func TestClusterProxyReportReportsNodeAndWrappedDomainInbounds(t *testing.T) {
 	if hub.body.Configs[1].Scope != "domain" || hub.body.Configs[1].DomainInboundRequestID != "req-1" {
 		t.Fatalf("expected domain scope metadata, got %#v", hub.body.Configs[1])
 	}
+	if hub.body.Configs[1].DomainInboundGroupID != "edge-main" {
+		t.Fatalf("expected domain inbound group id, got %#v", hub.body.Configs[1])
+	}
 }
 
 func TestClusterProxyReportBuildsNodeScopedConfig(t *testing.T) {
@@ -84,7 +88,7 @@ func TestClusterProxyReportBuildsNodeScopedConfig(t *testing.T) {
 		Options: json.RawMessage(`{"listen":"::","listen_port":10443,"password":"secret","sniff":true}`),
 	}
 
-	config := buildClusterProxyReportConfig(inbound, "node.example.com", "node", "")
+	config := buildClusterProxyReportConfig(inbound, "node.example.com", "node", "", "")
 
 	if config.InboundID != 9 || config.Type != "trojan" || config.Tag != "panel-node" {
 		t.Fatalf("unexpected basic config fields: %#v", config)

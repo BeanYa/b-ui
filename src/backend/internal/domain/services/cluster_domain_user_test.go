@@ -93,6 +93,133 @@ func TestDomainUserUpsertCreatesManagedClientForSelectedDomainInbounds(t *testin
 	}
 }
 
+func TestDomainUserUpsertResolvesDomainSelectorByGroupID(t *testing.T) {
+	db := initClusterInboundTestDB(t)
+
+	inbound := model.Inbound{Type: "vless", Tag: "edge-main-node-a", Options: json.RawMessage(`{"listen_port":32001}`)}
+	if err := db.Create(&inbound).Error; err != nil {
+		t.Fatalf("seed inbound: %v", err)
+	}
+	if err := db.Create(&model.ClusterInbound{
+		DomainID:  1,
+		Domain:    "edge.example.com",
+		NodeID:    "node-a",
+		MemberID:  "hub",
+		GroupID:   "edge-main",
+		InboundID: inbound.Id,
+		RequestID: "req-inbound-a",
+	}).Error; err != nil {
+		t.Fatalf("seed wrapper: %v", err)
+	}
+
+	svc := NewClusterDomainUserService(ClusterDomainUserServiceOptions{
+		DB:       db,
+		Identity: &stubDomainInboundIdentity{node: &model.ClusterLocalNode{NodeID: "node-a"}},
+		Now:      func() int64 { return 1700000000 },
+	})
+	result, err := svc.ApplyDomainUserUpsert(context.Background(), &model.ClusterDomain{Id: 1, Domain: "edge.example.com"}, clustertypes.DomainUserUpsertPayload{
+		RequestID: "req-user-group",
+		DomainID:  "edge.example.com",
+		User: clustertypes.DomainUserPayload{
+			UUID:                 "hub-user-group",
+			Name:                 "alice",
+			Enable:               true,
+			SubToken:             "stable-token",
+			BoundInboundGroupIDs: []string{" edge-main ", "domain:edge-main", ""},
+			Config:               json.RawMessage(`{"vless":{"uuid":"11111111-1111-4111-8111-111111111111"}}`),
+		},
+		Inbounds: []string{"domain:edge-main"},
+	}, "hub", false)
+	if err != nil {
+		t.Fatalf("upsert domain user: %v", err)
+	}
+
+	var client model.Client
+	if err := db.First(&client, result.ClientID).Error; err != nil {
+		t.Fatalf("load client: %v", err)
+	}
+	var inboundIDs []uint
+	if err := json.Unmarshal(client.Inbounds, &inboundIDs); err != nil {
+		t.Fatalf("decode client inbounds: %v", err)
+	}
+	if len(inboundIDs) != 1 || inboundIDs[0] != inbound.Id {
+		t.Fatalf("expected group selector to resolve to local inbound id %d, got %#v", inbound.Id, inboundIDs)
+	}
+
+	var wrapper model.ClusterClient
+	if err := db.Where("domain_id = ? AND hub_user_uuid = ?", 1, "hub-user-group").First(&wrapper).Error; err != nil {
+		t.Fatalf("load cluster client wrapper: %v", err)
+	}
+	if wrapper.SubToken != "stable-token" {
+		t.Fatalf("expected stable token to be stored, got %q", wrapper.SubToken)
+	}
+	var groups []string
+	if err := json.Unmarshal(wrapper.BoundInboundGroupIDs, &groups); err != nil {
+		t.Fatalf("decode bound inbound groups: %v", err)
+	}
+	if len(groups) != 1 || groups[0] != "edge-main" {
+		t.Fatalf("expected normalized bound group ids, got %#v", groups)
+	}
+}
+
+func TestDomainUserUpsertPreservesExistingSubTokenOnUpdate(t *testing.T) {
+	db := initClusterInboundTestDB(t)
+
+	inbound := model.Inbound{Type: "vless", Tag: "edge-main-node-a", Options: json.RawMessage(`{"listen_port":32001}`)}
+	if err := db.Create(&inbound).Error; err != nil {
+		t.Fatalf("seed inbound: %v", err)
+	}
+	if err := db.Create(&model.ClusterInbound{
+		DomainID:  1,
+		Domain:    "edge.example.com",
+		NodeID:    "node-a",
+		MemberID:  "hub",
+		GroupID:   "edge-main",
+		InboundID: inbound.Id,
+		RequestID: "req-inbound-a",
+	}).Error; err != nil {
+		t.Fatalf("seed wrapper: %v", err)
+	}
+
+	svc := NewClusterDomainUserService(ClusterDomainUserServiceOptions{
+		DB:       db,
+		Identity: &stubDomainInboundIdentity{node: &model.ClusterLocalNode{NodeID: "node-a"}},
+		Now:      func() int64 { return 1700000000 },
+	})
+	domain := &model.ClusterDomain{Id: 1, Domain: "edge.example.com"}
+	createPayload := clustertypes.DomainUserUpsertPayload{
+		RequestID: "req-user-create",
+		DomainID:  "edge.example.com",
+		User: clustertypes.DomainUserPayload{
+			UUID:                 "hub-user-token",
+			Name:                 "alice",
+			Enable:               true,
+			SubToken:             "stable-token",
+			BoundInboundGroupIDs: []string{"edge-main"},
+			Config:               json.RawMessage(`{"vless":{"uuid":"11111111-1111-4111-8111-111111111111"}}`),
+		},
+	}
+	if _, err := svc.ApplyDomainUserUpsert(context.Background(), domain, createPayload, "hub", false); err != nil {
+		t.Fatalf("create domain user: %v", err)
+	}
+
+	updatePayload := createPayload
+	updatePayload.RequestID = "req-user-update"
+	updatePayload.User.Name = "alice-updated"
+	updatePayload.User.SubToken = ""
+	if _, err := svc.ApplyDomainUserUpsert(context.Background(), domain, updatePayload, "hub", false); err != nil {
+		t.Fatalf("update domain user: %v", err)
+	}
+
+	var wrapper model.ClusterClient
+	if err := db.Where("domain_id = ? AND hub_user_uuid = ?", 1, "hub-user-token").First(&wrapper).Error; err != nil {
+		t.Fatalf("load cluster client wrapper: %v", err)
+	}
+	if wrapper.SubToken != "stable-token" {
+		t.Fatalf("expected ordinary update to preserve stable token, got %q", wrapper.SubToken)
+	}
+}
+
 func TestDomainUserUpsertResolvesLocalProvidedConfigOnTargetNode(t *testing.T) {
 	db := initClusterInboundTestDB(t)
 	inbound := model.Inbound{Type: "vless", Tag: "edge-main-node-a", Options: json.RawMessage(`{"listen_port":32001}`)}

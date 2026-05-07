@@ -8,6 +8,7 @@ describe('ClusterCenter view source', () => {
 
     expect(source).toContain("HttpUtils.get('api/cluster/domains')")
     expect(source).toContain("HttpUtils.get('api/cluster/members')")
+    expect(source).toContain('listDomainResources')
     expect(source).toContain("HttpUtils.post('api/cluster/register'")
     expect(source).toContain("HttpUtils.post('api/cluster/sync'")
     expect(source).toContain('HttpUtils.post(`api/cluster/domains/${domain.id}/update-check`, {})')
@@ -164,6 +165,9 @@ describe('ClusterCenter view source', () => {
     expect(source).toContain('@click="openDomainUserResourceDialog"')
     expect(source).toContain('const openDomainInboundResourceDialog = () => {')
     expect(source).toContain('const openDomainUserResourceDialog = () => {')
+    expect(source).toContain(':members="domainInboundTargetMembers"')
+    expect(source).toContain('const domainInboundTargetMembers = computed(() =>')
+    expect(source).toContain('selectedDomainMembers.value.some((member) => member.isLocal)')
     expect(source).toContain('@submit="submitDomainInboundResource"')
     expect(source).toContain('@submit="submitDomainUserResource"')
     expect(source).toContain('const submitDomainInboundResource = async (payload: CreateDomainInboundResourcePayload) => {')
@@ -184,6 +188,31 @@ describe('ClusterCenter view source', () => {
     expect(source).not.toContain('domainInboundForm.enableTls')
     expect(source).not.toContain('Hub-managed')
     expect(source).not.toContain('Hub managed')
+  })
+
+  it('passes available domain inbound groups into the domain user editor and keeps the latest group selected by default', () => {
+    const source = readFileSync(fileURLToPath(new URL('./ClusterCenter.vue', import.meta.url)), 'utf8')
+
+    expect(source).toContain(':available-inbound-groups="availableDomainInboundGroups"')
+    expect(source).toContain(':default-inbound-group="selectedDomainDefaultInboundGroup"')
+    expect(source).toContain('const availableDomainInboundGroups = computed(() =>')
+    expect(source).toContain('const selectedDomainDefaultInboundGroup = computed(() =>')
+    expect(source).toContain('await refreshDomainResourceGroups(domains.value.map((domain) => domain.id))')
+    expect(source).toContain('const resources = await listDomainResources(domainId)')
+    expect(source).toContain('resources.domain_inbounds.map((inbound) => inbound.group_id)')
+    expect(source).not.toContain('remote_inbound_id')
+  })
+
+  it('keeps domain inbound group selections scoped to the selected domain', () => {
+    const source = readFileSync(fileURLToPath(new URL('./ClusterCenter.vue', import.meta.url)), 'utf8')
+
+    expect(source).toContain('const lastDomainInboundGroupIdByDomain = ref<Record<number, string>>({})')
+    expect(source).toContain('const domainInboundGroupIdsByDomain = ref<Record<number, string[]>>({})')
+    expect(source).toContain('lastDomainInboundGroupIdByDomain.value[selectedDomain.value.id]')
+    expect(source).toContain('domainInboundGroupIdsByDomain.value[selectedDomain.value.id] ?? []')
+    expect(source).toContain('[selectedDomain.value.id]: payload.group_id')
+    expect(source).not.toContain("const lastDomainInboundGroupId = ref('')")
+    expect(source).not.toContain('const domainInboundGroupIds = ref<string[]>([])')
   })
 
   it('surfaces domain resource operation instance errors instead of only showing failed status', () => {

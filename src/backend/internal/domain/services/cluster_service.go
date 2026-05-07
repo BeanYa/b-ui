@@ -182,6 +182,10 @@ func (s *ClusterService) RetryDomainOperation(ctx context.Context, operationID s
 	return s.newDomainResourceCoordinator().RetryDomainOperation(ctx, operationID)
 }
 
+func (s *ClusterService) ListDomainResources(ctx context.Context, domainID uint) (ClusterHubDomainResources, error) {
+	return s.newDomainResourceCoordinator().ListDomainResources(ctx, domainID)
+}
+
 func (s *ClusterService) newDomainInboundBroadcaster() *ClusterHTTPBroadcaster {
 	return &ClusterHTTPBroadcaster{
 		identity:       s.localIdentity,

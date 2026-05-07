@@ -4,7 +4,9 @@ import (
 	"context"
 	"encoding/json"
 	"strconv"
+	"strings"
 
+	clustertypes "github.com/BeanYa/b-ui/src/backend/internal/domain/services/cluster/types"
 	"github.com/BeanYa/b-ui/src/backend/internal/infra/db/model"
 	"github.com/google/uuid"
 )
@@ -15,51 +17,64 @@ type ClusterHubDomainResources struct {
 }
 
 type ClusterHubDomainResourceInbound struct {
-	GroupID             string                               `json:"group_id"`
-	TagSeed             string                               `json:"tag_seed,omitempty"`
-	Prefix              string                               `json:"prefix,omitempty"`
-	Suffix              string                               `json:"suffix,omitempty"`
-	Type                string                               `json:"type"`
-	TLSTemplate         string                               `json:"tls_template,omitempty"`
-	OptionsJSON         string                               `json:"options_json,omitempty"`
-	Status              string                               `json:"status,omitempty"`
-	Revision            int64                                `json:"revision,omitempty"`
-	LastOperationID     string                               `json:"last_operation_id,omitempty"`
-	LastOperationStatus string                               `json:"last_operation_status,omitempty"`
-	Instances           []ClusterDomainOperationInstanceView `json:"instances,omitempty"`
+	GroupID             string                             `json:"group_id"`
+	TagSeed             string                             `json:"tag_seed,omitempty"`
+	Prefix              string                             `json:"prefix,omitempty"`
+	Suffix              string                             `json:"suffix,omitempty"`
+	Type                string                             `json:"type"`
+	TLSTemplate         string                             `json:"tls_template,omitempty"`
+	OptionsJSON         string                             `json:"options_json,omitempty"`
+	Status              string                             `json:"status,omitempty"`
+	Revision            int64                              `json:"revision,omitempty"`
+	LastOperationID     string                             `json:"last_operation_id,omitempty"`
+	LastOperationStatus string                             `json:"last_operation_status,omitempty"`
+	Instances           []ClusterHubDomainResourceInstance `json:"instances,omitempty"`
+}
+
+type ClusterHubDomainResourceInstance struct {
+	MemberID        string `json:"member_id,omitempty"`
+	NodeID          string `json:"node_id"`
+	DisplayName     string `json:"display_name,omitempty"`
+	TargetTag       string `json:"target_tag,omitempty"`
+	Status          string `json:"status"`
+	AttemptCount    int    `json:"attempt_count"`
+	LocalResourceID uint   `json:"local_resource_id,omitempty"`
+	Error           string `json:"error,omitempty"`
+	UpdatedAt       int64  `json:"updated_at,omitempty"`
 }
 
 type ClusterHubDomainResourceUser struct {
-	ClientID   uint            `json:"client_id"`
-	UUID       string          `json:"uuid"`
-	Name       string          `json:"name"`
-	Enable     bool            `json:"enable"`
-	Desc       string          `json:"desc,omitempty"`
-	Group      string          `json:"group,omitempty"`
-	SubToken   string          `json:"sub_token"`
-	Config     json.RawMessage `json:"config"`
-	Inbounds   json.RawMessage `json:"inbounds"`
-	Volume     int64           `json:"volume"`
-	Down       int64           `json:"down"`
-	Up         int64           `json:"up"`
-	Expiry     int64           `json:"expiry"`
-	DelayStart bool            `json:"delay_start"`
-	AutoReset  bool            `json:"auto_reset"`
-	ResetDays  int             `json:"reset_days"`
-	NextReset  string          `json:"next_reset,omitempty"`
-	TotalUp    int64           `json:"total_up"`
-	TotalDown  int64           `json:"total_down"`
-	RequestID  string          `json:"request_id"`
-	UpdatedAt  int64           `json:"updated_at"`
+	ClientID             uint            `json:"client_id"`
+	UUID                 string          `json:"uuid"`
+	Name                 string          `json:"name"`
+	Enable               bool            `json:"enable"`
+	Desc                 string          `json:"desc,omitempty"`
+	Group                string          `json:"group,omitempty"`
+	SubToken             string          `json:"sub_token"`
+	Config               json.RawMessage `json:"config"`
+	Inbounds             json.RawMessage `json:"inbounds"`
+	BoundInboundGroupIDs []string        `json:"bound_inbound_group_ids,omitempty"`
+	Volume               int64           `json:"volume"`
+	Down                 int64           `json:"down"`
+	Up                   int64           `json:"up"`
+	Expiry               int64           `json:"expiry"`
+	DelayStart           bool            `json:"delay_start"`
+	AutoReset            bool            `json:"auto_reset"`
+	ResetDays            int             `json:"reset_days"`
+	NextReset            string          `json:"next_reset,omitempty"`
+	TotalUp              int64           `json:"total_up"`
+	TotalDown            int64           `json:"total_down"`
+	RequestID            string          `json:"request_id"`
+	UpdatedAt            int64           `json:"updated_at"`
 }
 
 type ClusterHubDomainOperationState struct {
-	ResourceKind string                               `json:"resource_kind"`
-	ResourceID   string                               `json:"resource_id"`
-	Action       string                               `json:"action"`
-	Revision     int64                                `json:"revision"`
-	Status       string                               `json:"status"`
-	Instances    []ClusterDomainOperationInstanceView `json:"instances"`
+	ResourceKind string                             `json:"resource_kind"`
+	ResourceID   string                             `json:"resource_id"`
+	Action       string                             `json:"action"`
+	Revision     int64                              `json:"revision"`
+	Status       string                             `json:"status"`
+	Instances    []ClusterHubDomainResourceInstance `json:"instances"`
 }
 
 func (c *ClusterDomainResourceCoordinator) ReportDomainResourceState(ctx context.Context, domain *model.ClusterDomain, op *ClusterDomainOperationView) error {
@@ -89,7 +104,7 @@ func (c *ClusterDomainResourceCoordinator) ReportDomainResourceState(ctx context
 			Action:       op.Action,
 			Revision:     op.Revision,
 			Status:       op.Status,
-			Instances:    op.Instances,
+			Instances:    clusterHubDomainResourceInstances(op.Instances),
 		},
 	}
 	if local, err := c.identity().GetOrCreate(); err == nil && local != nil {
@@ -107,11 +122,13 @@ func (c *ClusterDomainResourceCoordinator) buildDomainResources(domainID uint) (
 	if err := c.db().Model(model.ClusterInbound{}).Preload("Inbound.Tls").Where("domain_id = ?", domainID).Order("id asc").Find(&wrappers).Error; err != nil {
 		return resources, err
 	}
+	inboundIndexes := map[string]int{}
 	for _, wrapper := range wrappers {
 		if wrapper.Inbound == nil {
 			continue
 		}
 		status := ClusterDomainOperationApplied
+		inboundIndexes[wrapper.GroupID] = len(resources.Inbounds)
 		resources.Inbounds = append(resources.Inbounds, ClusterHubDomainResourceInbound{
 			GroupID:     wrapper.GroupID,
 			TagSeed:     wrapper.GroupID,
@@ -121,16 +138,20 @@ func (c *ClusterDomainResourceCoordinator) buildDomainResources(domainID uint) (
 			TLSTemplate: wrapper.Template,
 			OptionsJSON: string(cloneRawMessage(wrapper.Inbound.Options)),
 			Status:      "active",
-			Instances: []ClusterDomainOperationInstanceView{{
+			Instances: []ClusterHubDomainResourceInstance{{
 				MemberID:        wrapper.MemberID,
 				NodeID:          wrapper.NodeID,
 				DisplayName:     wrapper.NodeID,
 				TargetTag:       wrapper.Inbound.Tag,
 				Status:          status,
+				AttemptCount:    1,
 				LocalResourceID: wrapper.InboundID,
 				UpdatedAt:       wrapper.UpdatedAt,
 			}},
 		})
+	}
+	if err := c.mergeDomainInboundOperationResources(domainID, &resources, inboundIndexes); err != nil {
+		return resources, err
 	}
 
 	var clients []model.ClusterClient
@@ -145,38 +166,282 @@ func (c *ClusterDomainResourceCoordinator) buildDomainResources(domainID uint) (
 		if wrapper.Client.NextReset > 0 {
 			nextReset = strconv.FormatInt(wrapper.Client.NextReset, 10)
 		}
+		boundGroups := decodeDomainUserBoundGroups(wrapper.BoundInboundGroupIDs)
 		resources.Users = append(resources.Users, ClusterHubDomainResourceUser{
-			ClientID:   wrapper.ClientID,
-			UUID:       wrapper.HubUserUUID,
-			Name:       wrapper.Client.Name,
-			Enable:     wrapper.Client.Enable,
-			Desc:       wrapper.Client.Desc,
-			Group:      wrapper.Client.Group,
-			SubToken:   domainResourceUserSubToken(wrapper),
-			Config:     cloneRawMessage(wrapper.Client.Config),
-			Inbounds:   cloneRawMessage(wrapper.Client.Inbounds),
-			Volume:     wrapper.Client.Volume,
-			Down:       wrapper.Client.Down,
-			Up:         wrapper.Client.Up,
-			Expiry:     wrapper.Client.Expiry,
-			DelayStart: wrapper.Client.DelayStart,
-			AutoReset:  wrapper.Client.AutoReset,
-			ResetDays:  wrapper.Client.ResetDays,
-			NextReset:  nextReset,
-			TotalUp:    wrapper.Client.TotalUp,
-			TotalDown:  wrapper.Client.TotalDown,
-			RequestID:  wrapper.RequestID,
-			UpdatedAt:  wrapper.UpdatedAt,
+			ClientID:             wrapper.ClientID,
+			UUID:                 wrapper.HubUserUUID,
+			Name:                 wrapper.Client.Name,
+			Enable:               wrapper.Client.Enable,
+			Desc:                 wrapper.Client.Desc,
+			Group:                wrapper.Client.Group,
+			SubToken:             domainResourceUserSubToken(wrapper),
+			Config:               cloneRawMessage(wrapper.Client.Config),
+			Inbounds:             domainUserGroupSelectorsRaw(boundGroups),
+			BoundInboundGroupIDs: boundGroups,
+			Volume:               wrapper.Client.Volume,
+			Down:                 wrapper.Client.Down,
+			Up:                   wrapper.Client.Up,
+			Expiry:               wrapper.Client.Expiry,
+			DelayStart:           wrapper.Client.DelayStart,
+			AutoReset:            wrapper.Client.AutoReset,
+			ResetDays:            wrapper.Client.ResetDays,
+			NextReset:            nextReset,
+			TotalUp:              wrapper.Client.TotalUp,
+			TotalDown:            wrapper.Client.TotalDown,
+			RequestID:            wrapper.RequestID,
+			UpdatedAt:            wrapper.UpdatedAt,
 		})
 	}
 	return resources, nil
 }
 
+func (c *ClusterDomainResourceCoordinator) mergeDomainInboundOperationResources(domainID uint, resources *ClusterHubDomainResources, inboundIndexes map[string]int) error {
+	if resources == nil {
+		return nil
+	}
+	if inboundIndexes == nil {
+		inboundIndexes = map[string]int{}
+	}
+	var ops []model.ClusterDomainOperation
+	if err := c.db().Where("domain_id = ? AND resource_kind = ?", domainID, ClusterDomainResourceInbound).Order("id asc").Find(&ops).Error; err != nil {
+		return err
+	}
+	store := c.operationStore()
+	for _, op := range ops {
+		if op.Action == ClusterDomainOperationDelete {
+			c.mergeDomainInboundDeleteOperationResource(op, resources, inboundIndexes, store)
+			continue
+		}
+		resource, ok := domainInboundResourceFromOperation(op, store)
+		if !ok {
+			continue
+		}
+		if idx, exists := inboundIndexes[resource.GroupID]; exists {
+			resources.Inbounds[idx].LastOperationID = resource.LastOperationID
+			resources.Inbounds[idx].LastOperationStatus = resource.LastOperationStatus
+			if len(resource.Instances) > 0 {
+				resources.Inbounds[idx].Instances = mergeClusterDomainOperationInstanceViews(resources.Inbounds[idx].Instances, resource.Instances)
+			}
+			continue
+		}
+		if !domainInboundResourceMaterialized(resource) {
+			continue
+		}
+		inboundIndexes[resource.GroupID] = len(resources.Inbounds)
+		resources.Inbounds = append(resources.Inbounds, resource)
+	}
+	return nil
+}
+
+func (c *ClusterDomainResourceCoordinator) mergeDomainInboundDeleteOperationResource(op model.ClusterDomainOperation, resources *ClusterHubDomainResources, inboundIndexes map[string]int, store *ClusterDomainOperationStore) {
+	groupID := domainInboundOperationGroupID(op)
+	if groupID == "" {
+		return
+	}
+	idx, exists := inboundIndexes[groupID]
+	if !exists {
+		return
+	}
+	instances := []ClusterHubDomainResourceInstance{}
+	if store != nil {
+		if operationInstances, err := store.ListInstances(op.OperationID); err == nil {
+			instances = clusterDomainOperationInstanceViews(operationInstances)
+		}
+	}
+	if op.Status == ClusterDomainOperationApplied || op.Status == ClusterDomainOperationSkipped {
+		resources.Inbounds = append(resources.Inbounds[:idx], resources.Inbounds[idx+1:]...)
+		delete(inboundIndexes, groupID)
+		for i, inbound := range resources.Inbounds {
+			inboundIndexes[inbound.GroupID] = i
+		}
+		return
+	}
+	resources.Inbounds[idx].Status = statusForDomainInboundOperation(op.Status)
+	resources.Inbounds[idx].LastOperationID = op.OperationID
+	resources.Inbounds[idx].LastOperationStatus = op.Status
+	if len(instances) > 0 {
+		resources.Inbounds[idx].Instances = instances
+	}
+}
+
+func domainInboundResourceFromOperation(op model.ClusterDomainOperation, store *ClusterDomainOperationStore) (ClusterHubDomainResourceInbound, bool) {
+	groupID := domainInboundOperationGroupID(op)
+	if groupID == "" {
+		return ClusterHubDomainResourceInbound{}, false
+	}
+	if op.Action == ClusterDomainOperationDelete {
+		return ClusterHubDomainResourceInbound{}, false
+	}
+	var payload clustertypes.DomainInboundCreatePayload
+	if err := json.Unmarshal(op.DesiredPayload, &payload); err != nil {
+		return ClusterHubDomainResourceInbound{}, false
+	}
+	if strings.TrimSpace(payload.GroupID) != "" {
+		groupID = strings.TrimSpace(payload.GroupID)
+	}
+	resource := ClusterHubDomainResourceInbound{
+		GroupID:             groupID,
+		TagSeed:             strings.TrimSpace(payload.TagSeed),
+		Prefix:              strings.TrimSpace(payload.Prefix),
+		Suffix:              strings.TrimSpace(payload.Suffix),
+		TLSTemplate:         strings.TrimSpace(payload.TLSTemplate),
+		Status:              statusForDomainInboundOperation(op.Status),
+		Revision:            op.Revision,
+		LastOperationID:     op.OperationID,
+		LastOperationStatus: op.Status,
+	}
+	var inbound struct {
+		Type    string          `json:"type"`
+		Options json.RawMessage `json:"options"`
+	}
+	if len(payload.Inbound) > 0 && json.Unmarshal(payload.Inbound, &inbound) == nil {
+		resource.Type = strings.TrimSpace(inbound.Type)
+		resource.OptionsJSON = string(cloneRawMessage(inbound.Options))
+	}
+	if resource.Type == "" {
+		resource.Type = "unknown"
+	}
+	if resource.TagSeed == "" {
+		resource.TagSeed = groupID
+	}
+	if store != nil {
+		if instances, err := store.ListInstances(op.OperationID); err == nil {
+			resource.Instances = clusterDomainOperationInstanceViews(instances)
+		}
+	}
+	return resource, true
+}
+
+func domainInboundResourceMaterialized(resource ClusterHubDomainResourceInbound) bool {
+	switch resource.LastOperationStatus {
+	case ClusterDomainOperationApplied, ClusterDomainOperationPartial, ClusterDomainOperationReported:
+		return true
+	}
+	for _, instance := range resource.Instances {
+		if instance.Status == ClusterDomainOperationApplied {
+			return true
+		}
+	}
+	return false
+}
+
+func domainInboundOperationGroupID(op model.ClusterDomainOperation) string {
+	groupID := strings.TrimSpace(op.ResourceID)
+	switch op.Action {
+	case ClusterDomainOperationDelete:
+		var payload clustertypes.DomainInboundDeletePayload
+		if len(op.DesiredPayload) > 0 && json.Unmarshal(op.DesiredPayload, &payload) == nil && strings.TrimSpace(payload.GroupID) != "" {
+			groupID = strings.TrimSpace(payload.GroupID)
+		}
+	default:
+		var payload clustertypes.DomainInboundCreatePayload
+		if len(op.DesiredPayload) > 0 && json.Unmarshal(op.DesiredPayload, &payload) == nil && strings.TrimSpace(payload.GroupID) != "" {
+			groupID = strings.TrimSpace(payload.GroupID)
+		}
+	}
+	return groupID
+}
+
+func statusForDomainInboundOperation(status string) string {
+	switch status {
+	case ClusterDomainOperationApplied:
+		return "active"
+	case ClusterDomainOperationFailed, ClusterDomainOperationTimeout:
+		return "error"
+	case ClusterDomainOperationPartial:
+		return "partial"
+	case ClusterDomainOperationSkipped:
+		return "skipped"
+	default:
+		return status
+	}
+}
+
+func clusterDomainOperationInstanceViews(instances []model.ClusterDomainOperationInstance) []ClusterHubDomainResourceInstance {
+	views := make([]ClusterHubDomainResourceInstance, 0, len(instances))
+	for _, instance := range instances {
+		views = append(views, ClusterHubDomainResourceInstance{
+			MemberID:        instance.MemberID,
+			NodeID:          instance.NodeID,
+			DisplayName:     instance.DisplayName,
+			TargetTag:       instance.TargetTag,
+			Status:          instance.Status,
+			AttemptCount:    instance.AttemptCount,
+			LocalResourceID: instance.LocalResourceID,
+			Error:           instance.Error,
+			UpdatedAt:       instance.UpdatedAt,
+		})
+	}
+	return views
+}
+
+func clusterHubDomainResourceInstances(instances []ClusterDomainOperationInstanceView) []ClusterHubDomainResourceInstance {
+	views := make([]ClusterHubDomainResourceInstance, 0, len(instances))
+	for _, instance := range instances {
+		views = append(views, ClusterHubDomainResourceInstance{
+			MemberID:        instance.MemberID,
+			NodeID:          instance.NodeID,
+			DisplayName:     instance.DisplayName,
+			TargetTag:       instance.TargetTag,
+			Status:          instance.Status,
+			AttemptCount:    instance.AttemptCount,
+			LocalResourceID: instance.LocalResourceID,
+			Error:           instance.Error,
+			UpdatedAt:       instance.UpdatedAt,
+		})
+	}
+	return views
+}
+
+func mergeClusterDomainOperationInstanceViews(existing []ClusterHubDomainResourceInstance, updates []ClusterHubDomainResourceInstance) []ClusterHubDomainResourceInstance {
+	merged := append([]ClusterHubDomainResourceInstance{}, existing...)
+	indexes := map[string]int{}
+	for i, instance := range merged {
+		if instance.NodeID != "" {
+			indexes[instance.NodeID] = i
+		}
+	}
+	for _, update := range updates {
+		if update.NodeID != "" {
+			if idx, exists := indexes[update.NodeID]; exists {
+				merged[idx] = update
+				continue
+			}
+			indexes[update.NodeID] = len(merged)
+		}
+		merged = append(merged, update)
+	}
+	return merged
+}
+
 func domainResourceUserSubToken(wrapper model.ClusterClient) string {
+	if wrapper.SubToken != "" {
+		return wrapper.SubToken
+	}
 	if wrapper.RequestID != "" {
 		return wrapper.RequestID
 	}
 	return wrapper.HubUserUUID
+}
+
+func decodeDomainUserBoundGroups(raw json.RawMessage) []string {
+	var groups []string
+	if len(raw) == 0 || json.Unmarshal(raw, &groups) != nil {
+		return nil
+	}
+	return normalizeDomainUserBoundGroups(groups, nil)
+}
+
+func domainUserGroupSelectorsRaw(groups []string) json.RawMessage {
+	selectors := domainUserGroupSelectors(groups)
+	if len(selectors) == 0 {
+		return nil
+	}
+	raw, err := json.Marshal(selectors)
+	if err != nil {
+		return nil
+	}
+	return raw
 }
 
 func (c *ClusterDomainResourceCoordinator) domainToken(domain *model.ClusterDomain) (string, error) {

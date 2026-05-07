@@ -106,6 +106,7 @@ type ClusterHubProxyConfigItem struct {
 	TLSConfig              json.RawMessage `json:"tls_config,omitempty"`
 	Scope                  string          `json:"scope,omitempty"`
 	DomainInboundRequestID string          `json:"domain_inbound_request_id,omitempty"`
+	DomainInboundGroupID   string          `json:"domain_inbound_group_id,omitempty"`
 }
 
 type ClusterHubReportRequest struct {

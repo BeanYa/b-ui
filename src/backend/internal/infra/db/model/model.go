@@ -166,17 +166,19 @@ type ClusterInbound struct {
 }
 
 type ClusterClient struct {
-	Id          uint    `json:"id" gorm:"primaryKey;autoIncrement"`
-	DomainID    uint    `json:"domainId" gorm:"uniqueIndex:idx_cluster_client_domain_user;index"`
-	Domain      string  `json:"domain" gorm:"index"`
-	NodeID      string  `json:"nodeId" gorm:"index"`
-	MemberID    string  `json:"memberId" gorm:"index"`
-	ClientID    uint    `json:"clientId" gorm:"uniqueIndex"`
-	Client      *Client `json:"client,omitempty" gorm:"foreignKey:ClientID;references:Id"`
-	HubUserUUID string  `json:"hubUserUuid" gorm:"uniqueIndex:idx_cluster_client_domain_user"`
-	RequestID   string  `json:"requestId" gorm:"index"`
-	CreatedAt   int64   `json:"createdAt"`
-	UpdatedAt   int64   `json:"updatedAt"`
+	Id                   uint            `json:"id" gorm:"primaryKey;autoIncrement"`
+	DomainID             uint            `json:"domainId" gorm:"uniqueIndex:idx_cluster_client_domain_user;index"`
+	Domain               string          `json:"domain" gorm:"index"`
+	NodeID               string          `json:"nodeId" gorm:"index"`
+	MemberID             string          `json:"memberId" gorm:"index"`
+	ClientID             uint            `json:"clientId" gorm:"uniqueIndex"`
+	Client               *Client         `json:"client,omitempty" gorm:"foreignKey:ClientID;references:Id"`
+	HubUserUUID          string          `json:"hubUserUuid" gorm:"uniqueIndex:idx_cluster_client_domain_user"`
+	RequestID            string          `json:"requestId" gorm:"index"`
+	SubToken             string          `json:"subToken" gorm:"index"`
+	BoundInboundGroupIDs json.RawMessage `json:"boundInboundGroupIds" gorm:"type:blob"`
+	CreatedAt            int64           `json:"createdAt"`
+	UpdatedAt            int64           `json:"updatedAt"`
 }
 
 type ClusterDomainOperation struct {

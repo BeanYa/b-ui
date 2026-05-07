@@ -2,6 +2,8 @@ package service
 
 import (
 	"context"
+	"crypto/rand"
+	"encoding/base64"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -85,6 +87,10 @@ func (s *ClusterDomainUserService) ApplyDomainUserUpsert(ctx context.Context, do
 	payload.DomainID = strings.TrimSpace(payload.DomainID)
 	payload.User.UUID = strings.TrimSpace(payload.User.UUID)
 	payload.User.Name = strings.TrimSpace(payload.User.Name)
+	payload.User.SubToken = strings.TrimSpace(payload.User.SubToken)
+	boundInboundGroupIDs := normalizeDomainUserBoundGroups(payload.User.BoundInboundGroupIDs, payload.Inbounds)
+	payload.User.BoundInboundGroupIDs = boundInboundGroupIDs
+	payload.Inbounds = domainUserGroupSelectors(boundInboundGroupIDs)
 	if payload.RequestID == "" {
 		return nil, errors.New("request_id is required")
 	}
@@ -132,6 +138,21 @@ func (s *ClusterDomainUserService) ApplyDomainUserUpsert(ctx context.Context, do
 		} else if err != nil {
 			return err
 		}
+		subToken := payload.User.SubToken
+		if !created && subToken == "" {
+			subToken = wrapper.SubToken
+		}
+		if created && subToken == "" {
+			subToken, err = generateDomainUserSubToken()
+			if err != nil {
+				return err
+			}
+		}
+		payload.User.SubToken = subToken
+		boundInboundGroupIDsJSON, err := json.Marshal(boundInboundGroupIDs)
+		if err != nil {
+			return err
+		}
 
 		client := model.Client{}
 		if !created {
@@ -172,15 +193,17 @@ func (s *ClusterDomainUserService) ApplyDomainUserUpsert(ctx context.Context, do
 		now := s.now()
 		if created {
 			wrapper = model.ClusterClient{
-				DomainID:    domain.Id,
-				Domain:      domain.Domain,
-				NodeID:      nodeID,
-				MemberID:    strings.TrimSpace(source),
-				ClientID:    client.Id,
-				HubUserUUID: payload.User.UUID,
-				RequestID:   payload.RequestID,
-				CreatedAt:   now,
-				UpdatedAt:   now,
+				DomainID:             domain.Id,
+				Domain:               domain.Domain,
+				NodeID:               nodeID,
+				MemberID:             strings.TrimSpace(source),
+				ClientID:             client.Id,
+				HubUserUUID:          payload.User.UUID,
+				RequestID:            payload.RequestID,
+				SubToken:             subToken,
+				BoundInboundGroupIDs: boundInboundGroupIDsJSON,
+				CreatedAt:            now,
+				UpdatedAt:            now,
 			}
 			if wrapper.MemberID == "" {
 				wrapper.MemberID = nodeID
@@ -194,6 +217,8 @@ func (s *ClusterDomainUserService) ApplyDomainUserUpsert(ctx context.Context, do
 				wrapper.MemberID = source
 			}
 			wrapper.RequestID = payload.RequestID
+			wrapper.SubToken = subToken
+			wrapper.BoundInboundGroupIDs = boundInboundGroupIDsJSON
 			wrapper.UpdatedAt = now
 			if err := tx.Save(&wrapper).Error; err != nil {
 				return err
@@ -217,6 +242,55 @@ func (s *ClusterDomainUserService) ApplyDomainUserUpsert(ctx context.Context, do
 	}
 	_ = changedInboundIDs
 	return result, nil
+}
+
+func normalizeDomainUserBoundGroups(userGroups []string, selectors []string) []string {
+	groups := make([]string, 0, len(userGroups)+len(selectors))
+	for _, value := range append(userGroups, selectors...) {
+		value = strings.TrimSpace(value)
+		value = strings.TrimPrefix(value, "domain:")
+		value = strings.TrimSpace(value)
+		if value == "" {
+			continue
+		}
+		exists := false
+		for _, group := range groups {
+			if group == value {
+				exists = true
+				break
+			}
+		}
+		if !exists {
+			groups = append(groups, value)
+		}
+	}
+	return groups
+}
+
+func domainUserGroupSelectors(groups []string) []string {
+	if len(groups) == 0 {
+		return nil
+	}
+	selectors := make([]string, 0, len(groups))
+	for _, group := range groups {
+		group = strings.TrimSpace(group)
+		if group == "" {
+			continue
+		}
+		selectors = append(selectors, "domain:"+group)
+	}
+	if len(selectors) == 0 {
+		return nil
+	}
+	return selectors
+}
+
+func generateDomainUserSubToken() (string, error) {
+	var bytes [24]byte
+	if _, err := rand.Read(bytes[:]); err != nil {
+		return "", err
+	}
+	return base64.RawURLEncoding.EncodeToString(bytes[:]), nil
 }
 
 func (s *ClusterDomainUserService) ApplyDomainUserDelete(ctx context.Context, domain *model.ClusterDomain, payload clustertypes.DomainUserDeletePayload, source string, broadcast bool) (*DomainUserDeleteResult, error) {
@@ -397,8 +471,12 @@ func (s *ClusterDomainUserService) resolveInboundIDs(tx *gorm.DB, domainID uint,
 			continue
 		}
 		if strings.HasPrefix(selector, "domain:") {
-			requestID := strings.TrimPrefix(selector, "domain:")
-			if id, ok := findClusterInboundByRequest(wrappers, requestID); ok {
+			groupID := strings.TrimSpace(strings.TrimPrefix(selector, "domain:"))
+			if id, ok := findClusterInboundByGroup(wrappers, groupID); ok {
+				ids = appendUniqueUint(ids, id)
+				continue
+			}
+			if id, ok := findClusterInboundByRequest(wrappers, groupID); ok {
 				ids = appendUniqueUint(ids, id)
 				continue
 			}
@@ -452,6 +530,16 @@ func clusterInboundIDs(wrappers []model.ClusterInbound) []uint {
 func findClusterInboundByRequest(wrappers []model.ClusterInbound, requestID string) (uint, bool) {
 	for _, wrapper := range wrappers {
 		if wrapper.RequestID == requestID {
+			return wrapper.InboundID, true
+		}
+	}
+	return 0, false
+}
+
+func findClusterInboundByGroup(wrappers []model.ClusterInbound, groupID string) (uint, bool) {
+	groupID = strings.TrimSpace(groupID)
+	for _, wrapper := range wrappers {
+		if strings.TrimSpace(wrapper.GroupID) == groupID {
 			return wrapper.InboundID, true
 		}
 	}

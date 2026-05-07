@@ -165,6 +165,38 @@ func TestDomainResourceCoordinatorCreateInboundDispatchesInitialPeers(t *testing
 	}
 }
 
+func TestDomainResourceCoordinatorPickListTargetsOnlySelectedNodes(t *testing.T) {
+	members := []model.ClusterMember{
+		{NodeID: "node-a", DisplayName: "Node A", BaseURL: "https://node-a.example.com"},
+		{NodeID: "node-b", DisplayName: "Node B", BaseURL: "https://node-b.example.com"},
+		{NodeID: "node-c", DisplayName: "Node C", BaseURL: "https://node-c.example.com"},
+		{NodeID: "node-d", DisplayName: "Node D"},
+	}
+	targets := []clustertypes.DomainInboundTarget{
+		{NodeID: "node-c", DisplayName: "Node C"},
+	}
+
+	if shouldApplyLocalDomainResourceTarget(targets, "node-a") {
+		t.Fatal("local node should not apply when it is absent from the pick list")
+	}
+
+	selected := selectedDomainResourceTargets(members, "node-a", targets)
+	if len(selected) != 1 || selected[0].NodeID != "node-c" {
+		t.Fatalf("selected targets = %#v, want only node-c", selected)
+	}
+}
+
+func TestDomainResourceCoordinatorPickListCanIncludeLocalNode(t *testing.T) {
+	targets := []clustertypes.DomainInboundTarget{
+		{NodeID: "node-a", DisplayName: "Node A"},
+		{NodeID: "node-c", DisplayName: "Node C"},
+	}
+
+	if !shouldApplyLocalDomainResourceTarget(targets, "node-a") {
+		t.Fatal("local node should apply when it is included in the pick list")
+	}
+}
+
 func TestDomainResourceCoordinatorReportsHubResourceStateCurrentShape(t *testing.T) {
 	if err := database.InitDB(filepath.Join(t.TempDir(), "coordinator-report.db")); err != nil {
 		if strings.Contains(err.Error(), "go-sqlite3 requires cgo") || strings.Contains(err.Error(), "CGO_ENABLED=0") || strings.Contains(err.Error(), "C compiler") {
@@ -233,13 +265,15 @@ func TestDomainResourceCoordinatorReportsHubResourceStateCurrentShape(t *testing
 		t.Fatalf("seed client: %v", err)
 	}
 	if err := db.Create(&model.ClusterClient{
-		DomainID:    domain.Id,
-		Domain:      domain.Domain,
-		NodeID:      local.NodeID,
-		MemberID:    local.NodeID,
-		ClientID:    client.Id,
-		HubUserUUID: "user-a",
-		RequestID:   "req-user-1",
+		DomainID:             domain.Id,
+		Domain:               domain.Domain,
+		NodeID:               local.NodeID,
+		MemberID:             local.NodeID,
+		ClientID:             client.Id,
+		HubUserUUID:          "user-a",
+		RequestID:            "req-user-1",
+		SubToken:             "stable-token",
+		BoundInboundGroupIDs: json.RawMessage(`["group-1"]`),
 	}).Error; err != nil {
 		t.Fatalf("seed cluster client: %v", err)
 	}
@@ -295,6 +329,13 @@ func TestDomainResourceCoordinatorReportsHubResourceStateCurrentShape(t *testing
 	if body.Resources.Inbounds[0].Instances[0].NodeID != local.NodeID || body.Resources.Inbounds[0].Instances[0].Status != ClusterDomainOperationApplied {
 		t.Fatalf("unexpected inbound instance: %#v", body.Resources.Inbounds[0].Instances[0])
 	}
+	rawReport, err := json.Marshal(body)
+	if err != nil {
+		t.Fatalf("marshal resource state body: %v", err)
+	}
+	if strings.Contains(string(rawReport), "nodeId") || !strings.Contains(string(rawReport), `"node_id":"`+"node-a"+`"`) {
+		t.Fatalf("resource state instances must use snake_case fields: %s", rawReport)
+	}
 	if len(body.Resources.Users) != 1 {
 		t.Fatalf("users = %d, want 1", len(body.Resources.Users))
 	}
@@ -304,14 +345,104 @@ func TestDomainResourceCoordinatorReportsHubResourceStateCurrentShape(t *testing
 	if body.Resources.Users[0].SubToken == "" {
 		t.Fatalf("expected resource user sub_token for Hub read model")
 	}
+	if body.Resources.Users[0].SubToken != "stable-token" {
+		t.Fatalf("expected stable resource user sub_token, got %q", body.Resources.Users[0].SubToken)
+	}
 	if len(body.Resources.Users[0].Config) == 0 || string(body.Resources.Users[0].Config) != `{"level":1}` {
 		t.Fatalf("user config = %s, want {\"level\":1}", body.Resources.Users[0].Config)
 	}
-	if len(body.Resources.Users[0].Inbounds) != 1 || string(body.Resources.Users[0].Inbounds) != `[11]` {
-		t.Fatalf("user inbounds = %#v, want [11]", body.Resources.Users[0].Inbounds)
+	if len(body.Resources.Users[0].BoundInboundGroupIDs) != 1 || body.Resources.Users[0].BoundInboundGroupIDs[0] != "group-1" {
+		t.Fatalf("user bound groups = %#v, want [group-1]", body.Resources.Users[0].BoundInboundGroupIDs)
+	}
+	if len(body.Resources.Users[0].Inbounds) == 0 || string(body.Resources.Users[0].Inbounds) != `["domain:group-1"]` {
+		t.Fatalf("user inbounds = %#v, want domain group selector", body.Resources.Users[0].Inbounds)
 	}
 	if body.OperationSummary.ResourceKind != ClusterDomainResourceInbound || body.OperationSummary.ResourceID != "group-1" || body.OperationSummary.Action != ClusterDomainOperationCreate {
 		t.Fatalf("unexpected operation payload: %#v", body.OperationSummary)
+	}
+}
+
+func TestDomainResourcesIncludeRemoteOnlyDomainInboundOperations(t *testing.T) {
+	if err := database.InitDB(filepath.Join(t.TempDir(), "coordinator-remote-only-read-model.db")); err != nil {
+		if strings.Contains(err.Error(), "go-sqlite3 requires cgo") || strings.Contains(err.Error(), "CGO_ENABLED=0") || strings.Contains(err.Error(), "C compiler") {
+			t.Skipf("sqlite test database unavailable in this toolchain: %v", err)
+		}
+		t.Fatalf("init db: %v", err)
+	}
+	db := database.GetDB()
+	domain := &model.ClusterDomain{Id: 1, Domain: "edge.example.com", HubURL: "https://hub.example.com", TokenEncrypted: "token", LastVersion: 8}
+	if err := db.Create(domain).Error; err != nil {
+		t.Fatalf("seed domain: %v", err)
+	}
+	local := newTestClusterLocalNode(t, "node-a")
+	if err := db.Create(local).Error; err != nil {
+		t.Fatalf("seed local node: %v", err)
+	}
+
+	store := &ClusterDomainOperationStore{DB: db}
+	payload := clustertypes.DomainInboundCreatePayload{
+		RequestID:   "op-remote-only",
+		DomainID:    domain.Domain,
+		GroupID:     "remote-edge",
+		TagSeed:     "edge",
+		Prefix:      "domain",
+		Suffix:      "remote",
+		Inbound:     json.RawMessage(`{"type":"vless","tag":"remote","options":{"listen_port":443}}`),
+		TLSTemplate: "standard",
+		TargetMembers: []clustertypes.DomainInboundTarget{{
+			NodeID:      "node-b",
+			MemberID:    "node-b",
+			DisplayName: "Node B",
+		}},
+	}
+	desiredPayload, err := json.Marshal(payload)
+	if err != nil {
+		t.Fatalf("marshal payload: %v", err)
+	}
+	if err := store.SaveOperation(&model.ClusterDomainOperation{
+		OperationID:       payload.RequestID,
+		DomainID:          domain.Id,
+		Domain:            domain.Domain,
+		ResourceKind:      ClusterDomainResourceInbound,
+		ResourceID:        payload.GroupID,
+		Action:            ClusterDomainOperationCreate,
+		Revision:          domain.LastVersion,
+		CoordinatorNodeID: local.NodeID,
+		Status:            ClusterDomainOperationApplied,
+		DesiredPayload:    desiredPayload,
+	}); err != nil {
+		t.Fatalf("save operation: %v", err)
+	}
+	if err := store.SaveInstance(&model.ClusterDomainOperationInstance{
+		OperationID:     payload.RequestID,
+		NodeID:          "node-b",
+		MemberID:        "node-b",
+		DisplayName:     "Node B",
+		TargetTag:       "remote",
+		Status:          ClusterDomainOperationApplied,
+		AttemptCount:    1,
+		LocalResourceID: 77,
+	}); err != nil {
+		t.Fatalf("save instance: %v", err)
+	}
+
+	coordinator := &ClusterDomainResourceCoordinator{DB: db, OperationStore: store}
+	resources, err := coordinator.buildDomainResources(domain.Id)
+	if err != nil {
+		t.Fatalf("build domain resources: %v", err)
+	}
+	if len(resources.Inbounds) != 1 {
+		t.Fatalf("inbounds = %d, want 1", len(resources.Inbounds))
+	}
+	inbound := resources.Inbounds[0]
+	if inbound.GroupID != "remote-edge" || inbound.Type != "vless" {
+		t.Fatalf("unexpected inbound read model: %#v", inbound)
+	}
+	if inbound.LastOperationID != "op-remote-only" || inbound.LastOperationStatus != ClusterDomainOperationApplied {
+		t.Fatalf("unexpected operation metadata: %#v", inbound)
+	}
+	if len(inbound.Instances) != 1 || inbound.Instances[0].NodeID != "node-b" || inbound.Instances[0].Status != ClusterDomainOperationApplied {
+		t.Fatalf("unexpected remote inbound instances: %#v", inbound.Instances)
 	}
 }
 

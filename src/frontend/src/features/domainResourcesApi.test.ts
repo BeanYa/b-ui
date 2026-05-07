@@ -1,3 +1,5 @@
+import { readFileSync } from 'node:fs'
+import { fileURLToPath } from 'node:url'
 import api from '@/plugins/api'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import {
@@ -5,6 +7,7 @@ import {
   createDomainUserResource,
   deleteDomainInboundResource,
   deleteDomainUserResource,
+  listDomainResources,
   retryDomainResourceOperation,
   updateDomainInboundResource,
   updateDomainUserResource,
@@ -13,12 +16,15 @@ import {
 vi.mock('@/plugins/api', () => ({
   default: {
     delete: vi.fn(),
+    get: vi.fn(),
     post: vi.fn(),
     put: vi.fn(),
   },
 }))
 
 describe('domain resources API', () => {
+  const source = readFileSync(fileURLToPath(new URL('./domainResourcesApi.ts', import.meta.url)), 'utf8')
+
   afterEach(() => {
     vi.clearAllMocks()
   })
@@ -97,7 +103,7 @@ describe('domain resources API', () => {
     )
   })
 
-  it('creates domain user resources through the local cluster endpoint with JSON payload shape', async () => {
+  it('creates domain user resources with domain inbound group bindings instead of raw inbound selectors', async () => {
     vi.mocked(api.post).mockResolvedValue({
       data: { success: true, msg: '', obj: { operationId: 'op-user-1', status: 'applied' } },
     })
@@ -108,8 +114,9 @@ describe('domain resources API', () => {
         name: 'Alice',
         enable: true,
         config: { level: 1 },
+        bound_inbound_group_ids: ['group-1'],
       },
-      inbounds: ['group-1'],
+      bound_inbound_group_ids: ['group-1'],
     })
 
     expect(api.post).toHaveBeenCalledWith(
@@ -120,12 +127,39 @@ describe('domain resources API', () => {
           name: 'Alice',
           enable: true,
           config: { level: 1 },
+          bound_inbound_group_ids: ['group-1'],
         },
-        inbounds: ['group-1'],
+        bound_inbound_group_ids: ['group-1'],
       },
       {
         headers: { 'Content-Type': 'application/json' },
       },
+    )
+  })
+
+  it('types domain user payloads with optional group bindings and optional legacy inbounds', () => {
+    expect(source).toContain('bound_inbound_group_ids?: string[]')
+    expect(source).toContain('inbounds?: string[]')
+  })
+
+  it('lists persisted domain resources for existing inbound groups', async () => {
+    vi.mocked(api.get).mockResolvedValue({
+      data: {
+        success: true,
+        msg: '',
+        obj: {
+          domain_inbounds: [{ group_id: 'group-1', type: 'vless', status: 'active' }],
+          domain_users: [{ uuid: 'user-1', name: 'Alice', enable: true, bound_inbound_group_ids: ['group-1'] }],
+        },
+      },
+    })
+
+    const resources = await listDomainResources(7)
+
+    expect(resources.domain_inbounds[0]?.group_id).toBe('group-1')
+    expect(api.get).toHaveBeenCalledWith(
+      'api/cluster/domains/7/resources',
+      { headers: { 'Content-Type': 'application/json' } },
     )
   })
 
@@ -143,8 +177,13 @@ describe('domain resources API', () => {
     await updateDomainInboundResource(7, 'group-1', { group_id: 'ignored', inbound: { tag: 'updated' } })
     await deleteDomainInboundResource(7, 'group-1')
     await updateDomainUserResource(7, 'user-1', {
-      user: { name: 'Alice Updated', enable: true, config: { level: 2 } },
-      inbounds: ['group-1'],
+      user: {
+        name: 'Alice Updated',
+        enable: true,
+        config: { level: 2 },
+        bound_inbound_group_ids: ['group-1', 'group-2'],
+      },
+      bound_inbound_group_ids: ['group-1', 'group-2'],
     })
     await deleteDomainUserResource(7, 'user-1')
 
@@ -160,8 +199,13 @@ describe('domain resources API', () => {
     expect(api.put).toHaveBeenCalledWith(
       'api/cluster/domains/7/resources/users/user-1',
       {
-        user: { name: 'Alice Updated', enable: true, config: { level: 2 } },
-        inbounds: ['group-1'],
+        user: {
+          name: 'Alice Updated',
+          enable: true,
+          config: { level: 2 },
+          bound_inbound_group_ids: ['group-1', 'group-2'],
+        },
+        bound_inbound_group_ids: ['group-1', 'group-2'],
       },
       { headers: { 'Content-Type': 'application/json' } },
     )

@@ -573,6 +573,7 @@
       <DomainResourceInboundEditor
         v-if="selectedDomain"
         :domain="selectedDomain"
+        :members="domainInboundTargetMembers"
         :loading="domainResourceLoading"
         :error="domainResourceFormError"
         @cancel="domainInboundDialog = false"
@@ -586,7 +587,8 @@
         :domain="selectedDomain"
         :loading="domainResourceLoading"
         :error="domainResourceFormError"
-        :default-inbound-group="lastDomainInboundGroupId || `domain-${selectedDomain.id}`"
+        :available-inbound-groups="availableDomainInboundGroups"
+        :default-inbound-group="selectedDomainDefaultInboundGroup"
         @cancel="domainUserDialog = false"
         @submit="submitDomainUserResource"
       />
@@ -694,7 +696,7 @@ import ClusterDomainActionTree from '@/components/ClusterDomainActionTree.vue'
 import DomainResourceInboundEditor from '@/components/DomainResourceInboundEditor.vue'
 import DomainResourceUserEditor from '@/components/DomainResourceUserEditor.vue'
 import { parseClusterHubJoinUri } from '@/features/clusterHubUri'
-import { createDomainInboundResource, createDomainUserResource, retryDomainResourceOperation } from '@/features/domainResourcesApi'
+import { createDomainInboundResource, createDomainUserResource, listDomainResources, retryDomainResourceOperation } from '@/features/domainResourcesApi'
 import type { CreateDomainInboundResourcePayload, CreateDomainUserResourcePayload, DomainResourceOperationView } from '@/features/domainResourcesApi'
 import { i18n } from '@/locales'
 import HttpUtils from '@/plugins/httputil'
@@ -756,17 +758,62 @@ const existingDomainData = ref<{ domain: string; hubUrl: string }>({ domain: '',
 
 const selectedDomain = computed(() => domains.value.find((domain) => domain.id === selectedDomainId.value) ?? null)
 const selectedDomainMembers = computed(() => members.value.filter((member) => member.domainId === selectedDomainId.value))
+const domainInboundTargetMembers = computed(() => {
+  if (selectedDomainMembers.value.some((member) => member.isLocal)) return selectedDomainMembers.value
+  const localMember = members.value.find((member) => member.isLocal)
+  if (!localMember || !selectedDomain.value) return selectedDomainMembers.value
+  return [
+    { ...localMember, domainId: selectedDomain.value.id },
+    ...selectedDomainMembers.value,
+  ]
+})
 const domainUpdateChecks = ref<Record<number, ClusterPanelUpdateCheck>>({})
 const domainResourceLoading = ref(false)
 const lastDomainResourceOperation = ref<DomainResourceOperationView | null>(null)
 const domainInboundDialog = ref(false)
 const domainUserDialog = ref(false)
 const domainResourceFormError = ref('')
-const lastDomainInboundGroupId = ref('')
+const lastDomainInboundGroupIdByDomain = ref<Record<number, string>>({})
+const domainInboundGroupIdsByDomain = ref<Record<number, string[]>>({})
 const domainOperationInstanceErrors = computed(() =>
   (lastDomainResourceOperation.value?.instances ?? [])
     .filter((instance) => instance.error && instance.error.trim() !== ''),
 )
+const selectedDomainDefaultInboundGroup = computed(() => {
+  if (!selectedDomain.value) return ''
+  return lastDomainInboundGroupIdByDomain.value[selectedDomain.value.id] || `domain-${selectedDomain.value.id}`
+})
+const availableDomainInboundGroups = computed(() => {
+  if (!selectedDomain.value) return []
+  const domainId = selectedDomain.value.id
+  const defaultGroupId = `domain-${domainId}`
+  const groupIds = [
+    defaultGroupId,
+    ...(domainInboundGroupIdsByDomain.value[domainId] ?? []),
+  ]
+  const lastGroupId = lastDomainInboundGroupIdByDomain.value[domainId]
+  if (lastGroupId) groupIds.unshift(lastGroupId)
+  return [...new Set(groupIds)]
+    .filter(Boolean)
+    .map((groupId) => ({ groupId }))
+})
+
+const refreshDomainResourceGroups = async (domainIds: number[]) => {
+  const uniqueDomainIds = [...new Set(domainIds.filter((id) => Number.isFinite(id) && id > 0))]
+  if (uniqueDomainIds.length === 0) return
+  const entries = await Promise.all(uniqueDomainIds.map(async (domainId) => {
+    try {
+      const resources = await listDomainResources(domainId)
+      return [domainId, resources.domain_inbounds.map((inbound) => inbound.group_id).filter(Boolean)] as const
+    } catch {
+      return [domainId, domainInboundGroupIdsByDomain.value[domainId] ?? []] as const
+    }
+  }))
+  domainInboundGroupIdsByDomain.value = {
+    ...domainInboundGroupIdsByDomain.value,
+    ...Object.fromEntries(entries.map(([domainId, groupIds]) => [domainId, [...new Set(groupIds)]])),
+  }
+}
 
 const domainMemberCount = (domainId: number) => members.value.filter((member) => member.domainId === domainId).length
 const formatClusterVersionLabel = (version: number) => `${version}`
@@ -954,7 +1001,16 @@ const submitDomainInboundResource = async (payload: CreateDomainInboundResourceP
   domainResourceFormError.value = ''
   domainResourceLoading.value = true
   try {
-    lastDomainInboundGroupId.value = payload.group_id
+    lastDomainInboundGroupIdByDomain.value = {
+      ...lastDomainInboundGroupIdByDomain.value,
+      [selectedDomain.value.id]: payload.group_id,
+    }
+    domainInboundGroupIdsByDomain.value = {
+      ...domainInboundGroupIdsByDomain.value,
+      [selectedDomain.value.id]: [
+        ...new Set([...(domainInboundGroupIdsByDomain.value[selectedDomain.value.id] ?? []), payload.group_id]),
+      ],
+    }
     lastDomainResourceOperation.value = await createDomainInboundResource(selectedDomain.value.id, {
       ...payload,
     })
@@ -1246,6 +1302,7 @@ const loadData = async () => {
         }
       }
     }
+    await refreshDomainResourceGroups(domains.value.map((domain) => domain.id))
   } finally {
     pageLoading.value = false
   }

@@ -34,6 +34,26 @@ export interface DomainResourceOperationInstanceView {
   updatedAt?: number
 }
 
+export interface DomainResourceInboundView {
+  group_id: string
+  type?: string
+  status?: string
+}
+
+export interface DomainResourceUserView {
+  uuid: string
+  name: string
+  enable: boolean
+  sub_token?: string
+  bound_inbound_group_ids?: string[]
+  inbounds?: Array<string | number>
+}
+
+export interface DomainResourcesView {
+  domain_inbounds: DomainResourceInboundView[]
+  domain_users: DomainResourceUserView[]
+}
+
 export interface CreateDomainInboundResourcePayload {
   group_id: string
   tag_seed?: string
@@ -74,7 +94,9 @@ export interface CreateDomainUserResourcePayload {
     next_reset?: number
     total_up?: number
     total_down?: number
+    bound_inbound_group_ids?: string[]
   }
+  bound_inbound_group_ids?: string[]
   inbounds?: string[]
 }
 
@@ -88,6 +110,14 @@ export async function createDomainInboundResource(
     { headers: { 'Content-Type': 'application/json' } },
   )
   return unwrapMsg<DomainResourceOperationView>(resp.data, 'domain inbound resource create failed')
+}
+
+export async function listDomainResources(domainId: number): Promise<DomainResourcesView> {
+  const resp = await api.get(
+    `api/cluster/domains/${encodeURIComponent(String(domainId))}/resources`,
+    { headers: { 'Content-Type': 'application/json' } },
+  )
+  return unwrapMsg<DomainResourcesView>(resp.data, 'domain resources list failed')
 }
 
 export async function updateDomainInboundResource(
