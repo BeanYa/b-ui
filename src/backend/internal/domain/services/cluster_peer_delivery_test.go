@@ -204,6 +204,26 @@ func TestClusterPeerDeliverySendWithResultParsesCommandResult(t *testing.T) {
 	}
 }
 
+func TestClusterPeerDeliverySendWithResultSurfacesProtocolRejectedMessage(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		_, _ = w.Write([]byte(`{"status":"rejected","code":"request_rejected","message":"cluster message: payload domain_id \"edge.example.com\" does not match local domain \"other.example.com\""}`))
+	}))
+	defer server.Close()
+
+	delivery := &ClusterPeerDeliveryService{HTTPClient: server.Client()}
+	_, err := delivery.SendWithResult(context.Background(), &PeerMessage{
+		MessageID: "msg-rejected-protocol-response",
+		Action:    PeerActionDomainInboundCreate,
+	}, model.ClusterMember{NodeID: "node-b", BaseURL: server.URL}, "peer-token")
+	if err == nil {
+		t.Fatal("expected failed delivery")
+	}
+	if !strings.Contains(err.Error(), "payload domain_id") {
+		t.Fatalf("expected peer rejection message, got %v", err)
+	}
+}
+
 func loadPeerAckState(t *testing.T, messageID string, targetNode string) model.ClusterPeerAckState {
 	t.Helper()
 	var ack model.ClusterPeerAckState

@@ -229,12 +229,24 @@ func clusterPeerNotifyError(response *http.Response, statusErr error) error {
 		return statusErr
 	}
 	var payload struct {
-		Msg string `json:"msg"`
+		Msg     string `json:"msg"`
+		Message string `json:"message"`
+		Code    string `json:"code"`
 	}
-	if err := json.Unmarshal(body, &payload); err != nil || strings.TrimSpace(payload.Msg) == "" {
+	if err := json.Unmarshal(body, &payload); err != nil {
 		return statusErr
 	}
-	return errors.New(statusErr.Error() + ": " + strings.TrimSpace(payload.Msg))
+	message := strings.TrimSpace(payload.Msg)
+	if message == "" {
+		message = strings.TrimSpace(payload.Message)
+	}
+	if message == "" {
+		message = strings.TrimSpace(payload.Code)
+	}
+	if message == "" {
+		return statusErr
+	}
+	return errors.New(statusErr.Error() + ": " + message)
 }
 
 func parseClusterPeerCommandResult(body []byte) (*clustertypes.DomainResourceCommandResult, error) {
@@ -242,18 +254,55 @@ func parseClusterPeerCommandResult(body []byte) (*clustertypes.DomainResourceCom
 		return nil, nil
 	}
 	var payload struct {
-		Success bool                                      `json:"success"`
+		Success *bool                                     `json:"success"`
 		Msg     string                                    `json:"msg"`
 		Result  *clustertypes.DomainResourceCommandResult `json:"result"`
 	}
 	if err := json.Unmarshal(body, &payload); err != nil {
 		return nil, errors.New("invalid cluster peer response")
 	}
-	if !payload.Success {
-		if payload.Msg == "" {
-			return nil, errors.New("cluster peer notify failed")
+	if payload.Success != nil {
+		if !*payload.Success {
+			return nil, clusterPeerResponseError(payload.Msg, "")
 		}
-		return nil, errors.New(payload.Msg)
+		return payload.Result, nil
 	}
-	return payload.Result, nil
+
+	var protocolPayload struct {
+		Status  string                                    `json:"status"`
+		Code    string                                    `json:"code"`
+		Message string                                    `json:"message"`
+		Result  *clustertypes.DomainResourceCommandResult `json:"result"`
+	}
+	if err := json.Unmarshal(body, &protocolPayload); err != nil {
+		return nil, errors.New("invalid cluster peer response")
+	}
+	status := strings.ToLower(strings.TrimSpace(protocolPayload.Status))
+	code := strings.ToLower(strings.TrimSpace(protocolPayload.Code))
+	switch status {
+	case "completed", "succeeded", "success", "ok":
+		return protocolPayload.Result, nil
+	case "rejected", "failed", "error":
+		return nil, clusterPeerResponseError(protocolPayload.Message, protocolPayload.Code)
+	case "":
+		if code == "ok" || code == "success" || code == "completed" {
+			return protocolPayload.Result, nil
+		}
+		if protocolPayload.Message != "" || protocolPayload.Code != "" {
+			return nil, clusterPeerResponseError(protocolPayload.Message, protocolPayload.Code)
+		}
+	}
+	return nil, errors.New("cluster peer notify failed")
+}
+
+func clusterPeerResponseError(message string, code string) error {
+	message = strings.TrimSpace(message)
+	if message != "" {
+		return errors.New(message)
+	}
+	code = strings.TrimSpace(code)
+	if code != "" {
+		return errors.New(code)
+	}
+	return errors.New("cluster peer notify failed")
 }
