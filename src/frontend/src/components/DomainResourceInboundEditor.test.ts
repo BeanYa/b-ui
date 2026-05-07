@@ -40,4 +40,11 @@ describe('DomainResourceInboundEditor source', () => {
     expect(source).not.toContain('advancedJson')
     expect(source).not.toContain('JSON.parse')
   })
+
+  it('does not generate sing-box legacy inbound sniff fields', () => {
+    expect(source).not.toContain('raw.sniff')
+    expect(source).not.toContain('sniff_override_destination')
+    expect(source).not.toContain('sniff_timeout')
+    expect(source).not.toContain('domain_strategy')
+  })
 })

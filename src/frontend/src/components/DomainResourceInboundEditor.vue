@@ -56,11 +56,6 @@
             />
           </v-col>
         </v-row>
-        <v-row>
-          <v-col cols="12" md="4">
-            <v-switch v-model="sniff" :label="$t('clusterCenter.domainResources.sniff')" color="primary" hide-details />
-          </v-col>
-        </v-row>
       </v-card>
 
       <Direct v-if="inbound.type === InTypes.Direct" :data="inbound" />
@@ -147,7 +142,6 @@ const suffix = ref('')
 const inbound = ref<Inbound>(createInbound(InTypes.VLESS, { id: 0, tag: '', listen: '::', listen_port: 443 }))
 const listenPortSource = ref<'auto' | 'manual'>('auto')
 const manualListenPort = ref(443)
-const sniff = ref(true)
 const tlsTemplate = ref<DomainInboundTlsTemplate>('standard')
 const errorMessage = ref('')
 
@@ -204,7 +198,6 @@ const resetForm = () => {
   }) as Inbound
   listenPortSource.value = 'auto'
   manualListenPort.value = 443
-  sniff.value = true
   tlsTemplate.value = 'standard'
   errorMessage.value = ''
 }
@@ -231,13 +224,6 @@ const scrubInbound = (): Record<string, unknown> => {
   raw.listen_port = listenPortSource.value === 'auto'
     ? localProvided('DomainInboundListenPort')
     : manualListenPort.value
-  if (sniff.value) {
-    raw.sniff = true
-    raw.sniff_override_destination = true
-  } else {
-    delete raw.sniff
-    delete raw.sniff_override_destination
-  }
   delete raw.id
   delete raw.tls_id
   delete raw.tls

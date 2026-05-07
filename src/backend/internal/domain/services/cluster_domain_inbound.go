@@ -618,6 +618,7 @@ func (s *ClusterDomainInboundService) prepareDomainInboundJSON(tx *gorm.DB, doma
 	delete(inbound, "out_json")
 	delete(inbound, "addrs")
 	delete(inbound, "users")
+	deleteSingBoxLegacyInboundFields(inbound)
 	inbound["type"] = inboundType
 	inbound["tag"] = tag
 	if strings.TrimSpace(stringValue(inbound["listen"])) == "" {
@@ -650,6 +651,13 @@ func (s *ClusterDomainInboundService) prepareDomainInboundJSON(tx *gorm.DB, doma
 		return nil, "", err
 	}
 	return data, tag, nil
+}
+
+func deleteSingBoxLegacyInboundFields(inbound map[string]interface{}) {
+	delete(inbound, "sniff")
+	delete(inbound, "sniff_override_destination")
+	delete(inbound, "sniff_timeout")
+	delete(inbound, "domain_strategy")
 }
 
 func (s *ClusterDomainInboundService) createDomainInboundTLS(tx *gorm.DB, domain *model.ClusterDomain, tag string, payload clustertypes.DomainInboundCreatePayload) (uint, error) {

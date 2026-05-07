@@ -152,6 +152,30 @@ func TestPeerDeliveryRejectsInvalidSuccessBody(t *testing.T) {
 	}
 }
 
+func TestPeerDeliveryIncludesPeerErrorMessageFromNonSuccessBody(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(http.StatusUnauthorized)
+		_, _ = w.Write([]byte(`{"success":false,"msg":"cluster peer token not found"}`))
+	}))
+	defer server.Close()
+
+	delivery := &ClusterPeerDeliveryService{HTTPClient: server.Client()}
+	err := delivery.Send(context.Background(), &PeerMessage{
+		MessageID: "msg-peer-error-body",
+		Action:    PeerActionDomainInboundCreate,
+	}, model.ClusterMember{NodeID: "node-b", BaseURL: server.URL}, "peer-token")
+	if err == nil {
+		t.Fatal("expected failed delivery")
+	}
+	if !strings.Contains(err.Error(), "cluster peer notify failed: 401 Unauthorized") {
+		t.Fatalf("expected HTTP status in error, got %v", err)
+	}
+	if !strings.Contains(err.Error(), "cluster peer token not found") {
+		t.Fatalf("expected peer response message in error, got %v", err)
+	}
+}
+
 func TestClusterPeerDeliverySendWithResultParsesCommandResult(t *testing.T) {
 	expected := clustertypes.DomainResourceCommandResult{
 		Status:       "applied",

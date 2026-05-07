@@ -7,6 +7,7 @@ import (
 	"errors"
 	"io"
 	"net/http"
+	"strings"
 	"time"
 
 	clustertypes "github.com/BeanYa/b-ui/src/backend/internal/domain/services/cluster/types"
@@ -114,7 +115,7 @@ func (s *ClusterPeerDeliveryService) sendJSON(ctx context.Context, payload inter
 	}
 	defer response.Body.Close()
 	if err := requireHTTPSuccess(response, "cluster peer notify"); err != nil {
-		return nil, err
+		return nil, clusterPeerNotifyError(response, err)
 	}
 	return readValidClusterPeerResponseBody(response)
 }
@@ -217,6 +218,23 @@ func readValidClusterPeerResponseBody(response *http.Response) ([]byte, error) {
 		return nil, err
 	}
 	return body, nil
+}
+
+func clusterPeerNotifyError(response *http.Response, statusErr error) error {
+	if response == nil || response.Body == nil {
+		return statusErr
+	}
+	body, err := io.ReadAll(response.Body)
+	if err != nil || len(bytes.TrimSpace(body)) == 0 {
+		return statusErr
+	}
+	var payload struct {
+		Msg string `json:"msg"`
+	}
+	if err := json.Unmarshal(body, &payload); err != nil || strings.TrimSpace(payload.Msg) == "" {
+		return statusErr
+	}
+	return errors.New(statusErr.Error() + ": " + strings.TrimSpace(payload.Msg))
 }
 
 func parseClusterPeerCommandResult(body []byte) (*clustertypes.DomainResourceCommandResult, error) {

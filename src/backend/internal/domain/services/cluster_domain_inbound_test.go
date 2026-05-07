@@ -399,6 +399,94 @@ func TestDomainInboundCreatePreservesManualListenPortAndAllocatesLocalProvidedPo
 	}
 }
 
+func TestDomainInboundCreateStripsSingBoxLegacyInboundFields(t *testing.T) {
+	db := initClusterInboundTestDB(t)
+	svc := NewClusterDomainInboundService(ClusterDomainInboundServiceOptions{
+		DB: db,
+		InboundSaver: domainInboundSaverFunc(func(tx *gorm.DB, act string, data json.RawMessage, initUserIds string, hostname string) error {
+			var inbound model.Inbound
+			if err := inbound.UnmarshalJSON(data); err != nil {
+				return err
+			}
+			return tx.Create(&inbound).Error
+		}),
+		Identity:      &stubDomainInboundIdentity{node: &model.ClusterLocalNode{NodeID: "node-a"}},
+		PortAllocator: func() (int, error) { return 32124, nil },
+	})
+
+	result, err := svc.ApplyDomainInboundCreate(context.Background(), &model.ClusterDomain{Id: 1, Domain: "edge.example.com"}, clustertypes.DomainInboundCreatePayload{
+		RequestID: "req-legacy-fields",
+		DomainID:  "edge.example.com",
+		GroupID:   "legacy-fields",
+		Inbound: json.RawMessage(`{
+			"type": "vless",
+			"tag": "legacy",
+			"listen": "::",
+			"listen_port": 443,
+			"sniff": true,
+			"sniff_override_destination": true,
+			"sniff_timeout": "300ms",
+			"domain_strategy": "prefer_ipv4"
+		}`),
+	}, "hub", false)
+	if err != nil {
+		t.Fatalf("apply create: %v", err)
+	}
+
+	var inbound model.Inbound
+	if err := db.First(&inbound, result.InboundID).Error; err != nil {
+		t.Fatalf("load inbound: %v", err)
+	}
+	var options map[string]interface{}
+	if err := json.Unmarshal(inbound.Options, &options); err != nil {
+		t.Fatalf("decode options: %v", err)
+	}
+	for _, key := range []string{"sniff", "sniff_override_destination", "sniff_timeout", "domain_strategy"} {
+		if _, ok := options[key]; ok {
+			t.Fatalf("expected legacy inbound field %q to be stripped, got %#v", key, options)
+		}
+	}
+	if options["listen_port"] != float64(443) {
+		t.Fatalf("expected manual listen_port 443 to remain, got %#v", options["listen_port"])
+	}
+}
+
+func TestPrepareDomainInboundJSONStripsSingBoxLegacyInboundFields(t *testing.T) {
+	svc := NewClusterDomainInboundService(ClusterDomainInboundServiceOptions{
+		PortAllocator: func() (int, error) { return 32125, nil },
+	})
+	raw, _, err := svc.prepareDomainInboundJSON(nil, &model.ClusterDomain{Domain: "edge.example.com"}, clustertypes.DomainInboundCreatePayload{
+		RequestID: "req-legacy-fields",
+		DomainID:  "edge.example.com",
+		GroupID:   "legacy-fields",
+		Inbound: json.RawMessage(`{
+			"type": "vless",
+			"tag": "legacy",
+			"listen": "::",
+			"listen_port": {"LocalProvided":"DomainInboundListenPort"},
+			"sniff": true,
+			"sniff_override_destination": true,
+			"sniff_timeout": "300ms",
+			"domain_strategy": "prefer_ipv4"
+		}`),
+	}, "node-a", "node-a")
+	if err != nil {
+		t.Fatalf("prepare inbound json: %v", err)
+	}
+	var inbound map[string]interface{}
+	if err := json.Unmarshal(raw, &inbound); err != nil {
+		t.Fatalf("decode inbound json: %v", err)
+	}
+	for _, key := range []string{"sniff", "sniff_override_destination", "sniff_timeout", "domain_strategy"} {
+		if _, ok := inbound[key]; ok {
+			t.Fatalf("expected legacy inbound field %q to be stripped, got %#v", key, inbound)
+		}
+	}
+	if inbound["listen_port"] != float64(32125) {
+		t.Fatalf("expected target allocated listen_port 32125, got %#v", inbound["listen_port"])
+	}
+}
+
 func TestDomainInboundGeneratedTLSKeypairUsesInlineCertificateMaterial(t *testing.T) {
 	svc := NewClusterDomainInboundService(ClusterDomainInboundServiceOptions{
 		TLSKeypairGenerator: func(serverName string) []string {
