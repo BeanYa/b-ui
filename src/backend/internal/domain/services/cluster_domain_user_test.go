@@ -251,6 +251,84 @@ func TestDomainUserUpsertGeneratesLinksWithLandingNodeAddress(t *testing.T) {
 	}
 }
 
+func TestDomainUserUpsertPreservesProvidedExternalLinks(t *testing.T) {
+	db := initClusterInboundTestDB(t)
+
+	inbound := model.Inbound{
+		Type:    "vless",
+		Tag:     "edge-main-node-a",
+		Addrs:   json.RawMessage(`null`),
+		Options: json.RawMessage(`{"listen_port":32001}`),
+	}
+	if err := db.Create(&inbound).Error; err != nil {
+		t.Fatalf("seed inbound: %v", err)
+	}
+	if err := db.Create(&model.ClusterInbound{
+		DomainID:  1,
+		Domain:    "edge.example.com",
+		NodeID:    "node-a",
+		MemberID:  "hub",
+		GroupID:   "edge-main",
+		InboundID: inbound.Id,
+		RequestID: "req-inbound-a",
+	}).Error; err != nil {
+		t.Fatalf("seed wrapper: %v", err)
+	}
+
+	svc := NewClusterDomainUserService(ClusterDomainUserServiceOptions{
+		DB:       db,
+		Identity: &stubDomainInboundIdentity{node: &model.ClusterLocalNode{NodeID: "node-a"}},
+		Now:      func() int64 { return 1700000000 },
+	})
+	result, err := svc.ApplyDomainUserUpsert(context.Background(), &model.ClusterDomain{Id: 1, Domain: "edge.example.com"}, clustertypes.DomainUserUpsertPayload{
+		RequestID: "req-user-links",
+		DomainID:  "edge.example.com",
+		User: clustertypes.DomainUserPayload{
+			UUID:                 "hub-user-links",
+			Name:                 "alice",
+			Enable:               true,
+			BoundInboundGroupIDs: []string{"edge-main"},
+			Config:               json.RawMessage(`{"vless":{"uuid":"11111111-1111-4111-8111-111111111111"}}`),
+			Links: json.RawMessage(`[
+				{"type":"local","remark":"stale","uri":"vless://stale"},
+				{"type":"external","remark":"direct","uri":"vless://external-user@external.example.com:443#direct"},
+				{"type":"sub","remark":"vendor","uri":"https://sub.example.com/list"}
+			]`),
+		},
+	}, "hub", false)
+	if err != nil {
+		t.Fatalf("upsert domain user: %v", err)
+	}
+
+	var client model.Client
+	if err := db.First(&client, result.ClientID).Error; err != nil {
+		t.Fatalf("load client: %v", err)
+	}
+	var links []map[string]string
+	if err := json.Unmarshal(client.Links, &links); err != nil {
+		t.Fatalf("decode links: %v", err)
+	}
+	if len(links) != 3 {
+		t.Fatalf("expected one generated local link plus two provided external links, got %#v", links)
+	}
+	if links[0]["type"] != "local" || strings.Contains(links[0]["uri"], "stale") {
+		t.Fatalf("expected stale local link to be regenerated, got %#v", links)
+	}
+	foundExternal := false
+	foundSub := false
+	for _, link := range links {
+		if link["type"] == "external" && link["uri"] == "vless://external-user@external.example.com:443#direct" {
+			foundExternal = true
+		}
+		if link["type"] == "sub" && link["uri"] == "https://sub.example.com/list" {
+			foundSub = true
+		}
+	}
+	if !foundExternal || !foundSub {
+		t.Fatalf("expected provided external and sub links to remain, got %#v", links)
+	}
+}
+
 func TestDomainUserUpsertPreservesExistingSubTokenOnUpdate(t *testing.T) {
 	db := initClusterInboundTestDB(t)
 

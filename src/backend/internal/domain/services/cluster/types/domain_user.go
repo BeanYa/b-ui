@@ -11,6 +11,7 @@ type DomainUserPayload struct {
 	SubToken             string          `json:"sub_token,omitempty"`
 	BoundInboundGroupIDs []string        `json:"bound_inbound_group_ids,omitempty"`
 	Config               json.RawMessage `json:"config"`
+	Links                json.RawMessage `json:"links,omitempty"`
 	Volume               int64           `json:"volume,omitempty"`
 	Expiry               int64           `json:"expiry,omitempty"`
 	Down                 int64           `json:"down,omitempty"`

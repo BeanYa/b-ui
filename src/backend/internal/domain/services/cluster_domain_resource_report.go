@@ -53,6 +53,7 @@ type ClusterHubDomainResourceUser struct {
 	Group                string          `json:"group,omitempty"`
 	SubToken             string          `json:"sub_token"`
 	Config               json.RawMessage `json:"config"`
+	Links                json.RawMessage `json:"links,omitempty"`
 	Inbounds             json.RawMessage `json:"inbounds,omitempty"`
 	BoundInboundGroupIDs []string        `json:"bound_inbound_group_ids,omitempty"`
 	Volume               int64           `json:"volume"`
@@ -178,6 +179,7 @@ func (c *ClusterDomainResourceCoordinator) buildDomainResources(domainID uint) (
 			Group:                wrapper.Client.Group,
 			SubToken:             domainResourceUserSubToken(wrapper),
 			Config:               cloneRawMessage(wrapper.Client.Config),
+			Links:                nonLocalDomainUserLinks(wrapper.Client.Links),
 			Inbounds:             domainUserGroupSelectorsRaw(boundGroups),
 			BoundInboundGroupIDs: boundGroups,
 			Volume:               wrapper.Client.Volume,
@@ -558,6 +560,7 @@ func domainUserResourceFromOperation(payload clustertypes.DomainUserUpsertPayloa
 		Group:                payload.User.Group,
 		SubToken:             subToken,
 		Config:               cloneRawMessage(config),
+		Links:                nonLocalDomainUserLinks(payload.User.Links),
 		Inbounds:             domainUserGroupSelectorsRaw(payload.User.BoundInboundGroupIDs),
 		BoundInboundGroupIDs: normalizeDomainUserBoundGroups(payload.User.BoundInboundGroupIDs, payload.Inbounds),
 		Volume:               payload.User.Volume,
@@ -643,6 +646,46 @@ func domainResourceUserSubToken(wrapper model.ClusterClient) string {
 		return wrapper.RequestID
 	}
 	return wrapper.HubUserUUID
+}
+
+func nonLocalDomainUserLinks(raw json.RawMessage) json.RawMessage {
+	if len(raw) == 0 {
+		return nil
+	}
+	var links []map[string]string
+	if err := json.Unmarshal(raw, &links); err != nil {
+		return nil
+	}
+	filtered := make([]map[string]string, 0, len(links))
+	seen := map[string]struct{}{}
+	for _, link := range links {
+		linkType := strings.TrimSpace(link["type"])
+		uri := strings.TrimSpace(link["uri"])
+		if uri == "" || (linkType != "external" && linkType != "sub") {
+			continue
+		}
+		key := linkType + "\x00" + uri
+		if _, exists := seen[key]; exists {
+			continue
+		}
+		seen[key] = struct{}{}
+		next := map[string]string{
+			"type": linkType,
+			"uri":  uri,
+		}
+		if remark := strings.TrimSpace(link["remark"]); remark != "" {
+			next["remark"] = remark
+		}
+		filtered = append(filtered, next)
+	}
+	if len(filtered) == 0 {
+		return json.RawMessage(`[]`)
+	}
+	out, err := json.Marshal(filtered)
+	if err != nil {
+		return nil
+	}
+	return out
 }
 
 func decodeDomainUserBoundGroups(raw json.RawMessage) []string {

@@ -1074,6 +1074,72 @@ func TestDomainUserResourceFromOperationFallsBackToPayloadConfig(t *testing.T) {
 	}
 }
 
+func TestDomainUserResourceFromOperationReportsOnlyNonLocalLinks(t *testing.T) {
+	payload := clustertypes.DomainUserUpsertPayload{
+		RequestID: "op-user-links",
+		User: clustertypes.DomainUserPayload{
+			UUID:     "remote-user",
+			Name:     "Alice",
+			Enable:   true,
+			SubToken: "input-sub-token",
+			Config:   json.RawMessage(`{"vless":{"uuid":"hub-provided-user"}}`),
+			Links: json.RawMessage(`[
+				{"type":"local","remark":"node-local","uri":"vless://local"},
+				{"type":"unknown","remark":"bad","uri":"https://bad.example.com/list"},
+				{"type":"external","remark":"direct","uri":"vless://external@example.com:443#direct"},
+				{"type":"sub","remark":"vendor","uri":"https://sub.example.com/list"}
+			]`),
+		},
+	}
+
+	user := domainUserResourceFromOperation(
+		payload,
+		model.ClusterDomainOperationInstance{NodeID: "node-b", LocalResourceID: 88, UpdatedAt: 123},
+		clustertypes.DomainResourceCommandResult{NodeID: "node-b", LocalResourceID: 88},
+		"node-b",
+	)
+
+	var links []map[string]string
+	if err := json.Unmarshal(user.Links, &links); err != nil {
+		t.Fatalf("decode reported links: %v", err)
+	}
+	if len(links) != 2 {
+		t.Fatalf("reported links = %#v, want only external and sub links", links)
+	}
+	for _, link := range links {
+		if link["type"] != "external" && link["type"] != "sub" {
+			t.Fatalf("only external/sub links must be reported to hub, got %#v", links)
+		}
+	}
+}
+
+func TestDomainUserResourceFromOperationReportsEmptyLinksWhenCleared(t *testing.T) {
+	payload := clustertypes.DomainUserUpsertPayload{
+		RequestID: "op-user-links-cleared",
+		User: clustertypes.DomainUserPayload{
+			UUID:     "remote-user",
+			Name:     "Alice",
+			Enable:   true,
+			SubToken: "input-sub-token",
+			Config:   json.RawMessage(`{"vless":{"uuid":"hub-provided-user"}}`),
+			Links: json.RawMessage(`[
+				{"type":"local","remark":"node-local","uri":"vless://local"}
+			]`),
+		},
+	}
+
+	user := domainUserResourceFromOperation(
+		payload,
+		model.ClusterDomainOperationInstance{NodeID: "node-b", LocalResourceID: 88, UpdatedAt: 123},
+		clustertypes.DomainResourceCommandResult{NodeID: "node-b", LocalResourceID: 88},
+		"node-b",
+	)
+
+	if string(user.Links) != "[]" {
+		t.Fatalf("reported links = %s, want explicit empty links", user.Links)
+	}
+}
+
 func TestMergeDomainUserUpsertOperationResourceAcceptsEmptyPeerResult(t *testing.T) {
 	payload := clustertypes.DomainUserUpsertPayload{
 		RequestID: "op-empty-peer-result",

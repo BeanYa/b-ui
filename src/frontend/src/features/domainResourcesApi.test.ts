@@ -115,6 +115,15 @@ describe('domain resources API', () => {
         enable: true,
         config: { level: 1 },
         bound_inbound_group_ids: ['group-1'],
+        links: [
+          { type: 'external', uri: 'vless://external@example.com:443#external' },
+          { type: 'sub', uri: 'https://sub.example.com/list' },
+        ],
+        volume: 5368709120,
+        expiry: 1770000000,
+        delay_start: true,
+        auto_reset: true,
+        reset_days: 30,
       },
       bound_inbound_group_ids: ['group-1'],
     })
@@ -128,6 +137,15 @@ describe('domain resources API', () => {
           enable: true,
           config: { level: 1 },
           bound_inbound_group_ids: ['group-1'],
+          links: [
+            { type: 'external', uri: 'vless://external@example.com:443#external' },
+            { type: 'sub', uri: 'https://sub.example.com/list' },
+          ],
+          volume: 5368709120,
+          expiry: 1770000000,
+          delay_start: true,
+          auto_reset: true,
+          reset_days: 30,
         },
         bound_inbound_group_ids: ['group-1'],
       },
@@ -140,6 +158,9 @@ describe('domain resources API', () => {
   it('types domain user payloads with optional group bindings and optional legacy inbounds', () => {
     expect(source).toContain('bound_inbound_group_ids?: string[]')
     expect(source).toContain('inbounds?: string[]')
+    expect(source).toContain('links?: Link[]')
+    expect(source).toContain('volume?: number')
+    expect(source).toContain('delay_start?: boolean')
   })
 
   it('lists persisted domain resources for existing inbound groups', async () => {

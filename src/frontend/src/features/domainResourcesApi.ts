@@ -1,4 +1,5 @@
 import api from '@/plugins/api'
+import type { Link } from '@/types/clients'
 
 export interface DomainResourceOperationSummary {
   queued: number
@@ -81,6 +82,7 @@ export interface DomainResourceUserView {
   group?: string
   sub_token?: string
   config?: Record<string, unknown>
+  links?: Link[]
   bound_inbound_group_ids?: string[]
   inbounds?: Array<string | number>
   volume?: number
@@ -145,6 +147,7 @@ export interface CreateDomainUserResourcePayload {
     desc?: string
     group?: string
     config: Record<string, unknown>
+    links?: Link[]
     volume?: number
     expiry?: number
     down?: number

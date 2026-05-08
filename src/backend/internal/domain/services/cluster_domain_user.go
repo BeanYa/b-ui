@@ -171,6 +171,9 @@ func (s *ClusterDomainUserService) ApplyDomainUserUpsert(ctx context.Context, do
 		if err != nil {
 			return err
 		}
+		if len(payload.User.Links) > 0 {
+			client.Links = cloneRawMessage(payload.User.Links)
+		}
 		if len(client.Links) == 0 {
 			client.Links = json.RawMessage(`[]`)
 		}
