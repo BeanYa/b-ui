@@ -237,9 +237,12 @@
             </v-btn>
           </div>
           <div v-if="lastDomainResourceOperation" class="cluster-center__operation-status">
+            <span class="cluster-center__operation-status-label">
+              {{ $t('clusterCenter.domainResources.lastOperation') }}
+            </span>
             <span class="cluster-center__meta-label">{{ lastDomainResourceOperation.operationId }}</span>
             <v-chip size="small" :color="domainOperationStatusColor(lastDomainResourceOperation.status)" variant="flat">
-              {{ lastDomainResourceOperation.status }}
+              {{ formatDomainResourceOperationStatus(lastDomainResourceOperation.status) }}
             </v-chip>
           </div>
           <div v-if="domainOperationInstanceErrors.length > 0" class="cluster-center__operation-errors">
@@ -292,7 +295,7 @@
                     :icon="true"
                     :title="$t('actions.del')"
                     :disabled="domainResourceLoading"
-                    @click="deleteDomainInboundGroup(inbound.group_id)"
+                    @click="requestDeleteDomainInboundGroup(inbound)"
                   >
                     <v-icon size="18">mdi-delete</v-icon>
                   </v-btn>
@@ -338,7 +341,7 @@
                     :icon="true"
                     :title="$t('actions.del')"
                     :disabled="domainResourceLoading"
-                    @click="deleteDomainUser(user.uuid)"
+                    @click="requestDeleteDomainUser(user)"
                   >
                     <v-icon size="18">mdi-delete</v-icon>
                   </v-btn>
@@ -700,6 +703,34 @@
       />
     </v-dialog>
 
+    <v-dialog v-model="domainResourceConfirmDialog" class="app-dialog app-dialog--compact" max-width="480">
+      <v-card class="app-card-shell">
+        <v-card-title>{{ $t('clusterCenter.domainResources.confirmTitle') }}</v-card-title>
+        <v-card-text class="cluster-center__dialog-body">
+          <div class="cluster-center__step-indicator">
+            <span class="cluster-center__step-label">{{ pendingDomainResourceOperationLabel }}</span>
+            <span class="cluster-center__step-value">{{ pendingDomainResourceOperation?.resourceLabel || '-' }}</span>
+          </div>
+          <p class="cluster-center__panel-update-copy">
+            {{ $t('clusterCenter.domainResources.confirmCopy') }}
+          </p>
+        </v-card-text>
+        <v-card-actions>
+          <v-spacer />
+          <v-btn variant="text" @click="cancelDomainResourceOperation">
+            {{ $t('clusterCenter.actions.cancel') }}
+          </v-btn>
+          <v-btn
+            :color="pendingDomainResourceOperation?.action === 'delete' ? 'error' : 'primary'"
+            :loading="domainResourceLoading"
+            @click="confirmDomainResourceOperation"
+          >
+            {{ $t('clusterCenter.domainResources.confirmAction') }}
+          </v-btn>
+        </v-card-actions>
+      </v-card>
+    </v-dialog>
+
     <v-dialog v-model="pingSettingsDialog" max-width="500">
       <v-card>
         <v-card-title>{{ $t('clusterCenter.pingSettings.title') }}</v-card-title>
@@ -887,6 +918,15 @@ const domainUserDialog = ref(false)
 const domainUserDialogMode = ref<'create' | 'update'>('create')
 const editingDomainUserResource = ref<DomainResourceUserView | null>(null)
 const domainResourceFormError = ref('')
+type DomainResourcePendingOperation = {
+  kind: 'inbound' | 'user'
+  action: 'create' | 'update' | 'delete'
+  resourceLabel: string
+  resourceId?: string
+  payload?: CreateDomainInboundResourcePayload | CreateDomainUserResourcePayload
+}
+const domainResourceConfirmDialog = ref(false)
+const pendingDomainResourceOperation = ref<DomainResourcePendingOperation | null>(null)
 const lastDomainInboundGroupIdByDomain = ref<Record<number, string>>({})
 const domainInboundGroupIdsByDomain = ref<Record<number, string[]>>({})
 const domainInboundResourcesByDomain = ref<Record<number, DomainResourceInboundView[]>>({})
@@ -894,6 +934,18 @@ const domainUserResourcesByDomain = ref<Record<number, DomainResourceUserView[]>
 const domainOperationInstanceErrors = computed(() =>
   (lastDomainResourceOperation.value?.instances ?? [])
     .filter((instance) => instance.error && instance.error.trim() !== ''),
+)
+const domainResourceOperationLabelKey = (pending: DomainResourcePendingOperation | null) => {
+  if (!pending) return 'clusterCenter.domainResources.confirmAction'
+  if (pending.kind === 'inbound' && pending.action === 'create') return 'clusterCenter.domainResources.operationCreateInbound'
+  if (pending.kind === 'inbound' && pending.action === 'update') return 'clusterCenter.domainResources.operationUpdateInbound'
+  if (pending.kind === 'inbound' && pending.action === 'delete') return 'clusterCenter.domainResources.operationDeleteInbound'
+  if (pending.kind === 'user' && pending.action === 'create') return 'clusterCenter.domainResources.operationCreateUser'
+  if (pending.kind === 'user' && pending.action === 'update') return 'clusterCenter.domainResources.operationUpdateUser'
+  return 'clusterCenter.domainResources.operationDeleteUser'
+}
+const pendingDomainResourceOperationLabel = computed(() =>
+  i18n.global.t(domainResourceOperationLabelKey(pendingDomainResourceOperation.value)).toString(),
 )
 const mergeDomainUserResources = (users: DomainResourceUserView[]): DomainResourceUserView[] => {
   const userMap = new Map<string, DomainResourceUserView>()
@@ -1209,9 +1261,38 @@ const openDomainUserEditDialog = (user: DomainResourceUserView) => {
   domainUserDialog.value = true
 }
 
+const openDomainResourceConfirmDialog = (pending: DomainResourcePendingOperation) => {
+  if (!selectedDomain.value) return
+  pendingDomainResourceOperation.value = pending
+  domainResourceConfirmDialog.value = true
+}
+
+const cancelDomainResourceOperation = () => {
+  if (domainResourceLoading.value) return
+  domainResourceConfirmDialog.value = false
+  pendingDomainResourceOperation.value = null
+}
+
 const submitDomainInboundResource = async (payload: CreateDomainInboundResourcePayload) => {
   if (!selectedDomain.value) return
   domainResourceFormError.value = ''
+  openDomainResourceConfirmDialog({
+    kind: 'inbound',
+    action: domainInboundDialogMode.value,
+    resourceLabel: payload.group_id,
+    resourceId: domainInboundDialogMode.value === 'update'
+      ? editingDomainInboundResource.value?.group_id?.trim() || payload.group_id
+      : payload.group_id,
+    payload: { ...payload },
+  })
+}
+
+const executeDomainInboundResource = async (
+  payload: CreateDomainInboundResourcePayload,
+  action = domainInboundDialogMode.value,
+  resourceId = editingDomainInboundResource.value?.group_id?.trim() || payload.group_id,
+) => {
+  if (!selectedDomain.value) return
   domainResourceLoading.value = true
   try {
     lastDomainInboundGroupIdByDomain.value = {
@@ -1224,8 +1305,8 @@ const submitDomainInboundResource = async (payload: CreateDomainInboundResourceP
         ...new Set([...(domainInboundGroupIdsByDomain.value[selectedDomain.value.id] ?? []), payload.group_id]),
       ],
     }
-    if (domainInboundDialogMode.value === 'update') {
-      const editingGroupId = editingDomainInboundResource.value?.group_id?.trim() || payload.group_id
+    if (action === 'update') {
+      const editingGroupId = resourceId
       lastDomainResourceOperation.value = await updateDomainInboundResource(selectedDomain.value.id, editingGroupId, {
         ...payload,
       })
@@ -1241,14 +1322,25 @@ const submitDomainInboundResource = async (payload: CreateDomainInboundResourceP
   } catch (error: any) {
     domainResourceFormError.value = error?.message ?? String(error)
     push.error({ title: i18n.global.t('failed'), message: error?.message ?? String(error) })
+    throw error
   } finally {
     domainResourceLoading.value = false
   }
 }
 
+const requestDeleteDomainInboundGroup = (inbound: DomainResourceInboundView) => {
+  if (!selectedDomain.value || !inbound.group_id.trim()) return
+  domainResourceFormError.value = ''
+  openDomainResourceConfirmDialog({
+    kind: 'inbound',
+    action: 'delete',
+    resourceLabel: inbound.group_id,
+    resourceId: inbound.group_id,
+  })
+}
+
 const deleteDomainInboundGroup = async (groupId: string) => {
   if (!selectedDomain.value || !groupId.trim()) return
-  domainResourceFormError.value = ''
   domainResourceLoading.value = true
   try {
     lastDomainResourceOperation.value = await deleteDomainInboundResource(selectedDomain.value.id, groupId)
@@ -1273,6 +1365,7 @@ const deleteDomainInboundGroup = async (groupId: string) => {
   } catch (error: any) {
     domainResourceFormError.value = error?.message ?? String(error)
     push.error({ title: i18n.global.t('failed'), message: error?.message ?? String(error) })
+    throw error
   } finally {
     domainResourceLoading.value = false
   }
@@ -1281,10 +1374,27 @@ const deleteDomainInboundGroup = async (groupId: string) => {
 const submitDomainUserResource = async (payload: CreateDomainUserResourcePayload) => {
   if (!selectedDomain.value) return
   domainResourceFormError.value = ''
+  openDomainResourceConfirmDialog({
+    kind: 'user',
+    action: domainUserDialogMode.value,
+    resourceLabel: payload.user.name?.trim() || payload.user.uuid?.trim() || '-',
+    resourceId: domainUserDialogMode.value === 'update'
+      ? editingDomainUserResource.value?.uuid?.trim() || payload.user.uuid?.trim() || ''
+      : payload.user.uuid?.trim() || '',
+    payload: { ...payload },
+  })
+}
+
+const executeDomainUserResource = async (
+  payload: CreateDomainUserResourcePayload,
+  action = domainUserDialogMode.value,
+  resourceId = editingDomainUserResource.value?.uuid?.trim() || payload.user.uuid?.trim() || '',
+) => {
+  if (!selectedDomain.value) return
   domainResourceLoading.value = true
   try {
-    if (domainUserDialogMode.value === 'update') {
-      const editingUserUuid = editingDomainUserResource.value?.uuid?.trim() || payload.user.uuid?.trim() || ''
+    if (action === 'update') {
+      const editingUserUuid = resourceId
       lastDomainResourceOperation.value = await updateDomainUserResource(selectedDomain.value.id, editingUserUuid, {
         ...payload,
       })
@@ -1300,14 +1410,25 @@ const submitDomainUserResource = async (payload: CreateDomainUserResourcePayload
   } catch (error: any) {
     domainResourceFormError.value = error?.message ?? String(error)
     push.error({ title: i18n.global.t('failed'), message: error?.message ?? String(error) })
+    throw error
   } finally {
     domainResourceLoading.value = false
   }
 }
 
+const requestDeleteDomainUser = (user: DomainResourceUserView) => {
+  if (!selectedDomain.value || !user.uuid.trim()) return
+  domainResourceFormError.value = ''
+  openDomainResourceConfirmDialog({
+    kind: 'user',
+    action: 'delete',
+    resourceLabel: user.name?.trim() || user.uuid,
+    resourceId: user.uuid,
+  })
+}
+
 const deleteDomainUser = async (userUUID: string) => {
   if (!selectedDomain.value || !userUUID.trim()) return
-  domainResourceFormError.value = ''
   domainResourceLoading.value = true
   try {
     lastDomainResourceOperation.value = await deleteDomainUserResource(selectedDomain.value.id, userUUID)
@@ -1320,8 +1441,45 @@ const deleteDomainUser = async (userUUID: string) => {
   } catch (error: any) {
     domainResourceFormError.value = error?.message ?? String(error)
     push.error({ title: i18n.global.t('failed'), message: error?.message ?? String(error) })
+    throw error
   } finally {
     domainResourceLoading.value = false
+  }
+}
+
+const executePendingDomainResourceOperation = async (pending: DomainResourcePendingOperation) => {
+  if (pending.kind === 'inbound' && pending.action === 'delete') {
+    await deleteDomainInboundGroup(pending.resourceId ?? pending.resourceLabel)
+    return
+  }
+  if (pending.kind === 'inbound') {
+    await executeDomainInboundResource(
+      pending.payload as CreateDomainInboundResourcePayload,
+      pending.action === 'update' ? 'update' : 'create',
+      pending.resourceId,
+    )
+    return
+  }
+  if (pending.kind === 'user' && pending.action === 'delete') {
+    await deleteDomainUser(pending.resourceId ?? pending.resourceLabel)
+    return
+  }
+  await executeDomainUserResource(
+    pending.payload as CreateDomainUserResourcePayload,
+    pending.action === 'update' ? 'update' : 'create',
+    pending.resourceId,
+  )
+}
+
+const confirmDomainResourceOperation = async () => {
+  const pending = pendingDomainResourceOperation.value
+  if (!pending) return
+  try {
+    await executePendingDomainResourceOperation(pending)
+    domainResourceConfirmDialog.value = false
+    pendingDomainResourceOperation.value = null
+  } catch {
+    // Operation helpers already surface form/toast errors.
   }
 }
 
@@ -1346,6 +1504,11 @@ const domainOperationStatusColor = (status: string) => {
     case 'dispatching': return 'blue'
     default: return 'grey'
   }
+}
+
+const formatDomainResourceOperationStatus = (status: string) => {
+  const translated = i18n.global.t(`clusterCenter.domainResources.operationStatuses.${status}`)
+  return translated === `clusterCenter.domainResources.operationStatuses.${status}` ? status : translated.toString()
 }
 
 const isUsableAbsoluteUrl = (value: string) => {
@@ -2682,6 +2845,12 @@ function formatAutoPingTime(): string {
   gap: 10px;
   margin-top: 14px;
   padding: 10px 12px;
+}
+
+.cluster-center__operation-status-label {
+  color: var(--app-text-2);
+  font-size: 12px;
+  font-weight: 700;
 }
 
 .cluster-center__operation-errors {

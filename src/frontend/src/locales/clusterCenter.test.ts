@@ -36,6 +36,16 @@ describe('cluster center locale copy', () => {
       'createUser',
       'retry',
       'noOperation',
+      'lastOperation',
+      'confirmTitle',
+      'confirmCopy',
+      'confirmAction',
+      'operationCreateInbound',
+      'operationUpdateInbound',
+      'operationDeleteInbound',
+      'operationCreateUser',
+      'operationUpdateUser',
+      'operationDeleteUser',
     ] as const
 
     for (const messages of locales) {
@@ -56,13 +66,16 @@ describe('cluster center locale copy', () => {
       expect(messages.clusterCenter.validation.invalidJoinUri).toBeTruthy()
       expect(messages.clusterCenter.joinUriHint).toBeTruthy()
       const domainResources = (messages.clusterCenter as {
-        domainResources?: Record<(typeof requiredDomainResourceKeys)[number], string>
+        domainResources?: Record<(typeof requiredDomainResourceKeys)[number], string> & {
+          operationStatuses?: Record<string, string>
+        }
       }).domainResources
       if (messages === en) {
         for (const key of requiredDomainResourceKeys) {
           expect(domainResources?.[key]).toBeTruthy()
           expect(domainResources?.[key]).not.toBe(`clusterCenter.domainResources.${key}`)
         }
+        expect(domainResources?.operationStatuses?.applied).toBe('Operation applied')
       }
       expect(domainResources?.domainManaged ?? 'Domain-managed resources').not.toMatch(/Hub-managed|Hub managed/)
     }

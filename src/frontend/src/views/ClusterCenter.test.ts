@@ -207,7 +207,7 @@ describe('ClusterCenter view source', () => {
     expect(source).toContain('selectedDomainInboundResources')
     expect(source).toContain('v-for="inbound in selectedDomainInboundResources"')
     expect(source).toContain('@click="openDomainInboundEditDialog(inbound)"')
-    expect(source).toContain('@click="deleteDomainInboundGroup(inbound.group_id)"')
+    expect(source).toContain('@click="requestDeleteDomainInboundGroup(inbound)"')
     expect(source).toContain('updateDomainInboundResource')
     expect(source).toContain('deleteDomainInboundResource')
     expect(source).toContain(':mode="domainInboundDialogMode"')
@@ -224,7 +224,7 @@ describe('ClusterCenter view source', () => {
     expect(source).toContain('selectedDomainUserResources')
     expect(source).toContain('v-for="user in selectedDomainUserResources"')
     expect(source).toContain('@click="openDomainUserEditDialog(user)"')
-    expect(source).toContain('@click="deleteDomainUser(user.uuid)"')
+    expect(source).toContain('@click="requestDeleteDomainUser(user)"')
     expect(source).toContain('updateDomainUserResource')
     expect(source).toContain('deleteDomainUserResource')
     expect(source).toContain(':mode="domainUserDialogMode"')
@@ -233,6 +233,36 @@ describe('ClusterCenter view source', () => {
     expect(source).toContain('await updateDomainUserResource(selectedDomain.value.id, editingUserUuid, {')
     expect(source).toContain('await deleteDomainUserResource(selectedDomain.value.id, userUUID)')
     expect(source).toContain('resources.domain_users')
+  })
+
+  it('confirms domain resource create, update, and delete operations before calling APIs', () => {
+    const source = readFileSync(fileURLToPath(new URL('./ClusterCenter.vue', import.meta.url)), 'utf8')
+
+    expect(source).toContain('const domainResourceConfirmDialog = ref(false)')
+    expect(source).toContain('type DomainResourcePendingOperation =')
+    expect(source).toContain('const pendingDomainResourceOperation = ref<DomainResourcePendingOperation | null>(null)')
+    expect(source).toContain('openDomainResourceConfirmDialog({')
+    expect(source).toContain('const confirmDomainResourceOperation = async () => {')
+    expect(source).toContain('await executePendingDomainResourceOperation(pending)')
+    expect(source).toContain('resourceId?: string')
+    expect(source).toContain('@click="requestDeleteDomainInboundGroup(inbound)"')
+    expect(source).toContain('@click="requestDeleteDomainUser(user)"')
+    expect(source).toContain("$t('clusterCenter.domainResources.confirmTitle')")
+    expect(source).toContain("$t('clusterCenter.domainResources.confirmCopy')")
+    expect(source).toContain("$t('clusterCenter.domainResources.confirmAction')")
+    expect(source).not.toContain('@click="deleteDomainInboundGroup(inbound.group_id)"')
+    expect(source).not.toContain('@click="deleteDomainUser(user.uuid)"')
+  })
+
+  it('labels the last domain resource status as an operation record state', () => {
+    const source = readFileSync(fileURLToPath(new URL('./ClusterCenter.vue', import.meta.url)), 'utf8')
+
+    expect(source).toContain("$t('clusterCenter.domainResources.lastOperation')")
+    expect(source).toContain('formatDomainResourceOperationStatus(lastDomainResourceOperation.status)')
+    expect(source).toContain('class="cluster-center__operation-status-label"')
+    expect(source).toContain('const formatDomainResourceOperationStatus = (status: string) =>')
+    expect(source).toContain("i18n.global.t(`clusterCenter.domainResources.operationStatuses.${status}`)")
+    expect(source).not.toContain('{{ lastDomainResourceOperation.status }}')
   })
 
   it('separates inbound and user resource groups and deduplicates domain users by uuid while preserving applied nodes for editing', () => {
