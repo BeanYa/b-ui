@@ -4,6 +4,8 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"net/http"
+	"net/http/httptest"
 	"path/filepath"
 	"strings"
 	"testing"
@@ -162,6 +164,133 @@ func TestDomainResourceCoordinatorCreateInboundDispatchesInitialPeers(t *testing
 	}
 	if op.Summary.Applied != 3 || op.Summary.Total != 3 {
 		t.Fatalf("summary = %+v, want applied=3 total=3", op.Summary)
+	}
+}
+
+func TestDomainResourceCoordinatorCreatesDistinctPeerMessagesForSameDomainVersion(t *testing.T) {
+	if err := database.InitDB(filepath.Join(t.TempDir(), "coordinator-distinct-peer-messages.db")); err != nil {
+		if strings.Contains(err.Error(), "go-sqlite3 requires cgo") || strings.Contains(err.Error(), "CGO_ENABLED=0") || strings.Contains(err.Error(), "C compiler") {
+			t.Skipf("sqlite test database unavailable in this toolchain: %v", err)
+		}
+		t.Fatalf("init db: %v", err)
+	}
+	db := database.GetDB()
+	domain := &model.ClusterDomain{Id: 1, Domain: "edge.example.com", HubURL: "https://hub.example.com", TokenEncrypted: "token", LastVersion: 7}
+	if err := db.Create(domain).Error; err != nil {
+		t.Fatalf("seed domain: %v", err)
+	}
+	local := newTestClusterLocalNode(t, "node-a")
+	if err := db.Create(local).Error; err != nil {
+		t.Fatalf("seed local node: %v", err)
+	}
+	peerToken, err := EncryptClusterDomainToken([]byte("test-secret"), "peer-token")
+	if err != nil {
+		t.Fatalf("encrypt peer token: %v", err)
+	}
+	if err := db.Create(&model.ClusterMember{DomainID: domain.Id, NodeID: "node-b", DisplayName: "Node B", BaseURL: "https://node-b.example.com", PeerTokenEncrypted: peerToken, LastVersion: 7}).Error; err != nil {
+		t.Fatalf("seed peer member: %v", err)
+	}
+
+	peerStore := newMemoryPeerStore()
+	coordinator := &ClusterDomainResourceCoordinator{
+		DB:             db,
+		OperationStore: &ClusterDomainOperationStore{DB: db},
+		PeerSender: clusterDomainPeerSenderFunc(func(_ context.Context, message *PeerMessage, member model.ClusterMember, _ string) (*clustertypes.DomainResourceCommandResult, error) {
+			if _, err := peerStore.RecordReceived(message); err != nil {
+				return nil, err
+			}
+			return &clustertypes.DomainResourceCommandResult{
+				Status:       "applied",
+				OperationID:  message.Payload["operation_id"].(string),
+				NodeID:       member.NodeID,
+				MemberID:     member.NodeID,
+				ResourceKind: ClusterDomainResourceInbound,
+				ResourceID:   message.Payload["resource_id"].(string),
+				Revision:     domain.LastVersion,
+			}, nil
+		}),
+		Identity:       &stubDomainInboundIdentity{node: local},
+		SecretProvider: stubClusterSecretProvider{secret: []byte("test-secret")},
+		PortAllocator:  func() (int, error) { return 32051, nil },
+	}
+
+	for _, groupID := range []string{"group-1", "group-2"} {
+		op, err := coordinator.CreateDomainInbound(context.Background(), domain.Id, ClusterDomainInboundCommandInput{
+			GroupID: groupID,
+			Inbound: map[string]any{
+				"type": "vless",
+				"tag":  groupID,
+			},
+		})
+		if err != nil {
+			t.Fatalf("create inbound %s: %v", groupID, err)
+		}
+		if op.Status != ClusterDomainOperationApplied {
+			t.Fatalf("operation %s status = %q, want %q", groupID, op.Status, ClusterDomainOperationApplied)
+		}
+	}
+}
+
+func TestDomainResourcePeerMessagesDoNotShareDomainVersionAsSourceSequence(t *testing.T) {
+	domain := &model.ClusterDomain{Domain: "edge.example.com", LastVersion: 7}
+	peerStore := newMemoryPeerStore()
+
+	for _, groupID := range []string{"group-1", "group-2"} {
+		operationID := "domain-inbound-" + groupID
+		payload := domainResourcePeerPayload(
+			domain,
+			"node-a",
+			operationID,
+			operationID,
+			ClusterDomainResourceInbound,
+			groupID,
+			domain.LastVersion,
+			nil,
+			map[string]interface{}{
+				"request_id": operationID,
+				"domain_id":  domain.Domain,
+				"group_id":   groupID,
+			},
+		)
+		message, err := NewClusterPeerMessage(domain.Domain, domain.LastVersion, "node-a", domainResourcePeerSourceSeq(), PeerCategoryCommand, PeerActionDomainInboundCreate, payload)
+		if err != nil {
+			t.Fatalf("new peer message: %v", err)
+		}
+		message.PayloadHash, err = ClusterPeerPayloadHash(message.Payload)
+		if err != nil {
+			t.Fatalf("payload hash: %v", err)
+		}
+		if _, err := peerStore.RecordReceived(message); err != nil {
+			t.Fatalf("record peer message for %s: %v", groupID, err)
+		}
+	}
+}
+
+func TestClusterHubClientReportDomainResourceStateUsesCallerContext(t *testing.T) {
+	canceled, cancel := context.WithCancel(context.Background())
+	cancel()
+
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		t.Fatal("request should not be sent with a canceled context")
+	}))
+	defer server.Close()
+
+	client := &ClusterHubClient{HTTPClient: server.Client()}
+	err := client.ReportDomainResourceState(canceled, server.URL, "edge.example.com", "domain-token", ClusterHubResourceStateReportRequest{})
+	if !errors.Is(err, context.Canceled) {
+		t.Fatalf("report error = %v, want context.Canceled", err)
+	}
+}
+
+func TestDomainResourceReportContextSurvivesCallerCancellation(t *testing.T) {
+	canceled, cancel := context.WithCancel(context.Background())
+	cancel()
+
+	reportCtx, reportCancel := domainResourceReportContext(canceled)
+	defer reportCancel()
+
+	if err := reportCtx.Err(); err != nil {
+		t.Fatalf("report context should remain usable after caller cancellation, got %v", err)
 	}
 }
 

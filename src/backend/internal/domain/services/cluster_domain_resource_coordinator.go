@@ -15,6 +15,8 @@ import (
 	"gorm.io/gorm"
 )
 
+const domainResourceReportTimeout = 10 * time.Second
+
 type ClusterDomainInboundCommandInput struct {
 	GroupID       string                             `json:"group_id"`
 	TagSeed       string                             `json:"tag_seed"`
@@ -677,14 +679,20 @@ func (c *ClusterDomainResourceCoordinator) reportDomainResourceOperation(ctx con
 	if err != nil {
 		return nil, err
 	}
-	_ = c.ReportDomainResourceState(ctx, domain, view)
+	reportCtx, cancel := domainResourceReportContext(ctx)
+	defer cancel()
+	_ = c.ReportDomainResourceState(reportCtx, domain, view)
 	return view, nil
+}
+
+func domainResourceReportContext(context.Context) (context.Context, context.CancelFunc) {
+	return context.WithTimeout(context.Background(), domainResourceReportTimeout)
 }
 
 func (c *ClusterDomainResourceCoordinator) dispatchDomainResourceTargets(ctx context.Context, store *ClusterDomainOperationStore, domain *model.ClusterDomain, local *model.ClusterLocalNode, operationID string, action string, payloadMap map[string]interface{}, targets []model.ClusterMember, retry bool) error {
 	secret, secretErr := c.secretProvider().GetSecret()
 	for _, member := range targets {
-		message, err := NewClusterPeerMessage(domain.Domain, member.LastVersion, local.NodeID, domain.LastVersion, PeerCategoryCommand, action, payloadMap)
+		message, err := NewClusterPeerMessage(domain.Domain, member.LastVersion, local.NodeID, domainResourcePeerSourceSeq(), PeerCategoryCommand, action, payloadMap)
 		if err != nil {
 			return err
 		}
@@ -712,6 +720,10 @@ func (c *ClusterDomainResourceCoordinator) dispatchDomainResourceTargets(ctx con
 		}
 	}
 	return nil
+}
+
+func domainResourcePeerSourceSeq() int64 {
+	return 0
 }
 
 func domainOperationRetryPayload(op *model.ClusterDomainOperation) (string, string, string, string, []clustertypes.DomainInboundTarget, map[string]interface{}, error) {
