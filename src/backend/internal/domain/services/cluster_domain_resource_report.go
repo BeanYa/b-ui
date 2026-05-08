@@ -45,6 +45,7 @@ type ClusterHubDomainResourceInstance struct {
 
 type ClusterHubDomainResourceUser struct {
 	ClientID             uint            `json:"client_id"`
+	NodeID               string          `json:"node_id,omitempty"`
 	UUID                 string          `json:"uuid"`
 	Name                 string          `json:"name"`
 	Enable               bool            `json:"enable"`
@@ -52,7 +53,7 @@ type ClusterHubDomainResourceUser struct {
 	Group                string          `json:"group,omitempty"`
 	SubToken             string          `json:"sub_token"`
 	Config               json.RawMessage `json:"config"`
-	Inbounds             json.RawMessage `json:"inbounds"`
+	Inbounds             json.RawMessage `json:"inbounds,omitempty"`
 	BoundInboundGroupIDs []string        `json:"bound_inbound_group_ids,omitempty"`
 	Volume               int64           `json:"volume"`
 	Down                 int64           `json:"down"`
@@ -169,6 +170,7 @@ func (c *ClusterDomainResourceCoordinator) buildDomainResources(domainID uint) (
 		boundGroups := decodeDomainUserBoundGroups(wrapper.BoundInboundGroupIDs)
 		resources.Users = append(resources.Users, ClusterHubDomainResourceUser{
 			ClientID:             wrapper.ClientID,
+			NodeID:               wrapper.NodeID,
 			UUID:                 wrapper.HubUserUUID,
 			Name:                 wrapper.Client.Name,
 			Enable:               wrapper.Client.Enable,
@@ -191,6 +193,9 @@ func (c *ClusterDomainResourceCoordinator) buildDomainResources(domainID uint) (
 			RequestID:            wrapper.RequestID,
 			UpdatedAt:            wrapper.UpdatedAt,
 		})
+	}
+	if err := c.mergeDomainUserOperationResources(domainID, &resources); err != nil {
+		return resources, err
 	}
 	return resources, nil
 }
@@ -446,6 +451,188 @@ func mergeClusterDomainOperationInstanceViews(existing []ClusterHubDomainResourc
 		merged = append(merged, update)
 	}
 	return merged
+}
+
+func (c *ClusterDomainResourceCoordinator) mergeDomainUserOperationResources(domainID uint, resources *ClusterHubDomainResources) error {
+	if resources == nil {
+		return nil
+	}
+	userIndexes := map[string]int{}
+	for i, user := range resources.Users {
+		if key := domainUserResourceKey(user.UUID, user.NodeID); key != "" {
+			userIndexes[key] = i
+		}
+	}
+
+	var ops []model.ClusterDomainOperation
+	if err := c.db().Where("domain_id = ? AND resource_kind = ?", domainID, ClusterDomainResourceUser).Order("id asc").Find(&ops).Error; err != nil {
+		return err
+	}
+	store := c.operationStore()
+	for _, op := range ops {
+		switch op.Action {
+		case ClusterDomainOperationDelete:
+			mergeDomainUserDeleteOperationResource(op, resources, userIndexes, store)
+		case ClusterDomainOperationCreate, ClusterDomainOperationUpdate:
+			mergeDomainUserUpsertOperationResource(op, resources, userIndexes, store)
+		}
+	}
+	return nil
+}
+
+func mergeDomainUserUpsertOperationResource(op model.ClusterDomainOperation, resources *ClusterHubDomainResources, userIndexes map[string]int, store *ClusterDomainOperationStore) {
+	var payload clustertypes.DomainUserUpsertPayload
+	if len(op.DesiredPayload) == 0 || json.Unmarshal(op.DesiredPayload, &payload) != nil || strings.TrimSpace(payload.User.UUID) == "" {
+		return
+	}
+	if store == nil {
+		return
+	}
+	instances, err := store.ListInstances(op.OperationID)
+	if err != nil {
+		return
+	}
+	for _, instance := range instances {
+		mergeDomainUserUpsertOperationInstance(instance, payload, resources, userIndexes)
+	}
+}
+
+func mergeDomainUserUpsertOperationInstance(instance model.ClusterDomainOperationInstance, payload clustertypes.DomainUserUpsertPayload, resources *ClusterHubDomainResources, userIndexes map[string]int) {
+	if resources == nil || instance.Status != ClusterDomainOperationApplied {
+		return
+	}
+	var result clustertypes.DomainResourceCommandResult
+	if rawResponse := strings.TrimSpace(string(instance.ResponseJSON)); rawResponse != "" && rawResponse != "null" && json.Unmarshal(instance.ResponseJSON, &result) != nil {
+		return
+	}
+	nodeID := strings.TrimSpace(result.NodeID)
+	if nodeID == "" {
+		nodeID = strings.TrimSpace(instance.NodeID)
+	}
+	if nodeID == "" {
+		return
+	}
+	resource := domainUserResourceFromOperation(payload, instance, result, nodeID)
+	key := domainUserResourceKey(resource.UUID, resource.NodeID)
+	if key == "" {
+		return
+	}
+	if userIndexes == nil {
+		userIndexes = map[string]int{}
+	}
+	if idx, exists := userIndexes[key]; exists {
+		resources.Users[idx] = resource
+		return
+	}
+	userIndexes[key] = len(resources.Users)
+	resources.Users = append(resources.Users, resource)
+}
+
+func domainUserResourceFromOperation(payload clustertypes.DomainUserUpsertPayload, instance model.ClusterDomainOperationInstance, result clustertypes.DomainResourceCommandResult, nodeID string) ClusterHubDomainResourceUser {
+	nextReset := ""
+	if payload.User.NextReset > 0 {
+		nextReset = strconv.FormatInt(payload.User.NextReset, 10)
+	}
+	clientID := result.LocalResourceID
+	if clientID == 0 {
+		clientID = instance.LocalResourceID
+	}
+	subToken := strings.TrimSpace(result.SubToken)
+	if subToken == "" {
+		subToken = strings.TrimSpace(payload.User.SubToken)
+	}
+	if subToken == "" {
+		subToken = strings.TrimSpace(payload.RequestID)
+	}
+	config := result.UserConfig
+	if len(config) == 0 {
+		config = payload.User.Config
+	}
+	return ClusterHubDomainResourceUser{
+		ClientID:             clientID,
+		NodeID:               nodeID,
+		UUID:                 payload.User.UUID,
+		Name:                 payload.User.Name,
+		Enable:               payload.User.Enable,
+		Desc:                 payload.User.Desc,
+		Group:                payload.User.Group,
+		SubToken:             subToken,
+		Config:               cloneRawMessage(config),
+		Inbounds:             domainUserGroupSelectorsRaw(payload.User.BoundInboundGroupIDs),
+		BoundInboundGroupIDs: normalizeDomainUserBoundGroups(payload.User.BoundInboundGroupIDs, payload.Inbounds),
+		Volume:               payload.User.Volume,
+		Down:                 payload.User.Down,
+		Up:                   payload.User.Up,
+		Expiry:               payload.User.Expiry,
+		DelayStart:           payload.User.DelayStart,
+		AutoReset:            payload.User.AutoReset,
+		ResetDays:            payload.User.ResetDays,
+		NextReset:            nextReset,
+		TotalUp:              payload.User.TotalUp,
+		TotalDown:            payload.User.TotalDown,
+		RequestID:            payload.RequestID,
+		UpdatedAt:            instance.UpdatedAt,
+	}
+}
+
+func mergeDomainUserDeleteOperationResource(op model.ClusterDomainOperation, resources *ClusterHubDomainResources, userIndexes map[string]int, store *ClusterDomainOperationStore) {
+	var payload clustertypes.DomainUserDeletePayload
+	userUUID := strings.TrimSpace(op.ResourceID)
+	if len(op.DesiredPayload) > 0 && json.Unmarshal(op.DesiredPayload, &payload) == nil && strings.TrimSpace(payload.UUID) != "" {
+		userUUID = strings.TrimSpace(payload.UUID)
+	}
+	if userUUID == "" {
+		return
+	}
+	if op.Status != ClusterDomainOperationApplied && op.Status != ClusterDomainOperationSkipped {
+		return
+	}
+	nodes := map[string]struct{}{}
+	if store != nil {
+		if instances, err := store.ListInstances(op.OperationID); err == nil {
+			for _, instance := range instances {
+				if instance.Status == ClusterDomainOperationApplied {
+					nodes[strings.TrimSpace(instance.NodeID)] = struct{}{}
+				}
+			}
+		}
+	}
+	if len(nodes) == 0 {
+		for key := range userIndexes {
+			if strings.HasPrefix(key, userUUID+"\x00") {
+				deleteDomainUserResourceByKey(resources, userIndexes, key)
+			}
+		}
+		return
+	}
+	for nodeID := range nodes {
+		deleteDomainUserResourceByKey(resources, userIndexes, domainUserResourceKey(userUUID, nodeID))
+	}
+}
+
+func deleteDomainUserResourceByKey(resources *ClusterHubDomainResources, userIndexes map[string]int, key string) {
+	idx, exists := userIndexes[key]
+	if !exists || resources == nil || idx < 0 || idx >= len(resources.Users) {
+		return
+	}
+	resources.Users = append(resources.Users[:idx], resources.Users[idx+1:]...)
+	for k := range userIndexes {
+		delete(userIndexes, k)
+	}
+	for i, user := range resources.Users {
+		if nextKey := domainUserResourceKey(user.UUID, user.NodeID); nextKey != "" {
+			userIndexes[nextKey] = i
+		}
+	}
+}
+
+func domainUserResourceKey(userUUID string, nodeID string) string {
+	userUUID = strings.TrimSpace(userUUID)
+	nodeID = strings.TrimSpace(nodeID)
+	if userUUID == "" || nodeID == "" {
+		return ""
+	}
+	return userUUID + "\x00" + nodeID
 }
 
 func domainResourceUserSubToken(wrapper model.ClusterClient) string {

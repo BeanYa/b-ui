@@ -8,7 +8,6 @@ import (
 	"strings"
 	"testing"
 
-	clustertypes "github.com/BeanYa/b-ui/src/backend/internal/domain/services/cluster/types"
 	database "github.com/BeanYa/b-ui/src/backend/internal/infra/db"
 	"github.com/BeanYa/b-ui/src/backend/internal/infra/db/model"
 )
@@ -177,14 +176,6 @@ func TestPeerDeliveryIncludesPeerErrorMessageFromNonSuccessBody(t *testing.T) {
 }
 
 func TestClusterPeerDeliverySendWithResultParsesCommandResult(t *testing.T) {
-	expected := clustertypes.DomainResourceCommandResult{
-		Status:       "applied",
-		OperationID:  "op-1",
-		NodeID:       "node-b",
-		ResourceKind: "domain_inbound",
-		ResourceID:   "group-1",
-		Revision:     7,
-	}
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
 		_, _ = w.Write([]byte(`{"success":true,"msg":"cluster message received","result":{"status":"applied","operation_id":"op-1","node_id":"node-b","resource_kind":"domain_inbound","resource_id":"group-1","revision":7}}`))
@@ -199,8 +190,12 @@ func TestClusterPeerDeliverySendWithResultParsesCommandResult(t *testing.T) {
 	if err != nil {
 		t.Fatalf("send with result: %v", err)
 	}
-	if result == nil || *result != expected {
-		t.Fatalf("expected %#v, got %#v", expected, result)
+	if result == nil {
+		t.Fatal("expected command result")
+	}
+	if result.Status != "applied" || result.OperationID != "op-1" || result.NodeID != "node-b" ||
+		result.ResourceKind != "domain_inbound" || result.ResourceID != "group-1" || result.Revision != 7 {
+		t.Fatalf("unexpected command result: %#v", result)
 	}
 }
 

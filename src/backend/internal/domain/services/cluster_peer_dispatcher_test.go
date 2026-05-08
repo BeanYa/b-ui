@@ -286,7 +286,8 @@ func TestPeerDispatcherHandlesDomainUserUpsertCommand(t *testing.T) {
 		Route: RoutePlan{Mode: RouteModeBroadcast},
 	}
 
-	if err := dispatcher.Dispatch(context.Background(), &model.ClusterDomain{Id: 1, Domain: "edge.example.com"}, &model.ClusterMember{NodeID: "node-a"}, message); err != nil {
+	result, err := dispatcher.DispatchWithResult(context.Background(), &model.ClusterDomain{Id: 1, Domain: "edge.example.com"}, &model.ClusterMember{NodeID: "node-a"}, message)
+	if err != nil {
 		t.Fatalf("dispatch: %v", err)
 	}
 	if applier.upsertCalls != 1 {
@@ -301,6 +302,15 @@ func TestPeerDispatcherHandlesDomainUserUpsertCommand(t *testing.T) {
 	}
 	if state.Status != PeerEventStatusSucceeded {
 		t.Fatalf("expected succeeded, got %q", state.Status)
+	}
+	if result == nil {
+		t.Fatal("expected command result")
+	}
+	if string(result.UserConfig) != `{"vless":{"uuid":"target-generated-user"}}` {
+		t.Fatalf("result user config = %s, want target-generated-user", result.UserConfig)
+	}
+	if result.SubToken != "target-sub-token" {
+		t.Fatalf("result sub token = %q, want target-sub-token", result.SubToken)
 	}
 }
 
@@ -1153,7 +1163,13 @@ type stubPeerDomainUserApplier struct {
 func (s *stubPeerDomainUserApplier) ApplyDomainUserUpsert(ctx context.Context, domain *model.ClusterDomain, payload clustertypes.DomainUserUpsertPayload, source string, broadcast bool) (*DomainUserUpsertResult, error) {
 	s.upsertCalls++
 	s.broadcast = broadcast
-	return &DomainUserUpsertResult{ClientID: 77, RequestID: payload.RequestID, Created: true}, nil
+	return &DomainUserUpsertResult{
+		ClientID:  77,
+		RequestID: payload.RequestID,
+		Created:   true,
+		Config:    json.RawMessage(`{"vless":{"uuid":"target-generated-user"}}`),
+		SubToken:  "target-sub-token",
+	}, nil
 }
 
 func (s *stubPeerDomainUserApplier) ApplyDomainUserDelete(ctx context.Context, domain *model.ClusterDomain, payload clustertypes.DomainUserDeletePayload, source string, broadcast bool) (*DomainUserDeleteResult, error) {

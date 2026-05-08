@@ -782,7 +782,7 @@ func (d *ClusterPeerDispatcher) handleDomainUserUpsert(ctx context.Context, doma
 	if err != nil {
 		return nil, err
 	}
-	return d.newDomainUserCommandResult(message, source, payload.User.UUID, applyResult.ClientID), nil
+	return d.newDomainUserCommandResult(message, source, payload.User.UUID, applyResult), nil
 }
 
 func (d *ClusterPeerDispatcher) handleDomainUserDelete(ctx context.Context, domain *model.ClusterDomain, source *model.ClusterMember, message *PeerMessage) (*clustertypes.DomainResourceCommandResult, error) {
@@ -809,7 +809,11 @@ func (d *ClusterPeerDispatcher) handleDomainUserDelete(ctx context.Context, doma
 	if err != nil {
 		return nil, err
 	}
-	return d.newDomainUserCommandResult(message, source, payload.UUID, applyResult.ClientID), nil
+	result := d.newDomainResourceCommandResult(message, source, ClusterDomainResourceUser, payload.UUID)
+	if applyResult != nil {
+		result.LocalResourceID = applyResult.ClientID
+	}
+	return result, nil
 }
 
 func (d *ClusterPeerDispatcher) handleDomainCleanup(ctx context.Context, domain *model.ClusterDomain, source *model.ClusterMember, message *PeerMessage) error {
@@ -852,9 +856,13 @@ func (d *ClusterPeerDispatcher) newDomainInboundCommandResult(message *PeerMessa
 	return result
 }
 
-func (d *ClusterPeerDispatcher) newDomainUserCommandResult(message *PeerMessage, source *model.ClusterMember, userUUID string, localResourceID uint) *clustertypes.DomainResourceCommandResult {
+func (d *ClusterPeerDispatcher) newDomainUserCommandResult(message *PeerMessage, source *model.ClusterMember, userUUID string, applyResult *DomainUserUpsertResult) *clustertypes.DomainResourceCommandResult {
 	result := d.newDomainResourceCommandResult(message, source, ClusterDomainResourceUser, userUUID)
-	result.LocalResourceID = localResourceID
+	if applyResult != nil {
+		result.LocalResourceID = applyResult.ClientID
+		result.UserConfig = cloneRawMessage(applyResult.Config)
+		result.SubToken = applyResult.SubToken
+	}
 	return result
 }
 

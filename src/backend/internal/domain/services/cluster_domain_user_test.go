@@ -180,6 +180,77 @@ func TestDomainUserUpsertResolvesDomainSelectorByGroupID(t *testing.T) {
 	}
 }
 
+func TestDomainUserUpsertGeneratesLinksWithLandingNodeAddress(t *testing.T) {
+	db := initClusterInboundTestDB(t)
+
+	inbound := model.Inbound{
+		Type:    "vless",
+		Tag:     "edge-main-node-a",
+		Addrs:   json.RawMessage(`null`),
+		Options: json.RawMessage(`{"listen_port":32001}`),
+	}
+	if err := db.Create(&inbound).Error; err != nil {
+		t.Fatalf("seed inbound: %v", err)
+	}
+	if err := db.Create(&model.ClusterInbound{
+		DomainID:  1,
+		Domain:    "edge.example.com",
+		NodeID:    "node-a",
+		MemberID:  "hub",
+		GroupID:   "edge-main",
+		InboundID: inbound.Id,
+		RequestID: "req-inbound-a",
+	}).Error; err != nil {
+		t.Fatalf("seed wrapper: %v", err)
+	}
+	if err := db.Create(&model.ClusterMember{
+		DomainID: 1,
+		NodeID:   "node-a",
+		Address:  "landing-node.example.net",
+		BaseURL:  "https://panel-node.example.net/app",
+	}).Error; err != nil {
+		t.Fatalf("seed local member address: %v", err)
+	}
+
+	svc := NewClusterDomainUserService(ClusterDomainUserServiceOptions{
+		DB:       db,
+		Identity: &stubDomainInboundIdentity{node: &model.ClusterLocalNode{NodeID: "node-a"}},
+		Now:      func() int64 { return 1700000000 },
+	})
+	result, err := svc.ApplyDomainUserUpsert(context.Background(), &model.ClusterDomain{Id: 1, Domain: "edge.example.com"}, clustertypes.DomainUserUpsertPayload{
+		RequestID: "req-user-link-host",
+		DomainID:  "edge.example.com",
+		User: clustertypes.DomainUserPayload{
+			UUID:                 "hub-user-link-host",
+			Name:                 "alice",
+			Enable:               true,
+			BoundInboundGroupIDs: []string{"edge-main"},
+			Config:               json.RawMessage(`{"vless":{"uuid":"11111111-1111-4111-8111-111111111111"}}`),
+		},
+	}, "hub", false)
+	if err != nil {
+		t.Fatalf("upsert domain user: %v", err)
+	}
+
+	var client model.Client
+	if err := db.First(&client, result.ClientID).Error; err != nil {
+		t.Fatalf("load client: %v", err)
+	}
+	var links []map[string]string
+	if err := json.Unmarshal(client.Links, &links); err != nil {
+		t.Fatalf("decode generated links: %v", err)
+	}
+	if len(links) != 1 {
+		t.Fatalf("expected generated domain user link, got %#v", links)
+	}
+	if strings.Contains(links[0]["uri"], "@edge.example.com:32001") {
+		t.Fatalf("link used shared domain instead of landing node address: %q", links[0]["uri"])
+	}
+	if !strings.Contains(links[0]["uri"], "@landing-node.example.net:32001") {
+		t.Fatalf("expected link to use landing node address, got %q", links[0]["uri"])
+	}
+}
+
 func TestDomainUserUpsertPreservesExistingSubTokenOnUpdate(t *testing.T) {
 	db := initClusterInboundTestDB(t)
 

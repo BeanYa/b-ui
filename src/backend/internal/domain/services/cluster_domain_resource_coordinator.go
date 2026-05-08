@@ -194,6 +194,8 @@ func (c *ClusterDomainResourceCoordinator) CreateDomainUser(ctx context.Context,
 		}
 		if localResult != nil {
 			localCommandResult.LocalResourceID = localResult.ClientID
+			localCommandResult.UserConfig = cloneRawMessage(localResult.Config)
+			localCommandResult.SubToken = localResult.SubToken
 		}
 		if err := c.saveInstanceResult(store, operationID, model.ClusterMember{NodeID: local.NodeID, DisplayName: local.NodeID}, "", localCommandResult, localErr); err != nil {
 			return nil, err
@@ -422,6 +424,8 @@ func (c *ClusterDomainResourceCoordinator) UpdateDomainUser(ctx context.Context,
 		}
 		if localResult != nil {
 			localCommandResult.LocalResourceID = localResult.ClientID
+			localCommandResult.UserConfig = cloneRawMessage(localResult.Config)
+			localCommandResult.SubToken = localResult.SubToken
 		}
 		if err := c.saveInstanceResult(store, operationID, model.ClusterMember{NodeID: local.NodeID, DisplayName: local.NodeID}, "", localCommandResult, localErr); err != nil {
 			return nil, err
@@ -451,6 +455,20 @@ func (c *ClusterDomainResourceCoordinator) DeleteDomainUser(ctx context.Context,
 	if err != nil {
 		return nil, err
 	}
+	resources, err := c.buildDomainResources(domain.Id)
+	if err != nil {
+		return nil, err
+	}
+	applyLocal, peerTargets := domainUserMaterializedTargets(members, local.NodeID, payload.UUID, resources.Users)
+	if !applyLocal && len(peerTargets) == 0 {
+		applyLocal = true
+		peerTargets = eligibleDomainResourceTargets(members, local.NodeID)
+	}
+	payload.TargetMembers = domainUserTargetMembers(local.NodeID, applyLocal, peerTargets)
+	payloadMap, err = domainInboundPayloadMap(payload)
+	if err != nil {
+		return nil, err
+	}
 	operationID := payload.RequestID
 	desiredPayload, err := json.Marshal(payload)
 	if err != nil {
@@ -473,28 +491,30 @@ func (c *ClusterDomainResourceCoordinator) DeleteDomainUser(ctx context.Context,
 		return nil, err
 	}
 
-	localResult, localErr := NewClusterDomainUserService(ClusterDomainUserServiceOptions{
-		DB:       db,
-		Identity: c.identity(),
-	}).ApplyDomainUserDelete(ctx, domain, payload, local.NodeID, false)
-	localCommandResult := &clustertypes.DomainResourceCommandResult{
-		Status:       "applied",
-		OperationID:  operationID,
-		NodeID:       local.NodeID,
-		MemberID:     local.NodeID,
-		ResourceKind: ClusterDomainResourceUser,
-		ResourceID:   payload.UUID,
-		Revision:     domain.LastVersion,
-	}
-	if localResult != nil {
-		localCommandResult.LocalResourceID = localResult.ClientID
-	}
-	if err := c.saveInstanceResult(store, operationID, model.ClusterMember{NodeID: local.NodeID, DisplayName: local.NodeID}, "", localCommandResult, localErr); err != nil {
-		return nil, err
+	if applyLocal {
+		localResult, localErr := NewClusterDomainUserService(ClusterDomainUserServiceOptions{
+			DB:       db,
+			Identity: c.identity(),
+		}).ApplyDomainUserDelete(ctx, domain, payload, local.NodeID, false)
+		localCommandResult := &clustertypes.DomainResourceCommandResult{
+			Status:       "applied",
+			OperationID:  operationID,
+			NodeID:       local.NodeID,
+			MemberID:     local.NodeID,
+			ResourceKind: ClusterDomainResourceUser,
+			ResourceID:   payload.UUID,
+			Revision:     domain.LastVersion,
+		}
+		if localResult != nil {
+			localCommandResult.LocalResourceID = localResult.ClientID
+		}
+		if err := c.saveInstanceResult(store, operationID, model.ClusterMember{NodeID: local.NodeID, DisplayName: local.NodeID}, "", localCommandResult, localErr); err != nil {
+			return nil, err
+		}
 	}
 
-	commandPayload := domainResourcePeerPayload(domain, local.NodeID, operationID, payload.RequestID, ClusterDomainResourceUser, payload.UUID, domain.LastVersion, nil, payloadMap)
-	if err := c.dispatchDomainResourceTargets(ctx, store, domain, local, operationID, PeerActionDomainUserDelete, commandPayload, eligibleDomainResourceTargets(members, local.NodeID), false); err != nil {
+	commandPayload := domainResourcePeerPayload(domain, local.NodeID, operationID, payload.RequestID, ClusterDomainResourceUser, payload.UUID, domain.LastVersion, payload.TargetMembers, payloadMap)
+	if err := c.dispatchDomainResourceTargets(ctx, store, domain, local, operationID, PeerActionDomainUserDelete, commandPayload, peerTargets, false); err != nil {
 		return nil, err
 	}
 	return c.finishDomainResourceOperation(ctx, store, domain, operationID)
@@ -815,7 +835,7 @@ func domainOperationRetryPayload(op *model.ClusterDomainOperation) (string, stri
 			payload.RequestID = op.OperationID
 		}
 		payloadMap, err := domainInboundPayloadMap(payload)
-		return PeerActionDomainUserDelete, ClusterDomainResourceUser, payload.UUID, payload.RequestID, nil, payloadMap, err
+		return PeerActionDomainUserDelete, ClusterDomainResourceUser, payload.UUID, payload.RequestID, payload.TargetMembers, payloadMap, err
 	default:
 		return "", "", "", "", nil, nil, errors.New("unsupported domain operation retry")
 	}
@@ -1030,6 +1050,31 @@ func domainUserTargetMembers(localNodeID string, applyLocal bool, peerTargets []
 		})
 	}
 	return targets
+}
+
+func domainUserMaterializedTargets(members []model.ClusterMember, localNodeID string, userUUID string, users []ClusterHubDomainResourceUser) (bool, []model.ClusterMember) {
+	localNodeID = strings.TrimSpace(localNodeID)
+	userUUID = strings.TrimSpace(userUUID)
+	if userUUID == "" {
+		return true, eligibleDomainResourceTargets(members, localNodeID)
+	}
+	materialized := map[string]struct{}{}
+	for _, user := range users {
+		if strings.TrimSpace(user.UUID) != userUUID {
+			continue
+		}
+		if nodeID := strings.TrimSpace(user.NodeID); nodeID != "" {
+			materialized[nodeID] = struct{}{}
+		}
+	}
+	_, applyLocal := materialized[localNodeID]
+	targets := make([]model.ClusterMember, 0, len(materialized))
+	for _, member := range eligibleDomainResourceTargets(members, localNodeID) {
+		if _, ok := materialized[member.NodeID]; ok {
+			targets = append(targets, member)
+		}
+	}
+	return applyLocal, targets
 }
 
 func shouldApplyLocalDomainResourceTarget(targetMembers []clustertypes.DomainInboundTarget, localNodeID string) bool {

@@ -32,7 +32,8 @@ type DomainUserUpsertPayload struct {
 }
 
 type DomainUserDeletePayload struct {
-	RequestID string `json:"request_id"`
-	DomainID  string `json:"domain_id"`
-	UUID      string `json:"uuid"`
+	RequestID     string                `json:"request_id"`
+	DomainID      string                `json:"domain_id"`
+	UUID          string                `json:"uuid"`
+	TargetMembers []DomainInboundTarget `json:"target_members,omitempty"`
 }

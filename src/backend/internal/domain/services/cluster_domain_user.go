@@ -43,9 +43,11 @@ type ClusterDomainUserService struct {
 }
 
 type DomainUserUpsertResult struct {
-	ClientID  uint   `json:"client_id"`
-	RequestID string `json:"request_id"`
-	Created   bool   `json:"created"`
+	ClientID  uint            `json:"client_id"`
+	RequestID string          `json:"request_id"`
+	Created   bool            `json:"created"`
+	Config    json.RawMessage `json:"config,omitempty"`
+	SubToken  string          `json:"sub_token,omitempty"`
 }
 
 type DomainUserDeleteResult struct {
@@ -183,7 +185,8 @@ func (s *ClusterDomainUserService) ApplyDomainUserUpsert(ctx context.Context, do
 		client.TotalUp = payload.User.TotalUp
 		client.TotalDown = payload.User.TotalDown
 
-		if err := (&ClientService{}).updateLinksWithFixedInbounds(tx, []*model.Client{&client}, domain.Domain); err != nil {
+		linkHost := s.domainUserLinkHost(tx, domain, nodeID)
+		if err := (&ClientService{}).updateLinksWithFixedInbounds(tx, []*model.Client{&client}, linkHost); err != nil {
 			return err
 		}
 		if err := tx.Save(&client).Error; err != nil {
@@ -230,6 +233,8 @@ func (s *ClusterDomainUserService) ApplyDomainUserUpsert(ctx context.Context, do
 		}
 		result.ClientID = client.Id
 		result.Created = created
+		result.Config = cloneRawMessage(client.Config)
+		result.SubToken = subToken
 		return nil
 	})
 	if err != nil {
@@ -242,6 +247,28 @@ func (s *ClusterDomainUserService) ApplyDomainUserUpsert(ctx context.Context, do
 	}
 	_ = changedInboundIDs
 	return result, nil
+}
+
+func (s *ClusterDomainUserService) domainUserLinkHost(tx *gorm.DB, domain *model.ClusterDomain, nodeID string) string {
+	fallback := ""
+	if domain != nil {
+		fallback = domain.Domain
+	}
+	nodeID = strings.TrimSpace(nodeID)
+	if tx == nil || domain == nil || domain.Id == 0 || nodeID == "" {
+		return fallback
+	}
+	var member model.ClusterMember
+	if err := tx.Where("domain_id = ? AND node_id = ?", domain.Id, nodeID).First(&member).Error; err != nil {
+		return fallback
+	}
+	if address := strings.TrimSpace(member.Address); address != "" {
+		return address
+	}
+	if baseHost := normalizeClusterNodeAddress(member.BaseURL); baseHost != "" {
+		return baseHost
+	}
+	return fallback
 }
 
 func normalizeDomainUserBoundGroups(userGroups []string, selectors []string) []string {

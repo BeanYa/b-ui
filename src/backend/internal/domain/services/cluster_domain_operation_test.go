@@ -269,3 +269,37 @@ func TestDomainUserRetryPayloadPreservesTargetMembers(t *testing.T) {
 		t.Fatalf("target members = %#v, want node-b only", targetMembers)
 	}
 }
+
+func TestDomainUserDeleteRetryPayloadPreservesTargetMembers(t *testing.T) {
+	payload := clustertypes.DomainUserDeletePayload{
+		RequestID: "domain-user-delete-op-1",
+		DomainID:  "edge.example.com",
+		UUID:      "user-1",
+		TargetMembers: []clustertypes.DomainInboundTarget{{
+			NodeID:      "node-b",
+			MemberID:    "node-b",
+			DisplayName: "Node B",
+		}},
+	}
+	desiredPayload, err := json.Marshal(payload)
+	if err != nil {
+		t.Fatalf("marshal payload: %v", err)
+	}
+
+	action, resourceKind, resourceID, requestID, targetMembers, _, err := domainOperationRetryPayload(&model.ClusterDomainOperation{
+		OperationID:    payload.RequestID,
+		ResourceKind:   ClusterDomainResourceUser,
+		ResourceID:     payload.UUID,
+		Action:         ClusterDomainOperationDelete,
+		DesiredPayload: desiredPayload,
+	})
+	if err != nil {
+		t.Fatalf("retry payload: %v", err)
+	}
+	if action != PeerActionDomainUserDelete || resourceKind != ClusterDomainResourceUser || resourceID != "user-1" || requestID != payload.RequestID {
+		t.Fatalf("unexpected retry metadata: action=%q kind=%q resource=%q request=%q", action, resourceKind, resourceID, requestID)
+	}
+	if len(targetMembers) != 1 || targetMembers[0].NodeID != "node-b" {
+		t.Fatalf("target members = %#v, want node-b only", targetMembers)
+	}
+}

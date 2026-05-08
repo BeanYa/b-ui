@@ -834,6 +834,313 @@ func TestDomainResourcesIncludeRemoteOnlyDomainInboundOperations(t *testing.T) {
 	}
 }
 
+func TestDomainResourcesIncludeRemoteOnlyDomainUserOperationConfig(t *testing.T) {
+	if err := database.InitDB(filepath.Join(t.TempDir(), "coordinator-remote-user-read-model.db")); err != nil {
+		if strings.Contains(err.Error(), "go-sqlite3 requires cgo") || strings.Contains(err.Error(), "CGO_ENABLED=0") || strings.Contains(err.Error(), "C compiler") {
+			t.Skipf("sqlite test database unavailable in this toolchain: %v", err)
+		}
+		t.Fatalf("init db: %v", err)
+	}
+	db := database.GetDB()
+	domain := &model.ClusterDomain{Id: 1, Domain: "edge.example.com", HubURL: "https://hub.example.com", TokenEncrypted: "token", LastVersion: 8}
+	if err := db.Create(domain).Error; err != nil {
+		t.Fatalf("seed domain: %v", err)
+	}
+	local := newTestClusterLocalNode(t, "node-a")
+	if err := db.Create(local).Error; err != nil {
+		t.Fatalf("seed local node: %v", err)
+	}
+
+	store := &ClusterDomainOperationStore{DB: db}
+	payload := clustertypes.DomainUserUpsertPayload{
+		RequestID: "op-remote-user",
+		DomainID:  domain.Domain,
+		User: clustertypes.DomainUserPayload{
+			UUID:                 "remote-user",
+			Name:                 "Alice",
+			Enable:               true,
+			SubToken:             "input-sub-token",
+			BoundInboundGroupIDs: []string{"group-1"},
+			Config:               json.RawMessage(`{"vless":{"uuid":{"LocalProvided":"DomainUserUUID"}}}`),
+		},
+		Inbounds: []string{"domain:group-1"},
+		TargetMembers: []clustertypes.DomainInboundTarget{{
+			NodeID:      "node-b",
+			MemberID:    "node-b",
+			DisplayName: "Node B",
+		}},
+	}
+	desiredPayload, err := json.Marshal(payload)
+	if err != nil {
+		t.Fatalf("marshal payload: %v", err)
+	}
+	if err := store.SaveOperation(&model.ClusterDomainOperation{
+		OperationID:       payload.RequestID,
+		DomainID:          domain.Id,
+		Domain:            domain.Domain,
+		ResourceKind:      ClusterDomainResourceUser,
+		ResourceID:        payload.User.UUID,
+		Action:            ClusterDomainOperationCreate,
+		Revision:          domain.LastVersion,
+		CoordinatorNodeID: local.NodeID,
+		Status:            ClusterDomainOperationApplied,
+		DesiredPayload:    desiredPayload,
+	}); err != nil {
+		t.Fatalf("save operation: %v", err)
+	}
+	responseJSON, err := json.Marshal(&clustertypes.DomainResourceCommandResult{
+		Status:          "applied",
+		OperationID:     payload.RequestID,
+		NodeID:          "node-b",
+		MemberID:        "node-b",
+		ResourceKind:    ClusterDomainResourceUser,
+		ResourceID:      payload.User.UUID,
+		LocalResourceID: 88,
+		Revision:        domain.LastVersion,
+		UserConfig:      json.RawMessage(`{"vless":{"uuid":"node-b-generated-user"}}`),
+		SubToken:        "remote-sub-token",
+	})
+	if err != nil {
+		t.Fatalf("marshal response: %v", err)
+	}
+	if err := store.SaveInstance(&model.ClusterDomainOperationInstance{
+		OperationID:     payload.RequestID,
+		NodeID:          "node-b",
+		MemberID:        "node-b",
+		DisplayName:     "Node B",
+		Status:          ClusterDomainOperationApplied,
+		AttemptCount:    1,
+		LocalResourceID: 88,
+		ResponseJSON:    responseJSON,
+	}); err != nil {
+		t.Fatalf("save instance: %v", err)
+	}
+
+	coordinator := &ClusterDomainResourceCoordinator{DB: db, OperationStore: store}
+	resources, err := coordinator.buildDomainResources(domain.Id)
+	if err != nil {
+		t.Fatalf("build domain resources: %v", err)
+	}
+	if len(resources.Users) != 1 {
+		t.Fatalf("users = %d, want 1", len(resources.Users))
+	}
+	user := resources.Users[0]
+	if user.UUID != "remote-user" || user.NodeID != "node-b" || user.ClientID != 88 {
+		t.Fatalf("unexpected remote user read model: %#v", user)
+	}
+	if user.SubToken != "remote-sub-token" {
+		t.Fatalf("remote user sub token = %q, want remote-sub-token", user.SubToken)
+	}
+	if string(user.Config) != `{"vless":{"uuid":"node-b-generated-user"}}` {
+		t.Fatalf("remote user config = %s, want target generated config", user.Config)
+	}
+}
+
+func TestDomainResourcesIncludeRemoteOnlyDomainUserOperationWithoutPeerResultConfig(t *testing.T) {
+	if err := database.InitDB(filepath.Join(t.TempDir(), "coordinator-remote-user-fallback-read-model.db")); err != nil {
+		if strings.Contains(err.Error(), "go-sqlite3 requires cgo") || strings.Contains(err.Error(), "CGO_ENABLED=0") || strings.Contains(err.Error(), "C compiler") {
+			t.Skipf("sqlite test database unavailable in this toolchain: %v", err)
+		}
+		t.Fatalf("init db: %v", err)
+	}
+	db := database.GetDB()
+	domain := &model.ClusterDomain{Id: 1, Domain: "edge.example.com", HubURL: "https://hub.example.com", TokenEncrypted: "token", LastVersion: 8}
+	if err := db.Create(domain).Error; err != nil {
+		t.Fatalf("seed domain: %v", err)
+	}
+
+	store := &ClusterDomainOperationStore{DB: db}
+	payload := clustertypes.DomainUserUpsertPayload{
+		RequestID: "op-remote-user-no-result-config",
+		DomainID:  domain.Domain,
+		User: clustertypes.DomainUserPayload{
+			UUID:                 "remote-user",
+			Name:                 "Alice",
+			Enable:               true,
+			SubToken:             "input-sub-token",
+			BoundInboundGroupIDs: []string{"group-1"},
+			Config:               json.RawMessage(`{"vless":{"uuid":"hub-provided-user"}}`),
+		},
+		Inbounds: []string{"domain:group-1"},
+		TargetMembers: []clustertypes.DomainInboundTarget{{
+			NodeID:      "node-b",
+			MemberID:    "node-b",
+			DisplayName: "Node B",
+		}},
+	}
+	desiredPayload, err := json.Marshal(payload)
+	if err != nil {
+		t.Fatalf("marshal payload: %v", err)
+	}
+	if err := store.SaveOperation(&model.ClusterDomainOperation{
+		OperationID:       payload.RequestID,
+		DomainID:          domain.Id,
+		Domain:            domain.Domain,
+		ResourceKind:      ClusterDomainResourceUser,
+		ResourceID:        payload.User.UUID,
+		Action:            ClusterDomainOperationCreate,
+		Revision:          domain.LastVersion,
+		CoordinatorNodeID: "node-a",
+		Status:            ClusterDomainOperationApplied,
+		DesiredPayload:    desiredPayload,
+	}); err != nil {
+		t.Fatalf("save operation: %v", err)
+	}
+	responseJSON, err := json.Marshal(&clustertypes.DomainResourceCommandResult{
+		Status:          "applied",
+		OperationID:     payload.RequestID,
+		NodeID:          "node-b",
+		MemberID:        "node-b",
+		ResourceKind:    ClusterDomainResourceUser,
+		ResourceID:      payload.User.UUID,
+		LocalResourceID: 88,
+		Revision:        domain.LastVersion,
+	})
+	if err != nil {
+		t.Fatalf("marshal response: %v", err)
+	}
+	if err := store.SaveInstance(&model.ClusterDomainOperationInstance{
+		OperationID:     payload.RequestID,
+		NodeID:          "node-b",
+		MemberID:        "node-b",
+		DisplayName:     "Node B",
+		Status:          ClusterDomainOperationApplied,
+		AttemptCount:    1,
+		LocalResourceID: 88,
+		ResponseJSON:    responseJSON,
+	}); err != nil {
+		t.Fatalf("save instance: %v", err)
+	}
+
+	coordinator := &ClusterDomainResourceCoordinator{DB: db, OperationStore: store}
+	resources, err := coordinator.buildDomainResources(domain.Id)
+	if err != nil {
+		t.Fatalf("build domain resources: %v", err)
+	}
+	if len(resources.Users) != 1 {
+		t.Fatalf("users = %d, want 1", len(resources.Users))
+	}
+	user := resources.Users[0]
+	if user.UUID != "remote-user" || user.NodeID != "node-b" || user.ClientID != 88 {
+		t.Fatalf("unexpected remote user read model: %#v", user)
+	}
+	if user.SubToken != "input-sub-token" {
+		t.Fatalf("remote user sub token = %q, want input-sub-token", user.SubToken)
+	}
+	if string(user.Config) != `{"vless":{"uuid":"hub-provided-user"}}` {
+		t.Fatalf("remote user config = %s, want payload config fallback", user.Config)
+	}
+}
+
+func TestDomainUserResourceFromOperationFallsBackToPayloadConfig(t *testing.T) {
+	payload := clustertypes.DomainUserUpsertPayload{
+		RequestID: "op-remote-user-no-result-config",
+		User: clustertypes.DomainUserPayload{
+			UUID:                 "remote-user",
+			Name:                 "Alice",
+			Enable:               true,
+			SubToken:             "input-sub-token",
+			BoundInboundGroupIDs: []string{"group-1"},
+			Config:               json.RawMessage(`{"vless":{"uuid":"hub-provided-user"}}`),
+			Volume:               100,
+		},
+		Inbounds: []string{"domain:group-1"},
+	}
+
+	user := domainUserResourceFromOperation(
+		payload,
+		model.ClusterDomainOperationInstance{NodeID: "node-b", LocalResourceID: 88, UpdatedAt: 123},
+		clustertypes.DomainResourceCommandResult{
+			Status:          "applied",
+			NodeID:          "node-b",
+			ResourceKind:    ClusterDomainResourceUser,
+			ResourceID:      payload.User.UUID,
+			LocalResourceID: 88,
+		},
+		"node-b",
+	)
+
+	if user.UUID != "remote-user" || user.NodeID != "node-b" || user.ClientID != 88 {
+		t.Fatalf("unexpected remote user read model: %#v", user)
+	}
+	if user.SubToken != "input-sub-token" {
+		t.Fatalf("remote user sub token = %q, want input-sub-token", user.SubToken)
+	}
+	if string(user.Config) != `{"vless":{"uuid":"hub-provided-user"}}` {
+		t.Fatalf("remote user config = %s, want payload config fallback", user.Config)
+	}
+	if string(user.Inbounds) != `["domain:group-1"]` {
+		t.Fatalf("remote user inbounds = %s, want bound group selector", user.Inbounds)
+	}
+}
+
+func TestMergeDomainUserUpsertOperationResourceAcceptsEmptyPeerResult(t *testing.T) {
+	payload := clustertypes.DomainUserUpsertPayload{
+		RequestID: "op-empty-peer-result",
+		User: clustertypes.DomainUserPayload{
+			UUID:     "remote-user",
+			Name:     "Alice",
+			Enable:   true,
+			SubToken: "input-sub-token",
+			Config:   json.RawMessage(`{"vless":{"uuid":"hub-provided-user"}}`),
+		},
+	}
+	resources := ClusterHubDomainResources{Users: []ClusterHubDomainResourceUser{}}
+
+	mergeDomainUserUpsertOperationInstance(
+		model.ClusterDomainOperationInstance{
+			OperationID:     payload.RequestID,
+			NodeID:          "node-b",
+			MemberID:        "node-b",
+			Status:          ClusterDomainOperationApplied,
+			LocalResourceID: 88,
+		},
+		payload,
+		&resources,
+		map[string]int{},
+	)
+
+	if len(resources.Users) != 1 {
+		t.Fatalf("users = %d, want 1", len(resources.Users))
+	}
+	user := resources.Users[0]
+	if user.UUID != "remote-user" || user.NodeID != "node-b" || user.ClientID != 88 {
+		t.Fatalf("unexpected remote user read model: %#v", user)
+	}
+	if user.SubToken != "input-sub-token" || string(user.Config) != `{"vless":{"uuid":"hub-provided-user"}}` {
+		t.Fatalf("unexpected fallback user state: %#v config=%s", user, user.Config)
+	}
+}
+
+func TestClusterHubDomainResourceUserOmitsEmptyInbounds(t *testing.T) {
+	user := ClusterHubDomainResourceUser{
+		ClientID:   88,
+		NodeID:     "node-b",
+		UUID:       "remote-user",
+		Name:       "Alice",
+		Enable:     true,
+		SubToken:   "input-sub-token",
+		Config:     json.RawMessage(`{"vless":{"uuid":"hub-provided-user"}}`),
+		Volume:     0,
+		Down:       0,
+		Up:         0,
+		Expiry:     0,
+		DelayStart: false,
+		AutoReset:  false,
+		ResetDays:  0,
+		TotalUp:    0,
+		TotalDown:  0,
+	}
+
+	raw, err := json.Marshal(user)
+	if err != nil {
+		t.Fatalf("marshal user: %v", err)
+	}
+	if strings.Contains(string(raw), `"inbounds":null`) {
+		t.Fatalf("empty domain user inbounds must be omitted, got %s", raw)
+	}
+}
+
 func TestDomainInboundResourceFromOperationPreservesTopLevelListenPortSource(t *testing.T) {
 	payload := clustertypes.DomainInboundCreatePayload{
 		RequestID:   "domain-inbound-auto",
@@ -1137,5 +1444,146 @@ func TestDomainResourceCoordinatorRetryOnlyFailedTargets(t *testing.T) {
 				t.Fatalf("node-c attempt count = %d, want 1", instance.AttemptCount)
 			}
 		}
+	}
+}
+
+func TestDomainResourceCoordinatorDeleteDomainUserTargetsMaterializedNodes(t *testing.T) {
+	if err := database.InitDB(filepath.Join(t.TempDir(), "coordinator-delete-user-targets.db")); err != nil {
+		if strings.Contains(err.Error(), "go-sqlite3 requires cgo") || strings.Contains(err.Error(), "CGO_ENABLED=0") || strings.Contains(err.Error(), "C compiler") {
+			t.Skipf("sqlite test database unavailable in this toolchain: %v", err)
+		}
+		t.Fatalf("init db: %v", err)
+	}
+	db := database.GetDB()
+	domain := &model.ClusterDomain{Id: 1, Domain: "edge.example.com", HubURL: "https://hub.example.com", TokenEncrypted: "token", LastVersion: 9}
+	if err := db.Create(domain).Error; err != nil {
+		t.Fatalf("seed domain: %v", err)
+	}
+	local := newTestClusterLocalNode(t, "node-a")
+	if err := db.Create(local).Error; err != nil {
+		t.Fatalf("seed local node: %v", err)
+	}
+	peerToken, err := EncryptClusterDomainToken([]byte("test-secret"), "peer-token")
+	if err != nil {
+		t.Fatalf("encrypt peer token: %v", err)
+	}
+	peerMembers := []model.ClusterMember{
+		{DomainID: domain.Id, NodeID: "node-b", DisplayName: "Node B", BaseURL: "https://node-b.example.com", PeerTokenEncrypted: peerToken, LastVersion: 9},
+		{DomainID: domain.Id, NodeID: "node-c", DisplayName: "Node C", BaseURL: "https://node-c.example.com", PeerTokenEncrypted: peerToken, LastVersion: 9},
+	}
+	for _, member := range peerMembers {
+		member := member
+		if err := db.Create(&member).Error; err != nil {
+			t.Fatalf("seed peer member %s: %v", member.NodeID, err)
+		}
+	}
+
+	store := &ClusterDomainOperationStore{DB: db}
+	payload := clustertypes.DomainUserUpsertPayload{
+		RequestID: "op-user-remote-only",
+		DomainID:  domain.Domain,
+		User: clustertypes.DomainUserPayload{
+			UUID:     "remote-only-user",
+			Name:     "Alice",
+			Enable:   true,
+			SubToken: "remote-sub-token",
+			Config:   json.RawMessage(`{"vless":{"uuid":"hub-placeholder"}}`),
+		},
+		TargetMembers: []clustertypes.DomainInboundTarget{{
+			NodeID:      "node-b",
+			MemberID:    "node-b",
+			DisplayName: "Node B",
+		}},
+	}
+	desiredPayload, err := json.Marshal(payload)
+	if err != nil {
+		t.Fatalf("marshal payload: %v", err)
+	}
+	if err := store.SaveOperation(&model.ClusterDomainOperation{
+		OperationID:       payload.RequestID,
+		DomainID:          domain.Id,
+		Domain:            domain.Domain,
+		ResourceKind:      ClusterDomainResourceUser,
+		ResourceID:        payload.User.UUID,
+		Action:            ClusterDomainOperationCreate,
+		Revision:          domain.LastVersion,
+		CoordinatorNodeID: local.NodeID,
+		Status:            ClusterDomainOperationApplied,
+		DesiredPayload:    desiredPayload,
+	}); err != nil {
+		t.Fatalf("save operation: %v", err)
+	}
+	responseJSON, err := json.Marshal(&clustertypes.DomainResourceCommandResult{
+		Status:          "applied",
+		OperationID:     payload.RequestID,
+		NodeID:          "node-b",
+		MemberID:        "node-b",
+		ResourceKind:    ClusterDomainResourceUser,
+		ResourceID:      payload.User.UUID,
+		LocalResourceID: 88,
+		Revision:        domain.LastVersion,
+		UserConfig:      json.RawMessage(`{"vless":{"uuid":"node-b-user"}}`),
+		SubToken:        "remote-sub-token",
+	})
+	if err != nil {
+		t.Fatalf("marshal response: %v", err)
+	}
+	if err := store.SaveInstance(&model.ClusterDomainOperationInstance{
+		OperationID:     payload.RequestID,
+		NodeID:          "node-b",
+		MemberID:        "node-b",
+		DisplayName:     "Node B",
+		Status:          ClusterDomainOperationApplied,
+		AttemptCount:    1,
+		LocalResourceID: 88,
+		ResponseJSON:    responseJSON,
+	}); err != nil {
+		t.Fatalf("save instance: %v", err)
+	}
+
+	var sentNodes []string
+	coordinator := &ClusterDomainResourceCoordinator{
+		DB:             db,
+		OperationStore: store,
+		PeerSender: clusterDomainPeerSenderFunc(func(_ context.Context, message *PeerMessage, member model.ClusterMember, _ string) (*clustertypes.DomainResourceCommandResult, error) {
+			sentNodes = append(sentNodes, member.NodeID)
+			payloadMap, ok := message.Payload["payload"].(map[string]interface{})
+			if !ok {
+				t.Fatalf("peer payload shape = %#v, want nested payload map", message.Payload)
+			}
+			targets, ok := payloadMap["target_members"].([]interface{})
+			if !ok || len(targets) != 1 {
+				t.Fatalf("delete target_members = %#v, want one target", payloadMap["target_members"])
+			}
+			return &clustertypes.DomainResourceCommandResult{
+				Status:       "applied",
+				OperationID:  message.Payload["operation_id"].(string),
+				NodeID:       member.NodeID,
+				MemberID:     member.NodeID,
+				ResourceKind: ClusterDomainResourceUser,
+				ResourceID:   message.Payload["resource_id"].(string),
+				Revision:     domain.LastVersion,
+			}, nil
+		}),
+		Identity:       &stubDomainInboundIdentity{node: local},
+		SecretProvider: stubClusterSecretProvider{secret: []byte("test-secret")},
+	}
+
+	op, err := coordinator.DeleteDomainUser(context.Background(), domain.Id, payload.User.UUID)
+	if err != nil {
+		t.Fatalf("delete domain user: %v", err)
+	}
+	if strings.Join(sentNodes, ",") != "node-b" {
+		t.Fatalf("sent nodes = %#v, want only node-b", sentNodes)
+	}
+	if op.Summary.Total != 1 || op.Summary.Applied != 1 {
+		t.Fatalf("summary = %+v, want one applied remote target", op.Summary)
+	}
+	instances, err := store.ListInstances(op.OperationID)
+	if err != nil {
+		t.Fatalf("list delete operation instances: %v", err)
+	}
+	if len(instances) != 1 || instances[0].NodeID != "node-b" {
+		t.Fatalf("delete instances = %#v, want only node-b", instances)
 	}
 }
