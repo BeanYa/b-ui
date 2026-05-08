@@ -685,7 +685,15 @@ func TestClusterMessageRouteReturnsPeerCommandResultEnvelope(t *testing.T) {
 	if !response.Success || response.Msg != "cluster message received" {
 		t.Fatalf("expected cluster success response, got %#v", response)
 	}
-	if response.Result == nil || *response.Result != *cluster.receivedPeerResult {
+	if response.Result == nil {
+		t.Fatal("expected peer result")
+	}
+	if response.Result.Status != cluster.receivedPeerResult.Status ||
+		response.Result.OperationID != cluster.receivedPeerResult.OperationID ||
+		response.Result.NodeID != cluster.receivedPeerResult.NodeID ||
+		response.Result.ResourceKind != cluster.receivedPeerResult.ResourceKind ||
+		response.Result.ResourceID != cluster.receivedPeerResult.ResourceID ||
+		response.Result.Revision != cluster.receivedPeerResult.Revision {
 		t.Fatalf("expected peer result %#v, got %#v", cluster.receivedPeerResult, response.Result)
 	}
 }
