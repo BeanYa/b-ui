@@ -1,6 +1,6 @@
 {
   "name": "b-ui-frontend",
-  "version": "0.1.90",
+  "version": "0.1.91",
   "private": true,
   "scripts": {
     "dev": "vite --host",
