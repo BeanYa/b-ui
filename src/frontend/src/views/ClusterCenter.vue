@@ -257,6 +257,44 @@
               <span class="cluster-center__operation-error-message">{{ instance.error }}</span>
             </div>
           </div>
+          <div v-if="selectedDomainInboundResources.length > 0" class="cluster-center__domain-inbound-list">
+            <div
+              v-for="inbound in selectedDomainInboundResources"
+              :key="inbound.group_id"
+              class="cluster-center__domain-inbound-row"
+            >
+              <div class="cluster-center__domain-inbound-main">
+                <span class="cluster-center__domain-inbound-group">{{ inbound.group_id }}</span>
+                <span class="cluster-center__domain-inbound-type">{{ inbound.type || '-' }}</span>
+              </div>
+              <div class="cluster-center__domain-inbound-actions">
+                <v-chip size="small" :color="domainInboundStatusColor(inbound.status)" variant="flat">
+                  {{ inbound.status || '-' }}
+                </v-chip>
+                <v-btn
+                  size="small"
+                  variant="text"
+                  :icon="true"
+                  :title="$t('actions.edit')"
+                  :disabled="domainResourceLoading"
+                  @click="openDomainInboundEditDialog(inbound)"
+                >
+                  <v-icon size="18">mdi-pencil</v-icon>
+                </v-btn>
+                <v-btn
+                  size="small"
+                  variant="text"
+                  color="error"
+                  :icon="true"
+                  :title="$t('actions.del')"
+                  :disabled="domainResourceLoading"
+                  @click="deleteDomainInboundGroup(inbound.group_id)"
+                >
+                  <v-icon size="18">mdi-delete</v-icon>
+                </v-btn>
+              </div>
+            </div>
+          </div>
           <div v-if="!lastDomainResourceOperation" class="cluster-center__empty">
             {{ $t('clusterCenter.domainResources.noOperation') }}
           </div>
@@ -580,6 +618,8 @@
         :members="domainInboundTargetMembers"
         :loading="domainResourceLoading"
         :error="domainResourceFormError"
+        :mode="domainInboundDialogMode"
+        :initial-resource="editingDomainInboundResource"
         @cancel="domainInboundDialog = false"
         @submit="submitDomainInboundResource"
       />
@@ -700,8 +740,8 @@ import ClusterDomainActionTree from '@/components/ClusterDomainActionTree.vue'
 import DomainResourceInboundEditor from '@/components/DomainResourceInboundEditor.vue'
 import DomainResourceUserEditor from '@/components/DomainResourceUserEditor.vue'
 import { parseClusterHubJoinUri } from '@/features/clusterHubUri'
-import { createDomainInboundResource, createDomainUserResource, listDomainResources, retryDomainResourceOperation } from '@/features/domainResourcesApi'
-import type { CreateDomainInboundResourcePayload, CreateDomainUserResourcePayload, DomainResourceOperationView } from '@/features/domainResourcesApi'
+import { createDomainInboundResource, createDomainUserResource, deleteDomainInboundResource, listDomainResources, retryDomainResourceOperation, updateDomainInboundResource } from '@/features/domainResourcesApi'
+import type { CreateDomainInboundResourcePayload, CreateDomainUserResourcePayload, DomainResourceInboundView, DomainResourceOperationView } from '@/features/domainResourcesApi'
 import { i18n } from '@/locales'
 import HttpUtils from '@/plugins/httputil'
 import { usePingStore } from '@/store/modules/ping'
@@ -776,10 +816,13 @@ const domainUpdateChecks = ref<Record<number, ClusterPanelUpdateCheck>>({})
 const domainResourceLoading = ref(false)
 const lastDomainResourceOperation = ref<DomainResourceOperationView | null>(null)
 const domainInboundDialog = ref(false)
+const domainInboundDialogMode = ref<'create' | 'update'>('create')
+const editingDomainInboundResource = ref<DomainResourceInboundView | null>(null)
 const domainUserDialog = ref(false)
 const domainResourceFormError = ref('')
 const lastDomainInboundGroupIdByDomain = ref<Record<number, string>>({})
 const domainInboundGroupIdsByDomain = ref<Record<number, string[]>>({})
+const domainInboundResourcesByDomain = ref<Record<number, DomainResourceInboundView[]>>({})
 const domainOperationInstanceErrors = computed(() =>
   (lastDomainResourceOperation.value?.instances ?? [])
     .filter((instance) => instance.error && instance.error.trim() !== ''),
@@ -802,6 +845,10 @@ const availableDomainInboundGroups = computed(() => {
     .filter(Boolean)
     .map((groupId) => ({ groupId }))
 })
+const selectedDomainInboundResources = computed(() => {
+  if (!selectedDomain.value) return []
+  return domainInboundResourcesByDomain.value[selectedDomain.value.id] ?? []
+})
 
 const refreshDomainResourceGroups = async (domainIds: number[]) => {
   const uniqueDomainIds = [...new Set(domainIds.filter((id) => Number.isFinite(id) && id > 0))]
@@ -809,14 +856,18 @@ const refreshDomainResourceGroups = async (domainIds: number[]) => {
   const entries = await Promise.all(uniqueDomainIds.map(async (domainId) => {
     try {
       const resources = await listDomainResources(domainId)
-      return [domainId, resources.domain_inbounds.map((inbound) => inbound.group_id).filter(Boolean)] as const
+      return [domainId, resources.domain_inbounds, resources.domain_inbounds.map((inbound) => inbound.group_id).filter(Boolean)] as const
     } catch {
-      return [domainId, domainInboundGroupIdsByDomain.value[domainId] ?? []] as const
+      return [domainId, domainInboundResourcesByDomain.value[domainId] ?? [], domainInboundGroupIdsByDomain.value[domainId] ?? []] as const
     }
   }))
+  domainInboundResourcesByDomain.value = {
+    ...domainInboundResourcesByDomain.value,
+    ...Object.fromEntries(entries.map(([domainId, inbounds]) => [domainId, inbounds])),
+  }
   domainInboundGroupIdsByDomain.value = {
     ...domainInboundGroupIdsByDomain.value,
-    ...Object.fromEntries(entries.map(([domainId, groupIds]) => [domainId, [...new Set(groupIds)]])),
+    ...Object.fromEntries(entries.map(([domainId, _inbounds, groupIds]) => [domainId, [...new Set(groupIds)]])),
   }
 }
 
@@ -992,6 +1043,16 @@ const checkDomainPanelUpdate = async (domain: ClusterDomain) => {
 const openDomainInboundResourceDialog = () => {
   if (!selectedDomain.value) return
   domainResourceFormError.value = ''
+  domainInboundDialogMode.value = 'create'
+  editingDomainInboundResource.value = null
+  domainInboundDialog.value = true
+}
+
+const openDomainInboundEditDialog = (inbound: DomainResourceInboundView) => {
+  if (!selectedDomain.value) return
+  domainResourceFormError.value = ''
+  domainInboundDialogMode.value = 'update'
+  editingDomainInboundResource.value = inbound
   domainInboundDialog.value = true
 }
 
@@ -1016,10 +1077,52 @@ const submitDomainInboundResource = async (payload: CreateDomainInboundResourceP
         ...new Set([...(domainInboundGroupIdsByDomain.value[selectedDomain.value.id] ?? []), payload.group_id]),
       ],
     }
-    lastDomainResourceOperation.value = await createDomainInboundResource(selectedDomain.value.id, {
-      ...payload,
-    })
+    if (domainInboundDialogMode.value === 'update') {
+      const editingGroupId = editingDomainInboundResource.value?.group_id?.trim() || payload.group_id
+      lastDomainResourceOperation.value = await updateDomainInboundResource(selectedDomain.value.id, editingGroupId, {
+        ...payload,
+      })
+    } else {
+      lastDomainResourceOperation.value = await createDomainInboundResource(selectedDomain.value.id, {
+        ...payload,
+      })
+    }
+    await refreshDomainResourceGroups([selectedDomain.value.id])
     domainInboundDialog.value = false
+    domainInboundDialogMode.value = 'create'
+    editingDomainInboundResource.value = null
+  } catch (error: any) {
+    domainResourceFormError.value = error?.message ?? String(error)
+    push.error({ title: i18n.global.t('failed'), message: error?.message ?? String(error) })
+  } finally {
+    domainResourceLoading.value = false
+  }
+}
+
+const deleteDomainInboundGroup = async (groupId: string) => {
+  if (!selectedDomain.value || !groupId.trim()) return
+  domainResourceFormError.value = ''
+  domainResourceLoading.value = true
+  try {
+    lastDomainResourceOperation.value = await deleteDomainInboundResource(selectedDomain.value.id, groupId)
+    const remainingGroups = (domainInboundGroupIdsByDomain.value[selectedDomain.value.id] ?? [])
+      .filter((current) => current !== groupId)
+    domainInboundGroupIdsByDomain.value = {
+      ...domainInboundGroupIdsByDomain.value,
+      [selectedDomain.value.id]: remainingGroups,
+    }
+    domainInboundResourcesByDomain.value = {
+      ...domainInboundResourcesByDomain.value,
+      [selectedDomain.value.id]: (domainInboundResourcesByDomain.value[selectedDomain.value.id] ?? [])
+        .filter((inbound) => inbound.group_id !== groupId),
+    }
+    if (lastDomainInboundGroupIdByDomain.value[selectedDomain.value.id] === groupId) {
+      lastDomainInboundGroupIdByDomain.value = {
+        ...lastDomainInboundGroupIdByDomain.value,
+        [selectedDomain.value.id]: remainingGroups[0] || `domain-${selectedDomain.value.id}`,
+      }
+    }
+    await refreshDomainResourceGroups([selectedDomain.value.id])
   } catch (error: any) {
     domainResourceFormError.value = error?.message ?? String(error)
     push.error({ title: i18n.global.t('failed'), message: error?.message ?? String(error) })
@@ -1355,6 +1458,11 @@ const requestDeleteMember = (member: ClusterMember, force = false) => {
   pendingActionTarget.value = member
   pendingForceDelete.value = force
   confirmActionDialog.value = true
+}
+
+const domainInboundStatusColor = (status?: string) => {
+  if (status === 'active' || status === 'applied') return 'green'
+  return domainOperationStatusColor(status || '')
 }
 
 const requestLeaveDomain = (force = false) => {
@@ -2301,6 +2409,49 @@ function formatAutoPingTime(): string {
 
 .cluster-center__domain-resources {
   overflow: hidden;
+}
+
+.cluster-center__domain-inbound-list {
+  display: grid;
+  gap: 10px;
+  margin-top: 14px;
+}
+
+.cluster-center__domain-inbound-row {
+  align-items: center;
+  background: color-mix(in srgb, var(--app-surface-2) 82%, transparent);
+  border: 1px solid var(--app-border-1);
+  border-radius: 8px;
+  display: flex;
+  gap: 12px;
+  justify-content: space-between;
+  min-width: 0;
+  padding: 10px 12px;
+}
+
+.cluster-center__domain-inbound-main {
+  display: grid;
+  gap: 3px;
+  min-width: 0;
+}
+
+.cluster-center__domain-inbound-group {
+  font-family: var(--app-font-mono, ui-monospace, monospace);
+  font-size: 13px;
+  font-weight: 700;
+  overflow-wrap: anywhere;
+}
+
+.cluster-center__domain-inbound-type {
+  color: var(--app-text-3);
+  font-size: 12px;
+}
+
+.cluster-center__domain-inbound-actions {
+  align-items: center;
+  display: flex;
+  flex: 0 0 auto;
+  gap: 4px;
 }
 
 .cluster-center__operation-status {

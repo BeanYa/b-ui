@@ -38,7 +38,16 @@ describe('DomainResourceInboundEditor source', () => {
     expect(source).toContain('tag_seed')
     expect(source).toContain('tls_template')
     expect(source).not.toContain('advancedJson')
-    expect(source).not.toContain('JSON.parse')
+    expect(source).not.toContain('parseDomainResourceJson')
+  })
+
+  it('prefills existing resources for update and keeps the group id stable', () => {
+    expect(source).toContain('initialResource?: DomainResourceInboundView | null')
+    expect(source).toContain("mode?: 'create' | 'update'")
+    expect(source).toContain(':disabled="mode === \'update\'"')
+    expect(source).toContain('const applyInitialResource = (resource: DomainResourceInboundView) => {')
+    expect(source).toContain('parseInboundOptions(resource.options_json)')
+    expect(source).toContain('props.initialResource?.group_id')
   })
 
   it('lets operators broadcast all nodes or pick a target member list', () => {

@@ -36,8 +36,36 @@ export interface DomainResourceOperationInstanceView {
 
 export interface DomainResourceInboundView {
   group_id: string
+  tag_seed?: string
+  prefix?: string
+  suffix?: string
   type?: string
+  tls_template?: string
+  options_json?: string
   status?: string
+  revision?: number
+  last_operation_id?: string
+  last_operation_status?: string
+  instances?: DomainResourceInboundInstanceView[]
+}
+
+export interface DomainResourceInboundInstanceView {
+  member_id?: string
+  memberId?: string
+  node_id?: string
+  nodeId?: string
+  display_name?: string
+  displayName?: string
+  target_tag?: string
+  targetTag?: string
+  status?: string
+  attempt_count?: number
+  attemptCount?: number
+  local_resource_id?: number
+  localResourceId?: number
+  error?: string
+  updated_at?: number
+  updatedAt?: number
 }
 
 export interface DomainResourceUserView {

@@ -349,6 +349,7 @@ export default {
       retry: "Retry operation",
       noOperation: "No domain resource operation yet.",
       inboundDialogTitle: "Create domain inbound resource",
+      editInboundDialogTitle: "Edit domain inbound resource",
       userDialogTitle: "Create domain user resource",
       groupId: "Group ID",
       tagSeed: "Tag seed",

@@ -1,10 +1,10 @@
 <template>
   <v-card class="app-card-shell domain-resource-editor">
-    <v-card-title>{{ $t('clusterCenter.domainResources.inboundDialogTitle') }}</v-card-title>
+    <v-card-title>{{ $t(mode === 'update' ? 'clusterCenter.domainResources.editInboundDialogTitle' : 'clusterCenter.domainResources.inboundDialogTitle') }}</v-card-title>
     <v-card-text class="domain-resource-editor__body">
       <v-row>
         <v-col cols="12" md="4">
-          <v-text-field v-model="groupId" :label="$t('clusterCenter.domainResources.groupId')" hide-details />
+          <v-text-field v-model="groupId" :label="$t('clusterCenter.domainResources.groupId')" :disabled="mode === 'update'" hide-details />
         </v-col>
         <v-col cols="12" md="4">
           <v-select
@@ -140,7 +140,7 @@ import AnyTls from '@/components/protocols/AnyTls.vue'
 import TProxy from '@/components/protocols/TProxy.vue'
 import Multiplex from '@/components/Multiplex.vue'
 import Transport from '@/components/Transport.vue'
-import type { CreateDomainInboundResourcePayload } from '@/features/domainResourcesApi'
+import type { CreateDomainInboundResourcePayload, DomainResourceInboundInstanceView, DomainResourceInboundView } from '@/features/domainResourcesApi'
 import {
   createDomainInboundTls,
   localProvided,
@@ -156,6 +156,8 @@ const props = defineProps<{
   members?: ClusterMember[]
   loading?: boolean
   error?: string
+  initialResource?: DomainResourceInboundView | null
+  mode?: 'create' | 'update'
 }>()
 
 const emit = defineEmits<{
@@ -238,16 +240,35 @@ const targetMemberLabel = (member: ClusterMember) => {
 const buildTargetMembers = (): CreateDomainInboundResourcePayload['target_members'] => {
   if (targetScope.value !== 'pick') return undefined
   const selected = new Set(selectedTargetNodeIds.value)
+  const existingTargets = initialTargetsByNodeId.value
   return (props.members ?? [])
     .filter((member) => selected.has(member.nodeId))
-    .map((member) => ({
-      member_id: member.nodeId,
-      node_id: member.nodeId,
-      display_name: member.displayName || member.name || member.nodeId,
-    }))
+    .map((member) => {
+      const existing = existingTargets.get(member.nodeId)
+      return {
+        member_id: member.nodeId,
+        node_id: member.nodeId,
+        display_name: member.displayName || member.name || member.nodeId,
+        target_tag: existing ? resourceInstanceTargetTag(existing) || undefined : undefined,
+        remote_inbound_id: existing ? resourceInstanceLocalResourceID(existing) || undefined : undefined,
+      }
+    })
 }
 
+const initialTargetsByNodeId = computed(() => {
+  const targets = new Map<string, DomainResourceInboundInstanceView>()
+  for (const instance of props.initialResource?.instances ?? []) {
+    const nodeId = resourceInstanceNodeID(instance)
+    if (nodeId) targets.set(nodeId, instance)
+  }
+  return targets
+})
+
 const resetForm = () => {
+  if (props.mode === 'update' && props.initialResource) {
+    applyInitialResource(props.initialResource)
+    return
+  }
   const domainPart = sanitizeDomainResourcePart(props.domain.domain, `domain-${props.domain.id}`)
   groupId.value = `domain-${props.domain.id}`
   tagSeed.value = domainPart
@@ -266,6 +287,70 @@ const resetForm = () => {
   targetScope.value = 'all'
   selectedTargetNodeIds.value = []
 }
+
+const applyInitialResource = (resource: DomainResourceInboundView) => {
+  const trimmedGroupId = String(resource.group_id ?? '').trim()
+  const parsedOptions = parseInboundOptions(resource.options_json)
+  const resourceType = resource.type && Object.values(InTypes).includes(resource.type as any)
+    ? resource.type
+    : InTypes.VLESS
+  const firstTargetTag = (resource.instances ?? [])
+    .map((instance) => resourceInstanceTargetTag(instance))
+    .find(Boolean)
+  const seed = String(resource.tag_seed || trimmedGroupId || resource.type || InTypes.VLESS).trim()
+
+  groupId.value = trimmedGroupId
+  tagSeed.value = seed
+  prefix.value = String(resource.prefix ?? 'domain').trim()
+  suffix.value = String(resource.suffix ?? '').trim()
+  inbound.value = createInbound(resourceType as any, {
+    id: 0,
+    tag: firstTargetTag || seed || trimmedGroupId,
+    listen: '::',
+    listen_port: 443,
+    ...parsedOptions,
+  }) as Inbound
+
+  const listenPort = Number((inbound.value as Record<string, unknown>).listen_port)
+  if (Number.isFinite(listenPort) && listenPort > 0) {
+    listenPortSource.value = 'manual'
+    manualListenPort.value = listenPort
+  } else {
+    listenPortSource.value = 'auto'
+    manualListenPort.value = 443
+  }
+
+  tlsTemplate.value = (resource.tls_template as DomainInboundTlsTemplate) || (hasTls.value ? 'standard' : 'none')
+  errorMessage.value = ''
+  const targetNodeIds = (resource.instances ?? [])
+    .map((instance) => resourceInstanceNodeID(instance))
+    .filter(Boolean)
+  targetScope.value = targetNodeIds.length > 0 ? 'pick' : 'all'
+  selectedTargetNodeIds.value = [...new Set(targetNodeIds)]
+}
+
+const parseInboundOptions = (value?: string): Record<string, unknown> => {
+  const trimmed = String(value ?? '').trim()
+  if (!trimmed) return {}
+  try {
+    const parsed = JSON.parse(trimmed)
+    if (parsed && typeof parsed === 'object' && !Array.isArray(parsed)) {
+      return parsed as Record<string, unknown>
+    }
+  } catch {
+    return {}
+  }
+  return {}
+}
+
+const resourceInstanceNodeID = (instance: DomainResourceInboundInstanceView) =>
+  String(instance.node_id ?? instance.nodeId ?? '').trim()
+
+const resourceInstanceTargetTag = (instance: DomainResourceInboundInstanceView) =>
+  String(instance.target_tag ?? instance.targetTag ?? '').trim()
+
+const resourceInstanceLocalResourceID = (instance: DomainResourceInboundInstanceView) =>
+  Number(instance.local_resource_id ?? instance.localResourceId ?? 0)
 
 const changeType = () => {
   const previous = inbound.value as Record<string, unknown>
@@ -332,7 +417,7 @@ const submit = () => {
   emit('submit', payload)
 }
 
-watch(() => props.domain.id, resetForm, { immediate: true })
+watch(() => [props.domain.id, props.mode, props.initialResource?.group_id, props.initialResource?.last_operation_id], resetForm, { immediate: true })
 watch(() => props.error, (value) => {
   errorMessage.value = value ?? ''
 })

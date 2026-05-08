@@ -201,6 +201,23 @@ describe('ClusterCenter view source', () => {
     expect(source).not.toContain('Hub managed')
   })
 
+  it('lists domain inbound groups and wires edit/delete resource operations from the detail panel', () => {
+    const source = readFileSync(fileURLToPath(new URL('./ClusterCenter.vue', import.meta.url)), 'utf8')
+
+    expect(source).toContain('selectedDomainInboundResources')
+    expect(source).toContain('v-for="inbound in selectedDomainInboundResources"')
+    expect(source).toContain('@click="openDomainInboundEditDialog(inbound)"')
+    expect(source).toContain('@click="deleteDomainInboundGroup(inbound.group_id)"')
+    expect(source).toContain('updateDomainInboundResource')
+    expect(source).toContain('deleteDomainInboundResource')
+    expect(source).toContain(':mode="domainInboundDialogMode"')
+    expect(source).toContain(':initial-resource="editingDomainInboundResource"')
+    expect(source).toContain('const openDomainInboundEditDialog = (inbound: DomainResourceInboundView) => {')
+    expect(source).toContain('await updateDomainInboundResource(selectedDomain.value.id, editingGroupId, {')
+    expect(source).toContain('await deleteDomainInboundResource(selectedDomain.value.id, groupId)')
+    expect(source).toContain('await refreshDomainResourceGroups([selectedDomain.value.id])')
+  })
+
   it('passes available domain inbound groups into the domain user editor and keeps the latest group selected by default', () => {
     const source = readFileSync(fileURLToPath(new URL('./ClusterCenter.vue', import.meta.url)), 'utf8')
 
