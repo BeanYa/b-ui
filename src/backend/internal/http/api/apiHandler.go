@@ -16,15 +16,21 @@ type APIHandler struct {
 	webSSHSessionFactory webSSHSessionFactory
 }
 
-func NewAPIHandler(g *gin.RouterGroup, a2 *APIv2Handler) {
-	clusterSvc := service.NewClusterService()
+func NewAPIHandler(g *gin.RouterGroup, a2 *APIv2Handler, clusterServices ...clusterAPIService) *APIHandler {
+	var clusterSvc clusterAPIService = service.NewClusterService()
+	if len(clusterServices) > 0 && clusterServices[0] != nil {
+		clusterSvc = clusterServices[0]
+	}
 
 	a := &APIHandler{
 		apiv2:          a2,
 		clusterService: clusterSvc,
 	}
-	clusterSvc.InitProxyReport(&a.ApiService.InboundService)
+	if svc, ok := clusterSvc.(*service.ClusterService); ok {
+		svc.InitProxyReport(&a.ApiService.InboundService)
+	}
 	a.initRouter(g)
+	return a
 }
 
 func (a *APIHandler) initRouter(g *gin.RouterGroup) {

@@ -53,6 +53,17 @@ func TestClusterRegisterReturnsOperationStatus(t *testing.T) {
 	}
 }
 
+func TestNewAPIHandlerUsesProvidedClusterService(t *testing.T) {
+	router := gin.New()
+	clusterSvc := service.NewClusterService()
+
+	handler := NewAPIHandler(router.Group("/api"), nil, clusterSvc)
+
+	if handler.clusterService != clusterSvc {
+		t.Fatal("expected API handler to use the provided cluster service")
+	}
+}
+
 func TestClusterRegisterAcceptsJoinURI(t *testing.T) {
 	router, cluster := newTestClusterRouter()
 	registerBody := bytes.NewBufferString(`{"joinUri":"buihub://hub.example.com/domain?id=edge.example.com&domain_token=cluster-token&hub_protocol=https","baseUrl":"https://panel.example.com/app/"}`)
