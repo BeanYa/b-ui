@@ -1,13 +1,13 @@
 <template>
   <v-card class="app-card-shell domain-resource-editor">
-    <v-card-title>{{ $t('clusterCenter.domainResources.userDialogTitle') }}</v-card-title>
+    <v-card-title>{{ dialogTitle }}</v-card-title>
     <v-card-text class="domain-resource-editor__body">
       <v-row>
         <v-col cols="12" md="4">
           <v-text-field v-model="name" :label="$t('clusterCenter.domainResources.userName')" hide-details />
         </v-col>
         <v-col cols="12" md="4">
-          <v-text-field v-model="hubUserUuid" :label="$t('clusterCenter.domainResources.userUuid')" hide-details />
+          <v-text-field v-model="hubUserUuid" :label="$t('clusterCenter.domainResources.userUuid')" :disabled="props.mode === 'update'" hide-details />
         </v-col>
         <v-col cols="12" md="4">
           <v-switch v-model="enable" :label="$t('clusterCenter.domainResources.userEnable')" color="primary" hide-details />
@@ -74,17 +74,42 @@
       </v-card>
 
       <v-card class="domain-resource-editor__section" :subtitle="$t('client.config')">
-        <v-row v-for="key in configKeys" :key="key">
-          <v-col cols="12" md="3" class="domain-resource-editor__protocol">
-            {{ key }}
+        <v-row v-for="definition in domainUserProtocolFields" :key="definition.protocol" class="domain-resource-editor__config-row">
+          <v-col cols="12" md="2" class="domain-resource-editor__protocol">
+            {{ definition.protocol }}
           </v-col>
-          <v-col cols="12" md="9">
-            <div class="domain-resource-editor__config-line">
-              <span v-if="previewConfig[key].uuid !== undefined">UUID: {{ configValueLabel(previewConfig[key].uuid) }}</span>
-              <span v-if="previewConfig[key].password !== undefined">Password: {{ configValueLabel(previewConfig[key].password) }}</span>
-              <span v-if="previewConfig[key].auth_str !== undefined">Auth: {{ configValueLabel(previewConfig[key].auth_str) }}</span>
-              <span v-if="previewConfig[key].flow !== undefined">Flow: {{ previewConfig[key].flow }}</span>
-            </div>
+          <v-col cols="12" md="10">
+            <v-row dense>
+              <v-col
+                v-for="field in definition.fields"
+                :key="`${definition.protocol}-${field.key}`"
+                cols="12"
+                sm="6"
+                md="4"
+              >
+                <v-select
+                  v-if="field.type === 'select'"
+                  :model-value="configSelectValue(definition.protocol, field.key)"
+                  :items="field.items ?? []"
+                  :label="field.label"
+                  hide-details
+                  density="compact"
+                  @update:model-value="setConfigValue(definition.protocol, field.key, $event)"
+                />
+                <v-text-field
+                  v-else
+                  :model-value="configInputValue(definition.protocol, field.key)"
+                  :type="field.type === 'number' ? 'number' : 'text'"
+                  :label="field.label"
+                  :placeholder="field.secret && isConfigAuto(definition.protocol, field.key) ? autoByTargetLabel : undefined"
+                  :hint="field.secret && isConfigAuto(definition.protocol, field.key) ? $t('clusterCenter.domainResources.autoByTarget') : undefined"
+                  :persistent-hint="Boolean(field.secret && isConfigAuto(definition.protocol, field.key))"
+                  hide-details="auto"
+                  density="compact"
+                  @update:model-value="setConfigValue(definition.protocol, field.key, $event, field.type)"
+                />
+              </v-col>
+            </v-row>
           </v-col>
         </v-row>
       </v-card>
@@ -106,15 +131,20 @@
 <script setup lang="ts">
 import { computed, ref, watch } from 'vue'
 
-import type { CreateDomainUserResourcePayload } from '@/features/domainResourcesApi'
+import type { CreateDomainUserResourcePayload, DomainResourceUserView } from '@/features/domainResourcesApi'
 import {
+  cloneDomainUserConfig,
   createDomainUserConfig,
+  domainUserProtocolFields,
   isLocalProvided,
+  localProvided,
   sanitizeDomainResourcePart,
+  type DomainUserConfig,
+  type DomainUserManualSecrets,
+  type DomainUserProtocolFieldType,
   type DomainUserSecretSource,
 } from '@/features/domainResourceLocalProvided'
 import { i18n } from '@/locales'
-import { randomConfigs } from '@/types/clients'
 import type { ClusterDomain } from '@/types/clusters'
 
 export interface DomainInboundGroupOption {
@@ -128,6 +158,8 @@ const props = defineProps<{
   error?: string
   defaultInboundGroup?: string
   availableInboundGroups?: DomainInboundGroupOption[]
+  initialResource?: DomainResourceUserView | null
+  mode?: 'create' | 'update'
 }>()
 
 const emit = defineEmits<{
@@ -154,12 +186,21 @@ const manualSecrets = ref({
   password: '',
   auth: '',
 })
+const protocolConfig = ref<DomainUserConfig>(createDomainUserConfig('domain-user', {
+  uuid: 'auto',
+  password: 'auto',
+  auth: 'auto',
+}))
 const errorMessage = ref('')
 
 const sourceItems = computed(() => [
   { title: i18n.global.t('clusterCenter.domainResources.autoByTarget').toString(), value: 'auto' },
   { title: i18n.global.t('clusterCenter.domainResources.manualValue').toString(), value: 'manual' },
 ])
+const autoByTargetLabel = computed(() => i18n.global.t('clusterCenter.domainResources.autoByTarget').toString())
+const dialogTitle = computed(() => props.mode === 'update'
+  ? i18n.global.t('clusterCenter.domainResources.editUserDialogTitle').toString()
+  : i18n.global.t('clusterCenter.domainResources.userDialogTitle').toString())
 
 const inboundGroupItems = computed(() => {
   const items = new Map<string, string>()
@@ -174,10 +215,11 @@ const inboundGroupItems = computed(() => {
   return [...items.entries()].map(([value, title]) => ({ title, value }))
 })
 
-const previewConfig = computed(() => createDomainUserConfig(name.value || 'domain-user', secretSources.value, manualSecrets.value))
-const configKeys = computed(() => Object.keys(randomConfigs(name.value || 'domain-user')))
-
 const resetForm = () => {
+  if (props.mode === 'update' && props.initialResource) {
+    applyInitialResource(props.initialResource)
+    return
+  }
   const domainPart = sanitizeDomainResourcePart(props.domain.domain, `domain-${props.domain.id}`)
   name.value = `user-${domainPart}`
   hubUserUuid.value = ''
@@ -189,7 +231,87 @@ const resetForm = () => {
   passwordSource.value = 'auto'
   authSource.value = 'auto'
   manualSecrets.value = { uuid: '', password: '', auth: '' }
+  syncProtocolConfig()
   errorMessage.value = ''
+}
+
+const syncProtocolConfig = () => {
+  protocolConfig.value = createDomainUserConfig(name.value || 'domain-user', secretSources.value, manualSecrets.value)
+}
+
+const applyInitialResource = (resource: DomainResourceUserView) => {
+  name.value = resource.name ?? ''
+  hubUserUuid.value = resource.uuid ?? ''
+  enable.value = resource.enable !== false
+  group.value = resource.group ?? props.domain.domain
+  desc.value = resource.desc ?? ''
+  selectedInboundGroupIds.value = normalizeInitialInboundGroups(resource)
+  uuidSource.value = 'auto'
+  passwordSource.value = 'auto'
+  authSource.value = 'auto'
+  manualSecrets.value = { uuid: '', password: '', auth: '' }
+  protocolConfig.value = mergeDomainUserConfig(resource.config)
+  errorMessage.value = ''
+}
+
+const normalizeInitialInboundGroups = (resource: DomainResourceUserView) => {
+  const groups = resource.bound_inbound_group_ids && resource.bound_inbound_group_ids.length > 0
+    ? resource.bound_inbound_group_ids
+    : (resource.inbounds ?? []).map((item) => String(item))
+  return groups.map((item) => item.trim()).filter((item, index, items) => item && items.indexOf(item) === index)
+}
+
+const mergeDomainUserConfig = (config?: Record<string, unknown>): DomainUserConfig => {
+  const merged = createDomainUserConfig(name.value || 'domain-user', secretSources.value, manualSecrets.value)
+  if (!config || typeof config !== 'object' || Array.isArray(config)) return merged
+  for (const definition of domainUserProtocolFields) {
+    const incoming = config[definition.protocol]
+    if (incoming && typeof incoming === 'object' && !Array.isArray(incoming)) {
+      merged[definition.protocol] = {
+        ...merged[definition.protocol],
+        ...(incoming as Record<string, unknown>),
+      }
+    }
+  }
+  return merged
+}
+
+const secretValue = (secret: keyof DomainUserManualSecrets) => {
+  if (secretSources.value[secret] === 'manual') {
+    return manualSecrets.value[secret]?.trim() || ''
+  }
+  const localProvidedKinds = {
+    uuid: 'DomainUserUUID',
+    password: 'DomainUserPassword',
+    auth: 'DomainUserAuth',
+  } as const
+  return localProvided(localProvidedKinds[secret])
+}
+
+const syncProtocolSecrets = () => {
+  for (const definition of domainUserProtocolFields) {
+    const target = protocolConfig.value[definition.protocol]
+    if (!target) continue
+    for (const field of definition.fields) {
+      if (field.secret && Object.hasOwn(target, field.key)) {
+        target[field.key] = secretValue(field.secret)
+      }
+    }
+  }
+}
+
+const syncProtocolNames = () => {
+  const userName = name.value || 'domain-user'
+  for (const definition of domainUserProtocolFields) {
+    const target = protocolConfig.value[definition.protocol]
+    if (!target) continue
+    if (Object.hasOwn(target, 'name')) {
+      target.name = userName
+    }
+    if (Object.hasOwn(target, 'username')) {
+      target.username = userName
+    }
+  }
 }
 
 const normalizeSelectedInboundGroupIds = () => {
@@ -199,11 +321,29 @@ const normalizeSelectedInboundGroupIds = () => {
     .filter((item, index, items) => item && items.indexOf(item) === index && available.has(item))
 }
 
-const configValueLabel = (value: unknown): string => {
-  if (isLocalProvided(value)) {
-    return i18n.global.t('clusterCenter.domainResources.autoByTarget').toString()
+const configInputValue = (protocol: string, key: string): string | number => {
+  const value = protocolConfig.value[protocol]?.[key]
+  return isLocalProvided(value) ? '' : value ?? ''
+}
+
+const configSelectValue = (protocol: string, key: string): string => String(configInputValue(protocol, key))
+
+const isConfigAuto = (protocol: string, key: string): boolean => isLocalProvided(protocolConfig.value[protocol]?.[key])
+
+const setConfigValue = (
+  protocol: string,
+  key: string,
+  value: unknown,
+  type?: DomainUserProtocolFieldType,
+) => {
+  const target = protocolConfig.value[protocol]
+  if (!target) return
+  if (type === 'number') {
+    const parsed = Number(value)
+    target[key] = Number.isFinite(parsed) ? parsed : 0
+    return
   }
-  return String(value ?? '')
+  target[key] = String(value ?? '')
 }
 
 const submit = () => {
@@ -222,7 +362,7 @@ const submit = () => {
       enable: enable.value,
       group: group.value.trim() || undefined,
       desc: desc.value.trim() || undefined,
-      config: createDomainUserConfig(trimmedName, secretSources.value, manualSecrets.value),
+      config: cloneDomainUserConfig(protocolConfig.value),
       bound_inbound_group_ids: boundInboundGroupIds,
     },
     bound_inbound_group_ids: boundInboundGroupIds,
@@ -230,7 +370,9 @@ const submit = () => {
   emit('submit', payload)
 }
 
-watch(() => props.domain.id, resetForm, { immediate: true })
+watch(() => [props.domain.id, props.mode, props.initialResource?.uuid], resetForm, { immediate: true })
+watch([secretSources, manualSecrets], syncProtocolSecrets, { deep: true })
+watch(name, syncProtocolNames)
 watch(() => props.defaultInboundGroup, (value) => {
   if (value) {
     selectedInboundGroupIds.value = [value]

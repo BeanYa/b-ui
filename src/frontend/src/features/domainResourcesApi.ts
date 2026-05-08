@@ -69,12 +69,28 @@ export interface DomainResourceInboundInstanceView {
 }
 
 export interface DomainResourceUserView {
+  client_id?: number
   uuid: string
   name: string
   enable: boolean
+  desc?: string
+  group?: string
   sub_token?: string
+  config?: Record<string, unknown>
   bound_inbound_group_ids?: string[]
   inbounds?: Array<string | number>
+  volume?: number
+  expiry?: number
+  down?: number
+  up?: number
+  delay_start?: boolean
+  auto_reset?: boolean
+  reset_days?: number
+  next_reset?: string | number
+  total_up?: number
+  total_down?: number
+  request_id?: string
+  updated_at?: number
 }
 
 export interface DomainResourcesView {

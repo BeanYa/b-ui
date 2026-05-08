@@ -46,6 +46,7 @@ type ClusterDomainResourceCoordinator struct {
 	Identity       clusterDomainInboundIdentity
 	SecretProvider clusterSecretProvider
 	PortAllocator  func() (int, error)
+	ProxyReporter  clusterDomainInboundReporter
 }
 
 func (c *ClusterDomainResourceCoordinator) CreateDomainInbound(ctx context.Context, domainID uint, input ClusterDomainInboundCommandInput) (*ClusterDomainOperationView, error) {
@@ -94,6 +95,7 @@ func (c *ClusterDomainResourceCoordinator) CreateDomainInbound(ctx context.Conte
 			DB:            db,
 			Identity:      c.identity(),
 			PortAllocator: c.PortAllocator,
+			Reporter:      c.ProxyReporter,
 		}).ApplyDomainInboundCreate(ctx, domain, payload, local.NodeID, false)
 		localCommandResult := &clustertypes.DomainResourceCommandResult{
 			Status:       "applied",
@@ -238,6 +240,7 @@ func (c *ClusterDomainResourceCoordinator) UpdateDomainInbound(ctx context.Conte
 			DB:            db,
 			Identity:      c.identity(),
 			PortAllocator: c.PortAllocator,
+			Reporter:      c.ProxyReporter,
 		}).ApplyDomainInboundUpdate(ctx, domain, payload, local.NodeID, false)
 		localCommandResult := &clustertypes.DomainResourceCommandResult{
 			Status:       "applied",
@@ -309,6 +312,7 @@ func (c *ClusterDomainResourceCoordinator) DeleteDomainInbound(ctx context.Conte
 			DB:            db,
 			Identity:      c.identity(),
 			PortAllocator: c.PortAllocator,
+			Reporter:      c.ProxyReporter,
 		}).ApplyDomainInboundDelete(ctx, domain, payload, local.NodeID, false)
 		localCommandResult := &clustertypes.DomainResourceCommandResult{
 			Status:       "applied",

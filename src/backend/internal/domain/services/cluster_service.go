@@ -152,6 +152,7 @@ func (s *ClusterService) newDomainResourceCoordinator() *ClusterDomainResourceCo
 		HubClient:      s.getHubClient(),
 		Identity:       &s.localIdentity,
 		SecretProvider: s.getSecretProvider(),
+		ProxyReporter:  s.proxyReport,
 	}
 }
 

@@ -21,6 +21,16 @@ func (f clusterDomainPeerSenderFunc) SendWithResult(ctx context.Context, message
 	return f(ctx, message, member, token)
 }
 
+type countingDomainResourceProxyReporter struct {
+	count    int
+	domainID uint
+}
+
+func (r *countingDomainResourceProxyReporter) ReportProxyConfigs(domainID uint) {
+	r.count++
+	r.domainID = domainID
+}
+
 func TestDomainResourceCoordinatorRecordsPeerFailure(t *testing.T) {
 	if err := database.InitDB(filepath.Join(t.TempDir(), "coordinator.db")); err != nil {
 		if strings.Contains(err.Error(), "go-sqlite3 requires cgo") || strings.Contains(err.Error(), "CGO_ENABLED=0") || strings.Contains(err.Error(), "C compiler") {
@@ -164,6 +174,68 @@ func TestDomainResourceCoordinatorCreateInboundDispatchesInitialPeers(t *testing
 	}
 	if op.Summary.Applied != 3 || op.Summary.Total != 3 {
 		t.Fatalf("summary = %+v, want applied=3 total=3", op.Summary)
+	}
+}
+
+func TestDomainResourceCoordinatorCreateInboundReportsProxyConfigsAfterLocalApply(t *testing.T) {
+	if err := database.InitDB(filepath.Join(t.TempDir(), "coordinator-local-proxy-report.db")); err != nil {
+		if strings.Contains(err.Error(), "go-sqlite3 requires cgo") || strings.Contains(err.Error(), "CGO_ENABLED=0") || strings.Contains(err.Error(), "C compiler") {
+			t.Skipf("sqlite test database unavailable in this toolchain: %v", err)
+		}
+		t.Fatalf("init db: %v", err)
+	}
+	db := database.GetDB()
+	domain := &model.ClusterDomain{Id: 1, Domain: "edge.example.com", HubURL: "https://hub.example.com", TokenEncrypted: "token", LastVersion: 7}
+	if err := db.Create(domain).Error; err != nil {
+		t.Fatalf("seed domain: %v", err)
+	}
+	local := newTestClusterLocalNode(t, "node-a")
+	if err := db.Create(local).Error; err != nil {
+		t.Fatalf("seed local node: %v", err)
+	}
+
+	reporter := &countingDomainResourceProxyReporter{}
+	coordinator := &ClusterDomainResourceCoordinator{
+		DB:             db,
+		OperationStore: &ClusterDomainOperationStore{DB: db},
+		PeerSender: clusterDomainPeerSenderFunc(func(context.Context, *PeerMessage, model.ClusterMember, string) (*clustertypes.DomainResourceCommandResult, error) {
+			t.Fatal("no peer dispatch expected for local-only target")
+			return nil, nil
+		}),
+		Identity:       &stubDomainInboundIdentity{node: local},
+		SecretProvider: stubClusterSecretProvider{secret: []byte("test-secret")},
+		PortAllocator:  func() (int, error) { return 32051, nil },
+		ProxyReporter:  reporter,
+	}
+
+	_, err := coordinator.CreateDomainInbound(context.Background(), domain.Id, ClusterDomainInboundCommandInput{
+		GroupID: "group-1",
+		TargetMembers: []clustertypes.DomainInboundTarget{{
+			NodeID:      local.NodeID,
+			MemberID:    local.NodeID,
+			DisplayName: "Node A",
+		}},
+		Inbound: map[string]any{
+			"type": "vless",
+			"tag":  "main",
+		},
+	})
+	if err != nil {
+		t.Fatalf("create inbound: %v", err)
+	}
+	if reporter.count != 1 || reporter.domainID != domain.Id {
+		t.Fatalf("proxy report calls = %d for domain %d, want 1 for domain %d", reporter.count, reporter.domainID, domain.Id)
+	}
+}
+
+func TestClusterServiceDomainResourceCoordinatorUsesProxyReporter(t *testing.T) {
+	reporter := &ClusterProxyReportService{}
+	service := &ClusterService{}
+	service.SetProxyReportService(reporter)
+
+	coordinator := service.newDomainResourceCoordinator()
+	if coordinator.ProxyReporter != reporter {
+		t.Fatalf("coordinator proxy reporter = %p, want %p", coordinator.ProxyReporter, reporter)
 	}
 }
 

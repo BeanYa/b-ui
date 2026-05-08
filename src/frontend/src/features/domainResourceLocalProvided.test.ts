@@ -122,6 +122,38 @@ describe('domain resource LocalProvided helpers', () => {
     expect(config.hysteria.auth_str).toBe('manual-auth')
   })
 
+  it('defines editable fields for each generated domain user protocol', () => {
+    const { domainUserProtocolFields } = helpers
+
+    expect(domainUserProtocolFields.map((item) => item.protocol)).toEqual([
+      'mixed',
+      'socks',
+      'http',
+      'shadowsocks',
+      'shadowsocks16',
+      'shadowtls',
+      'vmess',
+      'vless',
+      'anytls',
+      'trojan',
+      'naive',
+      'hysteria',
+      'tuic',
+      'hysteria2',
+    ])
+    expect(domainUserProtocolFields.find((item) => item.protocol === 'vless')?.fields).toContainEqual({
+      key: 'flow',
+      label: 'Flow',
+      type: 'select',
+      items: ['', 'xtls-rprx-vision'],
+    })
+    expect(domainUserProtocolFields.find((item) => item.protocol === 'vmess')?.fields).toContainEqual({
+      key: 'alterId',
+      label: 'Alter ID',
+      type: 'number',
+    })
+  })
+
   it('sanitizes tag parts while preserving readable defaults', () => {
     const { sanitizeDomainResourcePart } = helpers
 

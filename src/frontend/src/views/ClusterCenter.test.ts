@@ -218,6 +218,23 @@ describe('ClusterCenter view source', () => {
     expect(source).toContain('await refreshDomainResourceGroups([selectedDomain.value.id])')
   })
 
+  it('lists domain users beside inbound resources and wires edit/delete user operations from the detail panel', () => {
+    const source = readFileSync(fileURLToPath(new URL('./ClusterCenter.vue', import.meta.url)), 'utf8')
+
+    expect(source).toContain('selectedDomainUserResources')
+    expect(source).toContain('v-for="user in selectedDomainUserResources"')
+    expect(source).toContain('@click="openDomainUserEditDialog(user)"')
+    expect(source).toContain('@click="deleteDomainUser(user.uuid)"')
+    expect(source).toContain('updateDomainUserResource')
+    expect(source).toContain('deleteDomainUserResource')
+    expect(source).toContain(':mode="domainUserDialogMode"')
+    expect(source).toContain(':initial-resource="editingDomainUserResource"')
+    expect(source).toContain('const openDomainUserEditDialog = (user: DomainResourceUserView) => {')
+    expect(source).toContain('await updateDomainUserResource(selectedDomain.value.id, editingUserUuid, {')
+    expect(source).toContain('await deleteDomainUserResource(selectedDomain.value.id, userUUID)')
+    expect(source).toContain('resources.domain_users')
+  })
+
   it('passes available domain inbound groups into the domain user editor and keeps the latest group selected by default', () => {
     const source = readFileSync(fileURLToPath(new URL('./ClusterCenter.vue', import.meta.url)), 'utf8')
 

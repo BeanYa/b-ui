@@ -351,6 +351,7 @@ export default {
       inboundDialogTitle: "Create domain inbound resource",
       editInboundDialogTitle: "Edit domain inbound resource",
       userDialogTitle: "Create domain user resource",
+      editUserDialogTitle: "Edit domain user resource",
       groupId: "Group ID",
       tagSeed: "Tag seed",
       prefix: "Tag prefix",

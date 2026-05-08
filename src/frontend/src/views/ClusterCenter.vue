@@ -295,6 +295,44 @@
               </div>
             </div>
           </div>
+          <div v-if="selectedDomainUserResources.length > 0" class="cluster-center__domain-inbound-list">
+            <div
+              v-for="user in selectedDomainUserResources"
+              :key="user.uuid"
+              class="cluster-center__domain-inbound-row"
+            >
+              <div class="cluster-center__domain-inbound-main">
+                <span class="cluster-center__domain-inbound-group">{{ user.name || user.uuid }}</span>
+                <span class="cluster-center__domain-inbound-type">{{ user.uuid }}</span>
+              </div>
+              <div class="cluster-center__domain-inbound-actions">
+                <v-chip size="small" :color="user.enable ? 'green' : 'grey'" variant="flat">
+                  {{ user.enable ? $t('enable') : $t('disable') }}
+                </v-chip>
+                <v-btn
+                  size="small"
+                  variant="text"
+                  :icon="true"
+                  :title="$t('actions.edit')"
+                  :disabled="domainResourceLoading"
+                  @click="openDomainUserEditDialog(user)"
+                >
+                  <v-icon size="18">mdi-pencil</v-icon>
+                </v-btn>
+                <v-btn
+                  size="small"
+                  variant="text"
+                  color="error"
+                  :icon="true"
+                  :title="$t('actions.del')"
+                  :disabled="domainResourceLoading"
+                  @click="deleteDomainUser(user.uuid)"
+                >
+                  <v-icon size="18">mdi-delete</v-icon>
+                </v-btn>
+              </div>
+            </div>
+          </div>
           <div v-if="!lastDomainResourceOperation" class="cluster-center__empty">
             {{ $t('clusterCenter.domainResources.noOperation') }}
           </div>
@@ -633,6 +671,8 @@
         :error="domainResourceFormError"
         :available-inbound-groups="availableDomainInboundGroups"
         :default-inbound-group="selectedDomainDefaultInboundGroup"
+        :mode="domainUserDialogMode"
+        :initial-resource="editingDomainUserResource"
         @cancel="domainUserDialog = false"
         @submit="submitDomainUserResource"
       />
@@ -740,8 +780,8 @@ import ClusterDomainActionTree from '@/components/ClusterDomainActionTree.vue'
 import DomainResourceInboundEditor from '@/components/DomainResourceInboundEditor.vue'
 import DomainResourceUserEditor from '@/components/DomainResourceUserEditor.vue'
 import { parseClusterHubJoinUri } from '@/features/clusterHubUri'
-import { createDomainInboundResource, createDomainUserResource, deleteDomainInboundResource, listDomainResources, retryDomainResourceOperation, updateDomainInboundResource } from '@/features/domainResourcesApi'
-import type { CreateDomainInboundResourcePayload, CreateDomainUserResourcePayload, DomainResourceInboundView, DomainResourceOperationView } from '@/features/domainResourcesApi'
+import { createDomainInboundResource, createDomainUserResource, deleteDomainInboundResource, deleteDomainUserResource, listDomainResources, retryDomainResourceOperation, updateDomainInboundResource, updateDomainUserResource } from '@/features/domainResourcesApi'
+import type { CreateDomainInboundResourcePayload, CreateDomainUserResourcePayload, DomainResourceInboundView, DomainResourceOperationView, DomainResourceUserView } from '@/features/domainResourcesApi'
 import { i18n } from '@/locales'
 import HttpUtils from '@/plugins/httputil'
 import { usePingStore } from '@/store/modules/ping'
@@ -819,10 +859,13 @@ const domainInboundDialog = ref(false)
 const domainInboundDialogMode = ref<'create' | 'update'>('create')
 const editingDomainInboundResource = ref<DomainResourceInboundView | null>(null)
 const domainUserDialog = ref(false)
+const domainUserDialogMode = ref<'create' | 'update'>('create')
+const editingDomainUserResource = ref<DomainResourceUserView | null>(null)
 const domainResourceFormError = ref('')
 const lastDomainInboundGroupIdByDomain = ref<Record<number, string>>({})
 const domainInboundGroupIdsByDomain = ref<Record<number, string[]>>({})
 const domainInboundResourcesByDomain = ref<Record<number, DomainResourceInboundView[]>>({})
+const domainUserResourcesByDomain = ref<Record<number, DomainResourceUserView[]>>({})
 const domainOperationInstanceErrors = computed(() =>
   (lastDomainResourceOperation.value?.instances ?? [])
     .filter((instance) => instance.error && instance.error.trim() !== ''),
@@ -849,6 +892,10 @@ const selectedDomainInboundResources = computed(() => {
   if (!selectedDomain.value) return []
   return domainInboundResourcesByDomain.value[selectedDomain.value.id] ?? []
 })
+const selectedDomainUserResources = computed(() => {
+  if (!selectedDomain.value) return []
+  return domainUserResourcesByDomain.value[selectedDomain.value.id] ?? []
+})
 
 const refreshDomainResourceGroups = async (domainIds: number[]) => {
   const uniqueDomainIds = [...new Set(domainIds.filter((id) => Number.isFinite(id) && id > 0))]
@@ -856,18 +903,22 @@ const refreshDomainResourceGroups = async (domainIds: number[]) => {
   const entries = await Promise.all(uniqueDomainIds.map(async (domainId) => {
     try {
       const resources = await listDomainResources(domainId)
-      return [domainId, resources.domain_inbounds, resources.domain_inbounds.map((inbound) => inbound.group_id).filter(Boolean)] as const
+      return [domainId, resources.domain_inbounds, resources.domain_users, resources.domain_inbounds.map((inbound) => inbound.group_id).filter(Boolean)] as const
     } catch {
-      return [domainId, domainInboundResourcesByDomain.value[domainId] ?? [], domainInboundGroupIdsByDomain.value[domainId] ?? []] as const
+      return [domainId, domainInboundResourcesByDomain.value[domainId] ?? [], domainUserResourcesByDomain.value[domainId] ?? [], domainInboundGroupIdsByDomain.value[domainId] ?? []] as const
     }
   }))
   domainInboundResourcesByDomain.value = {
     ...domainInboundResourcesByDomain.value,
     ...Object.fromEntries(entries.map(([domainId, inbounds]) => [domainId, inbounds])),
   }
+  domainUserResourcesByDomain.value = {
+    ...domainUserResourcesByDomain.value,
+    ...Object.fromEntries(entries.map(([domainId, _inbounds, users]) => [domainId, users])),
+  }
   domainInboundGroupIdsByDomain.value = {
     ...domainInboundGroupIdsByDomain.value,
-    ...Object.fromEntries(entries.map(([domainId, _inbounds, groupIds]) => [domainId, [...new Set(groupIds)]])),
+    ...Object.fromEntries(entries.map(([domainId, _inbounds, _users, groupIds]) => [domainId, [...new Set(groupIds)]])),
   }
 }
 
@@ -1059,6 +1110,16 @@ const openDomainInboundEditDialog = (inbound: DomainResourceInboundView) => {
 const openDomainUserResourceDialog = () => {
   if (!selectedDomain.value) return
   domainResourceFormError.value = ''
+  domainUserDialogMode.value = 'create'
+  editingDomainUserResource.value = null
+  domainUserDialog.value = true
+}
+
+const openDomainUserEditDialog = (user: DomainResourceUserView) => {
+  if (!selectedDomain.value) return
+  domainResourceFormError.value = ''
+  domainUserDialogMode.value = 'update'
+  editingDomainUserResource.value = user
   domainUserDialog.value = true
 }
 
@@ -1136,10 +1197,40 @@ const submitDomainUserResource = async (payload: CreateDomainUserResourcePayload
   domainResourceFormError.value = ''
   domainResourceLoading.value = true
   try {
-    lastDomainResourceOperation.value = await createDomainUserResource(selectedDomain.value.id, {
-      ...payload,
-    })
+    if (domainUserDialogMode.value === 'update') {
+      const editingUserUuid = editingDomainUserResource.value?.uuid?.trim() || payload.user.uuid?.trim() || ''
+      lastDomainResourceOperation.value = await updateDomainUserResource(selectedDomain.value.id, editingUserUuid, {
+        ...payload,
+      })
+    } else {
+      lastDomainResourceOperation.value = await createDomainUserResource(selectedDomain.value.id, {
+        ...payload,
+      })
+    }
+    await refreshDomainResourceGroups([selectedDomain.value.id])
     domainUserDialog.value = false
+    domainUserDialogMode.value = 'create'
+    editingDomainUserResource.value = null
+  } catch (error: any) {
+    domainResourceFormError.value = error?.message ?? String(error)
+    push.error({ title: i18n.global.t('failed'), message: error?.message ?? String(error) })
+  } finally {
+    domainResourceLoading.value = false
+  }
+}
+
+const deleteDomainUser = async (userUUID: string) => {
+  if (!selectedDomain.value || !userUUID.trim()) return
+  domainResourceFormError.value = ''
+  domainResourceLoading.value = true
+  try {
+    lastDomainResourceOperation.value = await deleteDomainUserResource(selectedDomain.value.id, userUUID)
+    domainUserResourcesByDomain.value = {
+      ...domainUserResourcesByDomain.value,
+      [selectedDomain.value.id]: (domainUserResourcesByDomain.value[selectedDomain.value.id] ?? [])
+        .filter((user) => user.uuid !== userUUID),
+    }
+    await refreshDomainResourceGroups([selectedDomain.value.id])
   } catch (error: any) {
     domainResourceFormError.value = error?.message ?? String(error)
     push.error({ title: i18n.global.t('failed'), message: error?.message ?? String(error) })
