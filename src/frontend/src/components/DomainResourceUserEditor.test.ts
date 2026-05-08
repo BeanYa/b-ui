@@ -67,4 +67,12 @@ describe('DomainResourceUserEditor source', () => {
     expect(source).toContain('hubUserUuid.value = resource.uuid')
     expect(source).toContain("props.mode === 'update'")
   })
+
+  it('shows the node materializations for a deduplicated domain user while editing', () => {
+    expect(source).toContain("$t('clusterCenter.domainResources.appliedNodes')")
+    expect(source).toContain('appliedNodes')
+    expect(source).toContain('nodeDisplayName')
+    expect(source).toContain('v-for="node in appliedNodes"')
+    expect(source).toContain('domain-resource-editor__applied-node')
+  })
 })

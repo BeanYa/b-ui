@@ -33,6 +33,19 @@
         hide-details
       />
 
+      <v-card v-if="appliedNodes.length > 0" class="domain-resource-editor__section" :subtitle="$t('clusterCenter.domainResources.appliedNodes')">
+        <div class="domain-resource-editor__applied-nodes">
+          <div
+            v-for="node in appliedNodes"
+            :key="node.node_id || node.nodeId || node.display_name || node.displayName || node.client_id"
+            class="domain-resource-editor__applied-node"
+          >
+            <span class="domain-resource-editor__applied-node-name">{{ nodeDisplayName(node) }}</span>
+            <span class="domain-resource-editor__applied-node-meta">{{ node.node_id || node.nodeId || '-' }}</span>
+          </div>
+        </div>
+      </v-card>
+
       <v-card class="domain-resource-editor__section" :subtitle="$t('clusterCenter.domainResources.secretSources')">
         <v-row>
           <v-col cols="12" md="4">
@@ -214,6 +227,9 @@ const inboundGroupItems = computed(() => {
   }
   return [...items.entries()].map(([value, title]) => ({ title, value }))
 })
+const appliedNodes = computed(() => props.initialResource?.applied_nodes ?? [])
+const nodeDisplayName = (node: NonNullable<DomainResourceUserView['applied_nodes']>[number]) =>
+  node.display_name || node.displayName || node.node_id || node.nodeId || `#${node.client_id ?? '-'}`
 
 const resetForm = () => {
   if (props.mode === 'update' && props.initialResource) {
@@ -395,6 +411,37 @@ watch(() => props.error, (value) => {
 .domain-resource-editor__section {
   border: 1px solid var(--app-border-1);
   border-radius: 8px;
+}
+
+.domain-resource-editor__applied-nodes {
+  display: grid;
+  gap: 8px;
+  padding: 12px 16px 16px;
+}
+
+.domain-resource-editor__applied-node {
+  align-items: center;
+  background: color-mix(in srgb, var(--app-surface-2) 76%, transparent);
+  border: 1px solid var(--app-border-1);
+  border-radius: 8px;
+  display: flex;
+  gap: 10px;
+  justify-content: space-between;
+  min-width: 0;
+  padding: 10px 12px;
+}
+
+.domain-resource-editor__applied-node-name {
+  font-weight: 700;
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+.domain-resource-editor__applied-node-meta {
+  color: var(--app-text-3);
+  font-family: var(--app-font-mono, ui-monospace, monospace);
+  font-size: 12px;
+  overflow-wrap: anywhere;
 }
 
 .domain-resource-editor__protocol {

@@ -345,6 +345,8 @@ export default {
     domainResources: {
       title: "Domain Resources",
       domainManaged: "Domain-managed resources",
+      inboundsSection: "Inbound resources",
+      usersSection: "Domain users",
       createInbound: "Create inbound resource",
       createUser: "Create domain user",
       retry: "Retry operation",
@@ -380,6 +382,7 @@ export default {
       userInbounds: "Inbound groups",
       userConfigJson: "User config JSON",
       secretSources: "Secret sources",
+      appliedNodes: "applied nodes",
       submit: "Submit operation",
       operationErrors: "Operation errors",
       groupIdRequired: "Group ID is required.",

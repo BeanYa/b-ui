@@ -70,6 +70,10 @@ export interface DomainResourceInboundInstanceView {
 
 export interface DomainResourceUserView {
   client_id?: number
+  node_id?: string
+  nodeId?: string
+  display_name?: string
+  displayName?: string
   uuid: string
   name: string
   enable: boolean
@@ -89,6 +93,19 @@ export interface DomainResourceUserView {
   next_reset?: string | number
   total_up?: number
   total_down?: number
+  request_id?: string
+  updated_at?: number
+  applied_nodes?: DomainResourceUserAppliedNodeView[]
+}
+
+export interface DomainResourceUserAppliedNodeView {
+  client_id?: number
+  node_id?: string
+  nodeId?: string
+  display_name?: string
+  displayName?: string
+  config?: Record<string, unknown>
+  sub_token?: string
   request_id?: string
   updated_at?: number
 }

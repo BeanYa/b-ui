@@ -257,82 +257,95 @@
               <span class="cluster-center__operation-error-message">{{ instance.error }}</span>
             </div>
           </div>
-          <div v-if="selectedDomainInboundResources.length > 0" class="cluster-center__domain-inbound-list">
-            <div
-              v-for="inbound in selectedDomainInboundResources"
-              :key="inbound.group_id"
-              class="cluster-center__domain-inbound-row"
-            >
-              <div class="cluster-center__domain-inbound-main">
-                <span class="cluster-center__domain-inbound-group">{{ inbound.group_id }}</span>
-                <span class="cluster-center__domain-inbound-type">{{ inbound.type || '-' }}</span>
-              </div>
-              <div class="cluster-center__domain-inbound-actions">
-                <v-chip size="small" :color="domainInboundStatusColor(inbound.status)" variant="flat">
-                  {{ inbound.status || '-' }}
-                </v-chip>
-                <v-btn
-                  size="small"
-                  variant="text"
-                  :icon="true"
-                  :title="$t('actions.edit')"
-                  :disabled="domainResourceLoading"
-                  @click="openDomainInboundEditDialog(inbound)"
-                >
-                  <v-icon size="18">mdi-pencil</v-icon>
-                </v-btn>
-                <v-btn
-                  size="small"
-                  variant="text"
-                  color="error"
-                  :icon="true"
-                  :title="$t('actions.del')"
-                  :disabled="domainResourceLoading"
-                  @click="deleteDomainInboundGroup(inbound.group_id)"
-                >
-                  <v-icon size="18">mdi-delete</v-icon>
-                </v-btn>
+          <section v-if="selectedDomainInboundResources.length > 0" class="cluster-center__domain-resource-section">
+            <div class="cluster-center__domain-resource-section-title">
+              {{ $t('clusterCenter.domainResources.inboundsSection') }}
+            </div>
+            <div class="cluster-center__domain-inbound-list">
+              <div
+                v-for="inbound in selectedDomainInboundResources"
+                :key="inbound.group_id"
+                class="cluster-center__domain-inbound-row"
+              >
+                <div class="cluster-center__domain-inbound-main">
+                  <span class="cluster-center__domain-inbound-group">{{ inbound.group_id }}</span>
+                  <span class="cluster-center__domain-inbound-type">{{ inbound.type || '-' }}</span>
+                </div>
+                <div class="cluster-center__domain-inbound-actions">
+                  <v-chip size="small" :color="domainInboundStatusColor(inbound.status)" variant="flat">
+                    {{ inbound.status || '-' }}
+                  </v-chip>
+                  <v-btn
+                    size="small"
+                    variant="text"
+                    :icon="true"
+                    :title="$t('actions.edit')"
+                    :disabled="domainResourceLoading"
+                    @click="openDomainInboundEditDialog(inbound)"
+                  >
+                    <v-icon size="18">mdi-pencil</v-icon>
+                  </v-btn>
+                  <v-btn
+                    size="small"
+                    variant="text"
+                    color="error"
+                    :icon="true"
+                    :title="$t('actions.del')"
+                    :disabled="domainResourceLoading"
+                    @click="deleteDomainInboundGroup(inbound.group_id)"
+                  >
+                    <v-icon size="18">mdi-delete</v-icon>
+                  </v-btn>
+                </div>
               </div>
             </div>
-          </div>
-          <div v-if="selectedDomainUserResources.length > 0" class="cluster-center__domain-inbound-list">
-            <div
-              v-for="user in selectedDomainUserResources"
-              :key="user.uuid"
-              class="cluster-center__domain-inbound-row"
-            >
-              <div class="cluster-center__domain-inbound-main">
-                <span class="cluster-center__domain-inbound-group">{{ user.name || user.uuid }}</span>
-                <span class="cluster-center__domain-inbound-type">{{ user.uuid }}</span>
-              </div>
-              <div class="cluster-center__domain-inbound-actions">
-                <v-chip size="small" :color="user.enable ? 'green' : 'grey'" variant="flat">
-                  {{ user.enable ? $t('enable') : $t('disable') }}
-                </v-chip>
-                <v-btn
-                  size="small"
-                  variant="text"
-                  :icon="true"
-                  :title="$t('actions.edit')"
-                  :disabled="domainResourceLoading"
-                  @click="openDomainUserEditDialog(user)"
-                >
-                  <v-icon size="18">mdi-pencil</v-icon>
-                </v-btn>
-                <v-btn
-                  size="small"
-                  variant="text"
-                  color="error"
-                  :icon="true"
-                  :title="$t('actions.del')"
-                  :disabled="domainResourceLoading"
-                  @click="deleteDomainUser(user.uuid)"
-                >
-                  <v-icon size="18">mdi-delete</v-icon>
-                </v-btn>
+          </section>
+          <section v-if="selectedDomainUserResources.length > 0" class="cluster-center__domain-resource-section">
+            <div class="cluster-center__domain-resource-section-title">
+              {{ $t('clusterCenter.domainResources.usersSection') }}
+            </div>
+            <div class="cluster-center__domain-inbound-list">
+              <div
+                v-for="user in selectedDomainUserResources"
+                :key="user.uuid"
+                class="cluster-center__domain-inbound-row"
+              >
+                <div class="cluster-center__domain-inbound-main">
+                  <span class="cluster-center__domain-inbound-group">{{ user.name || user.uuid }}</span>
+                  <span class="cluster-center__domain-inbound-type">{{ user.uuid }}</span>
+                  <span class="cluster-center__domain-resource-node-count">
+                    {{ domainUserAppliedNodeLabel(user) }}
+                  </span>
+                </div>
+                <div class="cluster-center__domain-inbound-actions">
+                  <v-chip size="small" :color="user.enable ? 'green' : 'grey'" variant="flat">
+                    {{ user.enable ? $t('enable') : $t('disable') }}
+                  </v-chip>
+                  <v-btn
+                    size="small"
+                    variant="text"
+                    :icon="true"
+                    :title="$t('actions.edit')"
+                    :disabled="domainResourceLoading"
+                    @click="openDomainUserEditDialog(user)"
+                  >
+                    <v-icon size="18">mdi-pencil</v-icon>
+                  </v-btn>
+                  <v-btn
+                    size="small"
+                    variant="text"
+                    color="error"
+                    :icon="true"
+                    :title="$t('actions.del')"
+                    :disabled="domainResourceLoading"
+                    @click="deleteDomainUser(user.uuid)"
+                  >
+                    <v-icon size="18">mdi-delete</v-icon>
+                  </v-btn>
+                </div>
               </div>
             </div>
-          </div>
+          </section>
           <div v-if="!lastDomainResourceOperation" class="cluster-center__empty">
             {{ $t('clusterCenter.domainResources.noOperation') }}
           </div>
@@ -882,6 +895,65 @@ const domainOperationInstanceErrors = computed(() =>
   (lastDomainResourceOperation.value?.instances ?? [])
     .filter((instance) => instance.error && instance.error.trim() !== ''),
 )
+const mergeDomainUserResources = (users: DomainResourceUserView[]): DomainResourceUserView[] => {
+  const userMap = new Map<string, DomainResourceUserView>()
+  for (const user of users) {
+    const userUuid = user.uuid?.trim()
+    if (!userUuid) continue
+    const currentNodes = mergeDomainUserAppliedNodes(user.applied_nodes ?? [], [domainUserAppliedNodeFromResource(user)])
+    const existing = userMap.get(userUuid)
+    if (!existing) {
+      userMap.set(userUuid, {
+        ...user,
+        uuid: userUuid,
+        applied_nodes: currentNodes,
+      })
+      continue
+    }
+    const preferIncoming = (user.updated_at ?? 0) >= (existing.updated_at ?? 0)
+    const preferred = preferIncoming ? user : existing
+    userMap.set(userUuid, {
+      ...existing,
+      ...preferred,
+      uuid: userUuid,
+      bound_inbound_group_ids: mergeUniqueStrings(existing.bound_inbound_group_ids, user.bound_inbound_group_ids),
+      inbounds: mergeUniqueValues(existing.inbounds, user.inbounds),
+      applied_nodes: mergeDomainUserAppliedNodes(existing.applied_nodes ?? [], currentNodes),
+    })
+  }
+  return [...userMap.values()]
+}
+const domainUserAppliedNodeFromResource = (user: DomainResourceUserView) => ({
+  client_id: user.client_id,
+  node_id: user.node_id || user.nodeId,
+  display_name: user.display_name || user.displayName,
+  config: user.config,
+  sub_token: user.sub_token,
+  request_id: user.request_id,
+  updated_at: user.updated_at,
+})
+const mergeDomainUserAppliedNodes = (
+  left: NonNullable<DomainResourceUserView['applied_nodes']>,
+  right: NonNullable<DomainResourceUserView['applied_nodes']>,
+) => {
+  const nodes = new Map<string, NonNullable<DomainResourceUserView['applied_nodes']>[number]>()
+  for (const node of [...left, ...right]) {
+    const key = node.node_id || node.nodeId || node.display_name || node.displayName || String(node.client_id ?? node.request_id ?? '')
+    if (!key) continue
+    nodes.set(key, node)
+  }
+  return [...nodes.values()]
+}
+const mergeUniqueStrings = (left?: string[], right?: string[]) => [
+  ...new Set([...(left ?? []), ...(right ?? [])].map((item) => item.trim()).filter(Boolean)),
+]
+const mergeUniqueValues = (left?: Array<string | number>, right?: Array<string | number>) => [
+  ...new Set([...(left ?? []), ...(right ?? [])].map((item) => String(item).trim()).filter(Boolean)),
+]
+const domainUserAppliedNodeLabel = (user: DomainResourceUserView) => {
+  const count = user.applied_nodes?.length ?? 0
+  return `${count} ${i18n.global.t('clusterCenter.domainResources.appliedNodes')}`
+}
 const selectedDomainDefaultInboundGroup = computed(() => {
   if (!selectedDomain.value) return ''
   return lastDomainInboundGroupIdByDomain.value[selectedDomain.value.id] || `domain-${selectedDomain.value.id}`
@@ -915,7 +987,9 @@ const refreshDomainResourceGroups = async (domainIds: number[]) => {
   const entries = await Promise.all(uniqueDomainIds.map(async (domainId) => {
     try {
       const resources = await listDomainResources(domainId)
-      return [domainId, resources.domain_inbounds, resources.domain_users, resources.domain_inbounds.map((inbound) => inbound.group_id).filter(Boolean)] as const
+      const inbounds = resources.domain_inbounds
+      const users = resources.domain_users
+      return [domainId, inbounds, mergeDomainUserResources(users), inbounds.map((inbound) => inbound.group_id).filter(Boolean)] as const
     } catch {
       return [domainId, domainInboundResourcesByDomain.value[domainId] ?? [], domainUserResourcesByDomain.value[domainId] ?? [], domainInboundGroupIdsByDomain.value[domainId] ?? []] as const
     }
@@ -2537,10 +2611,23 @@ function formatAutoPingTime(): string {
   overflow: hidden;
 }
 
+.cluster-center__domain-resource-section {
+  display: grid;
+  gap: 10px;
+  margin-top: 16px;
+}
+
+.cluster-center__domain-resource-section-title {
+  color: var(--app-text-2);
+  font-size: 12px;
+  font-weight: 800;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
 .cluster-center__domain-inbound-list {
   display: grid;
   gap: 10px;
-  margin-top: 14px;
 }
 
 .cluster-center__domain-inbound-row {
@@ -2569,6 +2656,11 @@ function formatAutoPingTime(): string {
 }
 
 .cluster-center__domain-inbound-type {
+  color: var(--app-text-3);
+  font-size: 12px;
+}
+
+.cluster-center__domain-resource-node-count {
   color: var(--app-text-3);
   font-size: 12px;
 }

@@ -235,6 +235,20 @@ describe('ClusterCenter view source', () => {
     expect(source).toContain('resources.domain_users')
   })
 
+  it('separates inbound and user resource groups and deduplicates domain users by uuid while preserving applied nodes for editing', () => {
+    const source = readFileSync(fileURLToPath(new URL('./ClusterCenter.vue', import.meta.url)), 'utf8')
+
+    expect(source).toContain("$t('clusterCenter.domainResources.inboundsSection')")
+    expect(source).toContain("$t('clusterCenter.domainResources.usersSection')")
+    expect(source).toContain('const mergeDomainUserResources = (users: DomainResourceUserView[]): DomainResourceUserView[] => {')
+    expect(source).toContain('const userMap = new Map<string, DomainResourceUserView>()')
+    expect(source).toContain('applied_nodes')
+    expect(source).toContain('domainUserAppliedNodeLabel')
+    expect(source).toContain('<span class="cluster-center__domain-resource-node-count">')
+    expect(source).toContain('[domainId, inbounds, mergeDomainUserResources(users),')
+    expect(source).not.toContain('[domainId, resources.domain_inbounds, resources.domain_users,')
+  })
+
   it('passes available domain inbound groups into the domain user editor and keeps the latest group selected by default', () => {
     const source = readFileSync(fileURLToPath(new URL('./ClusterCenter.vue', import.meta.url)), 'utf8')
 
@@ -244,7 +258,7 @@ describe('ClusterCenter view source', () => {
     expect(source).toContain('const selectedDomainDefaultInboundGroup = computed(() =>')
     expect(source).toContain('await refreshDomainResourceGroups(domains.value.map((domain) => domain.id))')
     expect(source).toContain('const resources = await listDomainResources(domainId)')
-    expect(source).toContain('resources.domain_inbounds.map((inbound) => inbound.group_id)')
+    expect(source).toContain('inbounds.map((inbound) => inbound.group_id)')
     expect(source).not.toContain('remote_inbound_id')
   })
 
