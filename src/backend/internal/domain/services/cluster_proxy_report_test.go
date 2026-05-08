@@ -114,6 +114,24 @@ func TestClusterProxyReportBuildsNodeScopedConfig(t *testing.T) {
 	}
 }
 
+func TestClusterProxyReportBuildsConfigWithStringListenPort(t *testing.T) {
+	inbound := model.Inbound{
+		Id:      10,
+		Type:    "vless",
+		Tag:     "domain-string-port",
+		Options: json.RawMessage(`{"listen":"::","listen_port":"10443","transport":{"type":"tcp"}}`),
+	}
+
+	config := buildClusterProxyReportConfig(inbound, "node.example.com", "domain", "req-1", "edge-main")
+
+	if config.ListenPort != 10443 {
+		t.Fatalf("expected string listen_port to be reported as 10443, got %#v", config)
+	}
+	if config.DomainInboundGroupID != "edge-main" || config.DomainInboundRequestID != "req-1" {
+		t.Fatalf("expected domain inbound metadata, got %#v", config)
+	}
+}
+
 type capturingClusterHubClient struct {
 	body ClusterHubReportProxyConfigsRequest
 }

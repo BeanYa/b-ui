@@ -5,6 +5,8 @@ import (
 	"encoding/json"
 	"fmt"
 	"log"
+	"strconv"
+	"strings"
 	"sync"
 
 	database "github.com/BeanYa/b-ui/src/backend/internal/infra/db"
@@ -157,10 +159,7 @@ func buildClusterProxyReportConfig(inb model.Inbound, address string, scope stri
 		var fields map[string]json.RawMessage
 		if err := json.Unmarshal(inb.Options, &fields); err == nil {
 			if lp, ok := fields["listen_port"]; ok {
-				var p float64
-				if err := json.Unmarshal(lp, &p); err == nil {
-					listenPort = int(p)
-				}
+				listenPort = clusterProxyReportListenPort(lp)
 			}
 			optMap := make(map[string]json.RawMessage)
 			for k, v := range fields {
@@ -186,6 +185,20 @@ func buildClusterProxyReportConfig(inb model.Inbound, address string, scope stri
 		DomainInboundRequestID: requestID,
 		DomainInboundGroupID:   groupID,
 	}
+}
+
+func clusterProxyReportListenPort(raw json.RawMessage) int {
+	var number float64
+	if err := json.Unmarshal(raw, &number); err == nil {
+		return int(number)
+	}
+	var text string
+	if err := json.Unmarshal(raw, &text); err == nil {
+		if parsed, err := strconv.Atoi(strings.TrimSpace(text)); err == nil {
+			return parsed
+		}
+	}
+	return 0
 }
 
 func buildClusterProxyReportTLSConfig(tls *model.Tls) json.RawMessage {

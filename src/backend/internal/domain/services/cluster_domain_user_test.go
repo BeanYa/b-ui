@@ -96,7 +96,12 @@ func TestDomainUserUpsertCreatesManagedClientForSelectedDomainInbounds(t *testin
 func TestDomainUserUpsertResolvesDomainSelectorByGroupID(t *testing.T) {
 	db := initClusterInboundTestDB(t)
 
-	inbound := model.Inbound{Type: "vless", Tag: "edge-main-node-a", Options: json.RawMessage(`{"listen_port":32001}`)}
+	inbound := model.Inbound{
+		Type:    "vless",
+		Tag:     "edge-main-node-a",
+		Addrs:   json.RawMessage(`null`),
+		Options: json.RawMessage(`{"listen_port":32001}`),
+	}
 	if err := db.Create(&inbound).Error; err != nil {
 		t.Fatalf("seed inbound: %v", err)
 	}
@@ -159,6 +164,19 @@ func TestDomainUserUpsertResolvesDomainSelectorByGroupID(t *testing.T) {
 	}
 	if len(groups) != 1 || groups[0] != "edge-main" {
 		t.Fatalf("expected normalized bound group ids, got %#v", groups)
+	}
+	var links []map[string]string
+	if err := json.Unmarshal(client.Links, &links); err != nil {
+		t.Fatalf("decode generated links: %v", err)
+	}
+	if len(links) != 1 {
+		t.Fatalf("expected generated domain user link, got %#v", links)
+	}
+	if links[0]["type"] != "local" || links[0]["remark"] != "edge-main-node-a" {
+		t.Fatalf("unexpected link metadata: %#v", links[0])
+	}
+	if !strings.Contains(links[0]["uri"], "vless://11111111-1111-4111-8111-111111111111@edge.example.com:32001") {
+		t.Fatalf("expected vless link for bound domain inbound, got %q", links[0]["uri"])
 	}
 }
 

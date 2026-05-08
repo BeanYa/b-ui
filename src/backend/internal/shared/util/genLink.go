@@ -35,8 +35,10 @@ func LinkGenerator(clientConfig json.RawMessage, i *model.Inbound, hostname stri
 	}
 
 	var Addrs []map[string]interface{}
-	if err := json.Unmarshal(i.Addrs, &Addrs); err != nil {
-		return []string{}
+	if addrsJSON := strings.TrimSpace(string(i.Addrs)); addrsJSON != "" && addrsJSON != "null" {
+		if err := json.Unmarshal(i.Addrs, &Addrs); err != nil {
+			return []string{}
+		}
 	}
 	if len(Addrs) == 0 {
 		Addrs = append(Addrs, map[string]interface{}{
