@@ -217,11 +217,7 @@ func (c *ClusterDomainResourceCoordinator) mergeDomainInboundOperationResources(
 			continue
 		}
 		if idx, exists := inboundIndexes[resource.GroupID]; exists {
-			resources.Inbounds[idx].LastOperationID = resource.LastOperationID
-			resources.Inbounds[idx].LastOperationStatus = resource.LastOperationStatus
-			if len(resource.Instances) > 0 {
-				resources.Inbounds[idx].Instances = mergeClusterDomainOperationInstanceViews(resources.Inbounds[idx].Instances, resource.Instances)
-			}
+			applyDomainInboundOperationResource(&resources.Inbounds[idx], resource)
 			continue
 		}
 		if !domainInboundResourceMaterialized(resource) {
@@ -231,6 +227,25 @@ func (c *ClusterDomainResourceCoordinator) mergeDomainInboundOperationResources(
 		resources.Inbounds = append(resources.Inbounds, resource)
 	}
 	return nil
+}
+
+func applyDomainInboundOperationResource(existing *ClusterHubDomainResourceInbound, resource ClusterHubDomainResourceInbound) {
+	if existing == nil {
+		return
+	}
+	existing.LastOperationID = resource.LastOperationID
+	existing.LastOperationStatus = resource.LastOperationStatus
+	if domainInboundResourceMaterialized(resource) {
+		existing.TagSeed = resource.TagSeed
+		existing.Prefix = resource.Prefix
+		existing.Suffix = resource.Suffix
+		existing.Type = resource.Type
+		existing.TLSTemplate = resource.TLSTemplate
+		existing.OptionsJSON = resource.OptionsJSON
+	}
+	if len(resource.Instances) > 0 {
+		existing.Instances = mergeClusterDomainOperationInstanceViews(existing.Instances, resource.Instances)
+	}
 }
 
 func (c *ClusterDomainResourceCoordinator) mergeDomainInboundDeleteOperationResource(op model.ClusterDomainOperation, resources *ClusterHubDomainResources, inboundIndexes map[string]int, store *ClusterDomainOperationStore) {
@@ -290,13 +305,9 @@ func domainInboundResourceFromOperation(op model.ClusterDomainOperation, store *
 		LastOperationID:     op.OperationID,
 		LastOperationStatus: op.Status,
 	}
-	var inbound struct {
-		Type    string          `json:"type"`
-		Options json.RawMessage `json:"options"`
-	}
-	if len(payload.Inbound) > 0 && json.Unmarshal(payload.Inbound, &inbound) == nil {
-		resource.Type = strings.TrimSpace(inbound.Type)
-		resource.OptionsJSON = string(cloneRawMessage(inbound.Options))
+	if inboundType, optionsJSON, ok := desiredDomainInboundOptions(payload.Inbound); ok {
+		resource.Type = strings.TrimSpace(inboundType)
+		resource.OptionsJSON = optionsJSON
 	}
 	if resource.Type == "" {
 		resource.Type = "unknown"
@@ -310,6 +321,29 @@ func domainInboundResourceFromOperation(op model.ClusterDomainOperation, store *
 		}
 	}
 	return resource, true
+}
+
+func desiredDomainInboundOptions(raw json.RawMessage) (string, string, bool) {
+	if len(raw) == 0 {
+		return "", "", false
+	}
+	var inbound map[string]json.RawMessage
+	if err := json.Unmarshal(raw, &inbound); err != nil {
+		return "", "", false
+	}
+	var inboundType string
+	_ = json.Unmarshal(inbound["type"], &inboundType)
+	if options := strings.TrimSpace(string(inbound["options"])); options != "" && options != "null" {
+		return inboundType, options, true
+	}
+	for _, key := range []string{"id", "type", "tag", "tls_id", "tls", "out_json", "addrs", "users", "options"} {
+		delete(inbound, key)
+	}
+	optionsJSON, err := json.Marshal(inbound)
+	if err != nil {
+		return inboundType, "", true
+	}
+	return inboundType, string(optionsJSON), true
 }
 
 func domainInboundResourceMaterialized(resource ClusterHubDomainResourceInbound) bool {

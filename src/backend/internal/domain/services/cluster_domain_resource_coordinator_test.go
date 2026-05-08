@@ -647,6 +647,190 @@ func TestDomainResourcesIncludeRemoteOnlyDomainInboundOperations(t *testing.T) {
 	}
 }
 
+func TestDomainInboundResourceFromOperationPreservesTopLevelListenPortSource(t *testing.T) {
+	payload := clustertypes.DomainInboundCreatePayload{
+		RequestID:   "domain-inbound-auto",
+		DomainID:    "edge.example.com",
+		GroupID:     "group-1",
+		TagSeed:     "domain",
+		Prefix:      "domain",
+		Inbound:     json.RawMessage(`{"type":"vless","tag":"domain","listen":"::","listen_port":{"LocalProvided":"DomainInboundListenPort"}}`),
+		TLSTemplate: "standard",
+	}
+	desiredPayload, err := json.Marshal(payload)
+	if err != nil {
+		t.Fatalf("marshal payload: %v", err)
+	}
+
+	resource, ok := domainInboundResourceFromOperation(model.ClusterDomainOperation{
+		OperationID:       payload.RequestID,
+		DomainID:          1,
+		Domain:            payload.DomainID,
+		ResourceKind:      ClusterDomainResourceInbound,
+		ResourceID:        payload.GroupID,
+		Action:            ClusterDomainOperationCreate,
+		Revision:          8,
+		CoordinatorNodeID: "node-a",
+		Status:            ClusterDomainOperationApplied,
+		DesiredPayload:    desiredPayload,
+	}, nil)
+
+	if !ok {
+		t.Fatalf("expected domain inbound resource")
+	}
+	if resource.OptionsJSON != `{"listen":"::","listen_port":{"LocalProvided":"DomainInboundListenPort"}}` {
+		t.Fatalf("options_json = %q", resource.OptionsJSON)
+	}
+}
+
+func TestApplyDomainInboundOperationResourcePreservesDesiredOptions(t *testing.T) {
+	existing := ClusterHubDomainResourceInbound{
+		GroupID:     "group-1",
+		TagSeed:     "group-1",
+		Type:        "vless",
+		TLSTemplate: "standard",
+		OptionsJSON: `{"listen":"::","listen_port":443}`,
+		Status:      "active",
+		Instances: []ClusterHubDomainResourceInstance{{
+			NodeID: "node-a",
+			Status: ClusterDomainOperationApplied,
+		}},
+	}
+	desired := ClusterHubDomainResourceInbound{
+		GroupID:             "group-1",
+		TagSeed:             "domain",
+		Prefix:              "domain",
+		Type:                "vless",
+		TLSTemplate:         "standard",
+		OptionsJSON:         `{"listen":"::","listen_port":{"LocalProvided":"DomainInboundListenPort"}}`,
+		LastOperationID:     "domain-inbound-auto",
+		LastOperationStatus: ClusterDomainOperationApplied,
+		Instances: []ClusterHubDomainResourceInstance{{
+			NodeID:    "node-a",
+			TargetTag: "domain-node-a",
+			Status:    ClusterDomainOperationApplied,
+		}},
+	}
+
+	applyDomainInboundOperationResource(&existing, desired)
+
+	if existing.OptionsJSON != `{"listen":"::","listen_port":{"LocalProvided":"DomainInboundListenPort"}}` {
+		t.Fatalf("options_json = %q", existing.OptionsJSON)
+	}
+	if existing.LastOperationID != "domain-inbound-auto" || existing.TagSeed != "domain" || existing.Prefix != "domain" {
+		t.Fatalf("operation metadata was not applied: %#v", existing)
+	}
+	if len(existing.Instances) != 1 || existing.Instances[0].TargetTag != "domain-node-a" {
+		t.Fatalf("instances were not merged: %#v", existing.Instances)
+	}
+}
+
+func TestApplyDomainInboundOperationResourceDoesNotReplaceOptionsForFailedOperation(t *testing.T) {
+	existing := ClusterHubDomainResourceInbound{
+		GroupID:     "group-1",
+		TagSeed:     "group-1",
+		Type:        "vless",
+		OptionsJSON: `{"listen":"::","listen_port":443}`,
+		Status:      "active",
+	}
+	desired := ClusterHubDomainResourceInbound{
+		GroupID:             "group-1",
+		TagSeed:             "domain",
+		Type:                "vless",
+		OptionsJSON:         `{"listen":"::","listen_port":{"LocalProvided":"DomainInboundListenPort"}}`,
+		LastOperationID:     "domain-inbound-failed",
+		LastOperationStatus: ClusterDomainOperationFailed,
+	}
+
+	applyDomainInboundOperationResource(&existing, desired)
+
+	if existing.OptionsJSON != `{"listen":"::","listen_port":443}` {
+		t.Fatalf("failed operation should not replace options_json, got %q", existing.OptionsJSON)
+	}
+	if existing.LastOperationID != "domain-inbound-failed" || existing.LastOperationStatus != ClusterDomainOperationFailed {
+		t.Fatalf("operation metadata was not applied: %#v", existing)
+	}
+}
+
+func TestDomainResourcesPreserveDesiredDomainInboundListenPortSource(t *testing.T) {
+	if err := database.InitDB(filepath.Join(t.TempDir(), "coordinator-inbound-listen-source.db")); err != nil {
+		if strings.Contains(err.Error(), "go-sqlite3 requires cgo") || strings.Contains(err.Error(), "CGO_ENABLED=0") || strings.Contains(err.Error(), "C compiler") {
+			t.Skipf("sqlite test database unavailable in this toolchain: %v", err)
+		}
+		t.Fatalf("init db: %v", err)
+	}
+	db := database.GetDB()
+	domain := &model.ClusterDomain{Id: 1, Domain: "edge.example.com", HubURL: "https://hub.example.com", TokenEncrypted: "token", LastVersion: 8}
+	if err := db.Create(domain).Error; err != nil {
+		t.Fatalf("seed domain: %v", err)
+	}
+	local := newTestClusterLocalNode(t, "node-a")
+	if err := db.Create(local).Error; err != nil {
+		t.Fatalf("seed local node: %v", err)
+	}
+	inbound := &model.Inbound{
+		Id:      11,
+		Type:    "vless",
+		Tag:     "domain-node-a",
+		Options: json.RawMessage(`{"listen":"::","listen_port":443}`),
+	}
+	if err := db.Create(inbound).Error; err != nil {
+		t.Fatalf("seed inbound: %v", err)
+	}
+	if err := db.Create(&model.ClusterInbound{
+		DomainID:  domain.Id,
+		Domain:    domain.Domain,
+		NodeID:    local.NodeID,
+		MemberID:  local.NodeID,
+		GroupID:   "group-1",
+		InboundID: inbound.Id,
+		RequestID: "domain-inbound-auto",
+	}).Error; err != nil {
+		t.Fatalf("seed cluster inbound: %v", err)
+	}
+
+	payload := clustertypes.DomainInboundCreatePayload{
+		RequestID:   "domain-inbound-auto",
+		DomainID:    domain.Domain,
+		GroupID:     "group-1",
+		TagSeed:     "domain",
+		Prefix:      "domain",
+		Inbound:     json.RawMessage(`{"type":"vless","tag":"domain","listen":"::","listen_port":{"LocalProvided":"DomainInboundListenPort"}}`),
+		TLSTemplate: "standard",
+	}
+	desiredPayload, err := json.Marshal(payload)
+	if err != nil {
+		t.Fatalf("marshal payload: %v", err)
+	}
+	store := &ClusterDomainOperationStore{DB: db}
+	if err := store.SaveOperation(&model.ClusterDomainOperation{
+		OperationID:       payload.RequestID,
+		DomainID:          domain.Id,
+		Domain:            domain.Domain,
+		ResourceKind:      ClusterDomainResourceInbound,
+		ResourceID:        payload.GroupID,
+		Action:            ClusterDomainOperationCreate,
+		Revision:          domain.LastVersion,
+		CoordinatorNodeID: local.NodeID,
+		Status:            ClusterDomainOperationApplied,
+		DesiredPayload:    desiredPayload,
+	}); err != nil {
+		t.Fatalf("save operation: %v", err)
+	}
+
+	coordinator := &ClusterDomainResourceCoordinator{DB: db, OperationStore: store}
+	resources, err := coordinator.buildDomainResources(domain.Id)
+	if err != nil {
+		t.Fatalf("build domain resources: %v", err)
+	}
+	if len(resources.Inbounds) != 1 {
+		t.Fatalf("inbounds = %d, want 1", len(resources.Inbounds))
+	}
+	if resources.Inbounds[0].OptionsJSON != `{"listen":"::","listen_port":{"LocalProvided":"DomainInboundListenPort"}}` {
+		t.Fatalf("options_json = %q", resources.Inbounds[0].OptionsJSON)
+	}
+}
+
 func TestDomainResourceCoordinatorRetryOnlyFailedTargets(t *testing.T) {
 	if err := database.InitDB(filepath.Join(t.TempDir(), "coordinator-retry.db")); err != nil {
 		if strings.Contains(err.Error(), "go-sqlite3 requires cgo") || strings.Contains(err.Error(), "CGO_ENABLED=0") || strings.Contains(err.Error(), "C compiler") {
