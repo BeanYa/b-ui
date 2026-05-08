@@ -195,6 +195,13 @@ func TestDomainInboundCreateGeneratesPortAndCreatesWrapper(t *testing.T) {
 	if wrapper.InboundID != inbound.Id || wrapper.Prefix != "edge-" || wrapper.Suffix != "-prod" {
 		t.Fatalf("unexpected wrapper: %#v", wrapper)
 	}
+	var tlsCount int64
+	if err := db.Model(model.Tls{}).Count(&tlsCount).Error; err != nil {
+		t.Fatalf("count tls: %v", err)
+	}
+	if tlsCount != 0 {
+		t.Fatalf("expected no tls row when no tls option is set, count=%d", tlsCount)
+	}
 }
 
 func TestDomainInboundCreateUsesGroupSeedDisplayNameAndIsIdempotent(t *testing.T) {
@@ -469,7 +476,7 @@ func TestPrepareDomainInboundJSONStripsSingBoxLegacyInboundFields(t *testing.T) 
 			"sniff_timeout": "300ms",
 			"domain_strategy": "prefer_ipv4"
 		}`),
-	}, "node-a", "node-a")
+	}, "node-a", "node-a", 0)
 	if err != nil {
 		t.Fatalf("prepare inbound json: %v", err)
 	}
@@ -723,7 +730,7 @@ func TestDomainInboundUpdateMissingGroupReturnsClearError(t *testing.T) {
 	}
 }
 
-func TestDomainInboundUpdateReplacesExistingInboundAndTLS(t *testing.T) {
+func TestDomainInboundUpdateReusesExistingBoundTLS(t *testing.T) {
 	db := initClusterInboundTestDB(t)
 	originalTLS := model.Tls{Name: "old-tls", Server: json.RawMessage(`{"enabled":true}`), Client: json.RawMessage(`{}`)}
 	if err := db.Create(&originalTLS).Error; err != nil {
@@ -781,7 +788,7 @@ func TestDomainInboundUpdateReplacesExistingInboundAndTLS(t *testing.T) {
 	if err := db.First(&updated, inbound.Id).Error; err != nil {
 		t.Fatalf("load updated inbound: %v", err)
 	}
-	if updated.Type != "trojan" || updated.Tag != "main-edge-de-prod" || updated.TlsId == 0 || updated.TlsId == originalTLS.Id {
+	if updated.Type != "trojan" || updated.Tag != "main-edge-de-prod" || updated.TlsId != originalTLS.Id {
 		t.Fatalf("expected updated inbound type/tag/tls, got %#v", updated)
 	}
 	var options map[string]interface{}
@@ -798,12 +805,107 @@ func TestDomainInboundUpdateReplacesExistingInboundAndTLS(t *testing.T) {
 	if updatedWrapper.RequestID != "req-update" || updatedWrapper.Prefix != "edge" || updatedWrapper.Suffix != "prod" || updatedWrapper.Template != "standard" || updatedWrapper.MemberID != "hub" {
 		t.Fatalf("expected wrapper metadata update, got %#v", updatedWrapper)
 	}
-	var oldTLSCount int64
-	if err := db.Model(model.Tls{}).Where("id = ?", originalTLS.Id).Count(&oldTLSCount).Error; err != nil {
-		t.Fatalf("count old tls: %v", err)
+	var updatedTLS model.Tls
+	if err := db.First(&updatedTLS, originalTLS.Id).Error; err != nil {
+		t.Fatalf("load updated tls: %v", err)
 	}
-	if oldTLSCount != 0 {
-		t.Fatalf("expected old tls to be deleted, count=%d", oldTLSCount)
+	if updatedTLS.Name != "new-tls" {
+		t.Fatalf("expected existing tls row to be renamed, got %q", updatedTLS.Name)
+	}
+	var server map[string]interface{}
+	if err := json.Unmarshal(updatedTLS.Server, &server); err != nil {
+		t.Fatalf("decode updated tls server: %v", err)
+	}
+	if server["server_name"] != "edge.example.com" {
+		t.Fatalf("expected existing tls server to be updated, got %#v", server)
+	}
+}
+
+func TestDomainInboundUpdateCreatesBoundTLSWhenAdded(t *testing.T) {
+	db := initClusterInboundTestDB(t)
+	inbound := model.Inbound{Type: "vless", Tag: "no-tls-original", Options: json.RawMessage(`{"listen":"::","listen_port":32000}`)}
+	if err := db.Create(&inbound).Error; err != nil {
+		t.Fatalf("seed inbound: %v", err)
+	}
+	wrapper := model.ClusterInbound{DomainID: 1, Domain: "edge.example.com", GroupID: "group-add-tls", InboundID: inbound.Id, RequestID: "req-create"}
+	if err := db.Create(&wrapper).Error; err != nil {
+		t.Fatalf("seed wrapper: %v", err)
+	}
+	svc := NewClusterDomainInboundService(ClusterDomainInboundServiceOptions{
+		DB:            db,
+		Identity:      &stubDomainInboundIdentity{node: &model.ClusterLocalNode{NodeID: "node-a"}},
+		PortAllocator: func() (int, error) { return 32017, nil },
+		Now:           func() int64 { return 1700000002 },
+	})
+
+	_, err := svc.ApplyDomainInboundUpdate(context.Background(), &model.ClusterDomain{Id: 1, Domain: "edge.example.com"}, clustertypes.DomainInboundUpdatePayload{
+		RequestID:   "req-add-tls",
+		DomainID:    "edge.example.com",
+		GroupID:     "group-add-tls",
+		Inbound:     json.RawMessage(`{"type":"hysteria2","tag":"hy2","listen":"::","listen_port":443}`),
+		TLSTemplate: "hysteria2-cert",
+		TLS: &clustertypes.DomainInboundTLS{
+			Name:   "hy2-bound-tls",
+			Server: json.RawMessage(`{"enabled":true,"server_name":"edge.example.com","certificate_path":"/cert.pem","key_path":"/key.pem"}`),
+			Client: json.RawMessage(`{}`),
+		},
+	}, "hub", false)
+	if err != nil {
+		t.Fatalf("apply update: %v", err)
+	}
+
+	var updated model.Inbound
+	if err := db.First(&updated, inbound.Id).Error; err != nil {
+		t.Fatalf("load updated inbound: %v", err)
+	}
+	if updated.TlsId == 0 {
+		t.Fatal("expected tls id to be bound after adding tls")
+	}
+	var tlsConfig model.Tls
+	if err := db.First(&tlsConfig, updated.TlsId).Error; err != nil {
+		t.Fatalf("load tls: %v", err)
+	}
+	if tlsConfig.Name != "hy2-bound-tls" {
+		t.Fatalf("expected created bound tls name, got %q", tlsConfig.Name)
+	}
+}
+
+func TestDomainInboundRuntimeJSONIncludesUpdatedTLS(t *testing.T) {
+	db := initClusterInboundTestDB(t)
+	tls := model.Tls{Name: "hy2-tls", Server: json.RawMessage(`{"enabled":true,"server_name":"edge.example.com","certificate_path":"/cert.pem","key_path":"/key.pem"}`), Client: json.RawMessage(`{}`)}
+	if err := db.Create(&tls).Error; err != nil {
+		t.Fatalf("seed tls: %v", err)
+	}
+	inbound := model.Inbound{Type: "vless", Tag: "old-tag", TlsId: tls.Id}
+	if err := db.Create(&inbound).Error; err != nil {
+		t.Fatalf("seed inbound: %v", err)
+	}
+	inboundJSON, err := json.Marshal(map[string]interface{}{
+		"type":        "hysteria2",
+		"tag":         "hy2-updated",
+		"tls_id":      tls.Id,
+		"listen":      "::",
+		"listen_port": 443,
+	})
+	if err != nil {
+		t.Fatalf("marshal inbound json: %v", err)
+	}
+
+	runtimeJSON, err := marshalDomainInboundRuntimeJSON(db, inbound.Id, inboundJSON)
+	if err != nil {
+		t.Fatalf("marshal runtime json: %v", err)
+	}
+
+	var runtime map[string]interface{}
+	if err := json.Unmarshal(runtimeJSON, &runtime); err != nil {
+		t.Fatalf("decode runtime json: %v", err)
+	}
+	tlsConfig, ok := runtime["tls"].(map[string]interface{})
+	if !ok {
+		t.Fatalf("expected runtime json to include tls, got %#v", runtime)
+	}
+	if tlsConfig["enabled"] != true || tlsConfig["server_name"] != "edge.example.com" {
+		t.Fatalf("expected persisted tls server settings, got %#v", tlsConfig)
 	}
 }
 
@@ -954,20 +1056,40 @@ func TestDomainInboundUpdateKeepsOldTLSWhenReferencedByAnotherInbound(t *testing
 	svc := NewClusterDomainInboundService(ClusterDomainInboundServiceOptions{DB: db, Identity: &stubDomainInboundIdentity{node: &model.ClusterLocalNode{NodeID: "node-a"}}, PortAllocator: func() (int, error) { return 32013, nil }})
 
 	_, err := svc.ApplyDomainInboundUpdate(context.Background(), &model.ClusterDomain{Id: 1, Domain: "edge.example.com"}, clustertypes.DomainInboundUpdatePayload{
-		RequestID: "req-shared-inbound-tls",
-		DomainID:  "edge.example.com",
-		GroupID:   "group-shared-inbound-tls",
-		Inbound:   json.RawMessage(`{"type":"vless","tag":"shared-updated"}`),
+		RequestID:   "req-shared-inbound-tls",
+		DomainID:    "edge.example.com",
+		GroupID:     "group-shared-inbound-tls",
+		Inbound:     json.RawMessage(`{"type":"vless","tag":"shared-updated"}`),
+		TLSTemplate: "standard-cert",
+		TLS: &clustertypes.DomainInboundTLS{
+			Name:   "new-bound-tls",
+			Server: json.RawMessage(`{"enabled":true,"server_name":"edge.example.com","certificate_path":"/cert.pem","key_path":"/key.pem"}`),
+			Client: json.RawMessage(`{}`),
+		},
 	}, "hub", false)
 	if err != nil {
 		t.Fatalf("apply update: %v", err)
 	}
 	var tlsCount int64
-	if err := db.Model(model.Tls{}).Where("id = ?", tlsConfig.Id).Count(&tlsCount).Error; err != nil {
+	if err := db.Model(model.Tls{}).Count(&tlsCount).Error; err != nil {
 		t.Fatalf("count tls: %v", err)
 	}
-	if tlsCount != 1 {
-		t.Fatalf("expected shared tls to remain, count=%d", tlsCount)
+	if tlsCount != 2 {
+		t.Fatalf("expected shared tls to remain and new bound tls to be created, count=%d", tlsCount)
+	}
+	var unchanged model.Tls
+	if err := db.First(&unchanged, tlsConfig.Id).Error; err != nil {
+		t.Fatalf("load shared tls: %v", err)
+	}
+	if unchanged.Name != "shared-inbound-tls" {
+		t.Fatalf("expected shared tls to remain unchanged, got %q", unchanged.Name)
+	}
+	var updated model.Inbound
+	if err := db.First(&updated, inbound.Id).Error; err != nil {
+		t.Fatalf("load updated inbound: %v", err)
+	}
+	if updated.TlsId == 0 || updated.TlsId == tlsConfig.Id {
+		t.Fatalf("expected inbound to bind new tls id, got %d", updated.TlsId)
 	}
 }
 
@@ -992,20 +1114,40 @@ func TestDomainInboundUpdateKeepsOldTLSWhenReferencedByService(t *testing.T) {
 	svc := NewClusterDomainInboundService(ClusterDomainInboundServiceOptions{DB: db, Identity: &stubDomainInboundIdentity{node: &model.ClusterLocalNode{NodeID: "node-a"}}, PortAllocator: func() (int, error) { return 32014, nil }})
 
 	_, err := svc.ApplyDomainInboundUpdate(context.Background(), &model.ClusterDomain{Id: 1, Domain: "edge.example.com"}, clustertypes.DomainInboundUpdatePayload{
-		RequestID: "req-shared-service-tls",
-		DomainID:  "edge.example.com",
-		GroupID:   "group-shared-service-tls",
-		Inbound:   json.RawMessage(`{"type":"vless","tag":"service-updated"}`),
+		RequestID:   "req-shared-service-tls",
+		DomainID:    "edge.example.com",
+		GroupID:     "group-shared-service-tls",
+		Inbound:     json.RawMessage(`{"type":"vless","tag":"service-updated"}`),
+		TLSTemplate: "standard-cert",
+		TLS: &clustertypes.DomainInboundTLS{
+			Name:   "service-bound-tls",
+			Server: json.RawMessage(`{"enabled":true,"server_name":"edge.example.com","certificate_path":"/cert.pem","key_path":"/key.pem"}`),
+			Client: json.RawMessage(`{}`),
+		},
 	}, "hub", false)
 	if err != nil {
 		t.Fatalf("apply update: %v", err)
 	}
 	var tlsCount int64
-	if err := db.Model(model.Tls{}).Where("id = ?", tlsConfig.Id).Count(&tlsCount).Error; err != nil {
+	if err := db.Model(model.Tls{}).Count(&tlsCount).Error; err != nil {
 		t.Fatalf("count tls: %v", err)
 	}
-	if tlsCount != 1 {
-		t.Fatalf("expected service-referenced tls to remain, count=%d", tlsCount)
+	if tlsCount != 2 {
+		t.Fatalf("expected service-referenced tls to remain and new bound tls to be created, count=%d", tlsCount)
+	}
+	var unchanged model.Tls
+	if err := db.First(&unchanged, tlsConfig.Id).Error; err != nil {
+		t.Fatalf("load service tls: %v", err)
+	}
+	if unchanged.Name != "shared-service-tls" {
+		t.Fatalf("expected service-referenced tls to remain unchanged, got %q", unchanged.Name)
+	}
+	var updated model.Inbound
+	if err := db.First(&updated, inbound.Id).Error; err != nil {
+		t.Fatalf("load updated inbound: %v", err)
+	}
+	if updated.TlsId == 0 || updated.TlsId == tlsConfig.Id {
+		t.Fatalf("expected inbound to bind new tls id, got %d", updated.TlsId)
 	}
 }
 

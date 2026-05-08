@@ -193,7 +193,7 @@ func (s *ClusterDomainInboundService) ApplyDomainInboundCreate(ctx context.Conte
 		}
 
 		displayName := domainInboundLocalDisplayName(payload.TargetMembers, nodeID)
-		inboundJSON, tag, err := s.prepareDomainInboundJSON(tx, domain, payload, nodeID, displayName)
+		inboundJSON, tag, err := s.prepareDomainInboundJSON(tx, domain, payload, nodeID, displayName, 0)
 		if err != nil {
 			return err
 		}
@@ -313,17 +313,25 @@ func (s *ClusterDomainInboundService) ApplyDomainInboundUpdate(ctx context.Conte
 			return err
 		}
 
-		displayName := domainInboundLocalDisplayName(payload.TargetMembers, nodeID)
-		inboundJSON, _, err := s.prepareDomainInboundJSON(tx, domain, payload, nodeID, displayName)
-		if err != nil {
-			return err
-		}
 		var duplicate model.ClusterInbound
-		err = tx.Where("domain_id = ? AND request_id = ? AND id <> ?", domain.Id, payload.RequestID, wrapper.Id).First(&duplicate).Error
+		err := tx.Where("domain_id = ? AND request_id = ? AND id <> ?", domain.Id, payload.RequestID, wrapper.Id).First(&duplicate).Error
 		if err == nil {
 			return fmt.Errorf("domain inbound request_id %q already exists for domain %q", payload.RequestID, domain.Domain)
 		}
 		if !errors.Is(err, gorm.ErrRecordNotFound) {
+			return err
+		}
+		var oldInbound model.Inbound
+		if err := tx.Select("id", "tls_id").Where("id = ?", wrapper.InboundID).First(&oldInbound).Error; err != nil {
+			return err
+		}
+		displayName := domainInboundLocalDisplayName(payload.TargetMembers, nodeID)
+		existingTLSID, err := reusableDomainInboundTLSID(tx, wrapper.InboundID, oldInbound.TlsId)
+		if err != nil {
+			return err
+		}
+		inboundJSON, _, err := s.prepareDomainInboundJSON(tx, domain, payload, nodeID, displayName, existingTLSID)
+		if err != nil {
 			return err
 		}
 		oldTag, err := s.saveDomainInboundUpdate(tx, wrapper.InboundID, inboundJSON)
@@ -533,18 +541,18 @@ func (s *ClusterDomainInboundService) updateDomainInboundRuntime(db *gorm.DB, in
 	if !corePtr.IsRunning() {
 		return nil
 	}
+	if err := corePtr.RemoveInbound(oldTag); err != nil && err != os.ErrInvalid {
+		return err
+	}
+	inboundConfig, err := marshalDomainInboundRuntimeJSON(db, inboundID, inboundJSON)
+	if err != nil {
+		return err
+	}
 	var inbound model.Inbound
 	if err := inbound.UnmarshalJSON(inboundJSON); err != nil {
 		return err
 	}
 	inbound.Id = inboundID
-	if err := corePtr.RemoveInbound(oldTag); err != nil && err != os.ErrInvalid {
-		return err
-	}
-	inboundConfig, err := inbound.MarshalJSON()
-	if err != nil {
-		return err
-	}
 	inboundConfig, err = (&InboundService{}).addUsers(db, inboundConfig, inbound.Id, inbound.Type)
 	if err != nil {
 		return err
@@ -553,6 +561,20 @@ func (s *ClusterDomainInboundService) updateDomainInboundRuntime(db *gorm.DB, in
 		return err
 	}
 	return nil
+}
+
+func marshalDomainInboundRuntimeJSON(db *gorm.DB, inboundID uint, inboundJSON json.RawMessage) ([]byte, error) {
+	var inbound model.Inbound
+	if err := inbound.UnmarshalJSON(inboundJSON); err != nil {
+		return nil, err
+	}
+	inbound.Id = inboundID
+	if inbound.TlsId > 0 {
+		if err := db.Model(model.Tls{}).Where("id = ?", inbound.TlsId).Find(&inbound.Tls).Error; err != nil {
+			return nil, err
+		}
+	}
+	return inbound.MarshalJSON()
 }
 
 func (s *ClusterDomainInboundService) deleteDomainInboundDB(tx *gorm.DB, inboundID uint) (string, bool, bool, error) {
@@ -588,7 +610,7 @@ func deleteDomainInboundRuntime(tag string) error {
 	return nil
 }
 
-func (s *ClusterDomainInboundService) prepareDomainInboundJSON(tx *gorm.DB, domain *model.ClusterDomain, payload clustertypes.DomainInboundCreatePayload, nodeID string, displayName string) (json.RawMessage, string, error) {
+func (s *ClusterDomainInboundService) prepareDomainInboundJSON(tx *gorm.DB, domain *model.ClusterDomain, payload clustertypes.DomainInboundCreatePayload, nodeID string, displayName string, existingTLSID uint) (json.RawMessage, string, error) {
 	var inbound map[string]interface{}
 	if err := json.Unmarshal(payload.Inbound, &inbound); err != nil {
 		return nil, "", err
@@ -639,7 +661,7 @@ func (s *ClusterDomainInboundService) prepareDomainInboundJSON(tx *gorm.DB, doma
 	}
 
 	if payload.TLS != nil {
-		tlsID, err := s.createDomainInboundTLS(tx, domain, tag, payload)
+		tlsID, err := s.createDomainInboundTLS(tx, domain, tag, payload, existingTLSID)
 		if err != nil {
 			return nil, "", err
 		}
@@ -660,7 +682,10 @@ func deleteSingBoxLegacyInboundFields(inbound map[string]interface{}) {
 	delete(inbound, "domain_strategy")
 }
 
-func (s *ClusterDomainInboundService) createDomainInboundTLS(tx *gorm.DB, domain *model.ClusterDomain, tag string, payload clustertypes.DomainInboundCreatePayload) (uint, error) {
+func (s *ClusterDomainInboundService) createDomainInboundTLS(tx *gorm.DB, domain *model.ClusterDomain, tag string, payload clustertypes.DomainInboundCreatePayload, existingTLSID uint) (uint, error) {
+	if tx == nil {
+		return 0, errors.New("domain inbound tls db is required")
+	}
 	server, err := rawObject(payload.TLS.Server)
 	if err != nil {
 		return 0, err
@@ -700,11 +725,42 @@ func (s *ClusterDomainInboundService) createDomainInboundTLS(tx *gorm.DB, domain
 	if name == "" {
 		name = fmt.Sprintf("%s-tls-%d", tag, s.now())
 	}
+	if existingTLSID > 0 {
+		var tls model.Tls
+		if err := tx.First(&tls, existingTLSID).Error; err != nil {
+			return 0, err
+		}
+		tls.Name = name
+		tls.Server = serverJSON
+		tls.Client = clientJSON
+		if err := tx.Save(&tls).Error; err != nil {
+			return 0, err
+		}
+		return tls.Id, nil
+	}
 	tls := model.Tls{Name: name, Server: serverJSON, Client: clientJSON}
 	if err := tx.Create(&tls).Error; err != nil {
 		return 0, err
 	}
 	return tls.Id, nil
+}
+
+func reusableDomainInboundTLSID(tx *gorm.DB, inboundID uint, tlsID uint) (uint, error) {
+	if tlsID == 0 {
+		return 0, nil
+	}
+	var inboundCount int64
+	if err := tx.Model(model.Inbound{}).Where("tls_id = ? AND id <> ?", tlsID, inboundID).Count(&inboundCount).Error; err != nil {
+		return 0, err
+	}
+	var serviceCount int64
+	if err := tx.Model(model.Service{}).Where("tls_id = ?", tlsID).Count(&serviceCount).Error; err != nil {
+		return 0, err
+	}
+	if inboundCount > 0 || serviceCount > 0 {
+		return 0, nil
+	}
+	return tlsID, nil
 }
 
 const (
