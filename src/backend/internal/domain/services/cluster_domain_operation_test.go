@@ -6,6 +6,7 @@ import (
 	"strings"
 	"testing"
 
+	clustertypes "github.com/BeanYa/b-ui/src/backend/internal/domain/services/cluster/types"
 	database "github.com/BeanYa/b-ui/src/backend/internal/infra/db"
 	"github.com/BeanYa/b-ui/src/backend/internal/infra/db/model"
 )
@@ -226,5 +227,45 @@ func TestClusterDomainOperationViewJSONShape(t *testing.T) {
 	}
 	if strings.Contains(jsonText, `"OperationID"`) || strings.Contains(jsonText, `"AttemptCount"`) {
 		t.Fatalf("json used Go field names: %s", jsonText)
+	}
+}
+
+func TestDomainUserRetryPayloadPreservesTargetMembers(t *testing.T) {
+	payload := clustertypes.DomainUserUpsertPayload{
+		RequestID: "domain-user-op-1",
+		DomainID:  "edge.example.com",
+		User: clustertypes.DomainUserPayload{
+			UUID:   "user-1",
+			Name:   "Alice",
+			Enable: true,
+			Config: json.RawMessage(`{"vless":{"uuid":"user-1"}}`),
+		},
+		Inbounds: []string{"domain:group-1"},
+		TargetMembers: []clustertypes.DomainInboundTarget{{
+			NodeID:      "node-b",
+			MemberID:    "node-b",
+			DisplayName: "Node B",
+		}},
+	}
+	desiredPayload, err := json.Marshal(payload)
+	if err != nil {
+		t.Fatalf("marshal payload: %v", err)
+	}
+
+	action, resourceKind, resourceID, requestID, targetMembers, _, err := domainOperationRetryPayload(&model.ClusterDomainOperation{
+		OperationID:    payload.RequestID,
+		ResourceKind:   ClusterDomainResourceUser,
+		ResourceID:     payload.User.UUID,
+		Action:         ClusterDomainOperationCreate,
+		DesiredPayload: desiredPayload,
+	})
+	if err != nil {
+		t.Fatalf("retry payload: %v", err)
+	}
+	if action != PeerActionDomainUserUpsert || resourceKind != ClusterDomainResourceUser || resourceID != "user-1" || requestID != payload.RequestID {
+		t.Fatalf("unexpected retry metadata: action=%q kind=%q resource=%q request=%q", action, resourceKind, resourceID, requestID)
+	}
+	if len(targetMembers) != 1 || targetMembers[0].NodeID != "node-b" {
+		t.Fatalf("target members = %#v, want node-b only", targetMembers)
 	}
 }

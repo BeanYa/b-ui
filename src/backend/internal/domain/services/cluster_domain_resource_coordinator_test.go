@@ -398,6 +398,193 @@ func TestDomainResourceCoordinatorPickListCanIncludeLocalNode(t *testing.T) {
 	}
 }
 
+func TestDomainResourceCoordinatorCreateUserTargetsOnlyNodesWithBoundInboundGroup(t *testing.T) {
+	if err := database.InitDB(filepath.Join(t.TempDir(), "coordinator-user-bound-targets.db")); err != nil {
+		if strings.Contains(err.Error(), "go-sqlite3 requires cgo") || strings.Contains(err.Error(), "CGO_ENABLED=0") || strings.Contains(err.Error(), "C compiler") {
+			t.Skipf("sqlite test database unavailable in this toolchain: %v", err)
+		}
+		t.Fatalf("init db: %v", err)
+	}
+	db := database.GetDB()
+	domain := &model.ClusterDomain{Id: 1, Domain: "edge.example.com", HubURL: "https://hub.example.com", TokenEncrypted: "token", LastVersion: 7}
+	if err := db.Create(domain).Error; err != nil {
+		t.Fatalf("seed domain: %v", err)
+	}
+	local := newTestClusterLocalNode(t, "node-a")
+	if err := db.Create(local).Error; err != nil {
+		t.Fatalf("seed local node: %v", err)
+	}
+	peerToken, err := EncryptClusterDomainToken([]byte("test-secret"), "peer-token")
+	if err != nil {
+		t.Fatalf("encrypt peer token: %v", err)
+	}
+	for _, member := range []model.ClusterMember{
+		{DomainID: domain.Id, NodeID: "node-b", DisplayName: "Node B", BaseURL: "https://node-b.example.com", PeerTokenEncrypted: peerToken, LastVersion: 7},
+		{DomainID: domain.Id, NodeID: "node-c", DisplayName: "Node C", BaseURL: "https://node-c.example.com", PeerTokenEncrypted: peerToken, LastVersion: 7},
+	} {
+		member := member
+		if err := db.Create(&member).Error; err != nil {
+			t.Fatalf("seed peer member %s: %v", member.NodeID, err)
+		}
+	}
+
+	store := &ClusterDomainOperationStore{DB: db}
+	inboundPayload := clustertypes.DomainInboundCreatePayload{
+		RequestID: "domain-inbound-remote-only",
+		DomainID:  domain.Domain,
+		GroupID:   "group-1",
+		Inbound:   json.RawMessage(`{"type":"vless","tag":"main"}`),
+		TargetMembers: []clustertypes.DomainInboundTarget{{
+			NodeID:      "node-b",
+			MemberID:    "node-b",
+			DisplayName: "Node B",
+		}},
+	}
+	desiredPayload, err := json.Marshal(inboundPayload)
+	if err != nil {
+		t.Fatalf("marshal inbound payload: %v", err)
+	}
+	if err := store.SaveOperation(&model.ClusterDomainOperation{
+		OperationID:       inboundPayload.RequestID,
+		DomainID:          domain.Id,
+		Domain:            domain.Domain,
+		ResourceKind:      ClusterDomainResourceInbound,
+		ResourceID:        inboundPayload.GroupID,
+		Action:            ClusterDomainOperationCreate,
+		Revision:          domain.LastVersion,
+		CoordinatorNodeID: local.NodeID,
+		Status:            ClusterDomainOperationApplied,
+		DesiredPayload:    desiredPayload,
+	}); err != nil {
+		t.Fatalf("save inbound operation: %v", err)
+	}
+	if err := store.SaveInstance(&model.ClusterDomainOperationInstance{
+		OperationID:     inboundPayload.RequestID,
+		NodeID:          "node-b",
+		MemberID:        "node-b",
+		DisplayName:     "Node B",
+		TargetTag:       "main",
+		Status:          ClusterDomainOperationApplied,
+		AttemptCount:    1,
+		LocalResourceID: 11,
+	}); err != nil {
+		t.Fatalf("save inbound instance: %v", err)
+	}
+
+	var sentNodes []string
+	coordinator := &ClusterDomainResourceCoordinator{
+		DB:             db,
+		OperationStore: store,
+		PeerSender: clusterDomainPeerSenderFunc(func(_ context.Context, message *PeerMessage, member model.ClusterMember, _ string) (*clustertypes.DomainResourceCommandResult, error) {
+			sentNodes = append(sentNodes, member.NodeID)
+			payload, ok := message.Payload["payload"].(map[string]interface{})
+			if !ok {
+				t.Fatalf("peer payload shape = %#v, want nested payload map", message.Payload)
+			}
+			inbounds, ok := payload["inbounds"].([]interface{})
+			if !ok || len(inbounds) != 1 || inbounds[0] != "domain:group-1" {
+				t.Fatalf("peer user inbounds = %#v, want [domain:group-1]", payload["inbounds"])
+			}
+			return &clustertypes.DomainResourceCommandResult{
+				Status:       "applied",
+				OperationID:  message.Payload["operation_id"].(string),
+				NodeID:       member.NodeID,
+				MemberID:     member.NodeID,
+				ResourceKind: ClusterDomainResourceUser,
+				ResourceID:   message.Payload["resource_id"].(string),
+				Revision:     domain.LastVersion,
+			}, nil
+		}),
+		Identity:       &stubDomainInboundIdentity{node: local},
+		SecretProvider: stubClusterSecretProvider{secret: []byte("test-secret")},
+	}
+
+	op, err := coordinator.CreateDomainUser(context.Background(), domain.Id, ClusterDomainUserCommandInput{
+		User: clustertypes.DomainUserPayload{
+			UUID:   "user-1",
+			Name:   "Alice",
+			Enable: true,
+			Config: json.RawMessage(`{"vless":{"uuid":"user-1"}}`),
+		},
+		BoundInboundGroupIDs: []string{"group-1"},
+	})
+	if err != nil {
+		t.Fatalf("create domain user: %v", err)
+	}
+	if strings.Join(sentNodes, ",") != "node-b" {
+		t.Fatalf("sent nodes = %#v, want only node-b", sentNodes)
+	}
+	if op.Summary.Total != 1 || op.Summary.Applied != 1 {
+		t.Fatalf("summary = %+v, want one applied target", op.Summary)
+	}
+	instances, err := store.ListInstances(op.OperationID)
+	if err != nil {
+		t.Fatalf("list user operation instances: %v", err)
+	}
+	if len(instances) != 1 || instances[0].NodeID != "node-b" {
+		t.Fatalf("instances = %#v, want only node-b", instances)
+	}
+}
+
+func TestDomainUserBoundInboundGroupsTargetOnlyMaterializedInboundNodes(t *testing.T) {
+	members := []model.ClusterMember{
+		{NodeID: "node-b", DisplayName: "Node B", BaseURL: "https://node-b.example.com"},
+		{NodeID: "node-c", DisplayName: "Node C", BaseURL: "https://node-c.example.com"},
+	}
+	inbounds := []ClusterHubDomainResourceInbound{{
+		GroupID: "group-1",
+		Instances: []ClusterHubDomainResourceInstance{
+			{NodeID: "node-a", Status: ClusterDomainOperationApplied},
+			{NodeID: "node-b", Status: ClusterDomainOperationApplied},
+			{NodeID: "node-c", Status: ClusterDomainOperationFailed},
+		},
+	}}
+
+	local, targets, err := domainUserBoundGroupTargets(members, "node-a", []string{"group-1"}, inbounds)
+	if err != nil {
+		t.Fatalf("resolve bound group targets: %v", err)
+	}
+	if !local {
+		t.Fatal("local node should be selected because the bound inbound group is materialized locally")
+	}
+	if len(targets) != 1 || targets[0].NodeID != "node-b" {
+		t.Fatalf("targets = %#v, want only node-b", targets)
+	}
+}
+
+func TestDomainUserBoundInboundGroupsRequireNodeToHaveEveryBoundGroup(t *testing.T) {
+	members := []model.ClusterMember{
+		{NodeID: "node-b", DisplayName: "Node B", BaseURL: "https://node-b.example.com"},
+		{NodeID: "node-c", DisplayName: "Node C", BaseURL: "https://node-c.example.com"},
+	}
+	inbounds := []ClusterHubDomainResourceInbound{
+		{
+			GroupID: "group-1",
+			Instances: []ClusterHubDomainResourceInstance{
+				{NodeID: "node-b", Status: ClusterDomainOperationApplied},
+				{NodeID: "node-c", Status: ClusterDomainOperationApplied},
+			},
+		},
+		{
+			GroupID: "group-2",
+			Instances: []ClusterHubDomainResourceInstance{
+				{NodeID: "node-c", Status: ClusterDomainOperationApplied},
+			},
+		},
+	}
+
+	local, targets, err := domainUserBoundGroupTargets(members, "node-a", []string{"group-1", "group-2"}, inbounds)
+	if err != nil {
+		t.Fatalf("resolve bound group targets: %v", err)
+	}
+	if local {
+		t.Fatal("local node should not be selected because it has neither bound group")
+	}
+	if len(targets) != 1 || targets[0].NodeID != "node-c" {
+		t.Fatalf("targets = %#v, want only node-c", targets)
+	}
+}
+
 func TestDomainResourceCoordinatorReportsHubResourceStateCurrentShape(t *testing.T) {
 	if err := database.InitDB(filepath.Join(t.TempDir(), "coordinator-report.db")); err != nil {
 		if strings.Contains(err.Error(), "go-sqlite3 requires cgo") || strings.Contains(err.Error(), "CGO_ENABLED=0") || strings.Contains(err.Error(), "C compiler") {

@@ -24,10 +24,11 @@ type DomainUserPayload struct {
 }
 
 type DomainUserUpsertPayload struct {
-	RequestID string            `json:"request_id"`
-	DomainID  string            `json:"domain_id"`
-	User      DomainUserPayload `json:"user"`
-	Inbounds  []string          `json:"inbounds,omitempty"`
+	RequestID     string                `json:"request_id"`
+	DomainID      string                `json:"domain_id"`
+	User          DomainUserPayload     `json:"user"`
+	Inbounds      []string              `json:"inbounds,omitempty"`
+	TargetMembers []DomainInboundTarget `json:"target_members,omitempty"`
 }
 
 type DomainUserDeletePayload struct {
