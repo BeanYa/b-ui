@@ -345,6 +345,22 @@ describe('ClusterCenter view source', () => {
     expect(source).toContain('form.value.displayName = confirmInfo.value.displayName')
   })
 
+  it('keeps the subscription node address separate from the panel BaseURL during registration', () => {
+    const source = readFileSync(fileURLToPath(new URL('./ClusterCenter.vue', import.meta.url)), 'utf8')
+
+    expect(source).toContain('address: \'\'')
+    expect(source).toContain('const resolveNodeAddress = () =>')
+    expect(source).toContain('Data().subURI')
+    expect(source).toContain('return new URL(Data().subURI).hostname.toLowerCase()')
+    expect(source).toContain("v-model=\"form.address\"")
+    expect(source).toContain("$t('clusterCenter.fields.nodeAddress')")
+    expect(source).toContain('address: resolveNodeAddress()')
+    expect(source).toContain('{{ confirmInfo.address }}')
+    expect(source).toContain('address: confirmInfo.value.address')
+    expect(source).toContain("i18n.global.t('clusterCenter.validation.nodeAddress')")
+    expect(source).not.toContain('address: panelBaseUrl')
+  })
+
   it('uses the canonical Hub join URI id query parameter when registering from URI', () => {
     const source = readFileSync(fileURLToPath(new URL('./ClusterCenter.vue', import.meta.url)), 'utf8')
 

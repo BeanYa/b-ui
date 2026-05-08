@@ -45,8 +45,8 @@ func TestClusterServiceRegisterPersistsHubURLOnDomain(t *testing.T) {
 	if hub.lastRegisterRequest.Member.BaseURL != "https://panel.example.com/app/" {
 		t.Fatalf("expected register request base URL to be forwarded, got %q", hub.lastRegisterRequest.Member.BaseURL)
 	}
-	if hub.lastRegisterRequest.Member.Address != "https://panel.example.com/app/" {
-		t.Fatalf("expected register request address to be forwarded, got %q", hub.lastRegisterRequest.Member.Address)
+	if hub.lastRegisterRequest.Member.Address != "panel.example.com" {
+		t.Fatalf("expected register request address to fall back to base URL host, got %q", hub.lastRegisterRequest.Member.Address)
 	}
 	if len(store.savedDomains) < 1 {
 		t.Fatalf("expected saved domain state, got %d", len(store.savedDomains))
@@ -66,6 +66,52 @@ func TestClusterServiceRegisterPersistsHubURLOnDomain(t *testing.T) {
 	}
 	if store.replacedMembers[0][0].DomainID != lastDomain.Id {
 		t.Fatalf("expected member domain id %d, got %d", lastDomain.Id, store.replacedMembers[0][0].DomainID)
+	}
+}
+
+func TestClusterServiceRegisterSendsNodeAddressSeparatelyFromBaseURL(t *testing.T) {
+	store := &stubClusterServiceStore{}
+	hub := &stubClusterHubClient{
+		registerResponse: &ClusterHubOperationResponse{OperationID: "op-register", Status: "completed"},
+		snapshotResponse: &ClusterHubSnapshotResponse{Version: 4, Members: []ClusterHubMemberResponse{{
+			NodeID:    "node-a",
+			Address:   "203.0.113.10",
+			BaseURL:   "https://panel.example.com/app/",
+			PeerToken: "peer-token-a",
+		}}},
+	}
+	service := &ClusterService{
+		secretProvider: stubClusterSecretProvider{secret: []byte("panel-secret-for-cluster-tests")},
+		localIdentity:  ClusterLocalIdentityService{store: &stubClusterLocalNodeStore{}},
+		store:          store,
+		hubClient:      hub,
+	}
+
+	_, err := service.Register(ClusterRegisterRequest{
+		HubURL:  "https://hub.example.com",
+		Domain:  "edge.example.com",
+		Token:   "cluster-token",
+		BaseURL: "https://panel.example.com/app/",
+		Address: "203.0.113.10",
+	})
+	if err != nil {
+		t.Fatalf("register cluster domain: %v", err)
+	}
+	if hub.lastRegisterRequest.Member.BaseURL != "https://panel.example.com/app/" {
+		t.Fatalf("expected peer base URL to remain panel endpoint, got %q", hub.lastRegisterRequest.Member.BaseURL)
+	}
+	if hub.lastRegisterRequest.Member.Address != "203.0.113.10" {
+		t.Fatalf("expected node address to be forwarded separately, got %q", hub.lastRegisterRequest.Member.Address)
+	}
+	if len(store.replacedMembers) != 1 || len(store.replacedMembers[0]) != 1 {
+		t.Fatalf("expected one replaced member, got %#v", store.replacedMembers)
+	}
+	member := store.replacedMembers[0][0]
+	if member.BaseURL != "https://panel.example.com/app/" {
+		t.Fatalf("expected member peer base URL from snapshot, got %q", member.BaseURL)
+	}
+	if member.Address != "203.0.113.10" {
+		t.Fatalf("expected member node address from snapshot, got %q", member.Address)
 	}
 }
 
@@ -245,6 +291,20 @@ func TestClusterServiceRegisterDefaultsDisplayNameFromBaseURL(t *testing.T) {
 	}
 	if hub.lastRegisterRequest.Member.DisplayName != "node-a.test" {
 		t.Fatalf("expected display name from base URL host, got %q", hub.lastRegisterRequest.Member.DisplayName)
+	}
+}
+
+func TestNormalizeClusterNodeAddressExtractsHost(t *testing.T) {
+	tests := map[string]string{
+		"https://target.example.com:2096/sub/": "target.example.com",
+		"target.example.com:2096/sub/":        "target.example.com",
+		"[2001:db8::1]:2096":                  "2001:db8::1",
+	}
+
+	for input, want := range tests {
+		if got := normalizeClusterNodeAddress(input); got != want {
+			t.Fatalf("normalizeClusterNodeAddress(%q) = %q, want %q", input, got, want)
+		}
 	}
 }
 
@@ -1218,6 +1278,43 @@ func TestClusterServiceGetAllDomainsSkipsIdentityWithoutDomains(t *testing.T) {
 	}
 	if localStore.firstCalls != 0 || localStore.createCalls != 0 {
 		t.Fatalf("expected no local identity access without domains, got first=%d create=%d", localStore.firstCalls, localStore.createCalls)
+	}
+}
+
+func TestClusterServiceGetAllDomainsUsesMemberAddressForProxyReports(t *testing.T) {
+	secret := []byte("panel-secret-for-cluster-tests")
+	local := &model.ClusterLocalNode{NodeID: "node-local"}
+	store := &stubClusterServiceStore{
+		domains: map[string]*model.ClusterDomain{
+			"edge.example.com": {Id: 7, Domain: "edge.example.com", HubURL: "https://hub.example.com", TokenEncrypted: mustEncryptClusterToken(t, string(secret), "domain-token")},
+		},
+		members: map[string]*model.ClusterMember{
+			serviceMemberKey(7, "node-local"): {
+				NodeID:   "node-local",
+				DomainID: 7,
+				Address:  "203.0.113.10",
+				BaseURL:  "https://panel.example.com/app/",
+			},
+		},
+	}
+	service := &ClusterService{
+		store:          store,
+		secretProvider: stubClusterSecretProvider{secret: secret},
+		localIdentity:  ClusterLocalIdentityService{store: &stubClusterLocalNodeStore{node: local}},
+	}
+
+	domains, err := service.GetAllDomains()
+	if err != nil {
+		t.Fatalf("get all domains: %v", err)
+	}
+	if len(domains) != 1 {
+		t.Fatalf("expected one reportable domain, got %#v", domains)
+	}
+	if domains[0].BaseURL != "https://panel.example.com/app/" {
+		t.Fatalf("expected peer base URL to stay separate, got %q", domains[0].BaseURL)
+	}
+	if domains[0].Address != "203.0.113.10" {
+		t.Fatalf("expected report address from member address, got %q", domains[0].Address)
 	}
 }
 

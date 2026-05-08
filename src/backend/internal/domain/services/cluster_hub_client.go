@@ -183,6 +183,13 @@ func (m ClusterHubMemberResponse) EffectiveBaseURL() string {
 	return m.Address
 }
 
+func (m ClusterHubMemberResponse) EffectiveAddress() string {
+	if address := normalizeClusterNodeAddress(m.Address); address != "" {
+		return address
+	}
+	return normalizeClusterNodeAddress(m.EffectiveBaseURL())
+}
+
 func (m ClusterHubMemberResponse) EffectiveDisplayName() string {
 	if m.DisplayName != "" {
 		return m.DisplayName

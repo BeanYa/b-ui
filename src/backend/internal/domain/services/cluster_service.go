@@ -33,6 +33,7 @@ type ClusterRegisterRequest struct {
 	DisplayName string `json:"displayName" form:"displayName"`
 	Domain      string `json:"domain" form:"domain"`
 	Token       string `json:"token" form:"token"`
+	Address     string `json:"address" form:"address"`
 	BaseURL     string `json:"baseUrl" form:"baseUrl"`
 }
 
@@ -63,6 +64,7 @@ type ClusterMemberResponse struct {
 	NodeID       string `json:"nodeId"`
 	Name         string `json:"name"`
 	DisplayName  string `json:"displayName"`
+	Address      string `json:"address"`
 	BaseURL      string `json:"baseUrl"`
 	LastVersion  int64  `json:"lastVersion"`
 	IsLocal      bool   `json:"isLocal"`
@@ -237,6 +239,7 @@ func (s *ClusterService) Register(request ClusterRegisterRequest) (*ClusterOpera
 	}
 	request.Domain = strings.TrimSpace(request.Domain)
 	request.HubURL = strings.TrimSpace(request.HubURL)
+	request.Address = strings.TrimSpace(request.Address)
 	request.BaseURL = strings.TrimSpace(request.BaseURL)
 	request.Name = strings.TrimSpace(request.Name)
 	request.DisplayName = strings.TrimSpace(request.DisplayName)
@@ -251,6 +254,10 @@ func (s *ClusterService) Register(request ClusterRegisterRequest) (*ClusterOpera
 	}
 	if request.BaseURL == "" {
 		return nil, errClusterBaseURLRequired
+	}
+	request.Address = normalizeClusterNodeAddress(request.Address)
+	if request.Address == "" {
+		request.Address = normalizeClusterNodeAddress(request.BaseURL)
 	}
 	if request.DisplayName == "" {
 		request.DisplayName = deriveClusterDisplayNameFromBaseURL(request.BaseURL)
@@ -288,7 +295,7 @@ func (s *ClusterService) Register(request ClusterRegisterRequest) (*ClusterOpera
 		Member: ClusterHubMemberRegister{
 			MemberID:     identity.NodeID,
 			NodeID:       identity.NodeID,
-			Address:      request.BaseURL,
+			Address:      request.Address,
 			BaseURL:      request.BaseURL,
 			PublicKey:    identity.PublicKey,
 			Name:         request.Name,
@@ -335,6 +342,7 @@ func (s *ClusterService) Register(request ClusterRegisterRequest) (*ClusterOpera
 			NodeID:             item.EffectiveNodeID(),
 			Name:               item.Name,
 			DisplayName:        item.EffectiveDisplayName(),
+			Address:            item.EffectiveAddress(),
 			BaseURL:            item.EffectiveBaseURL(),
 			PublicKey:          item.EffectivePublicKey(),
 			PeerTokenEncrypted: peerTokenEncrypted,
@@ -529,6 +537,20 @@ func normalizeClusterBaseURLForIdentity(baseURL string) string {
 	return strings.TrimRight(parsed.String(), "/")
 }
 
+func normalizeClusterNodeAddress(address string) string {
+	trimmed := strings.TrimSpace(address)
+	if trimmed == "" {
+		return ""
+	}
+	if parsed, err := url.Parse(trimmed); err == nil && parsed.Scheme != "" && parsed.Host != "" {
+		return strings.ToLower(strings.Trim(parsed.Hostname(), "[]"))
+	}
+	if host, _, err := net.SplitHostPort(trimmed); err == nil {
+		return strings.ToLower(strings.Trim(host, "[]"))
+	}
+	return strings.ToLower(strings.Trim(trimmed, "[]"))
+}
+
 func effectiveClusterCommunicationEndpointPath(value string) string {
 	if strings.TrimSpace(value) == "" {
 		return ClusterCommunicationEndpointPath
@@ -596,7 +618,7 @@ func (s *ClusterService) ListMembers() ([]ClusterMemberResponse, error) {
 	}
 	response := make([]ClusterMemberResponse, 0, len(members))
 	for _, member := range members {
-		response = append(response, ClusterMemberResponse{ID: member.Id, DomainID: member.DomainID, NodeID: member.NodeID, Name: member.Name, DisplayName: member.DisplayName, BaseURL: member.BaseURL, LastVersion: member.LastVersion, IsLocal: member.NodeID == localIdentity.NodeID, PanelVersion: member.PanelVersion, Status: member.Status})
+		response = append(response, ClusterMemberResponse{ID: member.Id, DomainID: member.DomainID, NodeID: member.NodeID, Name: member.Name, DisplayName: member.DisplayName, Address: member.Address, BaseURL: member.BaseURL, LastVersion: member.LastVersion, IsLocal: member.NodeID == localIdentity.NodeID, PanelVersion: member.PanelVersion, Status: member.Status})
 	}
 	return response, nil
 }
@@ -1924,6 +1946,7 @@ func (s *ClusterService) GetAllDomains() ([]clusterDomainInfo, error) {
 			ID:          domain.Id,
 			Name:        domain.Domain,
 			MemberID:    localIdentity.NodeID,
+			Address:     localMember.Address,
 			BaseURL:     localMember.BaseURL,
 			HubURL:      domain.HubURL,
 			DomainToken: domainToken,

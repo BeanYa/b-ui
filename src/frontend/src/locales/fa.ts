@@ -275,6 +275,7 @@ export default {
     localNode: "محلی",
     dialogTitle: "پیوستن به دامنه",
     fields: {
+      nodeAddress: "آدرس نود",
       domain: "شناسه دامنه",
       joinUri: "URI پیوستن",
       hubUrl: "آدرس Hub",
@@ -330,6 +331,7 @@ export default {
       confirmForceLeaveDomain: "پاک‌سازی ناموفق بود. این نود فقط از جدول Hub حذف شود و نودها از وضعیت Hub همگرا شوند؟",
     joinUriHint: "URI با buihub:// شروع می‌شود؛ برای نمونه buihub://hub.example.com/domain?id=example.com&domain_token=xxx",
     validation: {
+      nodeAddress: "آدرس نود الزامی است.",
       required: "آدرس Hub، شناسه دامنه و توکن دامنه الزامی هستند.",
       hubUrl: "آدرس Hub باید یک URL کامل باشد و به‌جز localhost از https استفاده کند.",
       panelUrl: "آدرس فعلی پنل باید یک URL کامل باشد و به‌جز localhost از https استفاده کند.",

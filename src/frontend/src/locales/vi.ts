@@ -275,6 +275,7 @@ export default {
     localNode: "Cục bộ",
     dialogTitle: "Tham gia miền",
     fields: {
+      nodeAddress: "Địa chỉ nút",
       domain: "ID miền",
       joinUri: "URI tham gia",
       hubUrl: "URL Hub",
@@ -330,6 +331,7 @@ export default {
       confirmForceLeaveDomain: "Dọn dẹp thất bại. Chỉ xóa nút này khỏi bảng Hub và để các nút hội tụ theo trạng thái Hub?",
     joinUriHint: "URI bắt đầu bằng buihub://, ví dụ buihub://hub.example.com/domain?id=example.com&domain_token=xxx",
     validation: {
+      nodeAddress: "Địa chỉ nút là bắt buộc.",
       required: "URL Hub, ID miền và token miền là bắt buộc.",
       hubUrl: "URL Hub phải là URL tuyệt đối và dùng https, trừ localhost.",
       panelUrl: "URL hiện tại của bảng điều khiển phải là URL tuyệt đối và dùng https, trừ localhost.",

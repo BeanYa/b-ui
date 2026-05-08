@@ -287,6 +287,7 @@ export default {
     localNode: "本機",
     dialogTitle: "加入域",
     fields: {
+      nodeAddress: "節點位址",
       domain: "域Id",
       joinUri: "加入 URI",
       hubUrl: "Hub 位址",
@@ -342,6 +343,7 @@ export default {
       confirmForceLeaveDomain: "清理失敗。確認只從 Hub 資訊表移除本機節點，並以 Hub 資訊表為準同步節點？",
     joinUriHint: "URI 以 buihub:// 開頭，例如 buihub://hub.example.com/domain?id=example.com&domain_token=xxx。",
     validation: {
+      nodeAddress: "節點位址不能為空。",
       required: "Hub 位址、域Id 與域認證令牌為必填欄位。",
       hubUrl: "Hub 位址必須是絕對 URL，且除 localhost 外必須使用 https。",
       panelUrl: "目前面板位址必須是絕對 URL，且除 localhost 外必須使用 https。",

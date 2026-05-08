@@ -138,6 +138,7 @@ type ClusterMember struct {
 	DisplayName        string         `json:"displayName"`
 	PanelVersion       string         `json:"panelVersion"`
 	Status             string         `json:"status" gorm:"default:online"`
+	Address            string         `json:"address"`
 	BaseURL            string         `json:"baseUrl"`
 	PublicKey          string         `json:"publicKey"`
 	PeerTokenEncrypted string         `json:"-"`

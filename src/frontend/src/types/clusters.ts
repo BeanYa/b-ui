@@ -17,6 +17,7 @@ export interface ClusterMember {
   nodeId: string
   name: string
   displayName: string
+  address: string
   baseUrl: string
   lastVersion: number
   isLocal: boolean

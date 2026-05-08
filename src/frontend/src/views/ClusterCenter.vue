@@ -535,6 +535,11 @@
               persistent-hint
               hide-details
             />
+            <v-text-field
+              v-model="form.address"
+              :label="$t('clusterCenter.fields.nodeAddress')"
+              hide-details
+            />
           </v-card-text>
           <v-card-actions>
             <v-spacer />
@@ -571,6 +576,10 @@
                 <tr>
                   <td class="cluster-center__confirm-label">{{ $t('clusterCenter.fields.localBaseUrl') }}</td>
                   <td class="cluster-center__confirm-value">{{ confirmInfo.baseUrl }}</td>
+                </tr>
+                <tr>
+                  <td class="cluster-center__confirm-label">{{ $t('clusterCenter.fields.nodeAddress') }}</td>
+                  <td class="cluster-center__confirm-value">{{ confirmInfo.address }}</td>
                 </tr>
               </tbody>
             </table>
@@ -784,6 +793,7 @@ import { createDomainInboundResource, createDomainUserResource, deleteDomainInbo
 import type { CreateDomainInboundResourcePayload, CreateDomainUserResourcePayload, DomainResourceInboundView, DomainResourceOperationView, DomainResourceUserView } from '@/features/domainResourcesApi'
 import { i18n } from '@/locales'
 import HttpUtils from '@/plugins/httputil'
+import Data from '@/store/modules/data'
 import { usePingStore } from '@/store/modules/ping'
 import { useClusterStore } from '@/store/modules/cluster'
 import type { ClusterDomain, ClusterMember, ClusterOperationStatus, ClusterPanelMemberUpdateResult, ClusterPanelUpdateCheck } from '@/types/clusters'
@@ -826,6 +836,7 @@ const form = ref({
   hubUrlHost: '',
   token: '',
   displayName: '',
+  address: '',
 })
 
 const confirmInfo = ref({
@@ -834,6 +845,7 @@ const confirmInfo = ref({
   token: '',
   baseUrl: '',
   displayName: '',
+  address: '',
 })
 
 const alreadyExistsDialog = ref(false)
@@ -1282,6 +1294,17 @@ const resolvePanelBaseUrl = () => {
   }
 }
 
+const resolveNodeAddress = () => {
+  try {
+    if (Data().subURI) {
+      return new URL(Data().subURI).hostname.toLowerCase()
+    }
+  } catch {
+    // Fall back to the panel hostname when the subscription URI is incomplete.
+  }
+  return window.location.hostname.replace(/^\[|\]$/g, '').toLowerCase()
+}
+
 const normalizeClusterBaseUrl = (value: string) => {
   const trimmed = value.trim()
   if (!trimmed) return ''
@@ -1322,6 +1345,7 @@ const validateAndCheckDomain = async () => {
       token: parsed.token,
       baseUrl: panelBaseUrl,
       displayName: deriveDisplayNameFromBaseUrl(panelBaseUrl),
+      address: resolveNodeAddress(),
     }
   } else {
     const domain = form.value.domain.trim()
@@ -1348,10 +1372,12 @@ const validateAndCheckDomain = async () => {
       token: form.value.token,
       baseUrl: panelBaseUrl,
       displayName: deriveDisplayNameFromBaseUrl(panelBaseUrl),
+      address: resolveNodeAddress(),
     }
   }
 
   form.value.displayName = confirmInfo.value.displayName
+  form.value.address = confirmInfo.value.address
 
   await checkPanelUrlExists()
 }
@@ -1397,28 +1423,36 @@ const showConfirmDialog = () => {
     return
   }
   confirmInfo.value.displayName = displayName
+  const address = form.value.address.trim()
+  if (!address) {
+    push.error({ title: i18n.global.t('failed'), message: i18n.global.t('clusterCenter.validation.nodeAddress') })
+    return
+  }
+  confirmInfo.value.address = address
   confirmDialog.value = true
 }
 
 const onRegisterDialogClose = () => {
   registerStep.value = 1
-  form.value = { joinUri: '', domain: '', hubUrlProtocol: 'https', hubUrlHost: '', token: '', displayName: '' }
+  form.value = { joinUri: '', domain: '', hubUrlProtocol: 'https', hubUrlHost: '', token: '', displayName: '', address: '' }
 }
 
 const pullExistingDomain = async () => {
   alreadyExistsDialog.value = false
   registerDialog.value = false
   registerStep.value = 1
-  form.value = { joinUri: '', domain: '', hubUrlProtocol: 'https', hubUrlHost: '', token: '', displayName: '' }
+  form.value = { joinUri: '', domain: '', hubUrlProtocol: 'https', hubUrlHost: '', token: '', displayName: '', address: '' }
   actionLoading.value = true
 
   const panelBaseUrl = resolvePanelBaseUrl()
+  const nodeAddress = confirmInfo.value.address || resolveNodeAddress()
   const displayName = deriveDisplayNameFromBaseUrl(panelBaseUrl)
   const registerMsg = await HttpUtils.post('api/cluster/register', {
     domain: existingDomainData.value.domain,
     hubUrl: existingDomainData.value.hubUrl,
     token: confirmInfo.value.token,
     baseUrl: panelBaseUrl,
+    address: nodeAddress,
     name: '',
     displayName,
   })
@@ -1456,6 +1490,7 @@ const confirmAndSubmit = async () => {
       hubUrl: confirmInfo.value.hubUrl,
       token: confirmInfo.value.token,
       baseUrl: panelBaseUrl,
+      address: confirmInfo.value.address,
       name: '',
       displayName: confirmInfo.value.displayName,
     })
@@ -1467,7 +1502,7 @@ const confirmAndSubmit = async () => {
       }
       await loadData()
       confirmDialog.value = false
-      form.value = { joinUri: '', domain: '', hubUrlProtocol: 'https', hubUrlHost: '', token: '', displayName: '' }
+      form.value = { joinUri: '', domain: '', hubUrlProtocol: 'https', hubUrlHost: '', token: '', displayName: '', address: '' }
       push.success({
         title: i18n.global.t('success'),
         message: i18n.global.t('clusterCenter.successRegistered'),

@@ -276,6 +276,7 @@ export default {
     localNode: "Локальный",
     dialogTitle: "Присоединить домен",
     fields: {
+      nodeAddress: "Адрес узла",
       domain: "ID домена",
       joinUri: "URI подключения",
       hubUrl: "URL Hub",
@@ -331,6 +332,7 @@ export default {
       confirmForceLeaveDomain: "Очистка не удалась. Удалить локальный узел только из таблицы Hub и синхронизировать узлы по состоянию Hub?",
     joinUriHint: "URI начинается с buihub://, например buihub://hub.example.com/domain?id=example.com&domain_token=xxx",
     validation: {
+      nodeAddress: "Адрес узла обязателен.",
       required: "URL Hub, ID домена и токен домена обязательны.",
       hubUrl: "URL Hub должен быть абсолютным и использовать https, кроме localhost.",
       panelUrl: "Текущий адрес панели должен быть абсолютным URL и использовать https, кроме localhost.",

@@ -27,7 +27,7 @@ describe('cluster center locale copy', () => {
       'confirmLeaveTitle',
       'confirmLeaveDomain',
     ] as const
-    const requiredFieldKeys = ['joinUri', 'localBaseUrl'] as const
+    const requiredFieldKeys = ['joinUri', 'localBaseUrl', 'nodeAddress'] as const
     const requiredActionKeys = ['manage', 'pingAll', 'confirmRegister', 'confirmDelete'] as const
     const requiredDomainResourceKeys = [
       'title',
@@ -52,6 +52,7 @@ describe('cluster center locale copy', () => {
         expect(messages.clusterCenter.actions[key]).not.toBe(`clusterCenter.actions.${key}`)
       }
       expect(messages.clusterCenter.validation.displayName).toBeTruthy()
+      expect(messages.clusterCenter.validation.nodeAddress).toBeTruthy()
       expect(messages.clusterCenter.validation.invalidJoinUri).toBeTruthy()
       expect(messages.clusterCenter.joinUriHint).toBeTruthy()
       const domainResources = (messages.clusterCenter as {
@@ -83,6 +84,7 @@ describe('cluster center locale copy', () => {
     const source = readFileSync(fileURLToPath(new URL('../views/ClusterCenter.vue', import.meta.url)), 'utf8')
 
     expect(source).toContain("$t('clusterCenter.fields.joinUri')")
+    expect(source).toContain("$t('clusterCenter.fields.nodeAddress')")
     expect(source).toContain("$t('clusterCenter.joinUriHint')")
     expect(source).toContain("$t('clusterCenter.actions.manage')")
     expect(source).toContain("$t('clusterCenter.actions.pingAll')")

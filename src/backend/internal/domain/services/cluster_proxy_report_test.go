@@ -45,6 +45,7 @@ func TestClusterProxyReportReportsNodeAndWrappedDomainInbounds(t *testing.T) {
 		ID:          7,
 		Name:        "edge.example.com",
 		MemberID:    "node-a",
+		Address:     "203.0.113.10",
 		BaseURL:     "https://node-a.example.com:9443",
 		HubURL:      "https://hub.example.com",
 		DomainToken: "domain-token",
@@ -53,6 +54,7 @@ func TestClusterProxyReportReportsNodeAndWrappedDomainInbounds(t *testing.T) {
 		ID:          7,
 		Name:        "edge.example.com",
 		MemberID:    "node-a",
+		Address:     "203.0.113.10",
 		BaseURL:     "https://node-a.example.com:9443",
 		HubURL:      "https://hub.example.com",
 		DomainToken: "domain-token",
@@ -69,6 +71,9 @@ func TestClusterProxyReportReportsNodeAndWrappedDomainInbounds(t *testing.T) {
 	if hub.body.Configs[0].Scope != "node" || hub.body.Configs[0].DomainInboundRequestID != "" {
 		t.Fatalf("expected node scope metadata, got %#v", hub.body.Configs[0])
 	}
+	if hub.body.Configs[0].Address != "203.0.113.10" {
+		t.Fatalf("expected node config to use member address, got %q", hub.body.Configs[0].Address)
+	}
 	if hub.body.Configs[1].Tag != "domain-only" || hub.body.Configs[1].ListenPort != 10002 {
 		t.Fatalf("unexpected reported domain config: %#v", hub.body.Configs[1])
 	}
@@ -77,6 +82,9 @@ func TestClusterProxyReportReportsNodeAndWrappedDomainInbounds(t *testing.T) {
 	}
 	if hub.body.Configs[1].DomainInboundGroupID != "edge-main" {
 		t.Fatalf("expected domain inbound group id, got %#v", hub.body.Configs[1])
+	}
+	if hub.body.Configs[1].Address != "203.0.113.10" {
+		t.Fatalf("expected domain config to use member address, got %q", hub.body.Configs[1].Address)
 	}
 }
 

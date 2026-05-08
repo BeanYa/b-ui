@@ -31,6 +31,7 @@ type clusterDomainInfo struct {
 	ID          uint
 	Name        string
 	MemberID    string
+	Address     string
 	BaseURL     string
 	HubURL      string
 	DomainToken string
@@ -98,7 +99,10 @@ func (s *ClusterProxyReportService) ReportProxyConfigs(domainID uint) {
 func (s *ClusterProxyReportService) reportProxyConfigs(domain clusterDomainInfo) error {
 	nodeID := s.identitySvc.GetLocalNodeID()
 
-	address := extractHostFromURL(domain.BaseURL)
+	address := normalizeClusterNodeAddress(domain.Address)
+	if address == "" {
+		address = extractHostFromURL(domain.BaseURL)
+	}
 	if address == "" {
 		return fmt.Errorf("could not determine address for domain %s", domain.Name)
 	}
