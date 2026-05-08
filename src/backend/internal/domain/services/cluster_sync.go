@@ -201,6 +201,121 @@ func (s *ClusterSyncService) SyncNow(ctx context.Context) error {
 	return s.pollAndNotifyVersion(ctx, true)
 }
 
+func (s *ClusterSyncService) CheckAutoPanelUpdates(ctx context.Context) error {
+	if s.store == nil {
+		return nil
+	}
+	domains, err := s.store.ListDomains()
+	if err != nil {
+		return err
+	}
+	var failures []string
+	var updateInfo *PanelUpdateInfo
+	var updateInfoErr error
+	infoChecked := false
+	updateInfoProvider := s.getPanelUpdater()
+	cachedUpdater := clusterPanelUpdateInfoProvider{
+		get: func() (*PanelUpdateInfo, error) {
+			if !infoChecked {
+				infoChecked = true
+				updateInfo, updateInfoErr = updateInfoProvider.GetUpdateInfo()
+			}
+			if updateInfoErr != nil {
+				return nil, updateInfoErr
+			}
+			return updateInfo, nil
+		},
+		start: updateInfoProvider.StartUpdate,
+	}
+	for i := range domains {
+		domain := domains[i]
+		if effectiveClusterDomainUpdatePolicy(domain.UpdatePolicy) != ClusterDomainUpdatePolicyAuto {
+			continue
+		}
+		result, err := s.checkAndStartAutoUpdate(ctx, &domain, cachedUpdater)
+		if err != nil {
+			failures = append(failures, fmt.Sprintf("%s: %v", domain.Domain, err))
+			if updateInfoErr != nil {
+				break
+			}
+			continue
+		}
+		if result != nil && result.UpdateStarted {
+			break
+		}
+	}
+	if len(failures) > 0 {
+		return errors.New(strings.Join(failures, "; "))
+	}
+	return nil
+}
+
+type clusterPanelUpdateInfoProvider struct {
+	get   func() (*PanelUpdateInfo, error)
+	start func(string, bool) (*PanelUpdateStartResult, error)
+}
+
+func (p clusterPanelUpdateInfoProvider) GetUpdateInfo() (*PanelUpdateInfo, error) {
+	return p.get()
+}
+
+func (p clusterPanelUpdateInfoProvider) StartUpdate(targetVersion string, force bool) (*PanelUpdateStartResult, error) {
+	return p.start(targetVersion, force)
+}
+
+func (s *ClusterSyncService) checkAndStartAutoUpdate(ctx context.Context, domain *model.ClusterDomain, panelUpdater clusterPanelUpdater) (*ClusterPanelUpdateCheckResult, error) {
+	if domain == nil {
+		return nil, errClusterDomainNotFound
+	}
+	info, err := panelUpdater.GetUpdateInfo()
+	if err != nil {
+		return nil, err
+	}
+	currentVersion := canonicalizeReleaseTag(info.CurrentVersion)
+	if currentVersion == "" {
+		currentVersion = canonicalizeReleaseTag(config.GetVersion())
+	}
+	if info.Recovered {
+		local, localErr := s.getLocalIdentity().GetOrCreate()
+		if localErr == nil {
+			_ = s.markLocalMemberOnline(ctx, domain, local.NodeID, currentVersion)
+			_ = s.publishPanelUpdateStatus(ctx, domain, ClusterPanelUpdateStatusOnline, "", currentVersion, local.NodeID)
+		}
+	}
+	latestVersion := canonicalizeReleaseTag(info.LatestVersion)
+	comparison := compareReleaseTags(currentVersion, latestVersion)
+	updateAvailable := latestVersion != "" && comparison == "older"
+	result := &ClusterPanelUpdateCheckResult{
+		CurrentVersion:  currentVersion,
+		LatestVersion:   latestVersion,
+		Comparison:      comparison,
+		UpdateAvailable: updateAvailable,
+		UpdatePolicy:    effectiveClusterDomainUpdatePolicy(domain.UpdatePolicy),
+		AutoUpdate:      true,
+	}
+	if err := s.saveDomainPanelUpdateState(domain, latestVersion, updateAvailable); err != nil {
+		return nil, err
+	}
+	if !updateAvailable {
+		return result, nil
+	}
+	local, err := s.getLocalIdentity().GetOrCreate()
+	if err != nil {
+		return nil, err
+	}
+	_ = s.markLocalMemberUpdating(ctx, domain, local.NodeID, currentVersion)
+	_ = s.notifyHubMemberStatus(ctx, domain, local.NodeID, "offline", currentVersion)
+	_ = s.publishPanelUpdateStatus(ctx, domain, ClusterPanelUpdateStatusUpdating, latestVersion, currentVersion, local.NodeID)
+	if _, err := panelUpdater.StartUpdate(latestVersion, true); err != nil {
+		_ = s.markLocalMemberOnline(ctx, domain, local.NodeID, currentVersion)
+		_ = s.publishPanelUpdateStatus(ctx, domain, ClusterPanelUpdateStatusOnline, latestVersion, currentVersion, local.NodeID)
+		return result, err
+	}
+	result.UpdateStarted = true
+	s.startPanelUpdateCompletionWatch(domain, local.NodeID, latestVersion)
+	return result, nil
+}
+
 func (s *ClusterSyncService) pollAndNotifyVersion(ctx context.Context, forceSnapshot bool) error {
 	if s.store == nil || s.hubSyncer == nil {
 		return nil
@@ -446,10 +561,14 @@ func (s *ClusterSyncService) domainNeedsSnapshotRefresh(domainID uint) (bool, er
 }
 
 func (s *ClusterSyncService) CheckAndBroadcastUpdate(ctx context.Context, domain *model.ClusterDomain) (*ClusterPanelUpdateCheckResult, error) {
+	return s.checkAndBroadcastUpdate(ctx, domain, s.getPanelUpdater())
+}
+
+func (s *ClusterSyncService) checkAndBroadcastUpdate(ctx context.Context, domain *model.ClusterDomain, panelUpdater clusterPanelUpdater) (*ClusterPanelUpdateCheckResult, error) {
 	if domain == nil {
 		return nil, errClusterDomainNotFound
 	}
-	info, err := s.getPanelUpdater().GetUpdateInfo()
+	info, err := panelUpdater.GetUpdateInfo()
 	if err != nil {
 		return nil, err
 	}
@@ -498,15 +617,12 @@ func (s *ClusterSyncService) CheckAndBroadcastUpdate(ctx context.Context, domain
 	result.AutoUpdate = autoUpdate
 
 	localNodeID := ""
-	if s.broadcaster != nil || autoUpdate {
+	if autoUpdate {
 		local, err := s.getLocalIdentity().GetOrCreate()
 		if err != nil {
 			return nil, err
 		}
 		localNodeID = local.NodeID
-	}
-	if s.broadcaster != nil {
-		_ = s.broadcaster.BroadcastUpdateAvailable(ctx, domain.Id, domain.Domain, latestVersion, localNodeID)
 	}
 	if !autoUpdate {
 		return result, nil
@@ -514,7 +630,7 @@ func (s *ClusterSyncService) CheckAndBroadcastUpdate(ctx context.Context, domain
 	_ = s.markLocalMemberUpdating(ctx, domain, localNodeID, currentVersion)
 	_ = s.notifyHubMemberStatus(ctx, domain, localNodeID, "offline", currentVersion)
 	_ = s.publishPanelUpdateStatus(ctx, domain, ClusterPanelUpdateStatusUpdating, latestVersion, currentVersion, localNodeID)
-	if _, err := s.getPanelUpdater().StartUpdate(latestVersion, true); err != nil {
+	if _, err := panelUpdater.StartUpdate(latestVersion, true); err != nil {
 		_ = s.markLocalMemberOnline(ctx, domain, localNodeID, currentVersion)
 		_ = s.publishPanelUpdateStatus(ctx, domain, ClusterPanelUpdateStatusOnline, latestVersion, currentVersion, localNodeID)
 		return result, err

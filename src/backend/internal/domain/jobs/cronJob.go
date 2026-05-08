@@ -67,6 +67,8 @@ func scheduledCronJobs(trafficAge int) []scheduledCronJob {
 		scheduledCronJob{spec: "@every 10m", job: NewWALCheckpointJob()},
 		// node-side panel status reconciliation; this does not poll hub
 		scheduledCronJob{spec: "@every 1m", job: NewClusterPanelStatusReportJob()},
+		// each node independently checks automatic panel updates
+		scheduledCronJob{spec: "@every 3m", job: NewClusterPanelAutoUpdateCheckJob()},
 		// low-frequency local-only peer reachability probing
 		scheduledCronJob{spec: "@every 30s", job: NewClusterReachabilityProbeJob()},
 		// periodic mesh ping based on per-domain ping policy
