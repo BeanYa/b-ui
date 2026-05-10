@@ -600,6 +600,33 @@ func TestDomainInboundTLSLocalProvidedPanelCertificateUsesTargetSettings(t *test
 	}
 }
 
+func TestDomainInboundTLSLocalProvidedPanelCertificateRequiresTargetWebDomain(t *testing.T) {
+	svc := NewClusterDomainInboundService(ClusterDomainInboundServiceOptions{
+		PanelCertificateProvider: func() (DomainInboundPanelCertificateSettings, error) {
+			return DomainInboundPanelCertificateSettings{
+				WebDomain:   " ",
+				WebCertFile: "/target/fullchain.pem",
+				WebKeyFile:  "/target/privkey.pem",
+			}, nil
+		},
+	})
+	server := map[string]interface{}{
+		"enabled":          true,
+		"server_name":      map[string]interface{}{"LocalProvided": "PanelWebDomain"},
+		"certificate_path": map[string]interface{}{"LocalProvided": "PanelWebCertFile"},
+		"key_path":         map[string]interface{}{"LocalProvided": "PanelWebKeyFile"},
+	}
+	client := map[string]interface{}{}
+
+	err := svc.resolveDomainInboundTLSLocalProvided(&model.ClusterDomain{Domain: "edge.example.com"}, server, client)
+	if err == nil {
+		t.Fatal("expected missing panel web domain to fail")
+	}
+	if err.Error() != "panel web domain is not configured" {
+		t.Fatalf("unexpected error: %v", err)
+	}
+}
+
 func TestDomainInboundTLSLocalProvidedRealityKeypairGeneratesClientPublicKey(t *testing.T) {
 	svc := NewClusterDomainInboundService(ClusterDomainInboundServiceOptions{})
 	server := map[string]interface{}{

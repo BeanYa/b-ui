@@ -117,12 +117,12 @@ const Data = defineStore('Data', {
           ...(ids.length > 0 ? { id: ids.join(',') } : {}),
           hostname: this.remoteHostname,
         })
-        return data?.inbounds ?? []
+        return normalizeCollection(data?.inbounds)
       }
       const options = ids.length > 0 ? {id: ids.join(",")} : {}
       const msg = await HttpUtils.get('api/inbounds', options)
       if(msg.success) {
-        return msg.obj.inbounds
+        return normalizeCollection(msg.obj?.inbounds)
       }
       return <Inbound[]>[]
     },

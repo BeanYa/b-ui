@@ -838,6 +838,9 @@ func (s *ClusterDomainInboundService) resolveDomainInboundTLSLocalProvided(domai
 			if err != nil {
 				return err
 			}
+			if settings.WebDomain == "" {
+				return errors.New("panel web domain is not configured")
+			}
 			server["server_name"] = settings.WebDomain
 		default:
 			return unsupportedLocalProvided("tls.server.server_name", kind)

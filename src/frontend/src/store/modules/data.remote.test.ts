@@ -146,6 +146,20 @@ describe('data store remote node mode', () => {
     expect(mockHttpGet).toHaveBeenCalledWith('api/load', {})
   })
 
+  it('normalizes null inbound payloads to an empty array', async () => {
+    mockRemotePartial.mockResolvedValue({ inbounds: null })
+    mockHttpGet.mockResolvedValue({ success: true, obj: { inbounds: null } })
+
+    const { default: Data } = await import('./data')
+    const data = Data()
+
+    data.enterRemoteNode('node-a', 'https://node.example.com')
+    await expect(data.loadInbounds([13])).resolves.toEqual([])
+
+    data.exitRemoteNode()
+    await expect(data.loadInbounds([13])).resolves.toEqual([])
+  })
+
   it('routes utility calls through panel actions in remote mode', async () => {
     mockRemoteKeypairs.mockResolvedValue(['PrivateKey: abc'])
     mockRemoteLinkConvert.mockResolvedValue({ tag: 'converted' })

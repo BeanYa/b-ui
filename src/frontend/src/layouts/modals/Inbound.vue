@@ -16,6 +16,9 @@
           <v-card v-if="readonly" class="readonly-config-card" variant="tonal">
             <v-card-title>Actual inbound settings</v-card-title>
             <v-card-text>
+              <v-alert v-if="loadError" type="error" variant="tonal" class="mb-4">
+                {{ loadError }}
+              </v-alert>
               <pre class="readonly-config-card__json">{{ readonlyJson }}</pre>
             </v-card-text>
           </v-card>
@@ -136,6 +139,7 @@ export default {
       inbound: createInbound("direct",{ id:0, "tag": "" }),
       title: "add",
       loading: false,
+      loadError: "",
       side: "s",
       inTypes: InTypes,
       inboundWithUsers: ['mixed', 'socks', 'http', 'shadowsocks', 'vmess', 'trojan', 'naive', 'hysteria', 'shadowtls', 'tuic', 'hysteria2', 'vless', 'anytls'],
@@ -181,14 +185,25 @@ export default {
   methods: {
     async loadData(id: number) {
       this.loading = true
-      const inboundArray = await Data().loadInbounds([id])
-      this.inbound = inboundArray[0]
-      if (this.HasInData.includes(this.inbound.type) && this.inbound.out_json == null) {
-        this.inbound.out_json = {}
+      this.loadError = ""
+      try {
+        const inboundArray = await Data().loadInbounds([id])
+        const inbound = Array.isArray(inboundArray) ? inboundArray[0] : undefined
+        if (!inbound) {
+          this.loadError = `Inbound ${id} was not found on the selected panel.`
+          this.inbound = createInbound("direct", { id, tag: `missing-inbound-${id}` })
+          return
+        }
+        this.inbound = inbound
+        if (this.HasInData.includes(this.inbound.type) && this.inbound.out_json == null) {
+          this.inbound.out_json = {}
+        }
+      } finally {
+        this.loading = false
       }
-      this.loading = false
     },
     updateData(id: number) {
+      this.loadError = ""
       if (id > 0) {
         this.loadData(id)
         this.title = this.$props.readonly ? "view" : "edit"

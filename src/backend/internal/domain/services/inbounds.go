@@ -33,7 +33,7 @@ func (s *InboundService) Get(ids string) (*[]map[string]interface{}, error) {
 
 func (s *InboundService) getById(ids string) (*[]map[string]interface{}, error) {
 	var inbound []model.Inbound
-	var result []map[string]interface{}
+	result := []map[string]interface{}{}
 	db := database.GetDB()
 	err := db.Model(model.Inbound{}).Where("id in ?", strings.Split(ids, ",")).Scan(&inbound).Error
 	if err != nil {
