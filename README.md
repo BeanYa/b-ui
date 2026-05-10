@@ -1,291 +1,200 @@
 # B-UI
 
-基于 [b-ui](https://github.com/alireza0/b-ui) 的定制化 fork。当前仓库保留上游后端兼容安装布局，并持续维护 `BeanYa/b-ui` 的发布、安装脚本、前端源码与文档。
+B-UI 是基于 [alireza0/b-ui](https://github.com/alireza0/b-ui) 的定制化运维面板。当前 fork 保留上游兼容的安装布局，整合 Go 后端、Vue 前端、sing-box 运行时、订阅服务、WebTerminal、Docker/Windows 发布资产，以及面向多节点域的集群管控能力。
 
-## Architecture
+当前文档以 `v0.1.96` 已发布能力为准，`v0.2.0` milestone 主要用于统一文档、版本线和发布入口。
 
-```
-┌──────────────────────────────────────────────────────────────┐
-│                         B-UI Binary                          │
-│  ┌──────────────────────┐  ┌──────────────────────────────┐ │
-│  │     Panel Server     │  │     Subscription Server      │ │
-│  │  (session auth API)  │  │  (separate port, link/subs)  │ │
-│  └──────────┬───────────┘  └──────────────────────────────┘ │
-│  ┌──────────▼───────────────────────────────────────────────┐│
-│  │                     HTTP Transport                       ││
-│  │  api/ (v1 + v2 handlers)  │  sub/  │  middleware/        ││
-│  └──────────────────────────────┬───────────────────────────┘│
-│  ┌──────────────────────────────▼───────────────────────────┐│
-│  │                    Domain Layer                          ││
-│  │  services/           │  core/        │  jobs/            ││
-│  │  cluster/*, panel,   │  sing-box     │  cron scheduler   ││
-│  │  client, inbound,    │  runtime      │  (10 scheduled    ││
-│  │  outbound, endpoint, │               │   jobs)           ││
-│  │  warp, stats, ...    │               │                   ││
-│  └──────────────────────────────────────────────────────────┘│
-│  ┌──────────────────────────────────────────────────────────┐│
-│  │                    Infrastructure                        ││
-│  │  infra/db/  │  infra/logging/  │  infra/network/  │web/ ││
-│  │  SQLite WAL │  structured log  │  HTTP client     │SPA  ││
-│  └──────────────────────────────────────────────────────────┘│
-│  ┌──────────────────────────────────────────────────────────┐│
-│  │  cli/  │  shared/  │  config/                          ││
-│  │ admin, │  helpers, │  settings,                         ││
-│  │ setting│  utils    │  TLS, certs                        ││
-│  └──────────────────────────────────────────────────────────┘│
-└──────────────────────────────────────────────────────────────┘
+## 项目定位
 
-┌──────────────────────────────────────────────────────────────┐
-│                   Frontend (Vue 3 SPA)                       │
-│  Vuetify 4.0 + Vite 8 + TypeScript 6                        │
-│  Pinia stores (auth, data, ping, remoteNode)                 │
-│  features/  │  views/  │  components/  │  locales/ (6 lang) │
-│  dashboard, │ cluster, │ shared UI    │  en, zh-CN, zh-TW,  │
-│  webterminal│ settings,│ components   │  ru, vi, fa          │
-│  panelUpdate│ clients, │              │                      │
-│  theme      │ outbounds│              │                      │
-└──────────────────────────────────────────────────────────────┘
-```
+B-UI 面向需要长期运维多个代理节点的场景：
 
-### Backend architecture
+- 单节点部署时，它提供入站、出站、客户端、TLS、订阅、系统监控和面板自更新能力。
+- 多节点部署时，它通过 `b-cluster-hub` 管理域成员，由 B-UI 节点直接执行节点间通信和域资源同步。
+- 协议约定由 `b-protocol` 维护，B-UI 实现其中的 Hub API 消费端和 Node peer API。
 
-The Go backend follows a layered domain-driven design:
+## 特色功能
 
-- **`internal/domain/`** — Business logic with no framework dependencies
-  - `services/` — Domain services: client, inbound, outbound, endpoint, service,
-    TLS, WARP, stats, setting, user, panel update, cluster (membership, peer
-    messaging, reachability, mesh ping, hub client, sync, crypto)
-  - `core/` — sing-box runtime integration: live hot-reload of
-    inbounds/outbounds/endpoints/services without restart, connection tracking,
-    stats collection
-  - `jobs/` — Cron scheduler with 10 scheduled jobs (stats collection, client
-    depletion, core health check, WAL checkpoint, domain hints, cluster
-    version poll, reachability probe, mesh ping, peer schedule, old stats cleanup)
-  - `config/` — Application configuration models
-- **`internal/http/`** — HTTP transport layer
-  - `api/` — v1 (session auth) and v2 (Bearer token auth) API handlers
-  - `sub/` — Subscription server: raw links, base64, JSON, Clash YAML output formats
-  - `middleware/` — Session auth, token auth, CORS
-- **`internal/infra/`** — Infrastructure
-  - `db/` — SQLite with WAL mode, GORM models, migrations
-  - `logging/` — Structured logging
-  - `network/` — HTTP client utilities
-  - `web/` — Embedded SPA static assets
-- **`internal/cli/`** — CLI commands: `admin`, `setting`, `uri`, `migrate`
-- **`internal/app/`** — Application bootstrap and wiring
-- **`internal/shared/`** — Cross-cutting utilities
+### 代理与订阅
 
-The proxy engine is [sing-box](https://sing-box.sagernet.org/) v1.13, compiled
-with build tags for QUIC, gRPC, uTLS, ACME, gVisor, Naive outbound, and
-Tailscale support.
+- 支持 VLESS、VMess、Trojan、Shadowsocks、Hysteria2、Naive、Tailscale 等入站协议。
+- 客户端可以绑定多个入站，入站可绑定 TLS/Reality 模板。
+- 订阅输出支持原始链接、Base64、JSON、Clash YAML、Sing-box 等格式。
+- 支持 VMess/VLESS/Trojan/Shadowsocks/Hysteria2/TUIC 等链接生成与转换。
+- 支持出站、服务、端点、DNS、路由规则等 sing-box 运行对象管理。
 
-### Frontend architecture
+### TLS、Reality 与安全
 
-- **Vue 3.5** + **Vuetify 4.0** + **Vite 8** + **TypeScript 6**
-- **Pinia** stores: `auth`, `data`, `ping`, `remoteNode`
-- **Feature-based organization**: `features/dashboard/`, `features/webterminal/`,
-  `features/panelUpdate/`, `features/theme/`, `features/settings/`, `features/data/`
-- **6-language i18n**: English, Simplified Chinese, Traditional Chinese, Russian,
-  Vietnamese, Persian
-- 10-second data polling interval for dashboard refresh
+- TLS 模板集中管理，入站通过模板复用证书、ALPN、SNI、Reality、ECH 等配置。
+- Reality 支持候选域名探测和 Ed25519 密钥对生成。
+- API v2 使用 Bearer Token，适合机器访问和自动化。
+- 多管理员账户区分管理员与普通角色。
 
-### Build pipeline
+### 运维工具
 
-- **Linux**: Fully static binaries via musl libc, 7 architectures (amd64, arm64,
-  armv7, armv6, armv5, 386, s390x), cronet toolchain for Naive outbound
-- **Windows**: amd64 (CGO) and arm64 (pure Go), Windows service wrapper
-- **Docker**: Multi-arch images for 5 platforms pushed to GHCR
-- Release automation in `.github/workflows/release.yml`
+- Dashboard 提供 CPU、内存、磁盘、网络、数据库、sing-box 状态、在线连接等运行信息。
+- WebTerminal 允许管理员在浏览器内连接服务器本地 shell。终端默认不自动连接，需要点击 `Connect` 并确认；离开页面前会提示并主动中断会话。
+- 面板内置自更新流程，包含 preflight 检查、后台执行、日志追踪、版本协调和失败恢复。
+- 数据库支持导出/导入，sing-box 运行配置支持导出。
 
-## 安装与快速开始
+### 集群管控
 
-Linux 默认通过仓库根目录的 `install.sh` 进入 `scripts/release/install.sh` 完成安装。全新安装后，默认名称和路径如下：
+- `Cluster Center` 支持通过 `buihub://` 加入 Hub 域、查看域成员、同步成员快照、删除成员、查看节点详情。
+- Hub 只保存域成员和资源只读视图；节点间命令由 B-UI 节点根据 Hub 快照直连对端，不经过 Hub 转发。
+- 节点通信使用 `X-Cluster-Token` 认证，并支持 Ed25519 公钥用于消息验证。
+- Mesh Ping 支持 ICMP/TCP/HTTP 多位置探测，结果用于节点详情延迟卡片。
+- 域入站使用稳定 `group_id` 作为长期资源身份，本地入站 tag 按 `[prefix]-[tag seed]-[node display name]-[suffix]` 生成，空片段会被省略。
+- 域用户可绑定稳定的域入站 group id，Hub 订阅生成会按 `domain_inbound_group_id` 选择对应节点配置。
+- 域用户支持外部直连链接和外部订阅链接；面板会去重并上报给 Hub，用于合并到 raw、Clash、Sing-box 等订阅输出。
+- 域用户协议密钥可以由各落地节点本地生成，例如 UUID、password、auth，不会被 Hub 统一覆盖。
 
-- 管理命令：`b-ui`
-- systemd 服务名：`b-ui`
-- 安装根目录：`/usr/local/b-ui`
-- 数据库路径：`/usr/local/b-ui/db/b-ui.db`
+## 快速安装
 
-### 全新安装
+Linux 全新安装：
 
 ```sh
 bash <(curl -Ls https://raw.githubusercontent.com/BeanYa/b-ui/main/install.sh)
 ```
 
-### 安装指定版本
+安装指定版本：
 
 ```sh
-bash <(curl -Ls https://raw.githubusercontent.com/BeanYa/b-ui/main/install.sh) v0.0.1
+bash <(curl -Ls https://raw.githubusercontent.com/BeanYa/b-ui/main/install.sh) v0.2.0
 ```
 
-### Docker 引导入口
+默认安装结果：
 
-Docker 模式使用 `scripts/release/install-docker.sh`，默认拉取 `ghcr.io/beanya/b-ui:latest`。脚本会交互式收集面板端口、路径、管理员凭据，以及可选的协议引导信息，然后在当前目录下生成 `deploy/docker-compose.yml`、`deploy/db/`、`deploy/cert/` 并启动容器。
+- 管理命令：`b-ui`
+- systemd 服务：`b-ui`
+- 安装根目录：`/usr/local/b-ui`
+- 数据库路径：`/usr/local/b-ui/db/b-ui.db`
+
+安装完成后检查：
+
+```sh
+systemctl status b-ui
+b-ui
+```
+
+首次登录后建议先进入 `Settings` 检查面板地址、Base URI、订阅端口、订阅路径、TLS 证书路径和时区。
+
+## Docker 引导部署
+
+仓库内提供交互式 Docker 引导脚本：
 
 ```sh
 bash ./scripts/release/install-docker.sh
 ```
 
-- 如需使用指定版本、fork 镜像、私有 registry 或 digest 固定镜像，可通过 `IMAGE_REF` 覆盖默认值：
+脚本会生成：
+
+- `deploy/docker-compose.yml`
+- `deploy/db/`
+- `deploy/cert/`
+
+默认镜像为 `ghcr.io/beanya/b-ui:latest`。如需固定版本、私有 registry 或 digest：
 
 ```sh
-IMAGE_REF=ghcr.io/beanya/b-ui:v0.1.14 bash ./scripts/release/install-docker.sh
+IMAGE_REF=ghcr.io/beanya/b-ui:v0.2.0 bash ./scripts/release/install-docker.sh
 ```
 
-- 默认面板访问方式是直接 `http://<server-ip>:<panel-port><panel-path>`，不依赖宿主机 Nginx
-- 脚本不会为面板自动申请 ACME 证书；如需可信证书，请把文件挂载到 `deploy/cert/` 后在面板中改用对应路径
-- 可选协议引导支持 `VLESS + TLS`、`VLESS + Reality`、`Hysteria2`，也可以跳过只部署面板
-- 为了让首次引导更容易跑通，`VLESS + TLS` 和 `Hysteria2` 生成的客户端 TLS 侧默认会保留 `insecure: true`；如果你已经换成可信证书，请回到面板里把对应客户端或模板收紧
-- 更完整的 Docker 说明见 [`docs/manual.md`](./docs/manual.md)
+Docker 引导支持跳过协议配置，也支持创建最小可用的 `VLESS + TLS`、`VLESS + Reality` 或 `Hysteria2` 对象。默认面板访问方式是 `http://<server-ip>:<panel-port><panel-path>`，脚本不会替宿主机配置 Nginx，也不会自动为面板申请 ACME 证书。
 
-### 快速开始
+## 基本使用流程
 
-1. 以 root 运行安装命令。
-2. 安装完成后确认服务状态：`systemctl status b-ui`。
-3. 先阅读完整用户手册 [`docs/manual.md`](./docs/manual.md)，按手册完成 TLS、客户端和入站配置。
-4. 后续更新使用 `b-ui update`，强制重装当前版本使用 `b-ui update --force`。
+### 创建单节点代理
 
-## 功能速览
+1. 进入 `TLS Settings`，创建或确认 TLS/Reality 模板。
+2. 进入 `Clients`，创建客户端并保存 UUID、password 或 auth 等凭据。
+3. 进入 `Inbounds`，创建入站，绑定 TLS 模板和客户端。
+4. 从客户端视图或订阅入口复制链接。
+5. 用真实客户端做一次连通性验证。
 
-### 核心代理管理
+推荐首次使用 `VLESS + TLS`，因为它最容易验证域名、证书、端口和客户端配置是否正确。
 
-- **多协议入站**：支持 VLESS、VMess、Trojan、Shadowsocks、Hysteria2、Naive、Tailscale 等多种入站协议，每个用户可绑定多个入站。
-- **出站管理**：独立的出站实体管理，支持延迟测试（URL-based latency check）。
-- **服务管理**：独立的服务实体（Services），支持 TLS 绑定和 sing-box 核心热重载。
-- **端点管理**：独立的端点实体（Endpoints），内置 Cloudflare WARP 集成（自动注册设备、生成 WireGuard 密钥、应用 License）。
-- **DNS 配置**：独立的 DNS 服务器配置视图。
-- **路由规则**：独立的路由规则管理视图。
+### 加入集群域
 
-### 订阅系统
+1. 在 `b-cluster-hub` 管理页创建域，并复制 `buihub://` Join URI。
+2. 在 B-UI 打开 `Cluster Center`，点击 `Register`。
+3. 粘贴 Join URI，确认 `Hub URL`、`Domain`、`Token` 自动解析正确。
+4. 提交注册，等待操作状态完成。
+5. 在域详情中查看成员、Mesh Ping 延迟、活动日志和资源上报状态。
 
-- **多格式输出**：支持原始链接、Base64 编码、JSON、Clash YAML（内置 DNS/TUN/规则模板）。
-- **链接转换**：支持 VMess/VLESS/Trojan 等协议的链接格式转换。
-- **订阅转换**：支持订阅 URL 到多格式输出的转换。
+### 管理域入站和域用户
 
-### TLS 与安全
+1. 在域详情中创建域入站组，填写 tag seed、prefix、suffix、协议和可选 TLS 模板。
+2. 每个节点会根据自己的 display name 生成本地入站 tag，例如 `edge-vless-shanghai-main`。
+3. 创建域用户时绑定域入站 group id，而不是绑定某个节点的本地入站 id。
+4. 如需把外部节点加入同一个域用户订阅，可添加外部 direct link 或外部 subscription link。
+5. Hub 订阅会合并节点上报的域入站配置和用户外部链接，并按所选格式输出。
 
-- **TLS 预设密钥对即时生成**：创建 TLS 预设时自动物化密钥对材料，无需创建后手动重新生成。
-- **Reality 域名探测**：自动探测候选域名（YouTube、Cloudflare、Apple 等）的 TLS 1.3 支持和 ALPN 协商，分类为推荐/可用/受限/失败。
-- **Reality 密钥对生成**：支持 Ed25519 Reality 密钥对的即时生成。
+## 更新与迁移
 
-### 集群管控平面
-
-- **Cluster Center**：提供多节点集群管理能力，支持 Hub 域注册、成员节点自动发现与手动同步、操作状态轮询与成员管理。可在同一面板内跨节点查看集群状态。
-- **一键加入集群**：支持 `buihub://` 协议 URI 解析，配合 Hub URL 协议选择（https/http），可快速将当前节点注册到指定 Hub 域。
-- **节点间通信协议**：节点通过 Hub 下发的成员表获取对端端点后直连通信。支持 Ed25519 签名消息验证、多种路由模式（direct/multicast/broadcast/chain/scheduled_broadcast）、ACK 级别（none/node/quorum/all）、目标选择器（include/exclude/capability）和链式工作流（step-by-step with `continueOnFailure`）。Hub 只负责域成员权威登记，不参与节点间消息转发。
-- **节点可达性追踪**：完整的可达性状态机（unknown → reachable → suspect → unreachable），可配置探测间隔、失败阈值和退避策略。
-- **Mesh Ping**：集群成员间 ICMP/TCP/HTTP 多位置探测，30 秒间隔自动执行。
-- **集群面板更新编排**：支持跨域广播更新可用性、更新请求推送、更新状态追踪和协调更新。
-- **集群节点详情**：独立的集群节点详情视图，包含**可折叠延迟卡片**（显示 ping 延迟及颜色编码，支持按成员筛选）。
-- **集群活动日志**：实时集群活动日志查看器，支持按域名过滤，自动记录入站/出站/Hub/Cron 四类操作日志，环形缓冲区最多保留 2048 条。
-- **代理配置自动上报**：入站 CRUD 操作后自动向 Hub 上报节点代理配置，用于域订阅链接生成。
-
-### 面板管理
-
-- **面板自更新**：内置自更新检测流程，支持 preflight 资源可用性检查（最多 30 次重试）、detached systemd-run 执行、日志追踪、版本协调和崩溃恢复。可直接在面板内触发版本升级，无需 SSH 登录手动执行更新命令。
-- **多管理员**：支持多管理员账户管理，区分 admin/non-admin 角色。
-- **API v2（机器访问）**：独立的 Bearer Token 认证 API 层，支持 Token 过期管理和 CRUD。
-- **数据库导出/导入**：支持数据库导出和导入操作。
-- **sing-box 配置导出**：支持导出完整 sing-box 运行配置。
-
-### 运维工具
-
-- **交互式 WebTerminal**：管理员可以在面板内直接打开 `/webterminal`，连接服务器本地 shell，进行实时键盘输入、光标交互、流式输出查看与终端窗口尺寸同步。
-- **更安全的终端连接流程**：WebTerminal 页面默认不会自动连入；需要先点击 `Connect` 并确认。离开页面、刷新页面或关闭标签页前会再次提醒，并在确认后主动中断当前终端会话。
-- **系统资源监控**：实时 CPU、内存、磁盘、磁盘 IO、交换空间、网络、数据库和 sing-box 状态监控。
-- **在线连接追踪**：实时在线用户/入站/出站追踪（10 秒刷新）。
-- **客户端到期/流量耗尽自动禁用**：每分钟检查客户端流量和到期时间，自动禁用超额客户端并重启受影响入站。
-
-### 部署与平台
-
-- **Docker 引导部署**：提供 `scripts/release/install-docker.sh` 作为交互式 Docker 引导入口，可直接生成 compose 文件、初始化面板并按需引导基础协议对象。
-- **Windows 原生支持**：Windows 服务包装器、批处理安装/卸载脚本，支持 amd64 和 arm64。
-- **SIGHUP 热重启**：Linux 下支持 SIGHUP 信号触发热重启，Windows 下使用进程重启。
-- **与上游兼容的安装布局**：默认安装根目录、数据库路径和服务运行方式继续兼容上游 `b-ui` 布局，便于迁移与运维。
-
-### 前端
-
-- **前端性能优化**：支持代码分割、资源按需加载、MDI 图标字体原生渲染，减少首屏资源开销。
-- **6 语言国际化**：支持英语、简体中文、繁体中文、俄语、越南语、波斯语。
-- **暗色设计系统**：基于 Raycast 风格的暗色 UI 设计（详见 [`DESIGN.md`](./DESIGN.md)）。
-
-## 文档导航
-
-- 安装迁移上游 `b-ui`：[`MIGRATION.md`](./MIGRATION.md)
-- 完整用户手册：[`docs/manual.md`](./docs/manual.md)
-- 贡献与本地开发：[`CONTRIBUTING.md`](./CONTRIBUTING.md)
-- 前端设计基线：[`DESIGN.md`](./DESIGN.md)
-- 集群协议：`BeanYa/b-protocol`
-
-## 集群协议
-
-B-UI 节点把 Hub 视为域成员的权威中心。加入域、退出域、删除成员等成员变更先提交到 Hub；Hub 成功登记后，节点通过节点间协议广播 `domain.cluster.changed` 事件，域内节点再向 Hub 拉取最新成员快照并更新本地集群表。
-
-节点间通信不经过 Hub。每个节点维护自己的事件队列、已处理事件列表和投递日志，请求进入队列后按顺序处理；`messageId` 和 `idempotencyKey` 用于重复请求去重，重复事件不会再次执行副作用。
-
-协议由私有 `BeanYa/b-protocol` 仓库统一维护，并按通信边界拆分：
-
-- Hub 协议：`b-protocol/protocol/v1/hub`，定义注册、删除、操作查询、版本查询和成员快照。
-- Node 协议：`b-protocol/protocol/v1/node`，定义 peer message envelope、HTTP 状态码约定、幂等处理和业务响应码。
-
-节点展示名称使用 `display_name`，用于管理面板和域详情列表增强可读性；传播、请求和存储仍以 `node_id` 作为唯一主键。加入域时如果没有显式填写 `display_name`，默认从 `base_url` 的域名段推导，例如 `https://abc.def.com:1000/bui` 推导为 `abc.def.com`。
-
-## 更新
-
-安装完成后的常用更新命令：
+常规更新：
 
 ```sh
 b-ui update
+```
+
+强制重装目标版本：
+
+```sh
 b-ui update --force
 ```
 
-如果你需要直接调用安装脚本，对应模式如下：
+直接调用安装脚本：
 
 ```sh
 bash <(curl -Ls https://raw.githubusercontent.com/BeanYa/b-ui/main/install.sh) --update
 bash <(curl -Ls https://raw.githubusercontent.com/BeanYa/b-ui/main/install.sh) --force-update
 ```
 
-- `b-ui update` / `--update`：仅在已安装 `b-ui` 且当前版本低于目标版本时执行更新
-- `b-ui update --force` / `--force-update`：即使当前版本相同也重新安装目标版本
-- 如果当前版本已经等于或高于目标版本，`--update` 会直接退出，并提示改用 `--force-update`
-- 两种模式都支持显式版本，例如 `b-ui update v0.0.1`
-
-## 从已安装的上游版本迁移
-
-如果服务器已经安装上游 `b-ui`，请使用迁移模式，而不是普通更新模式：
+从上游安装迁移到当前 fork：
 
 ```sh
 bash <(curl -Ls https://raw.githubusercontent.com/BeanYa/b-ui/main/install.sh) --migrate
 ```
 
-迁移会保留现有安装根目录 `/usr/local/b-ui`，并把默认服务名和管理命令切换为 `b-ui`。如果只存在旧库 `/usr/local/b-ui/db/b-ui.db`，程序会在首次迁移/启动时自动迁移到 `/usr/local/b-ui/db/b-ui.db`。
+迁移会保留 `/usr/local/b-ui` 下的现有数据，并切换默认服务名和管理命令到 `b-ui`。
 
-更多迁移细节见 [`MIGRATION.md`](./MIGRATION.md)。
+## 架构概览
 
-## 仓库结构
+后端采用分层结构：
 
-- `src/backend/cmd/b-ui/`: Go 后端可执行入口
-- `src/backend/internal/domain/`: 领域层（services, core, jobs, config）
-- `src/backend/internal/http/`: HTTP 传输层（api v1/v2, sub, middleware）
-- `src/backend/internal/infra/`: 基础设施层（db, logging, network, web）
-- `src/backend/internal/cli/`: CLI 命令（admin, setting, uri, migrate）
-- `src/backend/internal/shared/`: 跨层工具函数
-- `src/frontend/`: Vue 3 + Vuetify 前端源码
-- `src/services/`: systemd、Windows 服务等运行资产
-- `scripts/build/`, `scripts/dev/`, `scripts/release/`: 构建、开发、发布脚本
-- `packaging/docker/`: Docker 打包定义
+- `src/backend/internal/http/`：面板 API、订阅 API、中间件。
+- `src/backend/internal/domain/`：客户端、入站、出站、TLS、集群、更新、统计等领域服务。
+- `src/backend/internal/infra/`：SQLite/GORM、日志、网络、嵌入式前端资源。
+- `src/backend/internal/cli/`：`admin`、`setting`、`uri`、`migrate` 等命令。
+- `src/backend/internal/app/`：应用启动与依赖装配。
 
-## 开发说明
+前端采用 Vue 3、Vuetify、Vite、TypeScript 和 Pinia，功能按 dashboard、cluster、webterminal、panelUpdate、settings、theme 等模块组织。
 
-开发者通常只需要先看这三处：
+发布流水线构建 Linux 多架构静态二进制、Windows amd64/arm64 包和 GHCR 多架构 Docker 镜像。
 
-- 本地联调：`bash ./scripts/dev/run-local.sh`
-- 前端单独开发：在 `src/frontend/` 下执行 `npm install && npm run dev`
-- UI 改动前先读 [`DESIGN.md`](./DESIGN.md)
+## 开发入口
+
+常用命令：
+
+```sh
+bash ./scripts/dev/run-local.sh
+cd src/frontend && npm install && npm run dev
+```
+
+发布版本声明位于：
+
+- 后端：`src/backend/internal/domain/config/version`
+- 前端：`src/frontend/package.json`
+
+## 文档导航
+
+- 用户手册：[`docs/manual.md`](./docs/manual.md)
+- 迁移说明：[`MIGRATION.md`](./MIGRATION.md)
+- 贡献与本地开发：[`CONTRIBUTING.md`](./CONTRIBUTING.md)
+- 前端设计基线：[`DESIGN.md`](./DESIGN.md)
+- Hub 服务：`BeanYa/b-cluster-hub`
+- 协议参考：`BeanYa/b-protocol`
 
 ## Fork 说明
 
 - 上游后端：[`alireza0/b-ui`](https://github.com/alireza0/b-ui)
 - 上游前端：[`alireza0/b-ui-frontend`](https://github.com/alireza0/b-ui-frontend)
-- 当前 fork 已将前端源码直接并入 `BeanYa/b-ui`
+- 当前 fork 已将前端源码并入 `BeanYa/b-ui`，由同一仓库发布。
