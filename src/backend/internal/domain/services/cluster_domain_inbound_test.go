@@ -1511,14 +1511,22 @@ func TestDomainInboundBuildLegacyTagPreservesPrefixBaseNodeSuffix(t *testing.T) 
 	}
 }
 
-func TestDomainInboundBuildTagUsesSeedPrefixDisplayNameSuffix(t *testing.T) {
-	tag := buildClusterInboundTag("main", "edge", "de", "prod")
-	if tag != "main-edge-de-prod" {
-		t.Fatalf("expected main-edge-de-prod, got %q", tag)
+func TestDomainInboundBuildTagUsesPrefixSeedDisplayNameSuffix(t *testing.T) {
+	tag := buildClusterInboundTag("BeanStudio", "Pro", "Alike-JpPro", "KL")
+	if tag != "Pro-BeanStudio-Alike-JpPro-KL" {
+		t.Fatalf("expected Pro-BeanStudio-Alike-JpPro-KL, got %q", tag)
 	}
-	tag = buildClusterInboundTag("main", "", "de", "")
-	if tag != "main-de" {
-		t.Fatalf("expected main-de, got %q", tag)
+	tag = buildClusterInboundTag("BeanStudio", "", "Alike-JpPro", "KL")
+	if tag != "BeanStudio-Alike-JpPro-KL" {
+		t.Fatalf("expected BeanStudio-Alike-JpPro-KL, got %q", tag)
+	}
+	tag = buildClusterInboundTag("BeanStudio", "", "Alike-JpPro", "")
+	if tag != "BeanStudio-Alike-JpPro" {
+		t.Fatalf("expected BeanStudio-Alike-JpPro, got %q", tag)
+	}
+	tag = buildClusterInboundTag("", "", "Alike-JpPro", "")
+	if tag != "Alike-JpPro" {
+		t.Fatalf("expected Alike-JpPro, got %q", tag)
 	}
 }
 
@@ -1537,8 +1545,8 @@ func TestDomainInboundLocalDisplayNameFallsBackToNodeIDWhenDisplayNameSanitizesE
 		t.Fatalf("expected node-a fallback, got %q", displayName)
 	}
 	tag := buildClusterInboundTag("main", "edge", displayName, "prod")
-	if tag != "main-edge-node-a-prod" {
-		t.Fatalf("expected node fallback tag, got %q", tag)
+	if tag != "edge-main-node-a-prod" {
+		t.Fatalf("expected edge-main-node-a-prod, got %q", tag)
 	}
 }
 

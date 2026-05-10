@@ -1124,8 +1124,8 @@ func sanitizeDomainInboundPart(value string, fallback string) string {
 
 func buildClusterInboundTag(tagSeed string, prefix string, displayName string, suffix string) string {
 	parts := []string{
-		sanitizeDomainInboundPart(tagSeed, "inbound"),
 		sanitizeDomainInboundPart(prefix, ""),
+		sanitizeDomainInboundPart(tagSeed, ""),
 		sanitizeDomainInboundPart(displayName, ""),
 		sanitizeDomainInboundPart(suffix, ""),
 	}
@@ -1134,6 +1134,9 @@ func buildClusterInboundTag(tagSeed string, prefix string, displayName string, s
 		if part != "" {
 			nonEmpty = append(nonEmpty, part)
 		}
+	}
+	if len(nonEmpty) == 0 {
+		nonEmpty = append(nonEmpty, sanitizeDomainInboundPart(tagSeed, "inbound"))
 	}
 	return strings.Join(nonEmpty, "-")
 }
