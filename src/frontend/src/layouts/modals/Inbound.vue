@@ -13,6 +13,13 @@
         ></v-skeleton-loader>
       <v-card-text class="app-dialog__body">
         <v-container style="padding: 0;" :hidden="loading">
+          <v-card v-if="readonly" class="readonly-config-card" variant="tonal">
+            <v-card-title>Actual inbound settings</v-card-title>
+            <v-card-text>
+              <pre class="readonly-config-card__json">{{ readonlyJson }}</pre>
+            </v-card-text>
+          </v-card>
+          <fieldset class="readonly-fieldset" :disabled="readonly">
           <v-row>
             <v-col cols="12" sm="6" md="4">
               <v-select
@@ -62,10 +69,10 @@
               <v-card>
                 <v-card-text>
                   <v-card-subtitle>{{ $t('in.multiDomain') }}
-                    <v-chip color="primary" density="compact" variant="elevated" @click="add_addr"><v-icon icon="mdi-plus" /></v-chip>
+                    <v-chip v-if="!readonly" color="primary" density="compact" variant="elevated" @click="add_addr"><v-icon icon="mdi-plus" /></v-chip>
                   </v-card-subtitle>
                   <template v-for="addr,index in inbound.addrs">
-                    {{ $t('in.addr') }} #{{ (index+1) }} <v-icon icon="mdi-delete" color="error" @click="inbound.addrs?.splice(index,1)" />
+                    {{ $t('in.addr') }} #{{ (index+1) }} <v-icon v-if="!readonly" icon="mdi-delete" color="error" @click="inbound.addrs?.splice(index,1)" />
                     <v-divider></v-divider>
                     <AddrVue :addr="addr" :hasTls="HasTls.includes(inbound.type)" />
                   </template>
@@ -73,6 +80,7 @@
               </v-card>
             </v-window-item>
           </v-window>
+          </fieldset>
         </v-container>
       </v-card-text>
       <v-card-actions>
@@ -85,6 +93,7 @@
           {{ $t('actions.close') }}
         </v-btn>
         <v-btn
+          v-if="!readonly"
           color="primary"
           variant="tonal"
           :loading="loading"
@@ -120,7 +129,7 @@ import AddrVue from '@/components/Addr.vue'
 import OutJsonVue from '@/components/OutJson.vue'
 import Data from '@/store/modules/data'
 export default {
-  props: ['visible', 'id', 'inTags', 'tlsConfigs'],
+  props: ['visible', 'id', 'inTags', 'tlsConfigs', 'readonly'],
   emits: ['close'],
   data() {
     return {
@@ -182,7 +191,7 @@ export default {
     updateData(id: number) {
       if (id > 0) {
         this.loadData(id)
-        this.title = "edit"
+        this.title = this.$props.readonly ? "view" : "edit"
       }
       else {
         const port = RandomUtil.randomIntRange(10000, 60000)
@@ -228,6 +237,7 @@ export default {
     },
     async saveChanges() {
       if (!this.$props.visible) return
+      if (this.$props.readonly) return
       // check duplicate tag
       const isDuplicatedTag = Data().checkTag("inbound", this.inbound.id, this.inbound.tag)
       if (isDuplicatedTag) return
@@ -270,6 +280,9 @@ export default {
       if ((<any>this.inbound).managed) return false
       return true
     },
+    readonlyJson(): string {
+      return JSON.stringify(this.inbound, null, 2)
+    },
   },
   watch: {
     visible(newValue) {
@@ -285,3 +298,24 @@ export default {
   }
 }
 </script>
+
+<style scoped>
+.readonly-fieldset {
+  border: 0;
+  margin: 0;
+  min-inline-size: 0;
+  padding: 0;
+}
+
+.readonly-config-card {
+  margin-bottom: 16px;
+}
+
+.readonly-config-card__json {
+  font-family: monospace;
+  font-size: 12px;
+  max-height: 280px;
+  overflow: auto;
+  white-space: pre-wrap;
+}
+</style>

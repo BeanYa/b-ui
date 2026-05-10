@@ -36,6 +36,7 @@
       :id="modal.id"
       :groups="groups"
       :inboundTags="inboundTags"
+      :readonly="modal.readonly"
       @close="closeModal"
     />
     <ClientAddBulk 
@@ -238,11 +239,14 @@
           </div>
         </template>
         <template v-slot:item.actions="{ item }">
-        <v-tooltip v-if="isClusterManaged(item)" location="top" text="Domain-managed user is read-only">
-          <template v-slot:activator="{ props }">
-            <v-icon class="me-2" color="disabled" v-bind="props">mdi-lock-outline</v-icon>
-          </template>
-        </v-tooltip>
+        <v-icon
+          v-if="isClusterManaged(item)"
+          class="me-2"
+          @click="showModal(item.id, true)"
+        >
+          mdi-eye
+          <v-tooltip activator="parent" location="top" text="View actual user settings"></v-tooltip>
+        </v-icon>
         <template v-else>
           <v-icon
             class="me-2"
@@ -389,16 +393,19 @@ const setItemPerPage = (items: number) => {
 const modal = ref({
   visible: false,
   id: 0,
+  readonly: false,
 })
 
 const delOverlay = ref(new Array<boolean>(clients.value.length).fill(false))
 
-const showModal = async (id: number) => {
+const showModal = async (id: number, readonly = false) => {
   modal.value.id = id
+  modal.value.readonly = readonly
   modal.value.visible = true
 }
 const closeModal = () => {
   modal.value.visible = false
+  modal.value.readonly = false
 }
 
 const delClient = async (id: number) => {

@@ -35,6 +35,7 @@
       :id="modal.id"
       :inTags="inTags"
       :tlsConfigs="tlsConfigs"
+      :readonly="modal.readonly"
       @close="closeModal"
     />
     <Stats
@@ -102,9 +103,9 @@
           </v-card-text>
           <v-divider />
           <v-card-actions class="app-card-actions">
-            <v-btn icon="mdi-file-edit" :disabled="isClusterManaged(item)" @click="showModal(item.id)">
+            <v-btn :icon="isClusterManaged(item) ? 'mdi-eye' : 'mdi-file-edit'" @click="showModal(item.id, isClusterManaged(item))">
               <v-icon />
-              <v-tooltip activator="parent" location="top" :text="isClusterManaged(item) ? 'Managed by domain resource operation' : $t('actions.edit')" />
+              <v-tooltip activator="parent" location="top" :text="isClusterManaged(item) ? 'View actual inbound settings' : $t('actions.edit')" />
             </v-btn>
             <v-btn icon="mdi-file-remove" color="warning" @click="delOverlay[index] = true">
               <v-icon />
@@ -163,17 +164,20 @@ const isClusterManaged = (item: any): boolean => item?.cluster_managed === true 
 const modal = ref({
   visible: false,
   id: 0,
+  readonly: false,
 })
 
 const delOverlay = ref<boolean[]>([])
 
-const showModal = (id: number) => {
+const showModal = (id: number, readonly = false) => {
   modal.value.id = id
+  modal.value.readonly = readonly
   modal.value.visible = true
 }
 
 const closeModal = () => {
   modal.value.visible = false
+  modal.value.readonly = false
 }
 
 const delInbound = async (id: number) => {

@@ -5,6 +5,7 @@
       :visible="modal.visible"
       :id="modal.id"
       :data="modal.data"
+      :readonly="modal.readonly"
       @close="closeModal"
       @save="saveModal"
     />
@@ -78,9 +79,9 @@
           </v-card-text>
         <v-divider></v-divider>
           <v-card-actions class="app-card-actions">
-          <v-btn icon="mdi-file-edit" :disabled="isClusterManaged(item)" @click="showModal(item.id)">
+          <v-btn :icon="isClusterManaged(item) ? 'mdi-eye' : 'mdi-file-edit'" @click="showModal(item.id, undefined, isClusterManaged(item))">
             <v-icon />
-            <v-tooltip activator="parent" location="top" :text="isClusterManaged(item) ? 'Domain-managed TLS is read-only' : $t('actions.edit')"></v-tooltip>
+            <v-tooltip activator="parent" location="top" :text="isClusterManaged(item) ? 'View actual TLS settings' : $t('actions.edit')"></v-tooltip>
           </v-btn>
           <v-btn v-if="tlsInbounds(item.id).length == 0 && !isClusterManaged(item)" icon="mdi-file-remove" color="warning" @click="delOverlay[index] = true">
             <v-icon />
@@ -139,6 +140,7 @@ const modal = ref({
   visible: false,
   id: 0,
   data: "",
+  readonly: false,
 })
 const presetLoading = ref<TlsPresetKey | ''>('')
 
@@ -152,9 +154,10 @@ const presetItems: { title: string, value: TlsPresetKey }[] = [
 
 const delOverlay = ref(new Array<boolean>(tlsConfigs.value.length).fill(false))
 
-const showModal = (id: number, data?: tls) => {
+const showModal = (id: number, data?: tls, readonly = false) => {
   modal.value.id = id
   modal.value.data = data ? JSON.stringify(data) : (id == 0 ? '{}' : JSON.stringify(tlsConfigs.value.findLast(t => t.id == id)))
+  modal.value.readonly = readonly
   modal.value.visible = true
 }
 const showPresetModal = async (preset: TlsPresetKey) => {
@@ -184,6 +187,7 @@ const clone = (obj: any) => {
 }
 const closeModal = () => {
   modal.value.visible = false
+  modal.value.readonly = false
 }
 const saveModal = async (data:tls) => {
   const success = await Data().save("tls", data.id > 0 ? "edit" : "new", data)

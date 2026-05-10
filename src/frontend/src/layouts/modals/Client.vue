@@ -13,6 +13,13 @@
         ></v-skeleton-loader>
       <v-card-text style="padding: 0 16px; overflow-y: scroll;">
         <v-container style="padding: 0;" :hidden="loading">
+          <v-card v-if="readonly" class="readonly-config-card" variant="tonal">
+            <v-card-title>Actual user settings</v-card-title>
+            <v-card-text>
+              <pre class="readonly-config-card__json">{{ readonlyJson }}</pre>
+            </v-card-text>
+          </v-card>
+          <fieldset class="readonly-fieldset" :disabled="readonly">
           <v-tabs
             v-model="tab"
             align-tabs="center"
@@ -68,7 +75,7 @@
                     <div>
                       {{ $t('stats.usage') }}: {{ total }}<sup dir="ltr" v-if="percent>0">({{ percent }}%)</sup>
                     </div>
-                    <v-btn density="compact" variant="text" icon="mdi-restore" @click="resetUsage">
+                    <v-btn v-if="!readonly" density="compact" variant="text" icon="mdi-restore" @click="resetUsage">
                       <v-tooltip activator="parent" location="top">
                         {{ $t('reset') }}
                       </v-tooltip>
@@ -114,7 +121,7 @@
                     chips
                     hide-details>
                     <template v-slot:append>
-                      <v-icon @click="setAllInbounds" icon="mdi-set-all" v-tooltip:top="$t('all')" />
+                    <v-icon v-if="!readonly" @click="setAllInbounds" icon="mdi-set-all" v-tooltip:top="$t('all')" />
                     </template>
                   </v-select>
                 </v-col>
@@ -123,13 +130,13 @@
             <v-window-item value="t2">
               <v-row>
                 <v-col cols="12" sm="6" md="4">
-                  <v-btn variant="tonal" @click="shuffle()">{{ $t('reset') + ' - ' + $t('all') }}<v-icon icon="mdi-refresh" /></v-btn>
+                  <v-btn v-if="!readonly" variant="tonal" @click="shuffle()">{{ $t('reset') + ' - ' + $t('all') }}<v-icon icon="mdi-refresh" /></v-btn>
                 </v-col>
               </v-row>
               <v-row v-for="key in Object.keys(clientConfig)">
                 <v-col cols="12" md="3" align="end" align-self="center">
                     {{ key }}
-                    <v-icon @click="shuffle(key)" icon="mdi-refresh" v-tooltip:top="$t('reset')" />
+                    <v-icon v-if="!readonly" @click="shuffle(key)" icon="mdi-refresh" v-tooltip:top="$t('reset')" />
                 </v-col>
                 <v-col>
                   <v-text-field
@@ -166,7 +173,7 @@
               </v-row>
               <v-row>
                 <v-col>
-                  <v-btn color="primary" @click="extLinks.push({ type: 'external', uri: ''})">{{ $t('actions.add') }} {{ $t('client.external') }}</v-btn>
+                  <v-btn v-if="!readonly" color="primary" @click="extLinks.push({ type: 'external', uri: ''})">{{ $t('actions.add') }} {{ $t('client.external') }}</v-btn>
                 </v-col>
               </v-row>
               <v-row v-for="(lnk, index) in extLinks">
@@ -174,7 +181,7 @@
                   <v-text-field
                   dir="ltr"
                   :label="$t('client.external') + ' ' + (index+1)"
-                  append-icon="mdi-delete"
+                  :append-icon="readonly ? undefined : 'mdi-delete'"
                   @click:append="extLinks.splice(index,1)"
                   placeholder="<protocol>://<data>"
                   v-model="lnk.uri" />
@@ -182,7 +189,7 @@
               </v-row>
               <v-row>
                 <v-col>
-                  <v-btn color="primary" @click="subLinks.push({ type: 'sub', uri: ''})">{{ $t('actions.add') }} {{ $t('client.sub') }}</v-btn>
+                  <v-btn v-if="!readonly" color="primary" @click="subLinks.push({ type: 'sub', uri: ''})">{{ $t('actions.add') }} {{ $t('client.sub') }}</v-btn>
                 </v-col>
               </v-row>
               <v-row v-for="(lnk, index) in subLinks">
@@ -190,7 +197,7 @@
                   <v-text-field
                   dir="ltr"
                   :label="$t('client.sub') + ' ' + (index+1)"
-                  append-icon="mdi-delete"
+                  :append-icon="readonly ? undefined : 'mdi-delete'"
                   @click:append="subLinks.splice(index,1)"
                   placeholder="http[s]://<domain>[:]<port>/<path>"
                   v-model="lnk.uri" />
@@ -198,11 +205,13 @@
               </v-row>
             </v-window-item>
           </v-window>
+          </fieldset>
         </v-container>
       </v-card-text>
       <v-card-actions>
         <v-spacer></v-spacer>
         <v-btn
+          v-if="!readonly"
           color="primary"
           variant="outlined"
           @click="closeModal"
@@ -230,7 +239,7 @@ import Data from '@/store/modules/data'
 import { locale } from '@/locales'
 
 export default {
-  props: ['visible', 'id', 'inboundTags', 'groups'],
+  props: ['visible', 'id', 'inboundTags', 'groups', 'readonly'],
   emits: ['close'],
   data() {
     return {
@@ -250,7 +259,7 @@ export default {
         this.loading = true
         const newData = await Data().loadClients(id)
         this.client = createClient(newData)
-        this.title = "edit"
+        this.title = this.$props.readonly ? "view" : "edit"
         this.clientConfig = this.client.config
         this.loading = false
       }
@@ -271,6 +280,7 @@ export default {
     },
     async saveChanges() {
       if (!this.$props.visible) return
+      if (this.$props.readonly) return
       // check duplicate name
       const isDuplicateName = Data().checkClientName(this.$props.id, this.client.name)
       if (isDuplicateName) return
@@ -356,6 +366,9 @@ export default {
     },
     percent() :number { return this.client.volume>0 ? Math.round((this.client.up + this.client.down) *100 / this.client.volume) : 0 },
     percentColor() :string { return (this.client.up+this.client.down) >= this.client.volume ? 'error' : this.percent>90 ? 'warning' : 'success' },
+    readonlyJson(): string {
+      return JSON.stringify(this.client, null, 2)
+    },
   },
   watch: {
     visible(newValue) {
@@ -368,3 +381,24 @@ export default {
 }
 
 </script>
+
+<style scoped>
+.readonly-fieldset {
+  border: 0;
+  margin: 0;
+  min-inline-size: 0;
+  padding: 0;
+}
+
+.readonly-config-card {
+  margin-bottom: 16px;
+}
+
+.readonly-config-card__json {
+  font-family: monospace;
+  font-size: 12px;
+  max-height: 280px;
+  overflow: auto;
+  white-space: pre-wrap;
+}
+</style>

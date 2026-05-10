@@ -134,8 +134,23 @@ describe('Inbounds view domain-managed cards', () => {
     const localStart = html.indexOf(cardClass, domainStart + cardClass.length)
     const domainCard = html.slice(domainStart, localStart)
 
-    expect(domainCard).toContain('mdi-file-edit')
+    expect(domainCard).toContain('mdi-eye')
     expect(domainCard).toContain('mdi-file-remove')
     expect(domainCard).toContain('mdi-content-duplicate')
+  })
+
+  it('opens Hub-managed inbounds in read-only view mode instead of disabling edit', async () => {
+    const html = await renderInbounds()
+
+    const cardClass = 'app-entity-card inbound-card'
+    const domainStart = html.indexOf(cardClass)
+    const localStart = html.indexOf(cardClass, domainStart + cardClass.length)
+    const domainCard = html.slice(domainStart, localStart)
+
+    expect(domainCard).toContain('mdi-eye')
+    expect(domainCard).toContain('View actual inbound settings')
+    expect(domainCard).not.toContain('mdi-file-edit')
+    expect(domainCard).toContain('icon="mdi-eye"')
+    expect(domainCard).not.toContain('icon="mdi-eye" disabled')
   })
 })

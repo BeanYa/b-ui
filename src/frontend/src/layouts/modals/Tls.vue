@@ -6,6 +6,13 @@
       </v-card-title>
       <v-divider></v-divider>
       <v-card-text style="padding: 0 16px; overflow-y: scroll;">
+        <v-card v-if="readonly" class="readonly-config-card" variant="tonal">
+          <v-card-title>Actual TLS settings</v-card-title>
+          <v-card-text>
+            <pre class="readonly-config-card__json">{{ readonlyJson }}</pre>
+          </v-card-text>
+        </v-card>
+        <fieldset class="readonly-fieldset" :disabled="readonly">
         <v-card class="rounded-lg">
           <v-row>
             <v-col cols="12" sm="6" md="4">
@@ -16,7 +23,7 @@
               </v-text-field>
             </v-col>
             <v-col cols="12" sm="6" md="4">
-              <v-menu location="bottom">
+              <v-menu v-if="!readonly" location="bottom">
                 <template v-slot:activator="{ props }">
                   <v-btn v-bind="props" block variant="tonal">{{ $t('tls.applyPreset') }}</v-btn>
                 </template>
@@ -76,6 +83,7 @@
             </v-col>
             <v-col cols="auto" v-if="inTls.server_name != undefined">
               <v-btn
+                v-if="!readonly"
                 variant="tonal"
                 density="compact"
                 icon="mdi-refresh"
@@ -145,6 +153,7 @@
               <v-spacer></v-spacer>
               <v-col cols="auto">
                 <v-btn
+                  v-if="!readonly"
                   variant="tonal"
                   density="compact"
                   icon="mdi-key-star"
@@ -242,6 +251,7 @@
               <v-spacer></v-spacer>
               <v-col cols="auto">
                 <v-btn
+                  v-if="!readonly"
                   variant="tonal"
                   density="compact"
                   icon="mdi-key-star"
@@ -320,7 +330,7 @@
           </v-row>
           <v-card-actions>
             <v-spacer></v-spacer>
-            <v-menu v-model="menu" :close-on-content-click="false" location="start">
+            <v-menu v-if="!readonly" v-model="menu" :close-on-content-click="false" location="start">
               <template v-slot:activator="{ props }">
                 <v-btn v-bind="props" hide-details variant="tonal">{{ $t('tls.options') }}</v-btn>
               </template>
@@ -364,10 +374,12 @@
         </v-card>
         <AcmeVue :tls="inTls" />
         <EchVue :iTls="inTls" :oTls="outTls" />
+        </fieldset>
       </v-card-text>
       <v-card-actions>
         <v-spacer></v-spacer>
         <v-btn
+          v-if="!readonly"
           color="primary"
           variant="outlined"
           @click="closeModal"
@@ -401,7 +413,7 @@ import { buildDomainHintItems, normalizeDomainSelection, type DomainHintDisplayI
 import Data from '@/store/modules/data'
 
 export default {
-  props: ['visible', 'data', 'id'],
+  props: ['visible', 'data', 'id', 'readonly'],
   emits: ['close', 'save'],
   data() {
     return {
@@ -478,7 +490,7 @@ export default {
       if (id > 0) {
         this.tls = this.normalizeTls(<tls>JSON.parse(this.$props.data))
         this.syncStateFromTls()
-        this.title = "edit"
+        this.title = this.$props.readonly ? "view" : "edit"
       }
       else {
         const modalData = this.$props.data && this.$props.data !== '{}' ? <tls>JSON.parse(this.$props.data) : undefined
@@ -529,6 +541,7 @@ export default {
       this.$emit('close')
     },
     saveChanges() {
+      if (this.$props.readonly) return
       this.loading = true
       this.normalizeDomainSelections()
       this.$emit('save', this.tls)
@@ -718,6 +731,9 @@ export default {
     },
     domainHintItems(): DomainHintDisplayItem[] {
       return buildDomainHintItems(this.domainHints, (key) => this.$t(key).toString())
+    },
+    readonlyJson(): string {
+      return JSON.stringify(this.tls, null, 2)
     }
   },
   watch: {
@@ -733,6 +749,25 @@ export default {
 </script>
 
 <style scoped>
+.readonly-fieldset {
+  border: 0;
+  margin: 0;
+  min-inline-size: 0;
+  padding: 0;
+}
+
+.readonly-config-card {
+  margin-bottom: 16px;
+}
+
+.readonly-config-card__json {
+  font-family: monospace;
+  font-size: 12px;
+  max-height: 280px;
+  overflow: auto;
+  white-space: pre-wrap;
+}
+
 .tls-domain-hint-labels {
   display: flex;
   flex-wrap: wrap;

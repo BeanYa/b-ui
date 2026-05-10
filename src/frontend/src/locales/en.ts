@@ -189,6 +189,7 @@ export default {
     delbulk: "Delete Bulk",
     new: "New",
     edit: "Edit",
+    view: "View",
     del: "Delete",
     clone: "Clone",
     test: "Test",

@@ -188,6 +188,7 @@ export default {
     delbulk: "批量删除",
     new: "新建",
     edit: "编辑",
+    view: "查看",
     del: "删除",
     clone: "克隆",
     test: "测试",
