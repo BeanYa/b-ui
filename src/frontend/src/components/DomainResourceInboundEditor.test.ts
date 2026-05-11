@@ -8,6 +8,10 @@ describe('DomainResourceInboundEditor source', () => {
   it('uses the same protocol inventory as panel inbounds instead of a restricted domain list', () => {
     expect(source).toContain("import { InTypes, createInbound")
     expect(source).toContain('Object.keys(InTypes)')
+    expect(source).toContain('<v-tabs')
+    expect(source).toContain("v-if=\"hasClientOptions\"")
+    expect(source).toContain("value=\"server\"")
+    expect(source).toContain("value=\"client\"")
     expect(source).toContain('<Direct')
     expect(source).toContain('<Shadowsocks')
     expect(source).toContain('<Hysteria')
@@ -20,7 +24,20 @@ describe('DomainResourceInboundEditor source', () => {
     expect(source).toContain('<TProxy')
     expect(source).toContain('<Transport')
     expect(source).toContain('<Multiplex')
+    expect(source).toContain('<OutJson')
+    expect(source).toContain('<Dial')
+    expect(source).toContain('<Addr')
     expect(source).not.toContain('DOMAIN_INBOUND_TYPE_OPTIONS')
+  })
+
+  it('enables client-side settings for every protocol except direct tun redirect and tproxy', () => {
+    expect(source).toContain('clientOptionlessProtocols')
+    expect(source).toContain('InTypes.Direct')
+    expect(source).toContain('InTypes.Tun')
+    expect(source).toContain('InTypes.Redirect')
+    expect(source).toContain('InTypes.TProxy')
+    expect(source).toContain('const hasClientOptions = computed(() => !clientOptionlessProtocols.includes(inbound.value.type))')
+    expect(source).toContain('ensureClientOptions(inbound.value)')
   })
 
   it('offers target-node generated values for local-only inbound fields', () => {
@@ -37,6 +54,9 @@ describe('DomainResourceInboundEditor source', () => {
     expect(source).toContain('group_id')
     expect(source).toContain('tag_seed')
     expect(source).toContain('tls_template')
+    expect(source).toContain('if (hasClientOptions.value) {')
+    expect(source).toContain("raw.out_json = raw.out_json && typeof raw.out_json === 'object' && !Array.isArray(raw.out_json)")
+    expect(source).toContain('raw.addrs = Array.isArray(raw.addrs) ? raw.addrs : []')
     expect(source).not.toContain('advancedJson')
     expect(source).not.toContain('parseDomainResourceJson')
   })

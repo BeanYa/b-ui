@@ -1243,6 +1243,41 @@ func TestDomainInboundResourceFromOperationPreservesTopLevelListenPortSource(t *
 	}
 }
 
+func TestDomainInboundResourceFromOperationPreservesClientOptions(t *testing.T) {
+	payload := clustertypes.DomainInboundCreatePayload{
+		RequestID: "domain-inbound-hy2",
+		DomainID:  "edge.example.com",
+		GroupID:   "group-hy2",
+		TagSeed:   "hy2",
+		Inbound:   json.RawMessage(`{"type":"hysteria2","tag":"hy2","listen":"::","listen_port":{"LocalProvided":"DomainInboundListenPort"},"out_json":{"password":"client-password","server_ports":["8443","9443"]},"addrs":[{"server":"edge.example.com","server_port":8443,"tls":true}]}`),
+	}
+	desiredPayload, err := json.Marshal(payload)
+	if err != nil {
+		t.Fatalf("marshal payload: %v", err)
+	}
+
+	resource, ok := domainInboundResourceFromOperation(model.ClusterDomainOperation{
+		OperationID:       payload.RequestID,
+		DomainID:          1,
+		Domain:            payload.DomainID,
+		ResourceKind:      ClusterDomainResourceInbound,
+		ResourceID:        payload.GroupID,
+		Action:            ClusterDomainOperationCreate,
+		Revision:          8,
+		CoordinatorNodeID: "node-a",
+		Status:            ClusterDomainOperationApplied,
+		DesiredPayload:    desiredPayload,
+	}, nil)
+
+	if !ok {
+		t.Fatalf("expected domain inbound resource")
+	}
+	want := `{"addrs":[{"server":"edge.example.com","server_port":8443,"tls":true}],"listen":"::","listen_port":{"LocalProvided":"DomainInboundListenPort"},"out_json":{"password":"client-password","server_ports":["8443","9443"]}}`
+	if resource.OptionsJSON != want {
+		t.Fatalf("options_json = %q, want %q", resource.OptionsJSON, want)
+	}
+}
+
 func TestApplyDomainInboundOperationResourcePreservesDesiredOptions(t *testing.T) {
 	existing := ClusterHubDomainResourceInbound{
 		GroupID:     "group-1",
@@ -1388,6 +1423,93 @@ func TestDomainResourcesPreserveDesiredDomainInboundListenPortSource(t *testing.
 	}
 	if resources.Inbounds[0].OptionsJSON != `{"listen":"::","listen_port":{"LocalProvided":"DomainInboundListenPort"}}` {
 		t.Fatalf("options_json = %q", resources.Inbounds[0].OptionsJSON)
+	}
+}
+
+func TestMaterializedDomainInboundOptionsJSONPreservesClientOptions(t *testing.T) {
+	inbound := &model.Inbound{
+		Type:    "hysteria2",
+		Tag:     "hy2-node-a",
+		Addrs:   json.RawMessage(`[{"server":"edge.example.com","server_port":8443,"tls":true}]`),
+		OutJson: json.RawMessage(`{"type":"hysteria2","tag":"hy2-node-a","server":"edge.example.com","server_port":8443,"password":"client-password"}`),
+		Options: json.RawMessage(`{"listen":"::","listen_port":8443,"up_mbps":100,"down_mbps":100}`),
+	}
+
+	got := materializedDomainInboundOptionsJSON(inbound)
+	var options map[string]any
+	if err := json.Unmarshal([]byte(got), &options); err != nil {
+		t.Fatalf("unmarshal options_json: %v", err)
+	}
+	out, ok := options["out_json"].(map[string]any)
+	if !ok {
+		t.Fatalf("out_json missing from options_json: %s", got)
+	}
+	if out["password"] != "client-password" || out["server"] != "edge.example.com" || out["tag"] != "hy2-node-a" || out["type"] != "hysteria2" {
+		t.Fatalf("out_json = %#v", out)
+	}
+	addrs, ok := options["addrs"].([]any)
+	if !ok || len(addrs) != 1 {
+		t.Fatalf("addrs missing from options_json: %s", got)
+	}
+	addr, ok := addrs[0].(map[string]any)
+	if !ok || addr["server"] != "edge.example.com" || addr["tls"] != true {
+		t.Fatalf("addrs = %#v", addrs)
+	}
+	if options["listen"] != "::" || options["up_mbps"] != float64(100) || options["down_mbps"] != float64(100) {
+		t.Fatalf("base options were not preserved: %#v", options)
+	}
+}
+
+func TestDomainResourcesReportMaterializedClientOptions(t *testing.T) {
+	if err := database.InitDB(filepath.Join(t.TempDir(), "coordinator-client-options.db")); err != nil {
+		if strings.Contains(err.Error(), "go-sqlite3 requires cgo") || strings.Contains(err.Error(), "CGO_ENABLED=0") || strings.Contains(err.Error(), "C compiler") {
+			t.Skipf("sqlite test database unavailable in this toolchain: %v", err)
+		}
+		t.Fatalf("init db: %v", err)
+	}
+	db := database.GetDB()
+	domain := &model.ClusterDomain{Id: 1, Domain: "edge.example.com", HubURL: "https://hub.example.com", TokenEncrypted: "token", LastVersion: 8}
+	if err := db.Create(domain).Error; err != nil {
+		t.Fatalf("seed domain: %v", err)
+	}
+	local := newTestClusterLocalNode(t, "node-a")
+	if err := db.Create(local).Error; err != nil {
+		t.Fatalf("seed local node: %v", err)
+	}
+	inbound := &model.Inbound{
+		Id:      11,
+		Type:    "hysteria2",
+		Tag:     "hy2-node-a",
+		Addrs:   json.RawMessage(`[{"server":"edge.example.com","server_port":8443,"tls":true}]`),
+		OutJson: json.RawMessage(`{"type":"hysteria2","tag":"hy2-node-a","server":"edge.example.com","server_port":8443,"password":"client-password"}`),
+		Options: json.RawMessage(`{"listen":"::","listen_port":8443,"up_mbps":100,"down_mbps":100}`),
+	}
+	if err := db.Create(inbound).Error; err != nil {
+		t.Fatalf("seed inbound: %v", err)
+	}
+	if err := db.Create(&model.ClusterInbound{
+		DomainID:  domain.Id,
+		Domain:    domain.Domain,
+		NodeID:    local.NodeID,
+		MemberID:  local.NodeID,
+		GroupID:   "group-hy2",
+		InboundID: inbound.Id,
+		RequestID: "domain-inbound-hy2",
+	}).Error; err != nil {
+		t.Fatalf("seed cluster inbound: %v", err)
+	}
+
+	coordinator := &ClusterDomainResourceCoordinator{DB: db, OperationStore: &ClusterDomainOperationStore{DB: db}}
+	resources, err := coordinator.buildDomainResources(domain.Id)
+	if err != nil {
+		t.Fatalf("build domain resources: %v", err)
+	}
+	if len(resources.Inbounds) != 1 {
+		t.Fatalf("inbounds = %d, want 1", len(resources.Inbounds))
+	}
+	want := `{"addrs":[{"server":"edge.example.com","server_port":8443,"tls":true}],"down_mbps":100,"listen":"::","listen_port":8443,"out_json":{"password":"client-password","server":"edge.example.com","server_port":8443,"tag":"hy2-node-a","type":"hysteria2"},"up_mbps":100}`
+	if resources.Inbounds[0].OptionsJSON != want {
+		t.Fatalf("options_json = %q, want %q", resources.Inbounds[0].OptionsJSON, want)
 	}
 }
 

@@ -85,18 +85,53 @@
         </v-row>
       </v-card>
 
-      <Direct v-if="inbound.type === InTypes.Direct" :data="inbound" />
-      <Shadowsocks v-if="inbound.type === InTypes.Shadowsocks" direction="in" :data="inbound" />
-      <Hysteria v-if="inbound.type === InTypes.Hysteria" direction="in" :data="inbound" />
-      <Hysteria2 v-if="inbound.type === InTypes.Hysteria2" direction="in" :data="inbound" />
-      <Naive v-if="inbound.type === InTypes.Naive" direction="in" :data="inbound" />
-      <ShadowTls v-if="inbound.type === InTypes.ShadowTLS" direction="in" :data="inbound" />
-      <Tuic v-if="inbound.type === InTypes.TUIC" direction="in" :data="inbound" />
-      <Tun v-if="inbound.type === InTypes.Tun" :data="inbound" />
-      <AnyTls v-if="inbound.type === InTypes.AnyTls" :data="inbound" direction="in" />
-      <TProxy v-if="inbound.type === InTypes.TProxy" :inbound="inbound" />
-      <Transport v-if="Object.hasOwn(inbound, 'transport')" :data="inbound" />
-      <Multiplex v-if="muxAvailable.includes(inbound.type)" direction="in" :data="inbound" />
+      <v-tabs
+        v-if="hasClientOptions"
+        v-model="side"
+        density="compact"
+        fixed-tabs
+        align-tabs="center"
+      >
+        <v-tab value="server">{{ $t('in.sSide') }}</v-tab>
+        <v-tab value="client">{{ $t('in.cSide') }}</v-tab>
+      </v-tabs>
+
+      <v-window v-model="side">
+        <v-window-item value="server">
+          <Direct v-if="inbound.type === InTypes.Direct" :data="inbound" />
+          <Shadowsocks v-if="inbound.type === InTypes.Shadowsocks" direction="in" :data="inbound" />
+          <Hysteria v-if="inbound.type === InTypes.Hysteria" direction="in" :data="inbound" />
+          <Hysteria2 v-if="inbound.type === InTypes.Hysteria2" direction="in" :data="inbound" />
+          <Naive v-if="inbound.type === InTypes.Naive" direction="in" :data="inbound" />
+          <ShadowTls v-if="inbound.type === InTypes.ShadowTLS" direction="in" :data="inbound" />
+          <Tuic v-if="inbound.type === InTypes.TUIC" direction="in" :data="inbound" />
+          <Tun v-if="inbound.type === InTypes.Tun" :data="inbound" />
+          <AnyTls v-if="inbound.type === InTypes.AnyTls" :data="inbound" direction="in" />
+          <TProxy v-if="inbound.type === InTypes.TProxy" :inbound="inbound" />
+          <Transport v-if="Object.hasOwn(inbound, 'transport')" :data="inbound" />
+          <Multiplex v-if="muxAvailable.includes(inbound.type)" direction="in" :data="inbound" />
+        </v-window-item>
+        <v-window-item value="client">
+          <OutJson v-if="hasClientOptions" :inData="inbound" :type="inbound.type" />
+          <Multiplex v-if="Object.hasOwn(inbound, 'multiplex')" direction="out" :data="inbound.out_json" />
+          <Dial v-if="inbound.out_json" :dial="inbound.out_json" mode="client" />
+          <v-card v-if="hasClientOptions" class="domain-resource-editor__section" :subtitle="$t('in.multiDomain')">
+            <v-card-text>
+              <v-chip color="primary" density="compact" variant="elevated" @click="addAddr">
+                <v-icon icon="mdi-plus" />
+              </v-chip>
+              <template v-for="addr, index in inbound.addrs" :key="index">
+                <div class="domain-resource-editor__addr-heading">
+                  {{ $t('in.addr') }} #{{ index + 1 }}
+                  <v-icon icon="mdi-delete" color="error" @click="inbound.addrs?.splice(index, 1)" />
+                </div>
+                <v-divider />
+                <Addr :addr="addr" :hasTls="hasTls" />
+              </template>
+            </v-card-text>
+          </v-card>
+        </v-window-item>
+      </v-window>
 
       <v-card v-if="hasTls" class="domain-resource-editor__section" :subtitle="$t('objects.tls')">
         <v-row>
@@ -140,6 +175,9 @@ import AnyTls from '@/components/protocols/AnyTls.vue'
 import TProxy from '@/components/protocols/TProxy.vue'
 import Multiplex from '@/components/Multiplex.vue'
 import Transport from '@/components/Transport.vue'
+import OutJson from '@/components/OutJson.vue'
+import Dial from '@/components/Dial.vue'
+import Addr from '@/components/Addr.vue'
 import type { CreateDomainInboundResourcePayload, DomainResourceInboundInstanceView, DomainResourceInboundView } from '@/features/domainResourcesApi'
 import {
   createDomainInboundTls,
@@ -176,6 +214,7 @@ const tlsTemplate = ref<DomainInboundTlsTemplate>('standard')
 const errorMessage = ref('')
 const targetScope = ref<'all' | 'pick'>('all')
 const selectedTargetNodeIds = ref<string[]>([])
+const side = ref<'server' | 'client'>('server')
 
 const hasTlsProtocols = [
   InTypes.HTTP,
@@ -193,6 +232,12 @@ const muxAvailable = [
   InTypes.VMess,
   InTypes.Trojan,
   InTypes.Shadowsocks,
+]
+const clientOptionlessProtocols = [
+  InTypes.Direct,
+  InTypes.Tun,
+  InTypes.Redirect,
+  InTypes.TProxy,
 ]
 
 const protocolItems = Object.keys(InTypes).map((key, index) => ({
@@ -227,6 +272,7 @@ const tlsTemplateItems = computed(() => [
 ])
 
 const hasTls = computed(() => hasTlsProtocols.includes(inbound.value.type))
+const hasClientOptions = computed(() => !clientOptionlessProtocols.includes(inbound.value.type))
 
 const targetMemberLabel = (member: ClusterMember) => {
   const displayName = (member.displayName || member.name || member.nodeId).trim()
@@ -280,12 +326,14 @@ const resetForm = () => {
     listen: '::',
     listen_port: 443,
   }) as Inbound
+  ensureClientOptions(inbound.value)
   listenPortSource.value = 'auto'
   manualListenPort.value = 443
   tlsTemplate.value = 'standard'
   errorMessage.value = ''
   targetScope.value = 'all'
   selectedTargetNodeIds.value = []
+  side.value = 'server'
 }
 
 const applyInitialResource = (resource: DomainResourceInboundView) => {
@@ -310,8 +358,9 @@ const applyInitialResource = (resource: DomainResourceInboundView) => {
     listen_port: 443,
     ...parsedOptions,
   }) as Inbound
+  ensureClientOptions(inbound.value)
 
-  const listenPort = Number((inbound.value as Record<string, unknown>).listen_port)
+  const listenPort = Number((inbound.value as unknown as Record<string, unknown>).listen_port)
   if (Number.isFinite(listenPort) && listenPort > 0) {
     listenPortSource.value = 'manual'
     manualListenPort.value = listenPort
@@ -327,6 +376,7 @@ const applyInitialResource = (resource: DomainResourceInboundView) => {
     .filter(Boolean)
   targetScope.value = targetNodeIds.length > 0 ? 'pick' : 'all'
   selectedTargetNodeIds.value = [...new Set(targetNodeIds)]
+  side.value = 'server'
 }
 
 const parseInboundOptions = (value?: string): Record<string, unknown> => {
@@ -352,23 +402,48 @@ const resourceInstanceTargetTag = (instance: DomainResourceInboundInstanceView) 
 const resourceInstanceLocalResourceID = (instance: DomainResourceInboundInstanceView) =>
   Number(instance.local_resource_id ?? instance.localResourceId ?? 0)
 
+const ensureClientOptions = (target: Inbound) => {
+  const raw = target as unknown as Record<string, unknown>
+  if (clientOptionlessProtocols.includes(target.type)) {
+    delete raw.out_json
+    delete raw.addrs
+    return
+  }
+  if (raw.out_json == null || typeof raw.out_json !== 'object' || Array.isArray(raw.out_json)) {
+    raw.out_json = {}
+  }
+  if (!Array.isArray(raw.addrs)) {
+    raw.addrs = []
+  }
+}
+
 const changeType = () => {
-  const previous = inbound.value as Record<string, unknown>
+  const previous = inbound.value as unknown as Record<string, unknown>
   inbound.value = createInbound(inbound.value.type, {
     id: 0,
     tag: String(previous.tag ?? tagSeed.value),
     listen: String(previous.listen ?? '::'),
     listen_port: Number(previous.listen_port || manualListenPort.value || 443),
   }) as Inbound
+  ensureClientOptions(inbound.value)
   if (!hasTls.value) {
     tlsTemplate.value = 'none'
   } else if (tlsTemplate.value === 'none') {
     tlsTemplate.value = 'standard'
   }
+  side.value = 'server'
+}
+
+const addAddr = () => {
+  ensureClientOptions(inbound.value)
+  inbound.value.addrs?.push({
+    server: props.domain.domain || location.hostname,
+    server_port: Number(manualListenPort.value || 443),
+  })
 }
 
 const scrubInbound = (): Record<string, unknown> => {
-  const raw = { ...(toRaw(inbound.value) as Record<string, unknown>) }
+  const raw = { ...(toRaw(inbound.value) as unknown as Record<string, unknown>) }
   raw.tag = String(raw.tag ?? '').trim() || tagSeed.value.trim() || groupId.value.trim()
   raw.listen = String(raw.listen ?? '').trim() || '::'
   raw.listen_port = listenPortSource.value === 'auto'
@@ -377,9 +452,16 @@ const scrubInbound = (): Record<string, unknown> => {
   delete raw.id
   delete raw.tls_id
   delete raw.tls
-  delete raw.out_json
-  delete raw.addrs
   delete raw.users
+  if (hasClientOptions.value) {
+    raw.out_json = raw.out_json && typeof raw.out_json === 'object' && !Array.isArray(raw.out_json)
+      ? raw.out_json
+      : {}
+    raw.addrs = Array.isArray(raw.addrs) ? raw.addrs : []
+  } else {
+    delete raw.out_json
+    delete raw.addrs
+  }
   return raw
 }
 
@@ -438,5 +520,12 @@ watch(() => props.members, () => {
 .domain-resource-editor__section {
   border: 1px solid var(--app-border-1);
   border-radius: 8px;
+}
+
+.domain-resource-editor__addr-heading {
+  align-items: center;
+  display: flex;
+  gap: 8px;
+  margin-top: 12px;
 }
 </style>

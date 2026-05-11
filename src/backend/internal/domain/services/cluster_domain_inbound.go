@@ -637,8 +637,6 @@ func (s *ClusterDomainInboundService) prepareDomainInboundJSON(tx *gorm.DB, doma
 	delete(inbound, "id")
 	delete(inbound, "tls_id")
 	delete(inbound, "tls")
-	delete(inbound, "out_json")
-	delete(inbound, "addrs")
 	delete(inbound, "users")
 	deleteSingBoxLegacyInboundFields(inbound)
 	inbound["type"] = inboundType

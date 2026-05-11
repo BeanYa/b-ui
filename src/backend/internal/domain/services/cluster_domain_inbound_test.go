@@ -494,6 +494,53 @@ func TestPrepareDomainInboundJSONStripsSingBoxLegacyInboundFields(t *testing.T) 
 	}
 }
 
+func TestPrepareDomainInboundJSONPreservesClientOptions(t *testing.T) {
+	svc := NewClusterDomainInboundService(ClusterDomainInboundServiceOptions{
+		PortAllocator: func() (int, error) { return 32126, nil },
+	})
+	raw, _, err := svc.prepareDomainInboundJSON(nil, &model.ClusterDomain{Domain: "edge.example.com"}, clustertypes.DomainInboundCreatePayload{
+		RequestID: "req-client-options",
+		DomainID:  "edge.example.com",
+		GroupID:   "client-options",
+		Inbound: json.RawMessage(`{
+			"type": "hysteria2",
+			"tag": "hy2",
+			"listen": "::",
+			"listen_port": 8443,
+			"up_mbps": 100,
+			"down_mbps": 100,
+			"out_json": {
+				"password": "client-password",
+				"server_ports": ["8443", "9443"],
+				"hop_interval": "30s"
+			},
+			"addrs": [{
+				"server": "edge.example.com",
+				"server_port": 8443,
+				"tls": true
+			}]
+		}`),
+	}, "node-a", "node-a", 0)
+	if err != nil {
+		t.Fatalf("prepare inbound json: %v", err)
+	}
+	var inbound map[string]interface{}
+	if err := json.Unmarshal(raw, &inbound); err != nil {
+		t.Fatalf("decode inbound json: %v", err)
+	}
+	outJSON, ok := inbound["out_json"].(map[string]interface{})
+	if !ok {
+		t.Fatalf("expected out_json to be preserved, got %#v", inbound["out_json"])
+	}
+	if outJSON["password"] != "client-password" || outJSON["hop_interval"] != "30s" {
+		t.Fatalf("unexpected out_json: %#v", outJSON)
+	}
+	addrs, ok := inbound["addrs"].([]interface{})
+	if !ok || len(addrs) != 1 {
+		t.Fatalf("expected addrs to be preserved, got %#v", inbound["addrs"])
+	}
+}
+
 func TestDomainInboundGeneratedTLSKeypairUsesInlineCertificateMaterial(t *testing.T) {
 	svc := NewClusterDomainInboundService(ClusterDomainInboundServiceOptions{
 		TLSKeypairGenerator: func(serverName string) []string {

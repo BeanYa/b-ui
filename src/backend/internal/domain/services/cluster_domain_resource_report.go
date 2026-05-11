@@ -138,7 +138,7 @@ func (c *ClusterDomainResourceCoordinator) buildDomainResources(domainID uint) (
 			Suffix:      wrapper.Suffix,
 			Type:        wrapper.Inbound.Type,
 			TLSTemplate: wrapper.Template,
-			OptionsJSON: string(cloneRawMessage(wrapper.Inbound.Options)),
+			OptionsJSON: materializedDomainInboundOptionsJSON(wrapper.Inbound),
 			Status:      "active",
 			Instances: []ClusterHubDomainResourceInstance{{
 				MemberID:        wrapper.MemberID,
@@ -343,7 +343,7 @@ func desiredDomainInboundOptions(raw json.RawMessage) (string, string, bool) {
 	if options := strings.TrimSpace(string(inbound["options"])); options != "" && options != "null" {
 		return inboundType, options, true
 	}
-	for _, key := range []string{"id", "type", "tag", "tls_id", "tls", "out_json", "addrs", "users", "options"} {
+	for _, key := range []string{"id", "type", "tag", "tls_id", "tls", "users", "options"} {
 		delete(inbound, key)
 	}
 	optionsJSON, err := json.Marshal(inbound)
@@ -351,6 +351,27 @@ func desiredDomainInboundOptions(raw json.RawMessage) (string, string, bool) {
 		return inboundType, "", true
 	}
 	return inboundType, string(optionsJSON), true
+}
+
+func materializedDomainInboundOptionsJSON(inbound *model.Inbound) string {
+	if inbound == nil {
+		return ""
+	}
+	options := map[string]json.RawMessage{}
+	if len(inbound.Options) > 0 && strings.TrimSpace(string(inbound.Options)) != "null" {
+		_ = json.Unmarshal(inbound.Options, &options)
+	}
+	if raw := cloneRawMessage(inbound.OutJson); len(raw) > 0 && strings.TrimSpace(string(raw)) != "null" {
+		options["out_json"] = raw
+	}
+	if raw := cloneRawMessage(inbound.Addrs); len(raw) > 0 && strings.TrimSpace(string(raw)) != "null" {
+		options["addrs"] = raw
+	}
+	data, err := json.Marshal(options)
+	if err != nil {
+		return string(cloneRawMessage(inbound.Options))
+	}
+	return string(data)
 }
 
 func domainInboundResourceMaterialized(resource ClusterHubDomainResourceInbound) bool {
