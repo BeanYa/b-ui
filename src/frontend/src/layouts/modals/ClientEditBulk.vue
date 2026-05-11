@@ -5,7 +5,7 @@
         {{ $t('actions.editbulk') }}
       </v-card-title>
       <v-divider></v-divider>
-      <v-card-text style="padding: 0 16px; overflow-y: scroll;">
+      <v-card-text class="app-dialog__body">
         <v-container style="padding: 0;">
           <v-card :subtitle="$t('actions.action')" class="mb-4">
             <v-card-text>

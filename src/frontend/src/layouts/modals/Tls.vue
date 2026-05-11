@@ -5,7 +5,7 @@
         {{ $t('actions.' + title) + " " + $t('objects.tls') }}
       </v-card-title>
       <v-divider></v-divider>
-      <v-card-text style="padding: 0 16px; overflow-y: scroll;">
+      <v-card-text class="app-dialog__body">
         <v-card v-if="readonly" class="readonly-config-card" variant="tonal">
           <v-card-title>Actual TLS settings</v-card-title>
           <v-card-text>

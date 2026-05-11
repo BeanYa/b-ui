@@ -9,7 +9,7 @@
         </v-row>
       </v-card-title>
       <v-divider></v-divider>
-      <v-card-text>
+      <v-card-text class="app-dialog__body">
         <v-row>
           <v-col cols="12" sm="4" md="3">
             <v-select
@@ -69,8 +69,8 @@
           <template v-slot:expanded-row="{ columns, item }">
             <tr>
               <td :colspan="columns.length">
-                <v-card dir="ltr" v-if="item.index>0">Index: {{ item.index }}</v-card>
-                <v-card style="background-color: background" dir="ltr"><pre>{{ item.obj }}</pre></v-card>
+                <v-card class="app-code-block" dir="ltr" v-if="item.index>0">Index: {{ item.index }}</v-card>
+                <v-card class="app-code-block" dir="ltr"><pre>{{ item.obj }}</pre></v-card>
               </td>
             </tr>
           </template>

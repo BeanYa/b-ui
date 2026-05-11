@@ -12,7 +12,7 @@
         </v-row>
       </v-card-title>
       <v-divider />
-      <v-card-text style="padding: 0 16px; overflow-y: scroll;">
+      <v-card-text class="app-dialog__body">
         <v-tabs v-model="tab" @update:modelValue="tabChanged">
           <v-tab value="text">
             {{ $t('rule.import.pasteUrls') }}

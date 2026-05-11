@@ -1,5 +1,5 @@
 <template>
-  <v-card style="background-color: inherit;">
+  <v-card class="app-form-card">
     <v-row>
       <v-col cols="12" v-if="optionInbound">
         <v-combobox
@@ -146,7 +146,7 @@
         <template v-slot:activator="{ props }">
           <v-btn v-bind="props" hide-details variant="tonal">{{ $t('rule.options') }}</v-btn>
         </template>
-        <v-card>
+        <v-card class="app-form-card">
           <v-list>
             <v-list-item>
               <v-switch v-model="optionInbound" color="primary" :label="$t('pages.inbounds')" hide-details></v-switch>

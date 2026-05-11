@@ -5,7 +5,7 @@
         {{ $t('actions.addbulk') }} {{ $t('objects.outbound') }}
       </v-card-title>
       <v-divider></v-divider>
-      <v-card-text style="padding: 0 16px; overflow-y: scroll;">
+      <v-card-text class="app-dialog__body">
         <v-row v-if="outbounds.length==0">
           <v-col cols="12">
             <v-text-field v-model="link"

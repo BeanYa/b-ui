@@ -29,24 +29,24 @@ $typo-options: text-h1, text-sm-h1, text-md-h1, text-lg-h1, text-h2, text-sm-h2,
   --app-bg-base: #07080a;
   --app-bg-elevated: #0b0d11;
   --app-bg-ambient: rgba(255, 255, 255, 0.028);
-  --app-bg-grid: rgba(255, 255, 255, 0.024);
-  --app-bg-grid-strong: rgba(255, 255, 255, 0.045);
-  --app-bg-glow-primary: rgba(85, 179, 255, 0.12);
-  --app-bg-glow-danger: rgba(255, 99, 99, 0.1);
-  --app-bg-glow-warm: rgba(215, 201, 175, 0.045);
-  --app-bg-vignette-edge: rgba(4, 5, 8, 0.18);
+  --app-bg-noise: radial-gradient(circle at 20% 10%, rgba(255, 255, 255, 0.045) 0 1px, transparent 1.4px),
+    radial-gradient(circle at 72% 62%, rgba(85, 179, 255, 0.055) 0 1px, transparent 1.5px);
+  --app-bg-glow-primary: rgba(85, 179, 255, 0.16);
+  --app-bg-glow-danger: rgba(255, 99, 99, 0.12);
+  --app-bg-glow-warm: rgba(95, 201, 146, 0.07);
+  --app-bg-vignette-edge: rgba(2, 4, 8, 0.36);
   --app-surface-0: rgba(10, 11, 14, 0.88);
-  --app-surface-1: rgba(16, 17, 17, 0.9);
-  --app-surface-2: rgba(20, 21, 23, 0.94);
-  --app-surface-3: rgba(27, 28, 30, 0.98);
-  --app-surface-4: rgba(31, 33, 36, 0.98);
+  --app-surface-1: rgba(12, 15, 20, 0.88);
+  --app-surface-2: rgba(16, 21, 28, 0.92);
+  --app-surface-3: rgba(22, 28, 36, 0.96);
+  --app-surface-4: rgba(30, 38, 48, 0.98);
   --app-text-1: #f9f9f9;
   --app-text-2: #cecece;
   --app-text-3: #9c9c9d;
   --app-text-4: #6a6b6c;
-  --app-border-1: rgba(255, 255, 255, 0.06);
-  --app-border-2: rgba(255, 255, 255, 0.1);
-  --app-border-3: rgba(85, 179, 255, 0.18);
+  --app-border-1: rgba(147, 197, 253, 0.08);
+  --app-border-2: rgba(147, 197, 253, 0.16);
+  --app-border-3: rgba(85, 179, 255, 0.26);
   --app-state-info: #55b3ff;
   --app-state-success: #5fc992;
   --app-state-warning: #ffbc33;
@@ -57,9 +57,11 @@ $typo-options: text-h1, text-sm-h1, text-md-h1, text-lg-h1, text-h2, text-sm-h2,
   --app-radius-lg: 20px;
   --app-radius-xl: 28px;
   --app-radius-pill: 999px;
-  --app-shadow-ring: 0 0 0 1px rgba(27, 28, 30, 1), inset 0 0 0 1px rgba(255, 255, 255, 0.03);
-  --app-shadow-panel: 0 22px 56px rgba(0, 0, 0, 0.34), inset 0 1px 0 rgba(255, 255, 255, 0.05);
-  --app-shadow-panel-hover: 0 28px 72px rgba(0, 0, 0, 0.42), inset 0 1px 0 rgba(255, 255, 255, 0.08);
+  --app-shadow-ring: 0 0 0 1px rgba(34, 44, 58, 0.88), inset 0 0 0 1px rgba(255, 255, 255, 0.04);
+  --app-shadow-panel: 0 24px 70px rgba(0, 0, 0, 0.38), 0 0 34px rgba(85, 179, 255, 0.035),
+    inset 0 1px 0 rgba(255, 255, 255, 0.055);
+  --app-shadow-panel-hover: 0 30px 86px rgba(0, 0, 0, 0.46), 0 0 44px rgba(85, 179, 255, 0.075),
+    inset 0 1px 0 rgba(255, 255, 255, 0.09);
   --app-shadow-button: 0 0 0 1px rgba(255, 255, 255, 0.08), inset 0 1px 0 rgba(255, 255, 255, 0.08),
     inset 0 -1px 0 rgba(0, 0, 0, 0.24);
   --app-shadow-input: inset 0 1px 0 rgba(255, 255, 255, 0.04), 0 0 0 1px rgba(255, 255, 255, 0.08);
@@ -69,7 +71,7 @@ $typo-options: text-h1, text-sm-h1, text-md-h1, text-lg-h1, text-h2, text-sm-h2,
   --app-blur-overlay: 22px;
   --app-motion-fast: 140ms;
   --app-motion-base: 200ms;
-  --app-motion-slow: 260ms;
+  --app-motion-slow: 320ms;
   --app-ease-standard: cubic-bezier(0.22, 1, 0.36, 1);
 }
 
@@ -79,8 +81,8 @@ $typo-options: text-h1, text-sm-h1, text-md-h1, text-lg-h1, text-h2, text-sm-h2,
   --app-bg-base: #edf1f7;
   --app-bg-elevated: #f6f8fc;
   --app-bg-ambient: rgba(39, 67, 112, 0.028);
-  --app-bg-grid: rgba(39, 67, 112, 0.05);
-  --app-bg-grid-strong: rgba(39, 67, 112, 0.09);
+  --app-bg-noise: radial-gradient(circle at 20% 10%, rgba(15, 23, 42, 0.035) 0 1px, transparent 1.4px),
+    radial-gradient(circle at 72% 62%, rgba(23, 125, 220, 0.045) 0 1px, transparent 1.5px);
   --app-bg-glow-primary: rgba(85, 179, 255, 0.12);
   --app-bg-glow-danger: rgba(255, 99, 99, 0.08);
   --app-bg-glow-warm: rgba(215, 201, 175, 0.05);
@@ -123,15 +125,14 @@ html {
 
 body {
   background:
-    linear-gradient(var(--app-bg-grid) 1px, transparent 1px),
-    linear-gradient(90deg, var(--app-bg-grid) 1px, transparent 1px),
     radial-gradient(circle at 10% 10%, var(--app-bg-glow-primary), transparent 24%),
     radial-gradient(circle at 90% 0%, var(--app-bg-glow-danger), transparent 22%),
     radial-gradient(circle at 50% 0%, var(--app-bg-glow-warm), transparent 30%),
+    var(--app-bg-noise),
     linear-gradient(180deg, color-mix(in srgb, var(--app-bg-ambient) 100%, transparent), transparent 24%),
     linear-gradient(180deg, var(--app-bg-elevated), var(--app-bg-base));
   background-position: center;
-  background-size: 52px 52px, 52px 52px, auto, auto, auto, auto, auto;
+  background-size: auto, auto, auto, 180px 180px, auto, auto;
   color: var(--app-text-1);
   font-family: $body-font-family, -apple-system, BlinkMacSystemFont, 'Segoe UI', 'PingFang SC', 'Hiragino Sans GB',
     'Microsoft YaHei', 'Noto Sans SC', 'Vazirmatn', sans-serif !important;
@@ -195,6 +196,7 @@ body {
 
 .v-card {
   backdrop-filter: blur(var(--app-blur-panel));
+  overflow: hidden;
   transition:
     transform var(--app-motion-base) var(--app-ease-standard),
     box-shadow var(--app-motion-base) var(--app-ease-standard),
@@ -202,12 +204,34 @@ body {
     background-color var(--app-motion-base) var(--app-ease-standard);
 }
 
+.v-card::after,
+.v-sheet::after {
+  background: linear-gradient(115deg, transparent 0 26%, color-mix(in srgb, var(--app-state-info) 10%, transparent) 42%, transparent 58% 100%);
+  content: '';
+  inset: 0;
+  opacity: 0;
+  pointer-events: none;
+  position: absolute;
+  transform: translateX(-42%);
+  transition:
+    opacity var(--app-motion-slow) var(--app-ease-standard),
+    transform 820ms var(--app-ease-standard);
+}
+
+.v-card:hover::after,
+.v-sheet:hover::after {
+  opacity: 0.36;
+  transform: translateX(42%);
+}
+
 .v-btn {
   box-shadow: var(--app-shadow-button);
   font-weight: 600;
   letter-spacing: 0.3px;
   min-height: 40px;
+  overflow: hidden;
   padding-inline: 16px;
+  position: relative;
   text-transform: none;
   transition:
     transform var(--app-motion-fast) var(--app-ease-standard),
@@ -218,9 +242,27 @@ body {
     opacity var(--app-motion-fast) var(--app-ease-standard);
 }
 
+.v-btn::after {
+  background: linear-gradient(110deg, transparent 0 28%, color-mix(in srgb, #ffffff 22%, transparent) 46%, transparent 64% 100%);
+  content: '';
+  inset: 0;
+  opacity: 0;
+  pointer-events: none;
+  position: absolute;
+  transform: translateX(-70%);
+  transition:
+    opacity var(--app-motion-base) var(--app-ease-standard),
+    transform 620ms var(--app-ease-standard);
+}
+
 .v-btn:hover {
   opacity: 0.92;
   transform: translateY(-1px);
+}
+
+.v-btn:hover::after {
+  opacity: 0.34;
+  transform: translateX(70%);
 }
 
 .v-btn--variant-text,
@@ -391,7 +433,9 @@ kbd,
 .app-panel,
 .app-card-shell,
 .app-entity-card {
-  background: linear-gradient(180deg, color-mix(in srgb, var(--app-surface-2) 94%, transparent), var(--app-surface-1));
+  background:
+    linear-gradient(135deg, color-mix(in srgb, var(--app-state-info) 5%, transparent), transparent 28%),
+    linear-gradient(180deg, color-mix(in srgb, var(--app-surface-2) 94%, transparent), var(--app-surface-1));
   border: 1px solid var(--app-border-1);
   border-radius: var(--app-radius-lg);
   box-shadow: var(--app-shadow-ring), var(--app-shadow-panel);
@@ -404,10 +448,28 @@ kbd,
 .app-card-shell::before,
 .app-entity-card::before {
   background:
-    radial-gradient(circle at top left, color-mix(in srgb, var(--app-state-info) 10%, transparent), transparent 32%),
-    linear-gradient(130deg, color-mix(in srgb, #ffffff 4%, transparent), transparent 36%);
+    radial-gradient(circle at top left, color-mix(in srgb, var(--app-state-info) 14%, transparent), transparent 32%),
+    linear-gradient(130deg, color-mix(in srgb, #ffffff 5%, transparent), transparent 36%);
   content: '';
   inset: 0;
+  opacity: 0.74;
+  pointer-events: none;
+  position: absolute;
+}
+
+.app-page__hero::after,
+.app-panel::after,
+.app-card-shell::after,
+.app-entity-card::after,
+.app-form-card::after,
+.app-nested-card::after {
+  animation: app-panel-glow 7s var(--app-ease-standard) infinite alternate;
+  background:
+    linear-gradient(90deg, transparent, color-mix(in srgb, var(--app-state-info) 18%, transparent), transparent),
+    radial-gradient(circle at 90% 12%, color-mix(in srgb, var(--app-state-success) 10%, transparent), transparent 24%);
+  content: '';
+  inset: 0;
+  opacity: 0.18;
   pointer-events: none;
   position: absolute;
 }
@@ -667,7 +729,158 @@ kbd,
 .app-dialog__body {
   max-height: min(72vh, 860px);
   overflow-y: auto;
-  padding: 0 16px 8px !important;
+  padding: 14px 16px 16px !important;
+}
+
+.app-form-card,
+.app-nested-card,
+.app-code-block,
+.app-qr-panel,
+.app-chart-panel {
+  background:
+    linear-gradient(145deg, color-mix(in srgb, var(--app-state-info) 4%, transparent), transparent 30%),
+    color-mix(in srgb, var(--app-surface-2) 90%, transparent) !important;
+  border: 1px solid var(--app-border-1) !important;
+  border-radius: var(--app-radius-md) !important;
+  box-shadow: var(--app-shadow-ring) !important;
+  color: var(--app-text-1) !important;
+  overflow: hidden;
+  position: relative;
+}
+
+.app-form-card {
+  padding: 12px 12px 8px;
+}
+
+.app-form-card > .v-row,
+.app-nested-card > .v-row {
+  margin-inline: -6px;
+}
+
+.app-form-card > .v-row > .v-col,
+.app-nested-card > .v-row > .v-col {
+  padding: 6px;
+}
+
+.app-form-card .v-card-actions,
+.app-nested-card .v-card-actions {
+  padding-inline: 4px !important;
+}
+
+.app-nested-card {
+  margin-top: 10px;
+  padding: 12px;
+}
+
+.app-section-heading {
+  align-items: center;
+  color: var(--app-text-2);
+  display: flex;
+  font-size: 13px;
+  font-weight: 700;
+  gap: 10px;
+  letter-spacing: 0.08em;
+  min-height: 38px;
+  text-transform: uppercase;
+}
+
+.app-section-heading .v-chip,
+.app-section-heading .v-btn {
+  margin-inline-start: auto;
+}
+
+.app-icon-action {
+  cursor: pointer;
+  opacity: 0.82;
+  transition:
+    color var(--app-motion-fast) var(--app-ease-standard),
+    opacity var(--app-motion-fast) var(--app-ease-standard),
+    transform var(--app-motion-fast) var(--app-ease-standard);
+}
+
+.app-icon-action:hover {
+  opacity: 1;
+  transform: translateY(-1px);
+}
+
+.app-code-block {
+  direction: ltr;
+  font-family: $mono-font-family, 'SFMono-Regular', Consolas, 'Liberation Mono', monospace !important;
+  font-size: 12px;
+  line-height: 1.65;
+  max-height: min(52vh, 560px);
+  overflow: auto;
+  padding: 14px;
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+
+.app-code-editor {
+  background: color-mix(in srgb, var(--app-surface-2) 92%, transparent);
+  border: 1px solid var(--app-border-1);
+  border-radius: var(--app-radius-md);
+  direction: ltr !important;
+  display: flex;
+  font-size: 13px;
+  overflow: hidden;
+}
+
+.app-code-lines {
+  background: color-mix(in srgb, var(--app-surface-3) 84%, transparent);
+  border-inline-end: 1px solid var(--app-border-1);
+  color: var(--app-text-4);
+  display: flex;
+  flex-direction: column;
+  flex: 0 0 46px;
+  line-height: 1.5;
+  overflow-y: hidden;
+  padding: 12px 8px 12px 4px;
+  text-align: right;
+  user-select: none;
+}
+
+.app-qr-grid {
+  display: grid;
+  gap: 12px;
+  padding-top: 12px;
+}
+
+.app-qr-panel {
+  align-items: center;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding: 14px;
+  text-align: center;
+}
+
+.app-qr-panel canvas,
+.app-qr-panel svg {
+  background: #ffffff;
+  border-radius: 16px;
+  box-shadow: 0 16px 36px rgba(0, 0, 0, 0.22);
+  cursor: copy;
+  padding: 8px;
+}
+
+.app-qr-panel--disabled canvas,
+.app-qr-panel--disabled svg {
+  cursor: not-allowed;
+  opacity: 0.72;
+}
+
+.app-chart-panel {
+  height: 40vh;
+  min-height: 280px;
+  padding: 14px;
+}
+
+.app-dialog__subject {
+  color: var(--app-text-2);
+  font-size: 13px;
+  font-weight: 600;
+  margin-bottom: 12px;
+  text-align: center;
 }
 
 @keyframes app-page-enter {
@@ -679,6 +892,18 @@ kbd,
   to {
     opacity: 1;
     transform: translateY(0);
+  }
+}
+
+@keyframes app-panel-glow {
+  from {
+    opacity: 0.1;
+    transform: translate3d(-8%, -2%, 0);
+  }
+
+  to {
+    opacity: 0.24;
+    transform: translate3d(8%, 2%, 0);
   }
 }
 
@@ -717,7 +942,7 @@ kbd,
 
 @media (max-width: 960px) {
   body {
-    background-size: 34px 34px, 34px 34px, auto, auto, auto, auto, auto;
+    background-size: auto, auto, auto, 150px 150px, auto, auto;
   }
 
   .v-btn {
@@ -791,5 +1016,19 @@ kbd,
     animation-iteration-count: 1 !important;
     scroll-behavior: auto !important;
     transition-duration: 1ms !important;
+  }
+
+  .v-card::after,
+  .v-sheet::after,
+  .v-btn::after,
+  .app-page__hero::after,
+  .app-panel::after,
+  .app-card-shell::after,
+  .app-entity-card::after,
+  .app-form-card::after,
+  .app-nested-card::after {
+    animation: none !important;
+    opacity: 0 !important;
+    transform: none !important;
   }
 }

@@ -11,7 +11,7 @@
           type="card, text, divider, list-item-two-line"
           v-if="loading"
         ></v-skeleton-loader>
-      <v-card-text style="padding: 0 16px; overflow-y: scroll;">
+      <v-card-text class="app-dialog__body">
         <v-container style="padding: 0;" :hidden="loading">
           <v-card v-if="readonly" class="readonly-config-card" variant="tonal">
             <v-card-title>Actual user settings</v-card-title>

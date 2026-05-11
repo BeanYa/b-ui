@@ -11,7 +11,7 @@
         </v-row>
       </v-card-title>
       <v-divider></v-divider>
-      <v-card-text>
+      <v-card-text class="app-dialog__body">
         <v-row>
           <v-col cols="12" sm="6" md="4">
             <v-select
@@ -41,7 +41,7 @@
             </v-btn>
           </v-col>
         </v-row>
-        <v-card style="background-color: background" dir="ltr" v-html="lines.join('<br />')"></v-card>
+        <v-card class="app-code-block" dir="ltr" v-html="lines.join('<br />')"></v-card>
       </v-card-text>
     </v-card>
   </v-dialog>

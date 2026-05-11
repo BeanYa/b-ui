@@ -5,7 +5,7 @@
         {{ $t('actions.' + title) + " " + $t('objects.dnsrule') }}
       </v-card-title>
       <v-divider></v-divider>
-      <v-card-text style="padding: 0 16px;">
+      <v-card-text class="app-dialog__body">
         <v-row>
           <v-col cols="12" sm="6" md="4">
             <v-switch color="primary" v-model="logical" :label="$t('rule.logical')" hide-details></v-switch>
@@ -15,11 +15,11 @@
             <v-btn color="primary" @click="ruleData.rules.push(<dnsRule>{})" hide-details>{{ $t('actions.add') + " " + $t('objects.rule') }}</v-btn>
           </v-col>
         </v-row>
-        <v-card style="background-color: inherit; margin-bottom: 5px;" v-for="(r, index) in ruleData.rules" v-if="ruleData.type == 'logical'">
+        <v-card class="app-nested-card" v-for="(r, index) in ruleData.rules" v-if="ruleData.type == 'logical'">
           <v-card-subtitle>{{ $t('objects.rule') + ' ' + (Number(index)+1) }}
-            <v-icon @click="ruleData.rules.splice(index,1)" icon="mdi-delete" v-if="ruleData.rules.length>1" />
+            <v-icon class="app-icon-action" @click="ruleData.rules.splice(index,1)" icon="mdi-delete" v-if="ruleData.rules.length>1" />
           </v-card-subtitle>
-          <v-card-text style="padding: 0;">
+          <v-card-text class="pa-0">
             <RuleOptions
               :rule="r"
               :clients="clients"
@@ -54,7 +54,7 @@
             <v-switch color="primary" v-model="ruleData.invert" :label="$t('rule.invert')" hide-details></v-switch>
           </v-col>
         </v-row>
-        <v-card :subtitle="$t('dns.rule.action.route')" v-if="['route', 'route-options'].includes(ruleData.action)">
+        <v-card class="app-form-card" :subtitle="$t('dns.rule.action.route')" v-if="['route', 'route-options'].includes(ruleData.action)">
           <v-row v-if="ruleData.action == 'route'">
             <v-col cols="12" sm="6" md="4">
               <v-select

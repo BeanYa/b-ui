@@ -5,7 +5,7 @@
         {{ $t('actions.addbulk') }}
       </v-card-title>
       <v-divider></v-divider>
-      <v-card-text style="padding: 0 16px; overflow-y: scroll;">
+      <v-card-text class="app-dialog__body">
         <v-container style="padding: 0;">
           <v-row>
             <v-col cols="12" sm="6" md="4">

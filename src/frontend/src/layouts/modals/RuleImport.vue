@@ -14,7 +14,7 @@
         </v-row>
       </v-card-title>
       <v-divider></v-divider>
-      <v-card-text style="padding: 0 16px; overflow-y: scroll;">
+      <v-card-text class="app-dialog__body">
         <v-tabs v-model="tab" @update:modelValue="tabChanged">
           <v-tab value="json">JSON</v-tab>
           <v-tab value="file">{{ $t('rule.import.uploadFile') }}</v-tab>
@@ -113,7 +113,7 @@
             <tbody>
               <tr v-for="(rs, i) in parsed.rule_set" :key="i"
                 :style="mode === 'merge' && existingRulesetTags.includes(rs.tag) ? 'opacity:0.4' : ''">
-                <td style="font-family: monospace;">{{ rs.tag }}</td>
+                <td class="font-mono">{{ rs.tag }}</td>
                 <td>{{ rs.format }}</td>
                 <td>{{ rs.type }}</td>
                 <td>{{ rs.update_interval ?? '-' }}</td>

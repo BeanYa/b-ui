@@ -11,14 +11,14 @@
         </v-row>
       </v-card-title>
       <v-divider></v-divider>
-      <v-card-text style="padding: 0 16px;">
-        <div style="text-align: center; margin: 5px;">
+      <v-card-text class="app-dialog__body">
+        <div class="app-dialog__subject">
           {{ $t('objects.' + resource) + " : " + tag }}
         </div>
         <v-radio-group v-model="limit" @change="loadData" density="compact" :loading="loading" inline hide-details>
           <v-radio v-for="p in periods" :label="p.title" :value="p.value"></v-radio>
         </v-radio-group>
-          <v-container id="container" style="height:40vh;">
+          <v-container id="container" class="app-chart-panel">
             <v-skeleton-loader
             class="mx-auto border"
             width="95%"
@@ -113,7 +113,7 @@ export default {
         scales: {
           y: {
             grid: {
-              color: '#777777',
+              color: 'rgba(148, 163, 184, 0.26)',
             },
             beginAtZero: true,
             ticks: {
@@ -159,15 +159,15 @@ export default {
           datasets: [
             {
               label: i18n.global.t('stats.upload'),
-              backgroundColor: 'rgba(255, 165, 0, 0.4)',
-              borderColor: 'rgba(255, 165, 0)',
+              backgroundColor: 'rgba(255, 188, 51, 0.22)',
+              borderColor: '#ffbc33',
               fill: true,
               data: uplinkData
             },
             {
               label: i18n.global.t('stats.download'),
-              backgroundColor: 'rgba(0, 128, 0, 0.2)',
-              borderColor: 'rgba(0, 128, 0)',
+              backgroundColor: 'rgba(85, 179, 255, 0.18)',
+              borderColor: '#55b3ff',
               fill: true,
               data: downlinkData
             }

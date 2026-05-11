@@ -1,5 +1,5 @@
 <template>
-  <v-card :subtitle="$t('objects.dial')" style="background-color: inherit;">
+  <v-card :subtitle="$t('objects.dial')" class="app-form-card">
     <v-row>
       <v-col cols="12" sm="6" md="4" v-if="optionDetour">
         <v-select
@@ -95,7 +95,7 @@
         <template v-slot:activator="{ props }">
           <v-btn v-bind="props" hide-details variant="tonal">{{ $t('dial.options') }}</v-btn>
         </template>
-        <v-card>
+        <v-card class="app-form-card">
           <v-list>
             <v-list-item v-if="mode != 'client'">
               <v-switch v-model="optionDetour" color="primary" :label="$t('listen.detour')" hide-details></v-switch>

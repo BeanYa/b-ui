@@ -1,11 +1,11 @@
 <template>
-  <v-card style="padding: 8px;" rounded="xl" class="border">
-    <v-card-subtitle>Shadowsocks API
+  <v-card class="app-nested-card">
+    <v-card-subtitle class="app-section-heading">Shadowsocks API
       <v-chip color="primary" density="compact" variant="elevated" @click="add_server"><v-icon icon="mdi-plus" /></v-chip>
     </v-card-subtitle>
     <v-row v-for="(server, index) in servers">
       <v-col cols="auto" align-self="center" justify-self="center">
-        <v-icon @click="del_server(index)" color="error" icon="mdi-delete" />
+        <v-icon class="app-icon-action" @click="del_server(index)" color="error" icon="mdi-delete" />
       </v-col>
       <v-col cols="12" sm="6" md="4">
         <v-text-field

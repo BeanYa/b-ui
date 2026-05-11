@@ -31,7 +31,7 @@
       </v-col>
     </v-row>
     <template v-if="optionVerifyCU">
-      <v-card-title>
+      <v-card-title class="app-section-heading">
         <v-row>
           <v-col>{{ $t('types.derp.verifyClientUrl') }}</v-col>
           <v-col cols="auto" align-self="center" justify-self="center">
@@ -39,10 +39,10 @@
           </v-col>
         </v-row>
       </v-card-title>
-      <v-card v-for="clientUrl, index in data.verify_client_url" :key="index" class="border" style="padding: 8px;" rounded="xl">
+      <v-card v-for="clientUrl, index in data.verify_client_url" :key="index" class="app-nested-card">
         <v-row>
           <v-col cols="auto" align-self="center" justify-self="center">
-            <v-icon @click="data.verify_client_url.splice(index, 1)" color="error" icon="mdi-delete" />
+            <v-icon class="app-icon-action" @click="data.verify_client_url.splice(index, 1)" color="error" icon="mdi-delete" />
           </v-col>
           <v-col cols="11">
             <v-text-field
@@ -56,7 +56,7 @@
       </v-card>
     </template>
     <template v-if="optionMesh">
-      <v-card-title>
+      <v-card-title class="app-section-heading">
         <v-row>
           <v-col>{{ $t('types.derp.meshWith') }}</v-col>
           <v-col cols="auto" align-self="center" justify-self="center">
@@ -64,10 +64,10 @@
           </v-col>
         </v-row>
       </v-card-title>
-      <v-card v-for="mesh, index in data.mesh_with" :key="index" class="border" style="padding: 8px;" rounded="xl">
+      <v-card v-for="mesh, index in data.mesh_with" :key="index" class="app-nested-card">
         <v-row>
           <v-col cols="auto" align-self="center" justify-self="center">
-            <v-icon @click="data.mesh_with.splice(index, 1)" color="error" icon="mdi-delete" />
+            <v-icon class="app-icon-action" @click="data.mesh_with.splice(index, 1)" color="error" icon="mdi-delete" />
           </v-col>
           <v-col cols="11">
             <v-row>
@@ -136,7 +136,7 @@
       </v-row>
     </template>
     <template v-if="optionStun">
-      <v-card :title="$t('types.derp.stun')" class="border" style="padding: 8px;" rounded="xl">
+      <v-card :title="$t('types.derp.stun')" class="app-nested-card">
         <Listen :data="data.stun" :inTags="inTags" />
       </v-card>
     </template>
@@ -146,7 +146,7 @@
         <template v-slot:activator="{ props }">
           <v-btn v-bind="props" hide-details variant="tonal">{{ $t('types.derp.options') }}</v-btn>
         </template>
-        <v-card>
+        <v-card class="app-form-card">
           <v-list>
             <v-list-item>
               <v-switch v-model="optionVerifyCE" color="primary" :label="$t('types.derp.verifyClientEndpoint')" hide-details></v-switch>

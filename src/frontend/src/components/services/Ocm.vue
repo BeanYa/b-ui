@@ -24,14 +24,14 @@
         </v-select>
       </v-col>
     </v-row>
-    <v-card-title>
+    <v-card-title class="app-section-heading">
       {{ $t('types.ocm.users') }}
       <v-chip color="primary" density="compact" variant="elevated" @click="addUser"><v-icon icon="mdi-plus" /></v-chip>
     </v-card-title>
-    <v-card v-for="(user, index) in (data.users || [])" :key="index" class="border" style="margin: 4px; padding: 8px;" rounded="xl">
+    <v-card v-for="(user, index) in (data.users || [])" :key="index" class="app-nested-card">
       <v-row>
         <v-col cols="auto" align-self="center">
-          <v-icon @click="delUser(index)" color="error" icon="mdi-delete" />
+          <v-icon class="app-icon-action" @click="delUser(index)" color="error" icon="mdi-delete" />
         </v-col>
         <v-col cols="12" sm="4">
           <v-text-field :label="$t('types.ocm.userName')" hide-details v-model="user.name" />

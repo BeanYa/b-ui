@@ -1,5 +1,5 @@
 <template>
-  <v-card subtitle="ACME" style="background-color: inherit;">
+  <v-card subtitle="ACME" class="app-form-card">
     <v-row>
       <v-col cols="12" sm="6" md="4">
         <v-switch color="primary" :label="$t('enable')" v-model="enabled" hide-details></v-switch>
@@ -126,7 +126,7 @@
           <template v-slot:activator="{ props }">
             <v-btn v-bind="props" hide-details variant="tonal">{{ $t('tls.acme.options') }}</v-btn>
           </template>
-          <v-card>
+          <v-card class="app-form-card">
             <v-list>
               <v-list-item>
                 <v-switch v-model="optionDir" color="primary" :label="$t('tls.acme.dataDir')" hide-details></v-switch>

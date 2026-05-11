@@ -1,5 +1,5 @@
 <template>
-  <v-card subtitle="ECH" style="background-color: inherit;">
+  <v-card subtitle="ECH" class="app-form-card">
     <v-row>
       <v-col cols="12" sm="6" md="4">
         <v-switch color="primary" :label="$t('enable')" v-model="enabled" hide-details></v-switch>
