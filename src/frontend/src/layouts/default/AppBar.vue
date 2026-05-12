@@ -1,5 +1,5 @@
 <template>
-  <v-app-bar class="app-bar-shell" height="104">
+  <v-app-bar class="app-bar-shell" height="84">
     <div class="app-bar-shell__inner">
       <div class="app-bar-shell__leading">
         <v-btn
@@ -14,18 +14,14 @@
         <div class="app-bar-shell__headline">
           <span class="app-bar-shell__eyebrow">{{ pageSection }}</span>
           <v-app-bar-title :text="pageTitle" class="app-bar-shell__title" />
-          <div class="app-bar-shell__meta">
-            <span>{{ hostLabel }}</span>
-            <span>{{ route.path }}</span>
-            <span>{{ activeThemeLabel }}</span>
-          </div>
         </div>
       </div>
 
       <div class="app-bar-shell__actions">
+        <span class="app-bar-shell__check">Last check: {{ lastCheckLabel }}</span>
         <div class="app-bar-shell__status">
           <span class="app-bar-shell__status-dot"></span>
-          <span>{{ consoleStatus }}</span>
+          <span>{{ hostLabel }}</span>
         </div>
         <div class="app-bar-shell__context">
           <span class="app-bar-shell__context-chip">{{ localeLabel }}</span>
@@ -50,8 +46,9 @@
         </v-menu>
         <v-menu>
           <template #activator="{ props }">
-            <v-btn class="app-bar-shell__icon" icon v-bind="props" variant="text">
-              <v-icon>mdi-theme-light-dark</v-icon>
+            <v-btn class="app-bar-shell__theme-toggle" v-bind="props" variant="text">
+              <v-icon>{{ activeThemeIcon }}</v-icon>
+              <span>{{ activeThemeLabel }}</span>
             </v-btn>
           </template>
           <v-list>
@@ -88,10 +85,14 @@ const theme = useTheme()
 
 const pageTitle = computed(() => t(String(route.name)))
 const hostLabel = computed(() => document.location.hostname || 'localhost')
-const activeThemeLabel = computed(() => `Theme · ${t(`theme.${getThemePreference()}`)}`)
-const localeLabel = computed(() => `Locale · ${i18nLocale.value.toUpperCase()}`)
-const runtimeLabel = computed(() => `Segmented workspace`)
-const consoleStatus = computed(() => t('main.stats.title'))
+const localeLabel = computed(() => i18nLocale.value.toUpperCase())
+const runtimeLabel = computed(() => t(`theme.${getThemePreference()}`))
+const lastCheckLabel = computed(() => new Intl.DateTimeFormat(i18nLocale.value, {
+  hour: '2-digit',
+  minute: '2-digit',
+}).format(new Date()))
+const activeThemeIcon = computed(() => theme.global.name.value === 'dark' ? 'mdi-weather-night' : 'mdi-white-balance-sunny')
+const activeThemeLabel = computed(() => t(`theme.${getThemePreference()}`))
 const pageSection = computed(() => {
   if (route.path === '/') return 'Overview Workspace'
   if (route.path === '/clients') return 'Inventory Workspace'
@@ -135,11 +136,11 @@ onBeforeUnmount(() => {
   backdrop-filter: none !important;
   background: transparent !important;
   border-color: transparent !important;
-  border-radius: 34px;
+  border-radius: 28px;
   box-shadow: none !important;
   isolation: isolate;
   overflow: hidden !important;
-  padding: 14px 18px 0;
+  padding: 12px 18px 0;
 }
 
 .app-bar-shell :deep(.v-toolbar__content),
@@ -156,24 +157,24 @@ onBeforeUnmount(() => {
 
 .app-bar-shell__inner {
   align-items: center;
-  background: color-mix(in srgb, var(--app-surface-1) 92%, transparent);
+  background: color-mix(in srgb, var(--app-panel-bg) 82%, transparent);
   border: 1px solid var(--app-border-1);
-  border-radius: 30px;
-  box-shadow: var(--app-shadow-ring), var(--app-shadow-panel);
+  border-radius: 26px;
+  box-shadow: var(--app-shadow-soft);
   display: flex;
-  gap: 18px;
+  gap: 16px;
   justify-content: space-between;
-  min-height: 82px;
+  min-height: 66px;
   overflow: hidden;
-  padding: 14px 18px;
+  padding: 10px 14px;
   position: relative;
   width: 100%;
 }
 
 .app-bar-shell__inner::before {
   background:
-    radial-gradient(circle at 0% 0%, color-mix(in srgb, var(--app-state-danger) 10%, transparent), transparent 22%),
-    linear-gradient(120deg, color-mix(in srgb, #ffffff 5%, transparent), transparent 30%);
+    radial-gradient(circle at 100% 0%, color-mix(in srgb, var(--app-state-warning) 8%, transparent), transparent 24%),
+    linear-gradient(120deg, color-mix(in srgb, #ffffff 7%, transparent), transparent 34%);
   content: '';
   inset: 0;
   pointer-events: none;
@@ -194,30 +195,44 @@ onBeforeUnmount(() => {
 }
 
 .app-bar-shell__nav-btn,
-.app-bar-shell__icon {
+.app-bar-shell__icon,
+.app-bar-shell__theme-toggle {
   backdrop-filter: blur(14px);
   border: 1px solid var(--app-border-1);
   color: var(--app-text-2) !important;
 }
 
 .app-bar-shell__nav-btn:hover,
-.app-bar-shell__icon:hover {
+.app-bar-shell__icon:hover,
+.app-bar-shell__theme-toggle:hover {
   color: var(--app-text-1) !important;
 }
 
 .app-bar-shell__nav-btn :deep(.v-icon),
-.app-bar-shell__icon :deep(.v-icon) {
+.app-bar-shell__icon :deep(.v-icon),
+.app-bar-shell__theme-toggle :deep(.v-icon) {
   color: currentColor !important;
+}
+
+.app-bar-shell__theme-toggle {
+  background: color-mix(in srgb, var(--app-brand-ochre) 22%, var(--app-control-chip));
+  border-radius: var(--app-radius-pill);
+  gap: 8px;
+  min-height: 38px;
+  padding-inline: 12px;
+}
+
+.app-bar-shell__theme-toggle span {
+  font-size: 12px;
+  font-weight: 700;
 }
 
 .app-bar-shell__brand-mark {
   align-items: center;
-  background:
-    linear-gradient(180deg, color-mix(in srgb, var(--app-state-danger) 16%, transparent), color-mix(in srgb, var(--app-state-info) 8%, transparent)),
-    color-mix(in srgb, var(--app-surface-3) 84%, transparent);
+  background: var(--app-control-chip);
   border: 1px solid var(--app-border-1);
-  border-radius: 18px;
-  box-shadow: 0 16px 36px rgba(0, 0, 0, 0.18);
+  border-radius: 15px;
+  box-shadow: var(--app-shadow-soft);
   display: inline-flex;
   flex-shrink: 0;
   height: 44px;
@@ -236,15 +251,15 @@ onBeforeUnmount(() => {
   color: var(--app-text-3);
   font-size: 11px;
   font-weight: 700;
-  letter-spacing: 0.24em;
+  letter-spacing: 0.06em;
   text-transform: uppercase;
 }
 
 .app-bar-shell__title {
-  font-size: clamp(24px, 2.2vw, 30px);
-  font-weight: 600;
+  font-size: clamp(20px, 1.8vw, 26px);
+  font-weight: 560;
   line-height: 1.02;
-  letter-spacing: -0.01em;
+  letter-spacing: 0;
 }
 
 .app-bar-shell__meta {
@@ -270,9 +285,10 @@ onBeforeUnmount(() => {
 }
 
 .app-bar-shell__status,
+.app-bar-shell__check,
 .app-bar-shell__context-chip {
   align-items: center;
-  background: color-mix(in srgb, var(--app-surface-3) 84%, transparent);
+  background: var(--app-control-chip);
   border: 1px solid var(--app-border-1);
   border-radius: 999px;
   color: var(--app-text-2);
@@ -282,6 +298,11 @@ onBeforeUnmount(() => {
   gap: 8px;
   min-height: 36px;
   padding: 0 12px;
+}
+
+.app-bar-shell__check {
+  background: transparent;
+  border-color: transparent;
 }
 
 .app-bar-shell__status-dot {
@@ -310,16 +331,17 @@ onBeforeUnmount(() => {
 
   .app-bar-shell__inner {
     gap: 10px;
-    min-height: 74px;
+    min-height: 64px;
     padding: 12px;
   }
 
+  .app-bar-shell__check,
   .app-bar-shell__status {
     display: none;
   }
 
   .app-bar-shell__title {
-    font-size: 22px;
+    font-size: 20px;
   }
 
   .app-bar-shell__meta {

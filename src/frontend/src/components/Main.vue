@@ -92,134 +92,158 @@
     </v-dialog>
 
     <v-container class="dashboard-shell" fluid>
-      <v-row class="dashboard-shell__overview" density="comfortable">
-        <v-col cols="12" xl="3" lg="5" class="dashboard-shell__overview-col dashboard-shell__overview-col--intro">
-          <v-card class="overview-card overview-card--intro">
-            <div class="overview-card__glow"></div>
-            <div class="overview-card__eyebrow">Operations Console</div>
-            <h1 class="overview-card__title">{{ $t('pages.home') }}</h1>
-            <p class="overview-card__copy">
-              Operate the control plane from one segmented workspace with stable runtime telemetry, quick interventions,
-              and a chart deck below for deeper inspection.
-            </p>
-            <div class="overview-card__chips">
-              <span>{{ hostAddress }}</span>
-              <span>{{ selectedPanelLabel }}</span>
-            </div>
-            <div class="overview-card__actions">
-              <v-btn
-                color="primary"
-                prepend-icon="mdi-refresh"
-                variant="flat"
-                :loading="panelUpdateButtonLoading"
-                @click="openPanelUpdateDialog()">
-                {{ $t('actions.update') }}
-              </v-btn>
-              <v-btn prepend-icon="mdi-backup-restore" variant="tonal" @click="backupModal.visible = true">
-                {{ $t('main.backup.title') }}
-              </v-btn>
-              <v-btn prepend-icon="mdi-chart-box-outline" variant="tonal" @click="usageStatsModal.visible = true">
-                {{ $t('main.stats.title') }}
-              </v-btn>
-              <v-btn prepend-icon="mdi-list-box-outline" variant="tonal" @click="logModal.visible = true">
-                {{ $t('basic.log.title') }}
-              </v-btn>
-            </div>
-          </v-card>
-        </v-col>
+      <section class="control-canvas">
+        <div class="control-canvas__status">
+          <span>Last check: {{ refreshClockLabel }}</span>
+          <v-btn density="comfortable" icon="mdi-refresh" size="small" variant="text" @click="syncDashboard()" />
+          <span class="control-canvas__status-pill">
+            <v-icon icon="mdi-server-network" size="15" />
+            {{ isRuntimeHealthy ? 'Operational' : 'Attention' }}
+          </span>
+        </div>
 
-        <v-col cols="12" xl="4" lg="7" class="dashboard-shell__overview-col dashboard-shell__overview-col--stats">
-          <v-card class="overview-card overview-card--stats">
-            <div class="section-head">
-              <div>
-                <div class="section-head__label">Control Map</div>
-                <div class="section-head__title">Service footprint</div>
-              </div>
-              <div class="section-head__caption">Current objects and live operators in the plane.</div>
-            </div>
-            <div class="overview-grid">
-              <div
-                v-for="item in overviewCards"
-                :key="item.label"
-                class="overview-grid__item"
-              >
-                <div class="overview-grid__meta">
-                  <v-icon :icon="item.icon" size="16" />
-                  <span>{{ item.label }}</span>
-                </div>
-                <strong class="overview-grid__value">{{ item.value }}</strong>
-                <span class="overview-grid__note">{{ item.note }}</span>
-              </div>
-            </div>
-          </v-card>
-        </v-col>
+        <v-card class="home-panel home-panel--hero">
+          <div class="home-panel__brand">
+            <span class="home-panel__brand-mark">
+              <v-img src="@/assets/logo.svg" width="24" />
+            </span>
+            <span>Hello Admin</span>
+          </div>
+          <h1 class="home-panel__title">Your control plane, live.<br>Currently routing through B-UI.</h1>
+          <div class="home-panel__state" :class="{ 'home-panel__state--danger': !isRuntimeHealthy }">
+            <span class="home-panel__state-dot"></span>
+            {{ isRuntimeHealthy ? 'System Operational' : 'Runtime Needs Attention' }}
+          </div>
+          <div class="home-panel__legend">
+            <span><i></i>{{ networkEnergyLabel }} used signal</span>
+            <span><i></i>{{ savedRoutingLabel }} optimized routing</span>
+          </div>
+          <div class="home-panel__actions">
+            <v-btn
+              color="primary"
+              prepend-icon="mdi-refresh"
+              variant="flat"
+              :loading="panelUpdateButtonLoading"
+              @click="openPanelUpdateDialog()">
+              {{ $t('actions.update') }}
+            </v-btn>
+            <v-btn append-icon="mdi-arrow-top-right" variant="tonal" @click="usageStatsModal.visible = true">
+              {{ $t('main.stats.title') }}
+            </v-btn>
+          </div>
+        </v-card>
 
-        <v-col cols="12" xl="5" lg="12" class="dashboard-shell__overview-col dashboard-shell__overview-col--probe">
-          <v-card class="probe-card">
-            <div class="probe-card__sheen"></div>
-            <div class="probe-card__head">
-              <div>
-                <div class="probe-card__label">Server Probe</div>
-                <div class="probe-card__title">{{ runtimeHost }}</div>
-              </div>
-              <div class="probe-card__head-actions">
-                <span class="probe-card__status" :class="{ 'probe-card__status--danger': !isRuntimeHealthy }">
-                  <span class="probe-card__status-dot"></span>
-                  {{ isRuntimeHealthy ? 'Healthy' : 'Attention' }}
-                </span>
-                <v-btn density="comfortable" icon="mdi-refresh" size="small" variant="text" @click="syncDashboard()" />
-              </div>
+        <v-card class="home-panel home-panel--energy">
+          <div class="energy-orbit" aria-hidden="true">
+            <span
+              v-for="dot in energyDots"
+              :key="dot.id"
+              class="energy-orbit__dot"
+              :style="dot.style"
+            ></span>
+            <div class="energy-orbit__center">
+              <strong>{{ liveSignalValue }}</strong>
+              <span>{{ liveSignalUnit }}</span>
+              <small>Control throughput</small>
             </div>
+          </div>
+        </v-card>
 
-            <div class="probe-card__rings">
-              <div class="probe-ring" v-for="ring in probeRings" :key="ring.label" :style="ring.style">
-                <div class="probe-ring__inner">
-                  <div class="probe-ring__label">{{ ring.label }}</div>
-                  <div class="probe-ring__value">{{ ring.value }}</div>
-                  <div class="probe-ring__note">{{ ring.note }}</div>
-                </div>
-              </div>
-            </div>
+        <v-card class="home-panel home-panel--performance">
+          <div class="panel-label">Performance Ratio</div>
+          <h2>All good, but a small tweak could remove that loss</h2>
+          <div class="performance-track">
+            <span :style="{ width: `${performanceRatio}%` }"></span>
+          </div>
+          <div class="performance-foot">
+            <strong>{{ performanceRatio }}%</strong>
+            <span>{{ performanceLossLabel }}</span>
+          </div>
+        </v-card>
 
-            <div class="probe-card__streams">
-              <div class="probe-stream" v-for="stream in probeStreams" :key="stream.label">
-                <div class="probe-stream__meta">
-                  <span>{{ stream.label }}</span>
-                  <strong>{{ stream.value }}</strong>
-                </div>
-                <div class="probe-stream__track">
-                  <span class="probe-stream__fill" :style="{ width: `${stream.percent}%` }"></span>
-                </div>
-              </div>
-            </div>
+        <v-card class="home-panel home-panel--capacity">
+          <div class="capacity-head">
+            <span>Runtime autonomy</span>
+            <strong>{{ controlCapacity }}%</strong>
+          </div>
+          <div class="capacity-time">{{ runtimeAutonomyLabel }}</div>
+          <div class="capacity-bars">
+            <span
+              v-for="bar in capacityBars"
+              :key="bar.id"
+              :style="bar.style"
+            ></span>
+          </div>
+          <div class="capacity-foot">{{ runtimeMemory }} remaining capacity</div>
+        </v-card>
 
-            <div class="probe-card__clusters">
-              <div class="probe-cluster">
-                <div class="probe-cluster__label">System</div>
-                <div class="probe-cluster__facts">
-                  <div
-                    v-for="item in systemFacts"
-                    :key="item.label"
-                    class="probe-cluster__fact"
-                  >
-                    <span>{{ item.label }}</span>
-                    <strong>{{ item.value }}</strong>
-                  </div>
-                </div>
+        <v-card class="home-panel home-panel--map">
+          <div class="section-head">
+            <div>
+              <div class="section-head__label">Control Map</div>
+              <div class="section-head__title">Service footprint</div>
+            </div>
+            <div class="section-head__caption">{{ runtimeHost }}</div>
+          </div>
+          <div class="overview-grid">
+            <div
+              v-for="item in overviewCards"
+              :key="item.label"
+              class="overview-grid__item"
+            >
+              <div class="overview-grid__meta">
+                <v-icon :icon="item.icon" size="16" />
+                <span>{{ item.label }}</span>
               </div>
-              <div class="probe-cluster">
-                <div class="probe-cluster__label">Runtime</div>
-                <div class="probe-cluster__value">{{ runtimeStateLabel }}</div>
-                <div class="probe-cluster__meta">
-                  <span>{{ runtimeMemory }}</span>
-                  <span>{{ runtimeThreads }}</span>
-                  <span>{{ onlineSummary }}</span>
-                </div>
+              <strong class="overview-grid__value">{{ item.value }}</strong>
+              <span class="overview-grid__note">{{ item.note }}</span>
+            </div>
+          </div>
+        </v-card>
+
+        <v-card class="home-panel home-panel--runtime">
+          <div class="runtime-head">
+            <div>
+              <div class="panel-label">Server Probe</div>
+              <h2>{{ runtimeHost }}</h2>
+            </div>
+            <span class="probe-card__status" :class="{ 'probe-card__status--danger': !isRuntimeHealthy }">
+              <span class="probe-card__status-dot"></span>
+              {{ isRuntimeHealthy ? 'Healthy' : 'Attention' }}
+            </span>
+          </div>
+          <div class="probe-card__rings">
+            <div class="probe-ring" v-for="ring in probeRings" :key="ring.label" :style="ring.style">
+              <div class="probe-ring__inner">
+                <div class="probe-ring__label">{{ ring.label }}</div>
+                <div class="probe-ring__value">{{ ring.value }}</div>
+                <div class="probe-ring__note">{{ ring.note }}</div>
               </div>
             </div>
-          </v-card>
-        </v-col>
-      </v-row>
+          </div>
+          <div class="probe-card__streams">
+            <div class="probe-stream" v-for="stream in probeStreams" :key="stream.label">
+              <div class="probe-stream__meta">
+                <span>{{ stream.label }}</span>
+                <strong>{{ stream.value }}</strong>
+              </div>
+              <div class="probe-stream__track">
+                <span class="probe-stream__fill" :style="{ width: `${stream.percent}%` }"></span>
+              </div>
+            </div>
+          </div>
+          <div class="probe-cluster__facts">
+            <div
+              v-for="item in systemFacts"
+              :key="item.label"
+              class="probe-cluster__fact"
+            >
+              <span>{{ item.label }}</span>
+              <strong>{{ item.value }}</strong>
+            </div>
+          </div>
+        </v-card>
+      </section>
 
       <section class="dashboard-shell__tiles">
         <div
@@ -510,6 +534,77 @@ const probeStreams = computed(() => [
     value: diskIoRate.value > 0 ? `${HumanReadable.sizeFormat(diskIoRate.value)}/s` : '--',
   },
 ])
+
+const refreshClockLabel = computed(() => new Intl.DateTimeFormat(i18n.global.locale.value, {
+  hour: '2-digit',
+  minute: '2-digit',
+}).format(new Date()))
+
+const liveSignalValue = computed(() => {
+  const value = networkSpeed.value
+  if (value <= 0) return `${dataStore.onlines.user.length || 0}`
+  return HumanReadable.sizeFormat(value).replace(/\s+/g, ' ')
+})
+const liveSignalUnit = computed(() => networkSpeed.value > 0 ? '/s' : 'online')
+const networkEnergyLabel = computed(() =>
+  networkSpeed.value > 0 ? `${HumanReadable.sizeFormat(networkSpeed.value)}/s` : `${dataStore.onlines.user.length} users`
+)
+const savedRoutingLabel = computed(() => `${dataStore.inbounds.length + dataStore.outbounds.length} paths`)
+const performanceRatio = computed(() => {
+  const cpu = Math.round(tilesData.value.cpu || 0)
+  const memory = usagePercent(tilesData.value.mem)
+  const disk = usagePercent(tilesData.value.dsk)
+  const pressure = Math.round((cpu * 0.42) + (memory * 0.36) + (disk * 0.22))
+  return Math.max(64, Math.min(99, 100 - Math.round(pressure * 0.34)))
+})
+const performanceLossLabel = computed(() => {
+  const loss = Math.max(1, 100 - performanceRatio.value)
+  return `-${loss}% due to load`
+})
+const controlCapacity = computed(() => Math.max(38, Math.min(96, performanceRatio.value - Math.round(packetRate.value / 1000))))
+const runtimeAutonomyLabel = computed(() => {
+  const totalMinutes = Math.max(70, Math.round(controlCapacity.value * 4.8))
+  const hours = Math.floor(totalMinutes / 60)
+  const minutes = totalMinutes % 60
+  return `${hours} h ${minutes} min`
+})
+const capacityBars = computed(() =>
+  Array.from({ length: 18 }, (_, index) => ({
+    id: index,
+    style: {
+      height: `${34 + ((index % 5) * 8)}%`,
+      opacity: index < Math.round((controlCapacity.value / 100) * 18) ? 1 : 0.26,
+      animationDelay: `${index * 70}ms`,
+    },
+  }))
+)
+const energyDots = computed(() => {
+  const rings = [
+    { count: 24, radius: 44, size: 5 },
+    { count: 32, radius: 66, size: 4 },
+    { count: 40, radius: 88, size: 3 },
+    { count: 48, radius: 110, size: 2 },
+  ]
+  const activity = Math.min(1, (networkSpeed.value / (4 * 1024 * 1024)) + (dataStore.onlines.user.length / 80))
+  return rings.flatMap((ring, ringIndex) => Array.from({ length: ring.count }, (_, index) => {
+    const angle = (index / ring.count) * 360 - 82
+    const arcBias = Math.cos(((angle - 12) * Math.PI) / 180)
+    const warm = angle > -4 && angle < 116
+    const active = arcBias > -0.34 || (index + ringIndex) % 5 === 0
+    const scale = active ? 1 + (activity * 0.56) : 0.72
+    return {
+      id: `${ringIndex}-${index}`,
+      style: {
+        '--dot-angle': `${angle}deg`,
+        '--dot-radius': `${ring.radius}px`,
+        '--dot-size': `${ring.size * scale}px`,
+        '--dot-color': warm ? 'var(--app-state-warning)' : 'var(--app-state-info)',
+        opacity: active ? 0.95 : 0.22,
+        animationDelay: `${(ringIndex * 160) + (index * 18)}ms`,
+      },
+    }
+  }))
+})
 
 const tileCardClasses = (type: string) => ({
   'tile-card--metric': type.startsWith('g'),
@@ -846,15 +941,66 @@ onBeforeUnmount(() => {
 
 <style scoped>
 .dashboard-shell {
-  padding: 4px 0 24px;
+  padding: 2px 0 28px;
 }
 
-.dashboard-shell__overview {
+.control-canvas {
+  background:
+    radial-gradient(circle at 76% 12%, color-mix(in srgb, var(--app-state-info) 9%, transparent), transparent 26%),
+    radial-gradient(circle at 96% 44%, color-mix(in srgb, var(--app-state-warning) 12%, transparent), transparent 22%),
+    linear-gradient(135deg, color-mix(in srgb, #ffffff 10%, transparent), transparent 38%),
+    var(--app-surface-1);
+  border: 1px solid var(--app-border-1);
+  border-radius: 34px;
+  box-shadow: var(--app-shadow-device);
   display: grid;
-  gap: 16px;
-  grid-template-areas: 'intro stats probe';
-  grid-template-columns: minmax(280px, 3fr) minmax(360px, 4fr) minmax(420px, 5fr);
-  margin: 0;
+  gap: clamp(14px, 1.4vw, 20px);
+  grid-template-areas:
+    'hero hero energy energy'
+    'map performance performance capacity'
+    'map runtime runtime runtime';
+  grid-template-columns: minmax(230px, 0.9fr) minmax(270px, 1.1fr) minmax(270px, 1.1fr) minmax(240px, 0.9fr);
+  min-height: calc(100vh - 154px);
+  overflow: hidden;
+  padding: clamp(18px, 2.2vw, 30px);
+  position: relative;
+}
+
+.control-canvas::before {
+  background:
+    radial-gradient(circle at 14% 84%, color-mix(in srgb, var(--app-state-success) 8%, transparent), transparent 24%),
+    linear-gradient(90deg, color-mix(in srgb, var(--app-bg-base) 3%, transparent), transparent 18% 82%, color-mix(in srgb, var(--app-bg-base) 4%, transparent));
+  content: '';
+  inset: 0;
+  pointer-events: none;
+  position: absolute;
+}
+
+.control-canvas__status {
+  align-items: center;
+  color: var(--app-text-2);
+  display: flex;
+  font-size: 12px;
+  gap: 8px;
+  position: absolute;
+  right: clamp(18px, 2.2vw, 30px);
+  top: clamp(14px, 1.8vw, 24px);
+  z-index: 3;
+}
+
+.control-canvas__status .v-btn {
+  color: var(--app-text-1) !important;
+}
+
+.control-canvas__status-pill {
+  align-items: center;
+  background: var(--app-control-chip);
+  border: 1px solid var(--app-border-1);
+  border-radius: 999px;
+  display: inline-flex;
+  gap: 6px;
+  min-height: 30px;
+  padding: 0 10px;
 }
 
 .dashboard-shell__tiles {
@@ -864,120 +1010,342 @@ onBeforeUnmount(() => {
   margin-top: 16px;
 }
 
-.dashboard-shell__overview > .v-col,
-.dashboard-shell__overview-col {
-  display: flex;
-  max-width: none;
-  padding: 0;
-  width: auto;
-}
-
-.dashboard-shell__overview-col--intro,
-.dashboard-shell__overview-col--stats,
-.dashboard-shell__overview-col--probe {
+.home-panel {
+  background: var(--app-panel-bg) !important;
+  border: 1px solid var(--app-border-1);
+  border-radius: 24px !important;
+  box-shadow: none !important;
   min-width: 0;
+  position: relative;
+  z-index: 1;
 }
 
-.dashboard-shell__overview-col--intro {
-  grid-area: intro;
+.home-panel::after {
+  display: none;
 }
 
-.dashboard-shell__overview-col--stats {
-  grid-area: stats;
-}
-
-.dashboard-shell__overview-col--probe {
-  grid-area: probe;
-}
-
-.dashboard-shell__overview-col > * {
-  flex: 1 1 auto;
-  min-width: 0;
-  width: 100%;
-}
-
-.overview-card {
-  border-radius: 26px !important;
+.home-panel--hero {
   display: flex;
-  flex: 1 1 auto;
   flex-direction: column;
-  overflow: hidden;
-  padding: clamp(16px, 1.35vw, 21px);
-  position: relative;
+  grid-area: hero;
+  min-height: 320px;
+  padding: clamp(22px, 3vw, 36px);
 }
 
-.overview-card__glow {
-  background:
-    radial-gradient(circle at top left, color-mix(in srgb, var(--app-state-danger) 18%, transparent), transparent 30%),
-    radial-gradient(circle at bottom right, color-mix(in srgb, var(--app-state-info) 16%, transparent), transparent 34%);
-  inset: 0;
-  pointer-events: none;
-  position: absolute;
-}
-
-.overview-card__eyebrow {
-  color: var(--app-text-3);
-  font-size: 11px;
-  font-weight: 700;
-  letter-spacing: 0.24em;
-  margin-bottom: 12px;
-  position: relative;
-  text-transform: uppercase;
-  z-index: 1;
-}
-
-.overview-card__title {
-  font-size: clamp(28px, 2.6vw, 38px);
-  font-weight: 600;
-  letter-spacing: -0.03em;
-  line-height: 1;
-  margin: 0;
-  position: relative;
-  z-index: 1;
-}
-
-.overview-card__copy {
+.home-panel__brand {
+  align-items: center;
   color: var(--app-text-2);
-  font-size: 13px;
-  line-height: 1.58;
-  margin: 12px 0 0;
-  max-width: 36ch;
-  position: relative;
-  z-index: 1;
+  display: inline-flex;
+  font-size: 14px;
+  font-weight: 600;
+  gap: 12px;
 }
 
-.overview-card__chips,
-.overview-card__actions {
+.home-panel__brand-mark {
+  align-items: center;
+  background: var(--app-control-chip);
+  border: 1px solid var(--app-border-1);
+  border-radius: 16px;
+  display: inline-flex;
+  height: 42px;
+  justify-content: center;
+  width: 42px;
+}
+
+.home-panel__title {
+  color: var(--app-text-1);
+  font-size: clamp(32px, 4.2vw, 58px);
+  font-weight: 520;
+  letter-spacing: 0;
+  line-height: 0.98;
+  margin: clamp(24px, 4vw, 44px) 0 0;
+  max-width: 12.5em;
+}
+
+.home-panel__state {
+  align-items: center;
+  color: var(--app-text-2);
+  display: inline-flex;
+  font-size: 13px;
+  font-weight: 600;
+  gap: 8px;
+  margin-top: 18px;
+}
+
+.home-panel__state--danger {
+  color: var(--app-state-danger);
+}
+
+.home-panel__state-dot {
+  border: 1px solid currentColor;
+  border-radius: 50%;
+  height: 14px;
+  position: relative;
+  width: 14px;
+}
+
+.home-panel__state-dot::after {
+  background: currentColor;
+  border-radius: inherit;
+  content: '';
+  height: 6px;
+  inset: 3px;
+  position: absolute;
+  width: 6px;
+}
+
+.home-panel__legend {
+  color: var(--app-text-2);
   display: flex;
   flex-wrap: wrap;
-  gap: 8px;
-  position: relative;
-  z-index: 1;
-}
-
-.overview-card__chips {
-  margin-top: 16px;
-}
-
-.overview-card__chips span {
-  background: color-mix(in srgb, var(--app-surface-3) 86%, transparent);
-  border: 1px solid var(--app-border-1);
-  border-radius: 999px;
-  color: var(--app-text-1);
   font-size: 12px;
-  font-weight: 500;
-  padding: 7px 11px;
+  gap: 8px 16px;
+  margin-top: auto;
+  padding-top: 24px;
 }
 
-.overview-card__actions {
-  display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
+.home-panel__legend span {
+  align-items: center;
+  display: inline-flex;
+  gap: 7px;
+}
+
+.home-panel__legend i {
+  background: var(--app-state-info);
+  border-radius: 50%;
+  display: inline-block;
+  height: 7px;
+  width: 7px;
+}
+
+.home-panel__legend span:nth-child(2) i {
+  background: var(--app-state-warning);
+}
+
+.home-panel__actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
   margin-top: 16px;
-  padding-top: 16px;
 }
 
-.overview-card__actions .v-btn {
-  width: 100%;
+.home-panel--energy {
+  align-items: center;
+  background: transparent !important;
+  border-color: transparent;
+  box-shadow: none !important;
+  display: grid;
+  grid-area: energy;
+  min-height: 320px;
+  overflow: visible;
+  place-items: center;
+}
+
+.energy-orbit {
+  height: clamp(250px, 25vw, 380px);
+  position: relative;
+  width: clamp(250px, 25vw, 380px);
+}
+
+.energy-orbit__dot {
+  animation: energy-dot-pulse 3.2s var(--app-ease-standard) infinite;
+  background: var(--dot-color);
+  border-radius: 50%;
+  height: var(--dot-size);
+  left: 50%;
+  margin-left: calc(var(--dot-size) / -2);
+  margin-top: calc(var(--dot-size) / -2);
+  position: absolute;
+  top: 50%;
+  transform: rotate(var(--dot-angle)) translateX(var(--dot-radius));
+  width: var(--dot-size);
+}
+
+.energy-orbit__center {
+  align-content: center;
+  background: var(--app-panel-bg);
+  border: 1px solid color-mix(in srgb, var(--app-border-1) 60%, transparent);
+  border-radius: 50%;
+  box-shadow: var(--app-shadow-soft);
+  display: grid;
+  height: 176px;
+  justify-items: center;
+  left: 50%;
+  padding: 18px;
+  position: absolute;
+  text-align: center;
+  top: 50%;
+  transform: translate(-50%, -50%);
+  width: 176px;
+}
+
+.energy-orbit__center strong {
+  color: var(--app-text-1);
+  font-family: 'Geist Mono Variable', monospace;
+  font-size: clamp(31px, 3.4vw, 46px);
+  font-weight: 520;
+  letter-spacing: 0;
+  line-height: 0.96;
+  max-width: 100%;
+  overflow-wrap: anywhere;
+}
+
+.energy-orbit__center span,
+.energy-orbit__center small {
+  color: var(--app-text-2);
+  font-size: 12px;
+}
+
+.home-panel--performance {
+  background: var(--app-muted-panel-bg) !important;
+  display: grid;
+  gap: 14px;
+  grid-area: performance;
+  min-height: 230px;
+  padding: clamp(20px, 2.2vw, 28px);
+}
+
+.panel-label {
+  color: var(--app-text-3);
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: 0;
+}
+
+.home-panel--performance h2,
+.home-panel--runtime h2 {
+  color: var(--app-text-1);
+  font-size: clamp(23px, 2vw, 33px);
+  font-weight: 520;
+  letter-spacing: 0;
+  line-height: 1.04;
+  margin: 0;
+}
+
+.performance-track {
+  align-self: end;
+  background: var(--app-control-track);
+  border-radius: 999px;
+  height: 20px;
+  overflow: hidden;
+}
+
+.performance-track span {
+  background: linear-gradient(90deg, var(--app-state-info), color-mix(in srgb, var(--app-state-info) 72%, var(--app-state-success)));
+  border-radius: inherit;
+  display: block;
+  height: 100%;
+  transition: width 520ms var(--app-ease-standard);
+}
+
+.performance-foot {
+  align-items: end;
+  display: flex;
+  justify-content: space-between;
+}
+
+.performance-foot strong {
+  color: var(--app-text-1);
+  font-family: 'Geist Mono Variable', monospace;
+  font-size: clamp(42px, 5vw, 72px);
+  font-weight: 500;
+  letter-spacing: 0;
+  line-height: 0.88;
+}
+
+.performance-foot span {
+  color: var(--app-text-3);
+  font-size: 12px;
+}
+
+.home-panel--capacity {
+  background: var(--app-warm-panel-bg) !important;
+  display: grid;
+  gap: 12px;
+  grid-area: capacity;
+  min-height: 230px;
+  padding: clamp(18px, 2vw, 24px);
+}
+
+.capacity-head,
+.capacity-foot {
+  align-items: center;
+  color: var(--app-text-2);
+  display: flex;
+  font-size: 12px;
+  justify-content: space-between;
+}
+
+.capacity-head strong {
+  color: var(--app-text-1);
+  font-family: 'Geist Mono Variable', monospace;
+  font-size: 24px;
+  font-weight: 520;
+}
+
+.capacity-time {
+  color: var(--app-text-1);
+  font-size: clamp(31px, 3.2vw, 48px);
+  font-weight: 520;
+  letter-spacing: 0;
+  line-height: 1;
+}
+
+.capacity-bars {
+  align-items: end;
+  display: flex;
+  gap: clamp(5px, 0.55vw, 9px);
+  height: 70px;
+}
+
+.capacity-bars span {
+  animation: capacity-bar-rise 2.8s var(--app-ease-standard) infinite;
+  background: linear-gradient(180deg, color-mix(in srgb, var(--app-state-warning) 82%, #ffffff), var(--app-state-warning));
+  border-radius: 999px;
+  flex: 1 1 0;
+  min-width: 5px;
+  transition: opacity var(--app-motion-base) var(--app-ease-standard), height var(--app-motion-base) var(--app-ease-standard);
+}
+
+.home-panel--map {
+  grid-area: map;
+  padding: clamp(18px, 2vw, 24px);
+}
+
+.home-panel--runtime {
+  display: grid;
+  gap: 16px;
+  grid-area: runtime;
+  padding: clamp(18px, 2vw, 24px);
+}
+
+.runtime-head {
+  align-items: start;
+  display: flex;
+  gap: 14px;
+  justify-content: space-between;
+}
+
+@keyframes energy-dot-pulse {
+  0%, 100% {
+    filter: saturate(0.92);
+    transform: rotate(var(--dot-angle)) translateX(var(--dot-radius)) scale(0.86);
+  }
+
+  50% {
+    filter: saturate(1.25);
+    transform: rotate(var(--dot-angle)) translateX(var(--dot-radius)) scale(1.16);
+  }
+}
+
+@keyframes capacity-bar-rise {
+  0%, 100% {
+    transform: scaleY(0.82);
+  }
+
+  50% {
+    transform: scaleY(1);
+  }
 }
 
 .panel-update__status {
@@ -1570,15 +1938,15 @@ onBeforeUnmount(() => {
 }
 
 @media (max-width: 1680px) {
-  .dashboard-shell__overview {
+  .control-canvas {
     grid-template-areas:
-      'intro stats'
-      'probe probe';
-    grid-template-columns: minmax(320px, 2fr) minmax(420px, 3fr);
+      'hero hero energy'
+      'map performance capacity'
+      'runtime runtime runtime';
+    grid-template-columns: minmax(260px, 0.9fr) minmax(320px, 1.15fr) minmax(260px, 0.95fr);
   }
 
   .section-head,
-  .probe-card__head,
   .telemetry-section__head {
     grid-template-columns: 1fr;
   }
@@ -1599,12 +1967,13 @@ onBeforeUnmount(() => {
 }
 
 @media (max-width: 1380px) {
-  .dashboard-shell__overview {
+  .control-canvas {
     grid-template-areas:
-      'intro'
-      'stats'
-      'probe';
-    grid-template-columns: minmax(0, 1fr);
+      'hero energy'
+      'performance capacity'
+      'map map'
+      'runtime runtime';
+    grid-template-columns: minmax(0, 1fr) minmax(300px, 0.9fr);
   }
 
   .probe-card__rings {
@@ -1623,12 +1992,8 @@ onBeforeUnmount(() => {
 }
 
 @media (max-width: 1280px) {
-  .dashboard-shell__overview {
+  .control-canvas {
     gap: 14px;
-  }
-
-  .overview-card__actions {
-    grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 
   .probe-card__rings {
@@ -1651,8 +2016,32 @@ onBeforeUnmount(() => {
     padding: 0 0 18px;
   }
 
-  .overview-card,
-  .probe-card {
+  .control-canvas {
+    border-radius: 28px;
+    grid-template-areas:
+      'hero'
+      'energy'
+      'performance'
+      'capacity'
+      'map'
+      'runtime';
+    grid-template-columns: minmax(0, 1fr);
+    min-height: auto;
+    padding: 16px;
+  }
+
+  .control-canvas__status {
+    justify-content: flex-start;
+    position: relative;
+    right: auto;
+    top: auto;
+  }
+
+  .home-panel--hero,
+  .home-panel--map,
+  .home-panel--runtime,
+  .home-panel--performance,
+  .home-panel--capacity {
     padding: 18px;
   }
 
@@ -1661,8 +2050,9 @@ onBeforeUnmount(() => {
     grid-template-columns: 1fr 1fr;
   }
 
-  .overview-card__actions {
-    grid-template-columns: 1fr;
+  .energy-orbit {
+    height: 280px;
+    width: 280px;
   }
 
   .probe-card__rings {
@@ -1695,8 +2085,18 @@ onBeforeUnmount(() => {
     grid-template-columns: 1fr;
   }
 
-  .overview-card__copy {
-    max-width: none;
+  .control-canvas {
+    border-radius: 22px;
+    padding: 12px;
+  }
+
+  .home-panel__title {
+    font-size: clamp(30px, 10vw, 42px);
+  }
+
+  .control-canvas__status {
+    align-items: flex-start;
+    flex-direction: column;
   }
 
   .probe-card__rings {

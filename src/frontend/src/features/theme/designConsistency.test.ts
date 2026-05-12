@@ -92,4 +92,21 @@ describe('shared design consistency', () => {
     expect(login).toContain('login-brand__visual')
     expect(login).toContain('login-window__form')
   })
+
+  it('maps the shared shell to the Clay-inspired design tokens with light and dark themes', () => {
+    const settings = readSource('../../styles/settings.scss')
+    const shell = readSource('../../layouts/default/Default.vue')
+    const appBar = readSource('../../layouts/default/AppBar.vue')
+
+    expect(settings).toContain('--app-canvas: #fffaf0')
+    expect(settings).toContain('--app-brand-pink: #ff4d8b')
+    expect(settings).toContain('--app-brand-teal: #1a3a3a')
+    expect(settings).toContain('--app-brand-lavender: #b8a4ed')
+    expect(settings).toContain(':root[data-theme-name=\'light\']')
+    expect(settings).toContain(':root[data-theme-name=\'dark\']')
+    expect(settings).toContain('app-panel-float 8s')
+    expect(shell).toContain('shell-app__clay-scene')
+    expect(appBar).toContain('app-bar-shell__theme-toggle')
+    expect(appBar).toContain('theme.global.name.value')
+  })
 })

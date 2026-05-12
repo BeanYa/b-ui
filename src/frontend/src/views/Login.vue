@@ -232,29 +232,29 @@ const isActiveTheme = (th: string) => {
 
 <style scoped>
 .login-shell {
-  --login-page-bg: #eef3f8;
+  --login-page-bg: #fffaf0;
   --login-page-noise: radial-gradient(circle at 18% 16%, rgba(20, 33, 50, 0.04) 0 1px, transparent 1.4px),
-    radial-gradient(circle at 72% 62%, rgba(23, 125, 220, 0.045) 0 1px, transparent 1.5px);
-  --login-surface: rgba(255, 255, 255, 0.88);
-  --login-surface-strong: #ffffff;
-  --login-border: rgba(145, 164, 187, 0.28);
-  --login-border-strong: rgba(112, 134, 162, 0.4);
+    radial-gradient(circle at 72% 62%, rgba(26, 58, 58, 0.045) 0 1px, transparent 1.5px);
+  --login-surface: rgba(255, 250, 240, 0.9);
+  --login-surface-strong: #fffaf0;
+  --login-border: rgba(10, 10, 10, 0.1);
+  --login-border-strong: rgba(10, 10, 10, 0.18);
   --login-shadow:
-    0 24px 60px rgba(44, 65, 91, 0.12),
+    0 24px 60px rgba(80, 60, 35, 0.13),
     0 1px 0 rgba(255, 255, 255, 0.7) inset,
     0 0 0 1px rgba(255, 255, 255, 0.6) inset;
-  --login-text: #142132;
-  --login-text-muted: #5f7086;
-  --login-toolbar: rgba(246, 249, 252, 0.92);
-  --login-field-bg: rgba(247, 250, 252, 0.96);
-  --login-field-border: rgba(145, 164, 187, 0.28);
-  --login-accent: #55b3ff;
-  --login-button-bg: #142132;
-  --login-button-text: #f8fbff;
+  --login-text: #0a0a0a;
+  --login-text-muted: #6a6a6a;
+  --login-toolbar: rgba(250, 245, 232, 0.92);
+  --login-field-bg: rgba(255, 250, 240, 0.96);
+  --login-field-border: rgba(10, 10, 10, 0.1);
+  --login-accent: #ff4d8b;
+  --login-button-bg: #0a0a0a;
+  --login-button-text: #ffffff;
   align-items: center;
   background:
-    radial-gradient(circle at 16% 12%, rgba(85, 179, 255, 0.16), transparent 28%),
-    radial-gradient(circle at 88% 4%, rgba(255, 99, 99, 0.1), transparent 24%),
+    radial-gradient(circle at 16% 12%, rgba(255, 176, 132, 0.3), transparent 28%),
+    radial-gradient(circle at 88% 4%, rgba(184, 164, 237, 0.28), transparent 24%),
     var(--login-page-noise),
     linear-gradient(180deg, rgba(255, 255, 255, 0.75), rgba(238, 243, 248, 0.92)),
     var(--login-page-bg);
@@ -272,29 +272,29 @@ const isActiveTheme = (th: string) => {
 }
 
 .login-shell--dark {
-  --login-page-bg: #07080a;
+  --login-page-bg: #0a1a1a;
   --login-page-noise: radial-gradient(circle at 18% 16%, rgba(255, 255, 255, 0.045) 0 1px, transparent 1.4px),
     radial-gradient(circle at 72% 62%, rgba(85, 179, 255, 0.055) 0 1px, transparent 1.5px);
-  --login-surface: rgba(16, 17, 17, 0.92);
-  --login-surface-strong: #101111;
-  --login-border: rgba(255, 255, 255, 0.08);
-  --login-border-strong: rgba(255, 255, 255, 0.14);
+  --login-surface: rgba(16, 31, 30, 0.92);
+  --login-surface-strong: #1a2a2a;
+  --login-border: rgba(255, 250, 240, 0.1);
+  --login-border-strong: rgba(255, 250, 240, 0.16);
   --login-shadow:
     0 28px 70px rgba(0, 0, 0, 0.45),
     0 1px 0 rgba(255, 255, 255, 0.05) inset,
     0 0 0 1px rgba(7, 8, 10, 0.9) inset;
-  --login-text: #f9f9f9;
-  --login-text-muted: #9c9c9d;
-  --login-toolbar: rgba(18, 18, 18, 0.9);
-  --login-field-bg: rgba(7, 8, 10, 0.92);
-  --login-field-border: rgba(255, 255, 255, 0.1);
-  --login-accent: #55b3ff;
-  --login-button-bg: rgba(255, 255, 255, 0.92);
-  --login-button-text: #18191a;
+  --login-text: #fffaf0;
+  --login-text-muted: #a9a093;
+  --login-toolbar: rgba(26, 42, 42, 0.9);
+  --login-field-bg: rgba(10, 26, 26, 0.92);
+  --login-field-border: rgba(255, 250, 240, 0.1);
+  --login-accent: #b8a4ed;
+  --login-button-bg: #fffaf0;
+  --login-button-text: #0a1a1a;
   background:
-    radial-gradient(circle at top left, rgba(255, 99, 99, 0.1), transparent 26%),
-    radial-gradient(circle at bottom right, rgba(85, 179, 255, 0.14), transparent 28%),
-    radial-gradient(circle at 48% 0, rgba(95, 201, 146, 0.07), transparent 34%),
+    radial-gradient(circle at top left, rgba(255, 77, 139, 0.1), transparent 26%),
+    radial-gradient(circle at bottom right, rgba(184, 164, 237, 0.16), transparent 28%),
+    radial-gradient(circle at 48% 0, rgba(164, 212, 197, 0.08), transparent 34%),
     var(--login-page-noise),
     var(--login-page-bg);
   background-size: auto, auto, auto, 180px 180px, auto;
@@ -341,7 +341,7 @@ const isActiveTheme = (th: string) => {
   align-items: stretch;
   display: grid;
   gap: 18px;
-  max-width: 1240px;
+  max-width: min(1180px, calc(100vw - 72px));
   max-inline-size: 100%;
   min-width: 0;
   padding: 0 !important;
@@ -358,8 +358,9 @@ const isActiveTheme = (th: string) => {
   box-shadow: var(--login-shadow);
   color: var(--login-text);
   display: grid;
-  gap: clamp(12px, 2vw, 28px);
-  grid-template-columns: minmax(0, 1.04fr) minmax(390px, 0.96fr);
+  gap: clamp(18px, 2.2vw, 30px);
+  grid-template-columns: minmax(420px, 560px) minmax(380px, 500px);
+  justify-content: center;
   max-width: 100%;
   min-height: 560px;
   min-width: 0;
@@ -408,15 +409,15 @@ const isActiveTheme = (th: string) => {
 .login-brand {
   align-content: center;
   display: grid;
-  gap: 28px;
-  padding: clamp(24px, 4vw, 46px);
+  gap: 24px;
+  padding: clamp(24px, 3.2vw, 42px) clamp(10px, 1.4vw, 20px) clamp(24px, 3.2vw, 42px) clamp(28px, 3.4vw, 48px);
 }
 
 .login-window {
   align-items: center;
   display: flex;
   justify-content: center;
-  padding: clamp(22px, 3vw, 44px) clamp(28px, 4vw, 54px) clamp(22px, 3vw, 44px) 0;
+  padding: clamp(22px, 3vw, 44px) clamp(28px, 3.4vw, 48px) clamp(22px, 3vw, 44px) 0;
 }
 
 .login-brand__content,
@@ -439,7 +440,7 @@ const isActiveTheme = (th: string) => {
 
 .login-brand__signal {
   animation: login-brand-pulse 1.8s ease-in-out infinite;
-  background: #5fc992;
+  background: #22c55e;
   border-radius: 999px;
   box-shadow: 0 0 0 6px rgba(95, 201, 146, 0.14);
   height: 8px;
@@ -448,12 +449,12 @@ const isActiveTheme = (th: string) => {
 
 .login-brand__title {
   color: var(--login-text);
-  font-size: clamp(48px, 6.4vw, 82px);
+  font-size: clamp(44px, 4.3vw, 68px);
   font-weight: 800;
   letter-spacing: -0.055em;
   line-height: 0.94;
   margin: 20px 0 0;
-  max-width: 10.5ch;
+  max-width: 9.8ch;
 }
 
 .login-brand__copy {
@@ -461,7 +462,7 @@ const isActiveTheme = (th: string) => {
   font-size: clamp(15px, 1.2vw, 17px);
   line-height: 1.72;
   margin: 22px 0 0;
-  max-width: 58ch;
+  max-width: 48ch;
 }
 
 .login-brand__proof {
@@ -744,7 +745,7 @@ const isActiveTheme = (th: string) => {
 }
 
 .login-window__status strong {
-  color: #5fc992;
+  color: #22c55e;
   font-size: 11px;
 }
 
@@ -844,6 +845,24 @@ const isActiveTheme = (th: string) => {
   58%,
   100% {
     background-position: 0 110vh, 18px 12px;
+  }
+}
+
+@media (min-width: 1600px) {
+  .login-shell__col {
+    max-width: 1140px;
+  }
+
+  .login-panel {
+    grid-template-columns: 540px 460px;
+  }
+
+  .login-brand__title {
+    font-size: 64px;
+  }
+
+  .login-window__module {
+    max-width: 460px;
   }
 }
 

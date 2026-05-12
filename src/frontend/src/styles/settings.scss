@@ -25,48 +25,61 @@ $typo-options: text-h1, text-sm-h1, text-md-h1, text-lg-h1, text-h2, text-sm-h2,
   text-caption;
 
 :root {
-  color-scheme: dark;
-  --app-bg-base: #07080a;
-  --app-bg-elevated: #0b0d11;
-  --app-bg-ambient: rgba(255, 255, 255, 0.028);
-  --app-bg-noise: radial-gradient(circle at 20% 10%, rgba(255, 255, 255, 0.045) 0 1px, transparent 1.4px),
-    radial-gradient(circle at 72% 62%, rgba(85, 179, 255, 0.055) 0 1px, transparent 1.5px);
-  --app-bg-glow-primary: rgba(85, 179, 255, 0.16);
-  --app-bg-glow-danger: rgba(255, 99, 99, 0.12);
-  --app-bg-glow-warm: rgba(95, 201, 146, 0.07);
-  --app-bg-vignette-edge: rgba(2, 4, 8, 0.36);
-  --app-surface-0: rgba(10, 11, 14, 0.88);
-  --app-surface-1: rgba(12, 15, 20, 0.88);
-  --app-surface-2: rgba(16, 21, 28, 0.92);
-  --app-surface-3: rgba(22, 28, 36, 0.96);
-  --app-surface-4: rgba(30, 38, 48, 0.98);
-  --app-text-1: #f9f9f9;
-  --app-text-2: #cecece;
-  --app-text-3: #9c9c9d;
-  --app-text-4: #6a6b6c;
-  --app-border-1: rgba(147, 197, 253, 0.08);
-  --app-border-2: rgba(147, 197, 253, 0.16);
-  --app-border-3: rgba(85, 179, 255, 0.26);
-  --app-state-info: #55b3ff;
-  --app-state-success: #5fc992;
-  --app-state-warning: #ffbc33;
-  --app-state-danger: #ff6363;
+  color-scheme: light;
+  --app-canvas: #fffaf0;
+  --app-primary: #0a0a0a;
+  --app-primary-active: #1f1f1f;
+  --app-brand-pink: #ff4d8b;
+  --app-brand-teal: #1a3a3a;
+  --app-brand-lavender: #b8a4ed;
+  --app-brand-peach: #ffb084;
+  --app-brand-ochre: #e8b94a;
+  --app-brand-mint: #a4d4c5;
+  --app-brand-coral: #ff6b5a;
+  --app-bg-base: var(--app-canvas);
+  --app-bg-elevated: #faf5e8;
+  --app-bg-ambient: rgba(255, 77, 139, 0.07);
+  --app-bg-noise: radial-gradient(circle at 18% 16%, rgba(10, 10, 10, 0.035) 0 1px, transparent 1.4px),
+    radial-gradient(circle at 72% 62%, rgba(26, 58, 58, 0.04) 0 1px, transparent 1.5px);
+  --app-bg-glow-primary: rgba(184, 164, 237, 0.36);
+  --app-bg-glow-danger: rgba(255, 77, 139, 0.16);
+  --app-bg-glow-warm: rgba(255, 176, 132, 0.34);
+  --app-bg-vignette-edge: rgba(92, 75, 52, 0.16);
+  --app-surface-0: rgba(255, 250, 240, 0.78);
+  --app-surface-1: rgba(255, 250, 240, 0.96);
+  --app-surface-2: rgba(250, 245, 232, 0.96);
+  --app-surface-3: rgba(245, 240, 224, 0.98);
+  --app-surface-4: rgba(235, 230, 214, 1);
+  --app-panel-bg: rgba(255, 250, 240, 0.9);
+  --app-muted-panel-bg: rgba(245, 240, 224, 0.94);
+  --app-warm-panel-bg: rgba(255, 176, 132, 0.18);
+  --app-control-chip: rgba(10, 10, 10, 0.055);
+  --app-control-track: rgba(10, 10, 10, 0.1);
+  --app-text-1: #0a0a0a;
+  --app-text-2: #3a3a3a;
+  --app-text-3: #6a6a6a;
+  --app-text-4: #9a9a9a;
+  --app-border-1: rgba(10, 10, 10, 0.09);
+  --app-border-2: rgba(10, 10, 10, 0.16);
+  --app-border-3: rgba(26, 58, 58, 0.26);
+  --app-state-info: #1a3a3a;
+  --app-state-success: #22c55e;
+  --app-state-warning: #e8b94a;
+  --app-state-danger: #ff6b5a;
   --app-radius-xs: 6px;
-  --app-radius-sm: 12px;
-  --app-radius-md: 16px;
-  --app-radius-lg: 20px;
-  --app-radius-xl: 28px;
+  --app-radius-sm: 8px;
+  --app-radius-md: 12px;
+  --app-radius-lg: 16px;
+  --app-radius-xl: 24px;
   --app-radius-pill: 999px;
-  --app-shadow-ring: 0 0 0 1px rgba(34, 44, 58, 0.88), inset 0 0 0 1px rgba(255, 255, 255, 0.04);
-  --app-shadow-panel: 0 24px 70px rgba(0, 0, 0, 0.38), 0 0 34px rgba(85, 179, 255, 0.035),
-    inset 0 1px 0 rgba(255, 255, 255, 0.055);
-  --app-shadow-panel-hover: 0 30px 86px rgba(0, 0, 0, 0.46), 0 0 44px rgba(85, 179, 255, 0.075),
-    inset 0 1px 0 rgba(255, 255, 255, 0.09);
-  --app-shadow-button: 0 0 0 1px rgba(255, 255, 255, 0.08), inset 0 1px 0 rgba(255, 255, 255, 0.08),
-    inset 0 -1px 0 rgba(0, 0, 0, 0.24);
-  --app-shadow-input: inset 0 1px 0 rgba(255, 255, 255, 0.04), 0 0 0 1px rgba(255, 255, 255, 0.08);
-  --app-shadow-floating: 0 0 0 2px rgba(0, 0, 0, 0.5), 0 18px 70px rgba(0, 0, 0, 0.38),
-    inset 0 1px 0 rgba(255, 255, 255, 0.08);
+  --app-shadow-ring: 0 0 0 1px var(--app-border-1), inset 0 1px 0 rgba(255, 255, 255, 0.72);
+  --app-shadow-panel: 0 18px 42px rgba(80, 60, 35, 0.11), inset 0 1px 0 rgba(255, 255, 255, 0.72);
+  --app-shadow-panel-hover: 0 22px 56px rgba(80, 60, 35, 0.16), inset 0 1px 0 rgba(255, 255, 255, 0.9);
+  --app-shadow-button: inset 0 1px 0 rgba(255, 255, 255, 0.28), inset 0 -1px 0 rgba(0, 0, 0, 0.08);
+  --app-shadow-input: inset 0 1px 0 rgba(255, 255, 255, 0.84), 0 0 0 1px var(--app-border-1);
+  --app-shadow-floating: 0 20px 48px rgba(80, 60, 35, 0.22), inset 0 1px 0 rgba(255, 255, 255, 0.9);
+  --app-shadow-device: 0 28px 76px rgba(80, 60, 35, 0.2), inset 0 1px 0 rgba(255, 255, 255, 0.95);
+  --app-shadow-soft: 0 18px 38px rgba(80, 60, 35, 0.12);
   --app-blur-panel: 16px;
   --app-blur-overlay: 22px;
   --app-motion-fast: 140ms;
@@ -78,40 +91,51 @@ $typo-options: text-h1, text-sm-h1, text-md-h1, text-lg-h1, text-h2, text-sm-h2,
 .v-theme--light,
 :root[data-theme-name='light'] {
   color-scheme: light;
-  --app-bg-base: #edf1f7;
-  --app-bg-elevated: #f6f8fc;
-  --app-bg-ambient: rgba(39, 67, 112, 0.028);
-  --app-bg-noise: radial-gradient(circle at 20% 10%, rgba(15, 23, 42, 0.035) 0 1px, transparent 1.4px),
-    radial-gradient(circle at 72% 62%, rgba(23, 125, 220, 0.045) 0 1px, transparent 1.5px);
-  --app-bg-glow-primary: rgba(85, 179, 255, 0.12);
-  --app-bg-glow-danger: rgba(255, 99, 99, 0.08);
-  --app-bg-glow-warm: rgba(215, 201, 175, 0.05);
-  --app-bg-vignette-edge: rgba(214, 223, 237, 0.42);
-  --app-surface-0: rgba(255, 255, 255, 0.76);
-  --app-surface-1: rgba(255, 255, 255, 0.88);
-  --app-surface-2: rgba(255, 255, 255, 0.96);
-  --app-surface-3: rgba(248, 250, 255, 0.98);
-  --app-surface-4: rgba(241, 245, 251, 1);
-  --app-text-1: #111827;
-  --app-text-2: #334155;
-  --app-text-3: #64748b;
-  --app-text-4: #8a97aa;
-  --app-border-1: rgba(15, 23, 42, 0.08);
-  --app-border-2: rgba(39, 67, 112, 0.12);
-  --app-border-3: rgba(85, 179, 255, 0.18);
-  --app-shadow-ring: 0 0 0 1px rgba(213, 221, 233, 0.92), inset 0 0 0 1px rgba(255, 255, 255, 0.92);
-  --app-shadow-panel: 0 24px 60px rgba(128, 145, 176, 0.14), inset 0 1px 0 rgba(255, 255, 255, 0.92);
-  --app-shadow-panel-hover: 0 28px 70px rgba(128, 145, 176, 0.18), inset 0 1px 0 rgba(255, 255, 255, 0.98);
-  --app-shadow-button: 0 0 0 1px rgba(15, 23, 42, 0.08), inset 0 1px 0 rgba(255, 255, 255, 0.96),
-    inset 0 -1px 0 rgba(213, 221, 233, 0.8);
-  --app-shadow-input: inset 0 1px 0 rgba(255, 255, 255, 0.98), 0 0 0 1px rgba(15, 23, 42, 0.08);
-  --app-shadow-floating: 0 0 0 1px rgba(213, 221, 233, 0.92), 0 18px 50px rgba(128, 145, 176, 0.2),
-    inset 0 1px 0 rgba(255, 255, 255, 0.98);
 }
 
 .v-theme--dark,
 :root[data-theme-name='dark'] {
   color-scheme: dark;
+  --app-canvas: #101817;
+  --app-bg-base: #0a1a1a;
+  --app-bg-elevated: #132322;
+  --app-bg-ambient: rgba(255, 176, 132, 0.05);
+  --app-bg-noise: radial-gradient(circle at 18% 16%, rgba(255, 250, 240, 0.035) 0 1px, transparent 1.4px),
+    radial-gradient(circle at 72% 62%, rgba(184, 164, 237, 0.04) 0 1px, transparent 1.5px);
+  --app-bg-glow-primary: rgba(184, 164, 237, 0.18);
+  --app-bg-glow-danger: rgba(255, 77, 139, 0.12);
+  --app-bg-glow-warm: rgba(232, 185, 74, 0.12);
+  --app-bg-vignette-edge: rgba(0, 0, 0, 0.46);
+  --app-surface-0: rgba(10, 26, 26, 0.78);
+  --app-surface-1: rgba(16, 31, 30, 0.94);
+  --app-surface-2: rgba(26, 42, 42, 0.94);
+  --app-surface-3: rgba(35, 53, 52, 0.96);
+  --app-surface-4: rgba(48, 66, 64, 1);
+  --app-panel-bg: rgba(16, 31, 30, 0.88);
+  --app-muted-panel-bg: rgba(26, 42, 42, 0.92);
+  --app-warm-panel-bg: rgba(232, 185, 74, 0.11);
+  --app-control-chip: rgba(255, 250, 240, 0.07);
+  --app-control-track: rgba(255, 250, 240, 0.13);
+  --app-text-1: #fffaf0;
+  --app-text-2: #d8d1c4;
+  --app-text-3: #a9a093;
+  --app-text-4: #777066;
+  --app-border-1: rgba(255, 250, 240, 0.1);
+  --app-border-2: rgba(255, 250, 240, 0.18);
+  --app-border-3: rgba(184, 164, 237, 0.32);
+  --app-state-info: #b8a4ed;
+  --app-state-success: #a4d4c5;
+  --app-state-warning: #e8b94a;
+  --app-state-danger: #ff6b5a;
+  --app-shadow-ring: 0 0 0 1px rgba(255, 250, 240, 0.08), inset 0 1px 0 rgba(255, 250, 240, 0.05);
+  --app-shadow-panel: 0 22px 64px rgba(0, 0, 0, 0.34), inset 0 1px 0 rgba(255, 250, 240, 0.055);
+  --app-shadow-panel-hover: 0 26px 76px rgba(0, 0, 0, 0.44), inset 0 1px 0 rgba(255, 250, 240, 0.08);
+  --app-shadow-button: 0 0 0 1px rgba(255, 250, 240, 0.08), inset 0 1px 0 rgba(255, 250, 240, 0.08),
+    inset 0 -1px 0 rgba(0, 0, 0, 0.22);
+  --app-shadow-input: inset 0 1px 0 rgba(255, 250, 240, 0.04), 0 0 0 1px rgba(255, 250, 240, 0.08);
+  --app-shadow-floating: 0 18px 70px rgba(0, 0, 0, 0.42), inset 0 1px 0 rgba(255, 250, 240, 0.08);
+  --app-shadow-device: 0 34px 90px rgba(0, 0, 0, 0.38), inset 0 1px 0 rgba(255, 250, 240, 0.1);
+  --app-shadow-soft: 0 22px 58px rgba(0, 0, 0, 0.24);
 }
 
 html,
@@ -125,19 +149,19 @@ html {
 
 body {
   background:
-    radial-gradient(circle at 10% 10%, var(--app-bg-glow-primary), transparent 24%),
-    radial-gradient(circle at 90% 0%, var(--app-bg-glow-danger), transparent 22%),
-    radial-gradient(circle at 50% 0%, var(--app-bg-glow-warm), transparent 30%),
+    radial-gradient(ellipse at 18% 10%, var(--app-bg-glow-warm), transparent 38%),
+    radial-gradient(ellipse at 82% 4%, var(--app-bg-glow-primary), transparent 28%),
+    radial-gradient(ellipse at 92% 66%, var(--app-bg-glow-danger), transparent 30%),
     var(--app-bg-noise),
-    linear-gradient(180deg, color-mix(in srgb, var(--app-bg-ambient) 100%, transparent), transparent 24%),
-    linear-gradient(180deg, var(--app-bg-elevated), var(--app-bg-base));
+    linear-gradient(120deg, color-mix(in srgb, var(--app-bg-ambient) 100%, transparent), transparent 32%),
+    linear-gradient(160deg, var(--app-bg-elevated), var(--app-bg-base));
   background-position: center;
-  background-size: auto, auto, auto, 180px 180px, auto, auto;
+  background-size: auto;
   color: var(--app-text-1);
   font-family: $body-font-family, -apple-system, BlinkMacSystemFont, 'Segoe UI', 'PingFang SC', 'Hiragino Sans GB',
     'Microsoft YaHei', 'Noto Sans SC', 'Vazirmatn', sans-serif !important;
   font-feature-settings: 'calt' 1, 'kern' 1, 'liga' 1, 'ss03' 1;
-  letter-spacing: 0.2px;
+  letter-spacing: 0;
   text-rendering: optimizeLegibility;
 
   @each $typo-option in $typo-options {
@@ -240,6 +264,12 @@ body {
     border-color var(--app-motion-fast) var(--app-ease-standard),
     color var(--app-motion-fast) var(--app-ease-standard),
     opacity var(--app-motion-fast) var(--app-ease-standard);
+}
+
+.v-btn.v-btn--variant-flat,
+.v-btn.v-btn--variant-elevated {
+  background: var(--app-primary) !important;
+  color: #ffffff !important;
 }
 
 .v-btn::after {
@@ -434,7 +464,7 @@ kbd,
 .app-card-shell,
 .app-entity-card {
   background:
-    linear-gradient(135deg, color-mix(in srgb, var(--app-state-info) 5%, transparent), transparent 28%),
+    linear-gradient(135deg, color-mix(in srgb, var(--app-brand-lavender) 12%, transparent), transparent 28%),
     linear-gradient(180deg, color-mix(in srgb, var(--app-surface-2) 94%, transparent), var(--app-surface-1));
   border: 1px solid var(--app-border-1);
   border-radius: var(--app-radius-lg);
@@ -448,7 +478,8 @@ kbd,
 .app-card-shell::before,
 .app-entity-card::before {
   background:
-    radial-gradient(circle at top left, color-mix(in srgb, var(--app-state-info) 14%, transparent), transparent 32%),
+    radial-gradient(circle at top left, color-mix(in srgb, var(--app-brand-peach) 18%, transparent), transparent 32%),
+    radial-gradient(circle at 94% 18%, color-mix(in srgb, var(--app-brand-pink) 10%, transparent), transparent 24%),
     linear-gradient(130deg, color-mix(in srgb, #ffffff 5%, transparent), transparent 36%);
   content: '';
   inset: 0;
@@ -463,10 +494,10 @@ kbd,
 .app-entity-card::after,
 .app-form-card::after,
 .app-nested-card::after {
-  animation: app-panel-glow 7s var(--app-ease-standard) infinite alternate;
+  animation: app-panel-glow 7s var(--app-ease-standard) infinite alternate, app-panel-float 8s var(--app-ease-standard) infinite alternate;
   background:
-    linear-gradient(90deg, transparent, color-mix(in srgb, var(--app-state-info) 18%, transparent), transparent),
-    radial-gradient(circle at 90% 12%, color-mix(in srgb, var(--app-state-success) 10%, transparent), transparent 24%);
+    linear-gradient(90deg, transparent, color-mix(in srgb, var(--app-brand-mint) 20%, transparent), transparent),
+    radial-gradient(circle at 90% 12%, color-mix(in srgb, var(--app-brand-ochre) 13%, transparent), transparent 24%);
   content: '';
   inset: 0;
   opacity: 0.18;
@@ -505,8 +536,8 @@ kbd,
 .app-page__hero-title {
   color: var(--app-text-1);
   font-size: clamp(30px, 2.8vw, 40px);
-  font-weight: 600;
-  letter-spacing: -0.025em;
+  font-weight: 500;
+  letter-spacing: 0;
   line-height: 1.04;
   margin: 0;
 }
@@ -904,6 +935,16 @@ kbd,
   to {
     opacity: 0.24;
     transform: translate3d(8%, 2%, 0);
+  }
+}
+
+@keyframes app-panel-float {
+  from {
+    transform: translate3d(-1%, -1%, 0);
+  }
+
+  to {
+    transform: translate3d(1%, 1%, 0);
   }
 }
 

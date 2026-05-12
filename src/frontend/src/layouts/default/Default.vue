@@ -1,6 +1,11 @@
 <template>
   <v-app class="shell-app">
     <div class="shell-app__bg"></div>
+    <div class="shell-app__clay-scene" aria-hidden="true">
+      <span></span>
+      <span></span>
+      <span></span>
+    </div>
     <div class="shell-app__aurora"></div>
     <div class="shell-app__scan"></div>
     <div class="shell-app__vignette"></div>
@@ -82,11 +87,10 @@ onMounted(() => {
 
 .shell-app {
   background:
-    radial-gradient(circle at 12% 14%, var(--app-bg-glow-primary), transparent 28%),
-    radial-gradient(circle at 92% 4%, var(--app-bg-glow-danger), transparent 24%),
-    radial-gradient(circle at 52% -8%, var(--app-bg-glow-warm), transparent 34%),
-    linear-gradient(145deg, color-mix(in srgb, var(--app-bg-ambient) 100%, transparent), transparent 34%),
-    linear-gradient(180deg, var(--app-bg-elevated), var(--app-bg-base));
+    radial-gradient(ellipse at 18% 8%, var(--app-bg-glow-warm), transparent 38%),
+    radial-gradient(ellipse at 78% 6%, var(--app-bg-glow-primary), transparent 30%),
+    radial-gradient(ellipse at 94% 70%, var(--app-bg-glow-danger), transparent 32%),
+    linear-gradient(160deg, var(--app-bg-elevated), var(--app-bg-base));
   background-position: center;
   background-size: auto;
   min-height: 100vh;
@@ -95,6 +99,7 @@ onMounted(() => {
 }
 
 .shell-app__bg,
+.shell-app__clay-scene,
 .shell-app__aurora,
 .shell-app__scan,
 .shell-app__vignette {
@@ -105,41 +110,75 @@ onMounted(() => {
 
 .shell-app__bg {
   background:
-    radial-gradient(ellipse at 16% 20%, color-mix(in srgb, var(--app-state-info) 15%, transparent), transparent 34%),
-    radial-gradient(ellipse at 82% 12%, color-mix(in srgb, var(--app-state-danger) 13%, transparent), transparent 30%),
-    radial-gradient(ellipse at 56% 0%, color-mix(in srgb, var(--app-state-success) 8%, transparent), transparent 36%);
+    linear-gradient(110deg, color-mix(in srgb, #ffffff 8%, transparent), transparent 28%),
+    radial-gradient(ellipse at 76% 14%, color-mix(in srgb, var(--app-brand-lavender) 18%, transparent), transparent 34%);
   animation: shell-ambient-drift 18s var(--app-ease-standard) infinite alternate;
   filter: saturate(1.18);
   z-index: 0;
 }
 
+.shell-app__clay-scene {
+  z-index: 0;
+}
+
+.shell-app__clay-scene span {
+  border: 1px solid color-mix(in srgb, var(--app-border-1) 60%, transparent);
+  border-radius: 44% 56% 54% 46% / 58% 42% 52% 48%;
+  box-shadow: var(--app-shadow-soft);
+  display: block;
+  position: absolute;
+  transform: translate3d(0, 0, 0);
+}
+
+.shell-app__clay-scene span:nth-child(1) {
+  animation: shell-clay-float 12s var(--app-ease-standard) infinite alternate;
+  background: color-mix(in srgb, var(--app-brand-pink) 82%, var(--app-surface-1));
+  height: 172px;
+  left: 5vw;
+  top: 11vh;
+  width: 172px;
+}
+
+.shell-app__clay-scene span:nth-child(2) {
+  animation: shell-clay-float 15s var(--app-ease-standard) infinite alternate-reverse;
+  background: color-mix(in srgb, var(--app-brand-peach) 86%, var(--app-surface-1));
+  bottom: 7vh;
+  height: 220px;
+  right: 8vw;
+  width: 220px;
+}
+
+.shell-app__clay-scene span:nth-child(3) {
+  animation: shell-clay-float 14s var(--app-ease-standard) infinite alternate;
+  background: color-mix(in srgb, var(--app-brand-ochre) 82%, var(--app-surface-1));
+  height: 118px;
+  right: 28vw;
+  top: 4vh;
+  width: 118px;
+}
+
 .shell-app__aurora {
   background:
-    conic-gradient(from 210deg at 20% 0%, transparent 0 18%, color-mix(in srgb, var(--app-state-info) 16%, transparent) 24%, transparent 34% 100%),
-    conic-gradient(from 42deg at 86% 4%, transparent 0 12%, color-mix(in srgb, var(--app-state-danger) 12%, transparent) 20%, transparent 30% 100%),
-    linear-gradient(115deg, transparent 8%, color-mix(in srgb, #ffffff 4%, transparent) 22%, transparent 38%);
-  filter: blur(18px);
-  opacity: 0.56;
+    radial-gradient(ellipse at 14% 86%, color-mix(in srgb, var(--app-brand-mint) 18%, transparent), transparent 28%),
+    linear-gradient(128deg, transparent 12%, color-mix(in srgb, #ffffff 7%, transparent) 30%, transparent 52%);
+  filter: blur(24px);
+  opacity: 0.5;
   transform: translate3d(0, 0, 0);
   animation: shell-aurora-sweep 22s var(--app-ease-standard) infinite alternate;
   z-index: 0;
 }
 
 .shell-app__scan {
-  background:
-    linear-gradient(180deg, transparent 0%, color-mix(in srgb, var(--app-state-info) 7%, transparent) 50%, transparent 100%),
-    var(--app-bg-noise);
-  background-size: 100% 42%, 180px 180px;
-  mix-blend-mode: screen;
-  opacity: 0.24;
-  animation: shell-scan-pass 10s var(--app-ease-standard) infinite;
+  background: linear-gradient(120deg, transparent 0 28%, color-mix(in srgb, #ffffff 8%, transparent) 46%, transparent 66% 100%);
+  opacity: 0.18;
+  animation: shell-scan-pass 14s var(--app-ease-standard) infinite;
   z-index: 0;
 }
 
 .shell-app__vignette {
   background:
-    radial-gradient(circle at center, transparent 44%, var(--app-bg-vignette-edge) 100%),
-    linear-gradient(90deg, color-mix(in srgb, var(--app-bg-base) 34%, transparent), transparent 20% 80%, color-mix(in srgb, var(--app-bg-base) 34%, transparent));
+    radial-gradient(circle at center, transparent 48%, var(--app-bg-vignette-edge) 100%),
+    linear-gradient(110deg, color-mix(in srgb, var(--app-bg-base) 24%, transparent), transparent 24% 78%, color-mix(in srgb, var(--app-bg-base) 20%, transparent));
   z-index: 0;
 }
 
@@ -159,7 +198,7 @@ onMounted(() => {
 @media (max-width: 960px) {
   .shell-app__aurora,
   .shell-app__scan {
-    opacity: 0.18;
+    opacity: 0.14;
   }
 }
 
@@ -195,12 +234,24 @@ onMounted(() => {
 
 @keyframes shell-scan-pass {
   0% {
-    background-position: 0 -42vh, 0 0;
+    transform: translateX(-42%) skewX(-8deg);
   }
 
   55%,
   100% {
-    background-position: 0 110vh, 18px 12px;
+    transform: translateX(42%) skewX(-8deg);
+  }
+}
+
+@keyframes shell-clay-float {
+  from {
+    filter: saturate(0.96);
+    transform: translate3d(-10px, -8px, 0) rotate(-4deg);
+  }
+
+  to {
+    filter: saturate(1.08);
+    transform: translate3d(10px, 8px, 0) rotate(4deg);
   }
 }
 </style>

@@ -12,7 +12,7 @@
       </div>
       <div class="app-drawer__titles">
         <div class="app-drawer__name">B-UI</div>
-        <div class="app-drawer__meta">Segmented control surface</div>
+        <div class="app-drawer__meta">Clay control surface</div>
       </div>
       <v-btn
         v-if="isMobile"
@@ -227,7 +227,8 @@ const logoutUser = async () => {
 
 <style scoped>
 .app-drawer {
-  border-inline-end: 1px solid var(--app-border-1);
+  border-inline-end: 0;
+  margin: 12px 0 12px 12px;
 }
 
 .app-drawer,
@@ -250,19 +251,17 @@ const logoutUser = async () => {
   align-items: center;
   display: flex;
   flex-shrink: 0;
-  gap: 12px;
-  min-height: 76px;
-  padding: 16px 14px 10px;
+  gap: 10px;
+  min-height: 68px;
+  padding: 8px 8px 10px;
 }
 
 .app-drawer__logo {
   align-items: center;
-  background:
-    linear-gradient(180deg, color-mix(in srgb, var(--app-state-danger) 14%, transparent), color-mix(in srgb, var(--app-state-info) 8%, transparent)),
-    color-mix(in srgb, var(--app-surface-3) 84%, transparent);
+  background: var(--app-control-chip);
   border: 1px solid var(--app-border-1);
-  border-radius: 18px;
-  box-shadow: 0 16px 36px rgba(0, 0, 0, 0.18);
+  border-radius: 16px;
+  box-shadow: var(--app-shadow-soft);
   display: inline-flex;
   flex-shrink: 0;
   height: 54px;
@@ -284,8 +283,8 @@ const logoutUser = async () => {
 
 .app-drawer__name {
   color: var(--app-text-1);
-  font-size: 18px;
-  font-weight: 700;
+  font-size: 17px;
+  font-weight: 650;
 }
 
 .app-drawer__meta {
@@ -320,7 +319,7 @@ const logoutUser = async () => {
   color: var(--app-text-4);
   font-size: 11px;
   font-weight: 700;
-  letter-spacing: 0.22em;
+  letter-spacing: 0.06em;
   max-height: 28px;
   overflow: hidden;
   padding: 8px 14px 4px;
@@ -341,7 +340,7 @@ const logoutUser = async () => {
 .app-drawer__item {
   backdrop-filter: blur(12px);
   border: 1px solid transparent;
-  min-height: 50px;
+  min-height: 48px;
 }
 
 .app-drawer__item--rail {
@@ -387,9 +386,9 @@ const logoutUser = async () => {
 }
 
 .app-drawer__item:hover {
-  background: color-mix(in srgb, var(--app-surface-3) 86%, transparent);
+  background: var(--app-control-chip);
   border-color: var(--app-border-1);
-  transform: translateX(2px);
+  transform: translateX(1px);
 }
 
 .app-drawer__footer {
@@ -399,7 +398,7 @@ const logoutUser = async () => {
 }
 
 .app-drawer__footer-note {
-  background: color-mix(in srgb, var(--app-surface-3) 86%, transparent);
+  background: var(--app-control-chip);
   border: 1px solid var(--app-border-1);
   border-radius: 18px;
   display: grid;
@@ -445,15 +444,19 @@ const logoutUser = async () => {
 
 :deep(.v-navigation-drawer__content) {
   background:
-    radial-gradient(circle at top left, color-mix(in srgb, var(--app-state-info) 8%, transparent), transparent 24%),
-    linear-gradient(180deg, color-mix(in srgb, #ffffff 3%, transparent), transparent 24%);
+    radial-gradient(circle at top left, color-mix(in srgb, var(--app-brand-peach) 16%, transparent), transparent 28%),
+    radial-gradient(circle at 100% 18%, color-mix(in srgb, var(--app-brand-pink) 10%, transparent), transparent 26%),
+    color-mix(in srgb, var(--app-panel-bg) 88%, transparent);
+  border: 1px solid var(--app-border-1);
+  border-radius: 28px;
+  box-shadow: var(--app-shadow-soft);
   display: flex;
   flex-direction: column;
   gap: 4px;
   height: 100%;
   min-height: 0;
   overflow: hidden;
-  padding: 12px 10px;
+  padding: 10px 8px;
 }
 
 .app-drawer--rail-state :deep(.v-navigation-drawer__content) {
