@@ -198,17 +198,18 @@ onMounted(() => {
 }
 
 .shell-app__workspace {
+  --shell-drawer-offset: 104px;
   display: flex;
   flex: 1 1 auto;
   flex-direction: column;
-  margin-left: 104px;
+  margin-left: var(--shell-drawer-offset);
   min-width: 0;
   padding: 18px 18px 30px;
   transition: margin var(--app-motion-base) var(--app-ease-standard), padding var(--app-motion-base) var(--app-ease-standard);
 }
 
 .shell-app__workspace--expanded-nav {
-  margin-left: 280px;
+  --shell-drawer-offset: 320px;
 }
 
 .shell-frame {
@@ -262,6 +263,7 @@ onMounted(() => {
   }
 
   .shell-app__workspace {
+    --shell-drawer-offset: 0px;
     margin-left: 0;
     padding: 10px 10px 18px;
   }

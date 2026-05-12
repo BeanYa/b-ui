@@ -132,14 +132,26 @@ describe('shared design consistency', () => {
     expect(defaultLayout).toContain('shell-frame__header')
     expect(defaultLayout).toContain('shell-frame__body')
     expect(defaultLayout).toContain('shell-app__workspace--expanded-nav')
-    expect(defaultLayout).toContain('margin-left: 104px')
-    expect(defaultLayout).toContain('margin-left: 280px')
+    expect(defaultLayout).toContain('--shell-drawer-offset: 104px')
+    expect(defaultLayout).toContain('--shell-drawer-offset: 320px')
     expect(appBar).not.toContain('<v-app-bar')
     expect(appBar).toContain('<header class="app-bar-shell"')
     expect(view).toContain('<main class="shell-main">')
     expect(main).toContain('background: transparent')
     expect(main).not.toContain('box-shadow: var(--app-shadow-device)')
     expect(main).not.toContain('margin-top: -10px')
+  })
+
+  it('keeps routed pages padded inside the shared frame when the desktop nav expands', () => {
+    const settings = readSource('../../styles/settings.scss')
+    const appPageRule = settings.match(/\.app-page \{[\s\S]*?\n\}/)?.[0] ?? ''
+    const desktopCompactionRule = settings.match(/@media \(max-width: 1280px\) \{[\s\S]*?\.app-page \{[\s\S]*?\n  \}/)?.[0] ?? ''
+    const mobileCompactionRule = settings.match(/@media \(max-width: 960px\) \{[\s\S]*?\.app-page \{[\s\S]*?\n  \}/)?.[0] ?? ''
+
+    expect(appPageRule).toContain('padding: clamp(16px, 1.8vw, 26px)')
+    expect(appPageRule).not.toContain('padding-top')
+    expect(desktopCompactionRule).toContain('padding: 18px')
+    expect(mobileCompactionRule).toContain('padding: 12px')
   })
 
   it('stacks the home overview above full-width telemetry instead of splitting the page into side columns', () => {
