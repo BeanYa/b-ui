@@ -272,7 +272,11 @@ body {
   color: #ffffff !important;
 }
 
-.v-btn::after {
+.v-btn > .v-btn__overlay {
+  overflow: hidden;
+}
+
+.v-btn > .v-btn__overlay::after {
   background: linear-gradient(110deg, transparent 0 28%, color-mix(in srgb, #ffffff 22%, transparent) 46%, transparent 64% 100%);
   content: '';
   inset: 0;
@@ -290,7 +294,7 @@ body {
   transform: translateY(-1px);
 }
 
-.v-btn:hover::after {
+.v-btn:hover > .v-btn__overlay::after {
   opacity: 0.34;
   transform: translateX(70%);
 }
@@ -1061,7 +1065,7 @@ kbd,
 
   .v-card::after,
   .v-sheet::after,
-  .v-btn::after,
+  .v-btn > .v-btn__overlay::after,
   .app-page__hero::after,
   .app-panel::after,
   .app-card-shell::after,

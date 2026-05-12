@@ -16,13 +16,22 @@
         :collapsed="collapsed"
         @toggleDrawer="toggleDrawer"
       />
-      <div class="shell-app__workspace">
-        <DefaultBar
-          :isMobile="isMobile"
-          :collapsed="collapsed"
-          @toggleDrawer="toggleDrawer"
-        />
-        <DefaultView />
+      <div
+        class="shell-app__workspace"
+        :class="{ 'shell-app__workspace--expanded-nav': !isMobile && !collapsed }"
+      >
+        <section class="shell-frame">
+          <div class="shell-frame__header">
+            <DefaultBar
+              :isMobile="isMobile"
+              :collapsed="collapsed"
+              @toggleDrawer="toggleDrawer"
+            />
+          </div>
+          <div class="shell-frame__body">
+            <DefaultView />
+          </div>
+        </section>
       </div>
     </v-layout>
   </v-app>
@@ -192,13 +201,74 @@ onMounted(() => {
   display: flex;
   flex: 1 1 auto;
   flex-direction: column;
+  margin-left: 104px;
   min-width: 0;
+  padding: 18px 18px 30px;
+  transition: margin var(--app-motion-base) var(--app-ease-standard), padding var(--app-motion-base) var(--app-ease-standard);
+}
+
+.shell-app__workspace--expanded-nav {
+  margin-left: 280px;
+}
+
+.shell-frame {
+  background:
+    radial-gradient(circle at 72% 0%, color-mix(in srgb, var(--app-brand-ochre) 13%, transparent), transparent 26%),
+    radial-gradient(circle at 10% 100%, color-mix(in srgb, var(--app-state-success) 7%, transparent), transparent 26%),
+    linear-gradient(135deg, color-mix(in srgb, #ffffff 10%, transparent), transparent 38%),
+    var(--app-surface-1);
+  border: 1px solid var(--app-border-1);
+  border-radius: 34px;
+  box-shadow: var(--app-shadow-device);
+  display: flex;
+  flex: 1 1 auto;
+  flex-direction: column;
+  min-height: calc(100vh - 48px);
+  min-width: 0;
+  overflow: hidden;
+  position: relative;
+}
+
+.shell-frame::before {
+  background:
+    radial-gradient(circle at 94% 42%, color-mix(in srgb, var(--app-state-warning) 8%, transparent), transparent 24%),
+    linear-gradient(90deg, color-mix(in srgb, var(--app-bg-base) 3%, transparent), transparent 18% 82%, color-mix(in srgb, var(--app-bg-base) 4%, transparent));
+  content: '';
+  inset: 0;
+  pointer-events: none;
+  position: absolute;
+}
+
+.shell-frame__header,
+.shell-frame__body {
+  position: relative;
+  z-index: 1;
+}
+
+.shell-frame__header {
+  border-bottom: 1px solid color-mix(in srgb, var(--app-border-1) 72%, transparent);
+}
+
+.shell-frame__body {
+  display: flex;
+  flex: 1 1 auto;
+  min-height: 0;
 }
 
 @media (max-width: 960px) {
   .shell-app__aurora,
   .shell-app__scan {
     opacity: 0.14;
+  }
+
+  .shell-app__workspace {
+    margin-left: 0;
+    padding: 10px 10px 18px;
+  }
+
+  .shell-frame {
+    border-radius: 26px;
+    min-height: calc(100vh - 28px);
   }
 }
 

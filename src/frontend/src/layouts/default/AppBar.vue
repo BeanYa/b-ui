@@ -1,5 +1,5 @@
 <template>
-  <v-app-bar class="app-bar-shell app-bar-shell--docked" height="84">
+  <header class="app-bar-shell">
     <div class="app-bar-shell__inner">
       <div class="app-bar-shell__leading">
         <v-btn
@@ -13,7 +13,7 @@
         </div>
         <div class="app-bar-shell__headline">
           <span class="app-bar-shell__eyebrow">{{ pageSection }}</span>
-          <v-app-bar-title :text="pageTitle" class="app-bar-shell__title" />
+          <h1 class="app-bar-shell__title">{{ pageTitle }}</h1>
         </div>
       </div>
 
@@ -65,7 +65,7 @@
         </v-menu>
       </div>
     </div>
-  </v-app-bar>
+  </header>
 </template>
 
 <script lang="ts" setup>
@@ -133,42 +133,21 @@ onBeforeUnmount(() => {
 
 <style scoped>
 .app-bar-shell {
-  backdrop-filter: none !important;
-  background: transparent !important;
-  border-color: transparent !important;
-  border-radius: 28px;
-  box-shadow: none !important;
+  background: transparent;
   isolation: isolate;
-  overflow: hidden !important;
-  padding: 12px 18px 0;
-}
-
-.app-bar-shell--docked {
-  filter: drop-shadow(0 18px 38px color-mix(in srgb, var(--app-primary) 10%, transparent));
-}
-
-.app-bar-shell :deep(.v-toolbar__content),
-.app-bar-shell :deep(.v-toolbar__extension) {
-  background: transparent !important;
-  border-radius: inherit;
+  min-height: 82px;
   overflow: hidden;
-  padding: 0 !important;
-}
-
-.app-bar-shell :deep(.v-toolbar__overlay) {
-  display: none;
+  padding: 12px 14px;
 }
 
 .app-bar-shell__inner {
   align-items: center;
   background:
-    radial-gradient(circle at 68% -30%, color-mix(in srgb, var(--app-brand-ochre) 20%, transparent), transparent 26%),
-    linear-gradient(180deg, color-mix(in srgb, var(--app-panel-bg) 94%, transparent), color-mix(in srgb, var(--app-surface-1) 92%, transparent));
-  border: 1px solid var(--app-border-1);
-  border-radius: 26px;
-  border-bottom-left-radius: 18px;
-  border-bottom-right-radius: 18px;
-  box-shadow: var(--app-shadow-device);
+    radial-gradient(circle at 68% -30%, color-mix(in srgb, var(--app-brand-ochre) 13%, transparent), transparent 26%),
+    linear-gradient(180deg, color-mix(in srgb, var(--app-panel-bg) 36%, transparent), transparent);
+  border: 0;
+  border-radius: 0;
+  box-shadow: none;
   display: flex;
   gap: 16px;
   justify-content: space-between;
@@ -180,10 +159,7 @@ onBeforeUnmount(() => {
 }
 
 .app-bar-shell__inner::before {
-  background:
-    radial-gradient(circle at 100% 0%, color-mix(in srgb, var(--app-state-warning) 10%, transparent), transparent 24%),
-    radial-gradient(circle at 42% 140%, color-mix(in srgb, var(--app-brand-lavender) 12%, transparent), transparent 30%),
-    linear-gradient(120deg, color-mix(in srgb, #ffffff 8%, transparent), transparent 34%);
+  background: linear-gradient(120deg, color-mix(in srgb, #ffffff 8%, transparent), transparent 34%);
   content: '';
   inset: 0;
   pointer-events: none;
@@ -335,7 +311,8 @@ onBeforeUnmount(() => {
 
 @media (max-width: 960px) {
   .app-bar-shell {
-    padding: 10px 10px 0;
+    min-height: 76px;
+    padding: 10px;
   }
 
   .app-bar-shell__inner {

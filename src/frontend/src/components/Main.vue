@@ -93,15 +93,6 @@
 
     <v-container class="dashboard-shell" fluid>
       <section class="control-canvas">
-        <div class="control-canvas__status">
-          <span>Last check: {{ refreshClockLabel }}</span>
-          <v-btn density="comfortable" icon="mdi-refresh" size="small" variant="text" @click="syncDashboard()" />
-          <span class="control-canvas__status-pill">
-            <v-icon icon="mdi-server-network" size="15" />
-            {{ isRuntimeHealthy ? 'Operational' : 'Attention' }}
-          </span>
-        </div>
-
         <v-card class="home-panel home-panel--hero">
           <div class="home-panel__brand">
             <span class="home-panel__brand-mark">
@@ -131,50 +122,6 @@
               {{ $t('main.stats.title') }}
             </v-btn>
           </div>
-        </v-card>
-
-        <v-card class="home-panel home-panel--energy">
-          <div class="energy-orbit" aria-hidden="true">
-            <span
-              v-for="dot in energyDots"
-              :key="dot.id"
-              class="energy-orbit__dot"
-              :style="dot.style"
-            ></span>
-            <div class="energy-orbit__center">
-              <strong>{{ liveSignalValue }}</strong>
-              <span>{{ liveSignalUnit }}</span>
-              <small>Control throughput</small>
-            </div>
-          </div>
-        </v-card>
-
-        <v-card class="home-panel home-panel--performance">
-          <div class="panel-label">Performance Ratio</div>
-          <h2>All good, but a small tweak could remove that loss</h2>
-          <div class="performance-track">
-            <span :style="{ width: `${performanceRatio}%` }"></span>
-          </div>
-          <div class="performance-foot">
-            <strong>{{ performanceRatio }}%</strong>
-            <span>{{ performanceLossLabel }}</span>
-          </div>
-        </v-card>
-
-        <v-card class="home-panel home-panel--capacity">
-          <div class="capacity-head">
-            <span>Runtime autonomy</span>
-            <strong>{{ controlCapacity }}%</strong>
-          </div>
-          <div class="capacity-time">{{ runtimeAutonomyLabel }}</div>
-          <div class="capacity-bars">
-            <span
-              v-for="bar in capacityBars"
-              :key="bar.id"
-              :style="bar.style"
-            ></span>
-          </div>
-          <div class="capacity-foot">{{ runtimeMemory }} remaining capacity</div>
         </v-card>
 
         <v-card class="home-panel home-panel--map">
@@ -540,71 +487,10 @@ const refreshClockLabel = computed(() => new Intl.DateTimeFormat(i18n.global.loc
   minute: '2-digit',
 }).format(new Date()))
 
-const liveSignalValue = computed(() => {
-  const value = networkSpeed.value
-  if (value <= 0) return `${dataStore.onlines.user.length || 0}`
-  return HumanReadable.sizeFormat(value).replace(/\s+/g, ' ')
-})
-const liveSignalUnit = computed(() => networkSpeed.value > 0 ? '/s' : 'online')
 const networkEnergyLabel = computed(() =>
   networkSpeed.value > 0 ? `${HumanReadable.sizeFormat(networkSpeed.value)}/s` : `${dataStore.onlines.user.length} users`
 )
 const savedRoutingLabel = computed(() => `${dataStore.inbounds.length + dataStore.outbounds.length} paths`)
-const performanceRatio = computed(() => {
-  const cpu = Math.round(tilesData.value.cpu || 0)
-  const memory = usagePercent(tilesData.value.mem)
-  const disk = usagePercent(tilesData.value.dsk)
-  const pressure = Math.round((cpu * 0.42) + (memory * 0.36) + (disk * 0.22))
-  return Math.max(64, Math.min(99, 100 - Math.round(pressure * 0.34)))
-})
-const performanceLossLabel = computed(() => {
-  const loss = Math.max(1, 100 - performanceRatio.value)
-  return `-${loss}% due to load`
-})
-const controlCapacity = computed(() => Math.max(38, Math.min(96, performanceRatio.value - Math.round(packetRate.value / 1000))))
-const runtimeAutonomyLabel = computed(() => {
-  const totalMinutes = Math.max(70, Math.round(controlCapacity.value * 4.8))
-  const hours = Math.floor(totalMinutes / 60)
-  const minutes = totalMinutes % 60
-  return `${hours} h ${minutes} min`
-})
-const capacityBars = computed(() =>
-  Array.from({ length: 18 }, (_, index) => ({
-    id: index,
-    style: {
-      height: `${34 + ((index % 5) * 8)}%`,
-      opacity: index < Math.round((controlCapacity.value / 100) * 18) ? 1 : 0.26,
-      animationDelay: `${index * 70}ms`,
-    },
-  }))
-)
-const energyDots = computed(() => {
-  const rings = [
-    { count: 24, radius: 44, size: 5 },
-    { count: 32, radius: 66, size: 4 },
-    { count: 40, radius: 88, size: 3 },
-    { count: 48, radius: 110, size: 2 },
-  ]
-  const activity = Math.min(1, (networkSpeed.value / (4 * 1024 * 1024)) + (dataStore.onlines.user.length / 80))
-  return rings.flatMap((ring, ringIndex) => Array.from({ length: ring.count }, (_, index) => {
-    const angle = (index / ring.count) * 360 - 82
-    const arcBias = Math.cos(((angle - 12) * Math.PI) / 180)
-    const warm = angle > -4 && angle < 116
-    const active = arcBias > -0.34 || (index + ringIndex) % 5 === 0
-    const scale = active ? 1 + (activity * 0.56) : 0.72
-    return {
-      id: `${ringIndex}-${index}`,
-      style: {
-        '--dot-angle': `${angle}deg`,
-        '--dot-radius': `${ring.radius}px`,
-        '--dot-size': `${ring.size * scale}px`,
-        '--dot-color': warm ? 'var(--app-state-warning)' : 'var(--app-state-info)',
-        opacity: active ? 0.95 : 0.22,
-        animationDelay: `${(ringIndex * 160) + (index * 18)}ms`,
-      },
-    }
-  }))
-})
 
 const tileCardClasses = (type: string) => ({
   'tile-card--metric': type.startsWith('g'),
@@ -941,76 +827,39 @@ onBeforeUnmount(() => {
 
 <style scoped>
 .dashboard-shell {
-  padding: 2px 0 28px;
+  display: grid;
+  gap: clamp(14px, 1.4vw, 20px);
+  padding: 0;
 }
 
 .control-canvas {
-  background:
-    radial-gradient(circle at 76% 12%, color-mix(in srgb, var(--app-state-info) 9%, transparent), transparent 26%),
-    radial-gradient(circle at 96% 44%, color-mix(in srgb, var(--app-state-warning) 12%, transparent), transparent 22%),
-    linear-gradient(135deg, color-mix(in srgb, #ffffff 10%, transparent), transparent 38%),
-    var(--app-surface-1);
-  border: 1px solid var(--app-border-1);
-  border-radius: 34px;
-  border-top-left-radius: 28px;
-  border-top-right-radius: 28px;
-  box-shadow: var(--app-shadow-device);
+  background: transparent;
+  border: 0;
+  border-radius: 0;
+  box-shadow: none;
   display: grid;
   gap: clamp(14px, 1.4vw, 20px);
   grid-template-areas:
-    'hero hero energy energy'
-    'map performance performance capacity'
-    'map runtime runtime runtime';
-  grid-template-columns: minmax(230px, 0.9fr) minmax(270px, 1.1fr) minmax(270px, 1.1fr) minmax(240px, 0.9fr);
-  margin-top: -10px;
-  min-height: calc(100vh - 154px);
+    'hero map runtime';
+  grid-template-columns: minmax(380px, 1.15fr) minmax(260px, 0.75fr) minmax(330px, 0.95fr);
+  min-height: 0;
   overflow: hidden;
-  padding: clamp(18px, 2.2vw, 30px);
+  padding: clamp(18px, 2.2vw, 30px) clamp(18px, 2.2vw, 30px) 0;
   position: relative;
 }
 
 .control-canvas::before {
-  background:
-    radial-gradient(circle at 14% 84%, color-mix(in srgb, var(--app-state-success) 8%, transparent), transparent 24%),
-    linear-gradient(90deg, color-mix(in srgb, var(--app-bg-base) 3%, transparent), transparent 18% 82%, color-mix(in srgb, var(--app-bg-base) 4%, transparent));
+  background: linear-gradient(180deg, color-mix(in srgb, #ffffff 5%, transparent), transparent 24%);
   content: '';
   inset: 0;
   pointer-events: none;
   position: absolute;
 }
 
-.control-canvas__status {
-  align-items: center;
-  color: var(--app-text-2);
-  display: flex;
-  font-size: 12px;
-  gap: 8px;
-  position: absolute;
-  right: clamp(18px, 2.2vw, 30px);
-  top: clamp(14px, 1.8vw, 24px);
-  z-index: 3;
-}
-
-.control-canvas__status .v-btn {
-  color: var(--app-text-1) !important;
-}
-
-.control-canvas__status-pill {
-  align-items: center;
-  background: var(--app-control-chip);
-  border: 1px solid var(--app-border-1);
-  border-radius: 999px;
-  display: inline-flex;
-  gap: 6px;
-  min-height: 30px;
-  padding: 0 10px;
-}
-
 .dashboard-shell__tiles {
-  display: flex;
-  flex-direction: column;
+  display: grid;
   gap: 16px;
-  margin-top: 16px;
+  padding: 0 clamp(18px, 2.2vw, 30px) clamp(18px, 2.2vw, 30px);
 }
 
 .home-panel {
@@ -1031,7 +880,7 @@ onBeforeUnmount(() => {
   display: flex;
   flex-direction: column;
   grid-area: hero;
-  min-height: 320px;
+  min-height: 260px;
   padding: clamp(22px, 3vw, 36px);
 }
 
@@ -1057,7 +906,7 @@ onBeforeUnmount(() => {
 
 .home-panel__title {
   color: var(--app-text-1);
-  font-size: clamp(32px, 4.2vw, 58px);
+  font-size: clamp(32px, 3.6vw, 54px);
   font-weight: 520;
   letter-spacing: 0;
   line-height: 0.98;
@@ -1132,86 +981,6 @@ onBeforeUnmount(() => {
   margin-top: 16px;
 }
 
-.home-panel--energy {
-  align-items: center;
-  background:
-    radial-gradient(circle at 56% 46%, color-mix(in srgb, var(--app-brand-ochre) 16%, transparent), transparent 35%),
-    linear-gradient(145deg, color-mix(in srgb, var(--app-panel-bg) 82%, transparent), color-mix(in srgb, var(--app-surface-1) 76%, transparent)) !important;
-  border-color: color-mix(in srgb, var(--app-border-1) 72%, transparent);
-  box-shadow: none !important;
-  display: grid;
-  grid-area: energy;
-  min-height: 320px;
-  overflow: hidden;
-  padding: clamp(18px, 2.4vw, 28px);
-  place-items: center;
-}
-
-.energy-orbit {
-  height: clamp(250px, 25vw, 380px);
-  position: relative;
-  transform: translateY(-6px);
-  width: clamp(250px, 25vw, 380px);
-}
-
-.energy-orbit__dot {
-  animation: energy-dot-pulse 3.2s var(--app-ease-standard) infinite;
-  background: var(--dot-color);
-  border-radius: 50%;
-  height: var(--dot-size);
-  left: 50%;
-  margin-left: calc(var(--dot-size) / -2);
-  margin-top: calc(var(--dot-size) / -2);
-  position: absolute;
-  top: 50%;
-  transform: rotate(var(--dot-angle)) translateX(var(--dot-radius));
-  width: var(--dot-size);
-}
-
-.energy-orbit__center {
-  align-content: center;
-  background: var(--app-panel-bg);
-  border: 1px solid color-mix(in srgb, var(--app-border-1) 60%, transparent);
-  border-radius: 50%;
-  box-shadow: var(--app-shadow-soft);
-  display: grid;
-  height: 176px;
-  justify-items: center;
-  left: 50%;
-  padding: 18px;
-  position: absolute;
-  text-align: center;
-  top: 50%;
-  transform: translate(-50%, -50%);
-  width: 176px;
-}
-
-.energy-orbit__center strong {
-  color: var(--app-text-1);
-  font-family: 'Geist Mono Variable', monospace;
-  font-size: clamp(31px, 3.4vw, 46px);
-  font-weight: 520;
-  letter-spacing: 0;
-  line-height: 0.96;
-  max-width: 100%;
-  overflow-wrap: anywhere;
-}
-
-.energy-orbit__center span,
-.energy-orbit__center small {
-  color: var(--app-text-2);
-  font-size: 12px;
-}
-
-.home-panel--performance {
-  background: var(--app-muted-panel-bg) !important;
-  display: grid;
-  gap: 14px;
-  grid-area: performance;
-  min-height: 230px;
-  padding: clamp(20px, 2.2vw, 28px);
-}
-
 .panel-label {
   color: var(--app-text-3);
   font-size: 12px;
@@ -1219,7 +988,6 @@ onBeforeUnmount(() => {
   letter-spacing: 0;
 }
 
-.home-panel--performance h2,
 .home-panel--runtime h2 {
   color: var(--app-text-1);
   font-size: clamp(23px, 2vw, 33px);
@@ -1227,91 +995,6 @@ onBeforeUnmount(() => {
   letter-spacing: 0;
   line-height: 1.04;
   margin: 0;
-}
-
-.performance-track {
-  align-self: end;
-  background: var(--app-control-track);
-  border-radius: 999px;
-  height: 20px;
-  overflow: hidden;
-}
-
-.performance-track span {
-  background: linear-gradient(90deg, var(--app-state-info), color-mix(in srgb, var(--app-state-info) 72%, var(--app-state-success)));
-  border-radius: inherit;
-  display: block;
-  height: 100%;
-  transition: width 520ms var(--app-ease-standard);
-}
-
-.performance-foot {
-  align-items: end;
-  display: flex;
-  justify-content: space-between;
-}
-
-.performance-foot strong {
-  color: var(--app-text-1);
-  font-family: 'Geist Mono Variable', monospace;
-  font-size: clamp(42px, 5vw, 72px);
-  font-weight: 500;
-  letter-spacing: 0;
-  line-height: 0.88;
-}
-
-.performance-foot span {
-  color: var(--app-text-3);
-  font-size: 12px;
-}
-
-.home-panel--capacity {
-  background: var(--app-warm-panel-bg) !important;
-  display: grid;
-  gap: 12px;
-  grid-area: capacity;
-  min-height: 230px;
-  padding: clamp(18px, 2vw, 24px);
-}
-
-.capacity-head,
-.capacity-foot {
-  align-items: center;
-  color: var(--app-text-2);
-  display: flex;
-  font-size: 12px;
-  justify-content: space-between;
-}
-
-.capacity-head strong {
-  color: var(--app-text-1);
-  font-family: 'Geist Mono Variable', monospace;
-  font-size: 24px;
-  font-weight: 520;
-}
-
-.capacity-time {
-  color: var(--app-text-1);
-  font-size: clamp(31px, 3.2vw, 48px);
-  font-weight: 520;
-  letter-spacing: 0;
-  line-height: 1;
-}
-
-.capacity-bars {
-  align-items: end;
-  display: flex;
-  gap: clamp(5px, 0.55vw, 9px);
-  height: 70px;
-}
-
-.capacity-bars span {
-  animation: capacity-bar-rise 2.8s var(--app-ease-standard) infinite;
-  background: linear-gradient(180deg, color-mix(in srgb, var(--app-state-warning) 82%, #ffffff), var(--app-state-warning));
-  border-radius: 999px;
-  flex: 1 1 0;
-  min-width: 5px;
-  transition: opacity var(--app-motion-base) var(--app-ease-standard), height var(--app-motion-base) var(--app-ease-standard);
 }
 
 .home-panel--map {
@@ -1331,28 +1014,6 @@ onBeforeUnmount(() => {
   display: flex;
   gap: 14px;
   justify-content: space-between;
-}
-
-@keyframes energy-dot-pulse {
-  0%, 100% {
-    filter: saturate(0.92);
-    transform: rotate(var(--dot-angle)) translateX(var(--dot-radius)) scale(0.86);
-  }
-
-  50% {
-    filter: saturate(1.25);
-    transform: rotate(var(--dot-angle)) translateX(var(--dot-radius)) scale(1.16);
-  }
-}
-
-@keyframes capacity-bar-rise {
-  0%, 100% {
-    transform: scaleY(0.82);
-  }
-
-  50% {
-    transform: scaleY(1);
-  }
 }
 
 .panel-update__status {
@@ -1522,7 +1183,7 @@ onBeforeUnmount(() => {
 .overview-grid {
   display: grid;
   gap: 10px;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
+  grid-template-columns: repeat(2, minmax(0, 1fr));
   position: relative;
   z-index: 1;
 }
@@ -1534,7 +1195,7 @@ onBeforeUnmount(() => {
   display: flex;
   flex-direction: column;
   gap: 6px;
-  min-height: 112px;
+  min-height: 104px;
   padding: 12px;
 }
 
@@ -1934,9 +1595,9 @@ onBeforeUnmount(() => {
 
 .tile-card--chart .tile-card__body {
   aspect-ratio: auto;
-  height: clamp(220px, 28vh, 320px);
-  min-height: 220px;
-  max-height: 320px;
+  height: clamp(190px, 22vh, 260px);
+  min-height: 190px;
+  max-height: 260px;
 }
 
 .tile-card :deep(canvas) {
@@ -1947,10 +1608,8 @@ onBeforeUnmount(() => {
 @media (max-width: 1680px) {
   .control-canvas {
     grid-template-areas:
-      'hero hero energy'
-      'map performance capacity'
-      'runtime runtime runtime';
-    grid-template-columns: minmax(260px, 0.9fr) minmax(320px, 1.15fr) minmax(260px, 0.95fr);
+      'hero map runtime';
+    grid-template-columns: minmax(340px, 1.05fr) minmax(240px, 0.75fr) minmax(300px, 0.95fr);
   }
 
   .section-head,
@@ -1964,10 +1623,6 @@ onBeforeUnmount(() => {
     text-align: left;
   }
 
-  .overview-grid {
-    grid-template-columns: repeat(2, minmax(0, 1fr));
-  }
-
   .telemetry-grid--detail {
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
@@ -1976,11 +1631,10 @@ onBeforeUnmount(() => {
 @media (max-width: 1380px) {
   .control-canvas {
     grid-template-areas:
-      'hero energy'
-      'performance capacity'
+      'hero hero'
       'map map'
       'runtime runtime';
-    grid-template-columns: minmax(0, 1fr) minmax(300px, 0.9fr);
+    grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 
   .probe-card__rings {
@@ -2020,46 +1674,33 @@ onBeforeUnmount(() => {
 
 @media (max-width: 960px) {
   .dashboard-shell {
-    padding: 0 0 18px;
+    gap: 0;
   }
 
   .control-canvas {
-    border-radius: 28px;
+    border-radius: 0;
     grid-template-areas:
       'hero'
-      'energy'
-      'performance'
-      'capacity'
       'map'
       'runtime';
     grid-template-columns: minmax(0, 1fr);
     min-height: auto;
-    padding: 16px;
+    padding: 16px 16px 0;
   }
 
-  .control-canvas__status {
-    justify-content: flex-start;
-    position: relative;
-    right: auto;
-    top: auto;
+  .dashboard-shell__tiles {
+    padding: 16px;
   }
 
   .home-panel--hero,
   .home-panel--map,
-  .home-panel--runtime,
-  .home-panel--performance,
-  .home-panel--capacity {
+  .home-panel--runtime {
     padding: 18px;
   }
 
   .overview-grid,
   .probe-card__clusters {
     grid-template-columns: 1fr 1fr;
-  }
-
-  .energy-orbit {
-    height: 280px;
-    width: 280px;
   }
 
   .probe-card__rings {
@@ -2093,17 +1734,11 @@ onBeforeUnmount(() => {
   }
 
   .control-canvas {
-    border-radius: 22px;
     padding: 12px;
   }
 
   .home-panel__title {
     font-size: clamp(30px, 10vw, 42px);
-  }
-
-  .control-canvas__status {
-    align-items: flex-start;
-    flex-direction: column;
   }
 
   .probe-card__rings {

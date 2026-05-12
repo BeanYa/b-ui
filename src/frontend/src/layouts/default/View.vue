@@ -1,5 +1,5 @@
 <template>
-  <v-main class="shell-main">
+  <main class="shell-main">
     <div class="shell-main__inner">
       <div class="shell-main__content">
         <router-view v-slot="{ Component, route }">
@@ -12,24 +12,31 @@
         </router-view>
       </div>
     </div>
-  </v-main>
+  </main>
 </template>
 
 <style>
 .shell-main {
-  min-height: 100vh;
+  display: flex;
+  flex: 1 1 auto;
+  min-height: 0;
   overflow: auto;
+  width: 100%;
 }
 
 .shell-main__inner {
-  min-height: 100%;
-  padding: 8px 18px 30px;
+  display: flex;
+  flex: 1 1 auto;
+  min-height: 0;
+  padding: 0;
   width: 100%;
 }
 
 .shell-main__content {
-  min-height: calc(100vh - 124px);
-  padding: 8px 0 4px;
+  display: flex;
+  flex: 1 1 auto;
+  min-height: 0;
+  padding: 0;
 }
 
 .page-shell-enter-active,
@@ -49,12 +56,11 @@
 
 @media (max-width: 960px) {
   .shell-main__inner {
-    padding: 4px 10px 18px;
+    padding: 0;
   }
 
   .shell-main__content {
-    min-height: calc(100vh - 98px);
-    padding: 8px 0 2px;
+    padding: 0;
   }
 }
 </style>

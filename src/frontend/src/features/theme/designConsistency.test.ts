@@ -112,14 +112,44 @@ describe('shared design consistency', () => {
     expect(appBar).toContain('theme.global.name.value')
   })
 
-  it('docks the app bar into the home canvas so the shell reads as one surface', () => {
+  it('keeps custom button motion inside the Vuetify overlay layer', () => {
+    const settings = readSource('../../styles/settings.scss')
+
+    expect(settings).not.toContain('.v-btn::after')
+    expect(settings).not.toContain('.v-btn:hover::after')
+    expect(settings).toContain('.v-btn > .v-btn__overlay')
+    expect(settings).toContain('.v-btn > .v-btn__overlay::after')
+    expect(settings).toContain('.v-btn:hover > .v-btn__overlay::after')
+  })
+
+  it('uses a single shared shell frame for page title and routed content', () => {
+    const defaultLayout = readSource('../../layouts/default/Default.vue')
+    const view = readSource('../../layouts/default/View.vue')
     const main = readSource('../../components/Main.vue')
     const appBar = readSource('../../layouts/default/AppBar.vue')
 
-    expect(appBar).toContain('app-bar-shell--docked')
-    expect(appBar).toContain('border-bottom-left-radius: 18px')
-    expect(appBar).toContain('box-shadow: var(--app-shadow-device)')
-    expect(main).toContain('margin-top: -10px')
-    expect(main).toContain('border-top-left-radius: 28px')
+    expect(defaultLayout).toContain('shell-frame')
+    expect(defaultLayout).toContain('shell-frame__header')
+    expect(defaultLayout).toContain('shell-frame__body')
+    expect(defaultLayout).toContain('shell-app__workspace--expanded-nav')
+    expect(defaultLayout).toContain('margin-left: 104px')
+    expect(defaultLayout).toContain('margin-left: 280px')
+    expect(appBar).not.toContain('<v-app-bar')
+    expect(appBar).toContain('<header class="app-bar-shell"')
+    expect(view).toContain('<main class="shell-main">')
+    expect(main).toContain('background: transparent')
+    expect(main).not.toContain('box-shadow: var(--app-shadow-device)')
+    expect(main).not.toContain('margin-top: -10px')
+  })
+
+  it('stacks the home overview above full-width telemetry instead of splitting the page into side columns', () => {
+    const main = readSource('../../components/Main.vue')
+
+    expect(main).toContain('grid-template-areas:')
+    expect(main).toContain('\'hero map runtime\'')
+    expect(main).toContain('grid-template-columns: minmax(380px, 1.15fr) minmax(260px, 0.75fr) minmax(330px, 0.95fr)')
+    expect(main).toContain('.dashboard-shell__tiles')
+    expect(main).toContain('padding: 0 clamp(18px, 2.2vw, 30px) clamp(18px, 2.2vw, 30px)')
+    expect(main).not.toContain('display: flex;\n  flex: 1 1 auto;\n  padding: 0;')
   })
 })
