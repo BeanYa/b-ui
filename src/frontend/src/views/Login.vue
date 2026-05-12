@@ -1,53 +1,52 @@
 <template>
   <v-container :class="['login-shell', themeModel.rootClass, 'fill-height']" fluid>
+    <section class="login-brand-bg" aria-label="B-UI command surface">
+      <div class="login-brand__content">
+        <div class="login-brand__kicker">
+          <span class="login-brand__signal"></span>
+          B-UI Command Surface
+        </div>
+        <h1 class="login-brand__title">Route everything. Observe every pulse.</h1>
+        <p class="login-brand__copy">
+          A control surface for Sing-box operators who need traffic policy, identity access,
+          runtime signal, and cluster coordination without leaving the browser.
+        </p>
+        <div class="login-brand__proof">
+          <span>Policy plane</span>
+          <span>Runtime telemetry</span>
+          <span>Cluster sync</span>
+        </div>
+      </div>
+
+      <div class="login-brand__visual" aria-label="Live control plane preview">
+        <div class="login-console login-console--ambient">
+          <div class="login-console__top">
+            <span>Live control plane preview</span>
+            <strong>127.0.0.1</strong>
+          </div>
+          <div class="login-console__matrix">
+            <div
+              v-for="capability in brandCapabilities"
+              :key="capability.title"
+              class="login-console__card"
+            >
+              <v-icon :icon="capability.icon" size="18" />
+              <strong>{{ capability.title }}</strong>
+              <span>{{ capability.copy }}</span>
+            </div>
+          </div>
+          <div class="login-console__rail">
+            <span></span>
+            <span></span>
+            <span></span>
+          </div>
+        </div>
+      </div>
+    </section>
+
     <v-row align="center" class="fill-height login-shell__row" justify="center" no-gutters>
       <v-col cols="12" class="login-shell__col">
-        <section :class="['login-panel', themeModel.surfaceClass]">
-          <section class="login-brand">
-            <div class="login-brand__content">
-              <div class="login-brand__kicker">
-                <span class="login-brand__signal"></span>
-                B-UI Command Surface
-              </div>
-              <h1 class="login-brand__title">Route everything. Observe every pulse.</h1>
-              <p class="login-brand__copy">
-                A control surface for Sing-box operators who need traffic policy, identity access,
-                runtime signal, and cluster coordination without leaving the browser.
-              </p>
-              <div class="login-brand__proof">
-                <span>Policy plane</span>
-                <span>Runtime telemetry</span>
-                <span>Cluster sync</span>
-              </div>
-            </div>
-
-            <div class="login-brand__visual" aria-label="Live control plane preview">
-              <div class="login-console">
-                <div class="login-console__top">
-                  <span>Live control plane preview</span>
-                  <strong>127.0.0.1</strong>
-                </div>
-                <div class="login-console__matrix">
-                  <div
-                    v-for="capability in brandCapabilities"
-                    :key="capability.title"
-                    class="login-console__card"
-                  >
-                    <v-icon :icon="capability.icon" size="18" />
-                    <strong>{{ capability.title }}</strong>
-                    <span>{{ capability.copy }}</span>
-                  </div>
-                </div>
-                <div class="login-console__rail">
-                  <span></span>
-                  <span></span>
-                  <span></span>
-                </div>
-              </div>
-            </div>
-          </section>
-
-          <section class="login-window">
+          <section :class="['login-window', themeModel.surfaceClass]">
             <div class="login-window__module">
               <header class="login-window__header">
                 <div class="login-window__brand">
@@ -130,7 +129,6 @@
               </div>
             </div>
           </section>
-        </section>
       </v-col>
     </v-row>
   </v-container>
@@ -334,69 +332,57 @@ const isActiveTheme = (th: string) => {
   min-height: calc(100vh - 56px);
   position: relative;
   width: 100%;
-  z-index: 1;
+  z-index: 2;
 }
 
 .login-shell__col {
-  align-items: stretch;
-  display: grid;
+  align-items: center;
+  display: flex;
   gap: 18px;
-  max-width: min(1180px, calc(100vw - 72px));
+  justify-content: flex-end;
+  max-width: min(1220px, calc(100vw - 72px));
   max-inline-size: 100%;
   min-width: 0;
   padding: 0 !important;
   width: 100%;
 }
 
-.login-panel {
-  background:
-    radial-gradient(ellipse at 72% 52%, color-mix(in srgb, var(--login-accent) 10%, transparent), transparent 36%),
-    linear-gradient(90deg, color-mix(in srgb, var(--login-surface) 98%, #0a1722) 0 54%, color-mix(in srgb, var(--login-field-bg) 62%, transparent) 100%),
-    var(--login-surface);
-  border: 1px solid var(--login-border);
-  border-radius: 24px;
-  box-shadow: var(--login-shadow);
+.login-brand-bg {
+  align-content: center;
   color: var(--login-text);
   display: grid;
-  gap: clamp(18px, 2.2vw, 30px);
-  grid-template-columns: minmax(420px, 560px) minmax(380px, 500px);
-  justify-content: center;
-  max-width: 100%;
-  min-height: 560px;
-  min-width: 0;
-  overflow: hidden;
-  position: relative;
-  backdrop-filter: blur(18px);
-  width: 100%;
+  gap: clamp(22px, 2.4vw, 34px);
+  grid-template-columns: minmax(320px, 560px) minmax(260px, 420px);
+  inset: 0;
+  padding: clamp(44px, 7vw, 108px) clamp(460px, 34vw, 620px) clamp(42px, 6vw, 86px) clamp(42px, 7vw, 112px);
+  pointer-events: none;
+  position: absolute;
   z-index: 1;
 }
 
-.login-panel::before {
+.login-brand-bg::before {
   background:
-    radial-gradient(circle at 10% 0, color-mix(in srgb, var(--login-accent) 16%, transparent), transparent 30%),
-    radial-gradient(circle at 82% 18%, color-mix(in srgb, var(--login-accent) 10%, transparent), transparent 28%),
-    linear-gradient(115deg, transparent 0 33%, rgba(255, 255, 255, 0.05) 48%, transparent 66% 100%),
-    linear-gradient(180deg, transparent 0 77%, color-mix(in srgb, var(--login-accent) 8%, transparent) 78%, transparent 82%);
+    radial-gradient(ellipse at 20% 22%, color-mix(in srgb, var(--login-surface) 62%, transparent), transparent 44%),
+    radial-gradient(ellipse at 62% 52%, color-mix(in srgb, var(--login-accent) 10%, transparent), transparent 38%),
+    linear-gradient(90deg, color-mix(in srgb, var(--login-surface) 38%, transparent), transparent 72%);
   content: '';
   inset: 0;
-  opacity: 0.66;
+  opacity: 0.9;
   pointer-events: none;
   position: absolute;
 }
 
-.login-panel::after {
+.login-brand-bg::after {
   background:
-    linear-gradient(90deg, transparent, color-mix(in srgb, var(--login-accent) 24%, transparent), transparent),
-    color-mix(in srgb, var(--login-field-border) 54%, transparent);
+    linear-gradient(90deg, transparent, color-mix(in srgb, var(--login-accent) 24%, transparent), transparent);
   content: '';
   height: 1px;
-  inset: auto 52px 78px;
+  inset: auto clamp(460px, 34vw, 620px) 16vh clamp(42px, 7vw, 112px);
   pointer-events: none;
   position: absolute;
   width: auto;
 }
 
-.login-brand,
 .login-window {
   color: var(--login-text);
   max-width: 100%;
@@ -406,25 +392,19 @@ const isActiveTheme = (th: string) => {
   z-index: 1;
 }
 
-.login-brand {
+.login-brand__content {
   align-content: center;
   display: grid;
-  gap: 24px;
-  padding: clamp(24px, 3.2vw, 42px) clamp(10px, 1.4vw, 20px) clamp(24px, 3.2vw, 42px) clamp(28px, 3.4vw, 48px);
+  min-width: 0;
+  position: relative;
+  z-index: 1;
 }
 
 .login-window {
   align-items: center;
   display: flex;
-  justify-content: center;
-  padding: clamp(22px, 3vw, 44px) clamp(28px, 3.4vw, 48px) clamp(22px, 3vw, 44px) 0;
-}
-
-.login-brand__content,
-.login-brand__visual {
-  min-width: 0;
-  position: relative;
-  z-index: 1;
+  justify-content: flex-end;
+  padding: 0;
 }
 
 .login-brand__kicker {
@@ -483,23 +463,40 @@ const isActiveTheme = (th: string) => {
 }
 
 .login-brand__visual {
-  max-width: 620px;
+  align-self: end;
+  max-width: 420px;
+  min-width: 0;
+  opacity: 0.82;
+  position: relative;
+  transform: translate3d(0, 8px, 0);
   width: 100%;
+  z-index: 1;
 }
 
 .login-console {
-  background:
-    radial-gradient(circle at 10% 0, color-mix(in srgb, var(--login-accent) 18%, transparent), transparent 34%),
-    color-mix(in srgb, var(--login-field-bg) 90%, transparent);
-  border: 1px solid var(--login-field-border);
-  border-radius: 24px;
+  background: transparent;
+  border: 0;
+  border-radius: 0;
+  backdrop-filter: none;
   display: grid;
   gap: 14px;
   max-width: 100%;
   min-width: 0;
-  padding: 16px;
+  padding: 0;
   position: relative;
   width: 100%;
+}
+
+.login-console--ambient::before {
+  background:
+    radial-gradient(circle at 16% 16%, color-mix(in srgb, var(--login-accent) 16%, transparent), transparent 28%),
+    radial-gradient(circle at 92% 78%, color-mix(in srgb, var(--login-accent) 11%, transparent), transparent 32%);
+  content: '';
+  filter: blur(18px);
+  inset: -18px;
+  opacity: 0.42;
+  pointer-events: none;
+  position: absolute;
 }
 
 .login-console__top {
@@ -507,6 +504,8 @@ const isActiveTheme = (th: string) => {
   display: flex;
   gap: 12px;
   justify-content: space-between;
+  position: relative;
+  z-index: 1;
 }
 
 .login-console__top span {
@@ -532,14 +531,28 @@ const isActiveTheme = (th: string) => {
   display: grid;
   gap: 10px;
   grid-template-columns: repeat(2, minmax(0, 1fr));
+  position: relative;
+  z-index: 1;
 }
 
 .login-console__card {
-  background: color-mix(in srgb, var(--login-surface-strong) 58%, transparent);
-  border: 1px solid var(--login-field-border);
-  border-radius: 16px;
-  min-height: 126px;
-  padding: 13px;
+  background: transparent;
+  border: 0;
+  border-radius: 0;
+  min-height: 104px;
+  padding: 10px 8px;
+  position: relative;
+}
+
+.login-console__card::before {
+  background: color-mix(in srgb, var(--login-accent) 54%, transparent);
+  border-radius: 999px;
+  content: '';
+  height: 6px;
+  left: 8px;
+  position: absolute;
+  top: 7px;
+  width: 6px;
 }
 
 .login-console__card .v-icon {
@@ -551,7 +564,7 @@ const isActiveTheme = (th: string) => {
   display: block;
   font-size: 13px;
   line-height: 1.25;
-  margin-top: 14px;
+  margin-top: 18px;
 }
 
 .login-console__card span {
@@ -565,6 +578,8 @@ const isActiveTheme = (th: string) => {
 .login-console__rail {
   display: grid;
   gap: 8px;
+  position: relative;
+  z-index: 1;
 }
 
 .login-console__rail span {
@@ -601,15 +616,15 @@ const isActiveTheme = (th: string) => {
 
 .login-window__module {
   background:
-    linear-gradient(180deg, color-mix(in srgb, var(--login-surface-strong) 44%, transparent), color-mix(in srgb, var(--login-field-bg) 42%, transparent)),
-    color-mix(in srgb, var(--login-field-bg) 46%, transparent);
+    radial-gradient(circle at 12% 0, color-mix(in srgb, var(--login-accent) 11%, transparent), transparent 34%),
+    linear-gradient(180deg, color-mix(in srgb, var(--login-surface-strong) 82%, transparent), color-mix(in srgb, var(--login-field-bg) 76%, transparent)),
+    color-mix(in srgb, var(--login-field-bg) 82%, transparent);
   border: 1px solid var(--login-field-border);
-  border-radius: 22px;
-  box-shadow:
-    0 12px 34px rgba(0, 0, 0, 0.1),
-    0 1px 0 rgba(255, 255, 255, 0.06) inset;
+  border-radius: 24px;
+  box-shadow: var(--login-shadow);
+  backdrop-filter: blur(18px);
   display: grid;
-  max-width: 520px;
+  max-width: 470px;
   min-width: 0;
   overflow: hidden;
   position: relative;
@@ -850,15 +865,11 @@ const isActiveTheme = (th: string) => {
 
 @media (min-width: 1600px) {
   .login-shell__col {
-    max-width: 1140px;
-  }
-
-  .login-panel {
-    grid-template-columns: 540px 460px;
+    max-width: 1220px;
   }
 
   .login-brand__title {
-    font-size: 64px;
+    font-size: 68px;
   }
 
   .login-window__module {
@@ -872,27 +883,23 @@ const isActiveTheme = (th: string) => {
   }
 
   .login-shell__col {
+    justify-content: center;
     max-width: 720px;
   }
 
-  .login-panel {
-    gap: 0;
+  .login-brand-bg {
+    align-content: start;
     grid-template-columns: minmax(0, 1fr);
-  }
-
-  .login-panel::after {
-    background: linear-gradient(90deg, transparent, var(--login-border), transparent);
-    height: 1px;
-    inset: auto 28px 42%;
-    width: auto;
-  }
-
-  .login-brand {
-    min-height: auto;
+    opacity: 0.62;
+    padding: 28px 24px 0;
   }
 
   .login-brand__title {
     max-width: 12ch;
+  }
+
+  .login-brand__visual {
+    display: none;
   }
 
   .login-window__body {
@@ -900,11 +907,12 @@ const isActiveTheme = (th: string) => {
   }
 
   .login-window {
-    padding: 0 24px 28px;
+    padding: 0;
   }
 
   .login-window__module {
-    max-width: 100%;
+    margin-top: 170px;
+    max-width: min(100%, 520px);
   }
 }
 
@@ -925,16 +933,9 @@ const isActiveTheme = (th: string) => {
     width: calc(100vw - 16px);
   }
 
-  .login-panel {
-    border-radius: 20px;
-  }
-
-  .login-panel::after {
-    display: none;
-  }
-
-  .login-brand {
-    padding: 20px;
+  .login-brand-bg {
+    opacity: 0.5;
+    padding: 20px 18px 0;
   }
 
   .login-brand__kicker {
@@ -999,11 +1000,12 @@ const isActiveTheme = (th: string) => {
   }
 
   .login-window {
-    padding: 0 20px 20px;
+    padding: 0;
   }
 
   .login-window__module {
     border-radius: 18px;
+    margin-top: 148px;
   }
 
   .login-window__status {

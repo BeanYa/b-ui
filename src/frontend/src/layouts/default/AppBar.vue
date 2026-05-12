@@ -1,5 +1,5 @@
 <template>
-  <v-app-bar class="app-bar-shell" height="84">
+  <v-app-bar class="app-bar-shell app-bar-shell--docked" height="84">
     <div class="app-bar-shell__inner">
       <div class="app-bar-shell__leading">
         <v-btn
@@ -143,6 +143,10 @@ onBeforeUnmount(() => {
   padding: 12px 18px 0;
 }
 
+.app-bar-shell--docked {
+  filter: drop-shadow(0 18px 38px color-mix(in srgb, var(--app-primary) 10%, transparent));
+}
+
 .app-bar-shell :deep(.v-toolbar__content),
 .app-bar-shell :deep(.v-toolbar__extension) {
   background: transparent !important;
@@ -157,10 +161,14 @@ onBeforeUnmount(() => {
 
 .app-bar-shell__inner {
   align-items: center;
-  background: color-mix(in srgb, var(--app-panel-bg) 82%, transparent);
+  background:
+    radial-gradient(circle at 68% -30%, color-mix(in srgb, var(--app-brand-ochre) 20%, transparent), transparent 26%),
+    linear-gradient(180deg, color-mix(in srgb, var(--app-panel-bg) 94%, transparent), color-mix(in srgb, var(--app-surface-1) 92%, transparent));
   border: 1px solid var(--app-border-1);
   border-radius: 26px;
-  box-shadow: var(--app-shadow-soft);
+  border-bottom-left-radius: 18px;
+  border-bottom-right-radius: 18px;
+  box-shadow: var(--app-shadow-device);
   display: flex;
   gap: 16px;
   justify-content: space-between;
@@ -173,8 +181,9 @@ onBeforeUnmount(() => {
 
 .app-bar-shell__inner::before {
   background:
-    radial-gradient(circle at 100% 0%, color-mix(in srgb, var(--app-state-warning) 8%, transparent), transparent 24%),
-    linear-gradient(120deg, color-mix(in srgb, #ffffff 7%, transparent), transparent 34%);
+    radial-gradient(circle at 100% 0%, color-mix(in srgb, var(--app-state-warning) 10%, transparent), transparent 24%),
+    radial-gradient(circle at 42% 140%, color-mix(in srgb, var(--app-brand-lavender) 12%, transparent), transparent 30%),
+    linear-gradient(120deg, color-mix(in srgb, #ffffff 8%, transparent), transparent 34%);
   content: '';
   inset: 0;
   pointer-events: none;

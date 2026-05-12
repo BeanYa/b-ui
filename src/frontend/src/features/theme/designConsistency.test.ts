@@ -83,13 +83,15 @@ describe('shared design consistency', () => {
   it('presents the password login view as a B-UI branding page', () => {
     const login = readSource('../../views/Login.vue')
 
-    expect(login).toContain('login-panel')
-    expect(login).toContain('login-brand')
+    expect(login).toContain('login-brand-bg')
+    expect(login).not.toContain('<section :class="[\'login-panel\'')
     expect(login).toContain('B-UI Command Surface')
     expect(login).toContain('Route everything. Observe every pulse.')
     expect(login).toContain('brandCapabilities')
     expect(login).toContain('Live control plane preview')
     expect(login).toContain('login-brand__visual')
+    expect(login).toContain('login-console--ambient')
+    expect(login).toContain('border: 0')
     expect(login).toContain('login-window__form')
   })
 
@@ -108,5 +110,16 @@ describe('shared design consistency', () => {
     expect(shell).toContain('shell-app__clay-scene')
     expect(appBar).toContain('app-bar-shell__theme-toggle')
     expect(appBar).toContain('theme.global.name.value')
+  })
+
+  it('docks the app bar into the home canvas so the shell reads as one surface', () => {
+    const main = readSource('../../components/Main.vue')
+    const appBar = readSource('../../layouts/default/AppBar.vue')
+
+    expect(appBar).toContain('app-bar-shell--docked')
+    expect(appBar).toContain('border-bottom-left-radius: 18px')
+    expect(appBar).toContain('box-shadow: var(--app-shadow-device)')
+    expect(main).toContain('margin-top: -10px')
+    expect(main).toContain('border-top-left-radius: 28px')
   })
 })

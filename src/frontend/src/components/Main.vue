@@ -952,6 +952,8 @@ onBeforeUnmount(() => {
     var(--app-surface-1);
   border: 1px solid var(--app-border-1);
   border-radius: 34px;
+  border-top-left-radius: 28px;
+  border-top-right-radius: 28px;
   box-shadow: var(--app-shadow-device);
   display: grid;
   gap: clamp(14px, 1.4vw, 20px);
@@ -960,6 +962,7 @@ onBeforeUnmount(() => {
     'map performance performance capacity'
     'map runtime runtime runtime';
   grid-template-columns: minmax(230px, 0.9fr) minmax(270px, 1.1fr) minmax(270px, 1.1fr) minmax(240px, 0.9fr);
+  margin-top: -10px;
   min-height: calc(100vh - 154px);
   overflow: hidden;
   padding: clamp(18px, 2.2vw, 30px);
@@ -1131,19 +1134,23 @@ onBeforeUnmount(() => {
 
 .home-panel--energy {
   align-items: center;
-  background: transparent !important;
-  border-color: transparent;
+  background:
+    radial-gradient(circle at 56% 46%, color-mix(in srgb, var(--app-brand-ochre) 16%, transparent), transparent 35%),
+    linear-gradient(145deg, color-mix(in srgb, var(--app-panel-bg) 82%, transparent), color-mix(in srgb, var(--app-surface-1) 76%, transparent)) !important;
+  border-color: color-mix(in srgb, var(--app-border-1) 72%, transparent);
   box-shadow: none !important;
   display: grid;
   grid-area: energy;
   min-height: 320px;
-  overflow: visible;
+  overflow: hidden;
+  padding: clamp(18px, 2.4vw, 28px);
   place-items: center;
 }
 
 .energy-orbit {
   height: clamp(250px, 25vw, 380px);
   position: relative;
+  transform: translateY(-6px);
   width: clamp(250px, 25vw, 380px);
 }
 
