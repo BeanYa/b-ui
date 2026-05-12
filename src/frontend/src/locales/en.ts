@@ -134,6 +134,11 @@ export default {
       title: "Usage & Counts",
       totalUsage: "Total Usage",
     },
+    netTraffic: {
+      totalData: "Total Data",
+      sent: "Sent",
+      received: "Received",
+    },
     updatePanel: {
       title: "Update Panel",
       currentVersion: "Current version",

@@ -119,19 +119,60 @@ func (s *ServerService) GetSwapInfo() map[string]interface{} {
 
 func (s *ServerService) GetNetInfo() map[string]interface{} {
 	info := make(map[string]interface{}, 0)
-	ioStats, err := net.IOCounters(false)
+	ioStats, err := net.IOCounters(true)
 	if err != nil {
 		logger.Warning("get io counters failed:", err)
 	} else if len(ioStats) > 0 {
-		ioStat := ioStats[0]
-		info["sent"] = ioStat.BytesSent
-		info["recv"] = ioStat.BytesRecv
-		info["psent"] = ioStat.PacketsSent
-		info["precv"] = ioStat.PacketsRecv
+		info = aggregateNetworkCounters(ioStats)
 	} else {
 		logger.Warning("can not find io counters")
 	}
 	return info
+}
+
+func aggregateNetworkCounters(ioStats []net.IOCountersStat) map[string]interface{} {
+	info := make(map[string]interface{}, 0)
+	sent, recv := uint64(0), uint64(0)
+	psent, precv := uint64(0), uint64(0)
+	for _, ioStat := range ioStats {
+		if isVirtualNetworkInterface(ioStat.Name) {
+			continue
+		}
+		sent += ioStat.BytesSent
+		recv += ioStat.BytesRecv
+		psent += ioStat.PacketsSent
+		precv += ioStat.PacketsRecv
+	}
+	info["sent"] = sent
+	info["recv"] = recv
+	info["psent"] = psent
+	info["precv"] = precv
+	return info
+}
+
+func isVirtualNetworkInterface(name string) bool {
+	normalized := strings.ToLower(name)
+	if normalized == "lo" || normalized == "lo0" {
+		return true
+	}
+	virtualPrefixes := []string{
+		"loopback",
+		"docker",
+		"br-",
+		"veth",
+		"virbr",
+		"tun",
+		"tap",
+		"wg",
+		"tailscale",
+		"zt",
+	}
+	for _, prefix := range virtualPrefixes {
+		if strings.HasPrefix(normalized, prefix) {
+			return true
+		}
+	}
+	return false
 }
 
 func (s *ServerService) GetSingboxInfo() map[string]interface{} {

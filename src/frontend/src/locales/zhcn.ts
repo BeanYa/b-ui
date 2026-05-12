@@ -133,6 +133,11 @@ export default {
       title: "使用量与统计",
       totalUsage: "总用量",
     },
+    netTraffic: {
+      totalData: "总数据",
+      sent: "已发送",
+      received: "已接收",
+    },
     updatePanel: {
       title: "更新面板",
       currentVersion: "当前版本",

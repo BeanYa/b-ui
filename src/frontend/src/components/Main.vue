@@ -179,6 +179,24 @@
               </div>
             </div>
           </div>
+          <div class="probe-card__traffic-total">
+            <div class="probe-card__traffic-head">
+              <span>{{ i18n.global.t('main.netTraffic.totalData') }}</span>
+            </div>
+            <div class="probe-card__traffic-grid">
+              <div
+                v-for="item in networkTrafficTotals"
+                :key="item.label"
+                class="probe-card__traffic-item"
+              >
+                <div class="probe-card__traffic-label">
+                  <v-icon :icon="item.icon" size="15" />
+                  <span>{{ item.label }}</span>
+                </div>
+                <strong>{{ item.value }}</strong>
+              </div>
+            </div>
+          </div>
           <div class="probe-cluster__facts">
             <div
               v-for="item in systemFacts"
@@ -479,6 +497,19 @@ const probeStreams = computed(() => [
     label: 'Disk I/O',
     percent: scalePercent(diskIoRate.value, 24 * 1024 * 1024),
     value: diskIoRate.value > 0 ? `${HumanReadable.sizeFormat(diskIoRate.value)}/s` : '--',
+  },
+])
+
+const networkTrafficTotals = computed(() => [
+  {
+    label: i18n.global.t('main.netTraffic.sent').toString(),
+    value: HumanReadable.sizeFormat(tilesData.value.net?.sent),
+    icon: 'mdi-cloud-upload-outline',
+  },
+  {
+    label: i18n.global.t('main.netTraffic.received').toString(),
+    value: HumanReadable.sizeFormat(tilesData.value.net?.recv),
+    icon: 'mdi-cloud-download-outline',
   },
 ])
 
@@ -1251,6 +1282,7 @@ onBeforeUnmount(() => {
 .probe-card__head,
 .probe-card__rings,
 .probe-card__streams,
+.probe-card__traffic-total,
 .probe-card__clusters {
   position: relative;
   z-index: 1;
@@ -1422,6 +1454,63 @@ onBeforeUnmount(() => {
   border-radius: 999px;
   display: block;
   height: 100%;
+}
+
+.probe-card__traffic-total {
+  background: color-mix(in srgb, var(--app-surface-3) 88%, transparent);
+  border: 1px solid var(--app-border-1);
+  border-radius: 16px;
+  margin-top: 12px;
+  overflow: hidden;
+}
+
+.probe-card__traffic-head {
+  align-items: center;
+  border-bottom: 1px solid color-mix(in srgb, var(--app-border-1) 72%, transparent);
+  display: flex;
+  font-size: 13px;
+  font-weight: 700;
+  line-height: 1.2;
+  min-height: 42px;
+  padding: 0 12px;
+}
+
+.probe-card__traffic-grid {
+  display: grid;
+  gap: 0;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+.probe-card__traffic-item {
+  display: grid;
+  gap: 8px;
+  min-width: 0;
+  padding: 16px 24px;
+}
+
+.probe-card__traffic-label {
+  align-items: center;
+  color: var(--app-text-3);
+  display: inline-flex;
+  font-size: 12px;
+  gap: 4px;
+  min-width: 0;
+}
+
+.probe-card__traffic-label span {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.probe-card__traffic-item strong {
+  color: var(--app-text-1);
+  font-family: 'Geist Mono Variable', monospace;
+  font-size: 15px;
+  font-weight: 600;
+  line-height: 1.2;
+  overflow-wrap: anywhere;
 }
 
 .probe-card__clusters {
@@ -1729,8 +1818,13 @@ onBeforeUnmount(() => {
 
   .overview-grid,
   .probe-card__clusters,
+  .probe-card__traffic-grid,
   .telemetry-grid {
     grid-template-columns: 1fr;
+  }
+
+  .probe-card__traffic-item {
+    padding: 14px 16px;
   }
 
   .control-canvas {

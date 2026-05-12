@@ -27,4 +27,15 @@ describe('Main dashboard source', () => {
     expect(visibleIndex).toBeLessThan(requestIndex)
     expect(loadingIndex).toBeLessThan(requestIndex)
   })
+
+  it('renders total network traffic inside the server probe panel', () => {
+    const source = readFileSync(fileURLToPath(new URL('./Main.vue', import.meta.url)), 'utf8')
+
+    expect(source).toContain('class="probe-card__traffic-total"')
+    expect(source).toContain("i18n.global.t('main.netTraffic.totalData')")
+    expect(source).toContain("i18n.global.t('main.netTraffic.sent')")
+    expect(source).toContain("i18n.global.t('main.netTraffic.received')")
+    expect(source).toContain('HumanReadable.sizeFormat(tilesData.value.net?.sent)')
+    expect(source).toContain('HumanReadable.sizeFormat(tilesData.value.net?.recv)')
+  })
 })
