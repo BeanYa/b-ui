@@ -898,6 +898,10 @@ onBeforeUnmount(() => {
   border: 1px solid var(--app-border-1);
   border-radius: 24px !important;
   box-shadow: none !important;
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  min-height: 0;
   min-width: 0;
   position: relative;
   z-index: 1;
@@ -908,8 +912,6 @@ onBeforeUnmount(() => {
 }
 
 .home-panel--hero {
-  display: flex;
-  flex-direction: column;
   grid-area: hero;
   min-height: 260px;
   padding: clamp(22px, 3vw, 36px);
@@ -1029,14 +1031,19 @@ onBeforeUnmount(() => {
 }
 
 .home-panel--map {
+  display: flex;
+  flex-direction: column;
   grid-area: map;
+  min-height: 0;
   padding: clamp(18px, 2vw, 24px);
 }
 
 .home-panel--runtime {
-  display: grid;
+  display: flex;
+  flex-direction: column;
   gap: 16px;
   grid-area: runtime;
+  min-height: 0;
   padding: clamp(18px, 2vw, 24px);
 }
 
@@ -1212,9 +1219,12 @@ onBeforeUnmount(() => {
 }
 
 .overview-grid {
-  display: grid;
+  align-content: stretch;
+  display: flex;
+  flex: 1 1 auto;
+  flex-wrap: wrap;
   gap: 10px;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
+  min-height: 0;
   position: relative;
   z-index: 1;
 }
@@ -1224,9 +1234,11 @@ onBeforeUnmount(() => {
   border: 1px solid var(--app-border-1);
   border-radius: 18px;
   display: flex;
+  flex: 1 1 calc(50% - 5px);
   flex-direction: column;
   gap: 6px;
   min-height: 104px;
+  min-width: min(100%, 150px);
   padding: 12px;
 }
 
@@ -1408,15 +1420,23 @@ onBeforeUnmount(() => {
 }
 
 .probe-card__streams {
-  display: grid;
+  display: flex;
+  flex: 1 1 auto;
+  flex-direction: column;
   gap: 10px;
   margin-top: 18px;
+  min-height: 0;
 }
 
 .probe-stream {
   background: color-mix(in srgb, var(--app-surface-3) 88%, transparent);
   border: 1px solid var(--app-border-1);
   border-radius: 16px;
+  display: flex;
+  flex: 1 1 0;
+  flex-direction: column;
+  justify-content: center;
+  min-height: 0;
   padding: 10px 12px;
 }
 
@@ -1821,6 +1841,10 @@ onBeforeUnmount(() => {
   .probe-card__traffic-grid,
   .telemetry-grid {
     grid-template-columns: 1fr;
+  }
+
+  .overview-grid__item {
+    flex-basis: 100%;
   }
 
   .probe-card__traffic-item {

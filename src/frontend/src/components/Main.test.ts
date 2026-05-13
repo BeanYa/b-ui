@@ -38,4 +38,22 @@ describe('Main dashboard source', () => {
     expect(source).toContain('HumanReadable.sizeFormat(tilesData.value.net?.sent)')
     expect(source).toContain('HumanReadable.sizeFormat(tilesData.value.net?.recv)')
   })
+
+  it('fills each desktop overview card with column flex content', () => {
+    const source = readFileSync(fileURLToPath(new URL('./Main.vue', import.meta.url)), 'utf8')
+    const cssRule = (selector: string) => {
+      const escapedSelector = selector.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
+      return source.match(new RegExp(`${escapedSelector} \\{[\\s\\S]*?\\n\\}`))?.[0] ?? ''
+    }
+
+    expect(cssRule('.home-panel')).toContain('display: flex')
+    expect(cssRule('.home-panel')).toContain('flex-direction: column')
+    expect(cssRule('.home-panel')).toContain('height: 100%')
+    expect(cssRule('.home-panel--map')).toContain('display: flex')
+    expect(cssRule('.home-panel--runtime')).toContain('display: flex')
+    expect(cssRule('.overview-grid')).toContain('flex: 1 1 auto')
+    expect(cssRule('.overview-grid__item')).toContain('flex: 1 1 calc(50% - 5px)')
+    expect(cssRule('.probe-card__streams')).toContain('flex: 1 1 auto')
+    expect(cssRule('.probe-stream')).toContain('flex: 1 1 0')
+  })
 })
