@@ -27,7 +27,7 @@
 
       <v-row class="app-page__toolbar">
         <v-col cols="12">
-          <div class="app-page__toolbar-actions">
+          <div class="app-page__toolbar-actions app-toolbar-cluster">
             <v-btn variant="outlined" prepend-icon="mdi-arrow-left" @click="goBack">
               {{ $t('clusterCenter.scatterTaskResult.backToCluster') }}
             </v-btn>

@@ -24,7 +24,7 @@
     />
     <v-row class="app-page__toolbar">
       <v-col cols="12">
-        <div class="app-page__toolbar-actions">
+        <div class="app-page__toolbar-actions app-toolbar-cluster">
           <v-btn color="primary" @click="showDnsModal(-1)">{{ $t('dns.add') }}</v-btn>
           <v-btn color="primary" @click="showDnsRuleModal(-1)">{{ $t('dns.rule.add') }}</v-btn>
           <v-btn variant="outlined" color="warning" @click="saveConfig" :loading="loading" :disabled="stateChange">

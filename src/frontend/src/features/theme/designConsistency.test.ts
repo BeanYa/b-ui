@@ -154,6 +154,34 @@ describe('shared design consistency', () => {
     expect(mobileCompactionRule).toContain('padding: 12px')
   })
 
+  it('keeps catalog page controls compact instead of letting rows stretch through empty workspace', () => {
+    const settings = readSource('../../styles/settings.scss')
+    const catalogSources = [
+      readSource('../../views/Admins.vue'),
+      readSource('../../views/Basics.vue'),
+      readSource('../../views/Dns.vue'),
+      readSource('../../views/Endpoints.vue'),
+      readSource('../../views/Rules.vue'),
+      readSource('../../views/Services.vue'),
+      readSource('../../views/Tls.vue'),
+    ].join('\n')
+    const appPageRowsRule = settings.match(/\.app-page > \.v-row \{[\s\S]*?\n\}/)?.[0] ?? ''
+    const toolbarRule = settings.match(/\.app-page__toolbar \{[\s\S]*?\n\}/)?.[0] ?? ''
+    const toolbarActionsRule = settings.match(/\.app-page__toolbar-actions \{[\s\S]*?\n\}/)?.[0] ?? ''
+    const toolbarClusterRule = settings.match(/\.app-toolbar-cluster \{[\s\S]*?\n\}/)?.[0] ?? ''
+
+    expect(appPageRowsRule).toContain('flex: 0 0 auto')
+    expect(toolbarRule).toContain('flex: 0 0 auto')
+    expect(toolbarActionsRule).toContain('gap: 8px')
+    expect(toolbarActionsRule).toContain('width: auto')
+    expect(toolbarActionsRule).toContain('max-width: 100%')
+    expect(toolbarClusterRule).toContain('display: inline-flex')
+    expect(toolbarClusterRule).toContain('padding: 6px')
+    expect(toolbarClusterRule).toContain('width: fit-content')
+    expect(catalogSources).toContain('app-page__toolbar-actions app-toolbar-cluster')
+    expect(catalogSources).not.toContain('class="app-page__toolbar-actions"')
+  })
+
   it('stacks the home overview above full-width telemetry instead of splitting the page into side columns', () => {
     const main = readSource('../../components/Main.vue')
 

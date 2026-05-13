@@ -40,7 +40,7 @@
     />
     <v-row class="app-page__toolbar">
       <v-col cols="12">
-        <div class="app-page__toolbar-actions">
+        <div class="app-page__toolbar-actions app-toolbar-cluster">
           <v-btn color="primary" @click="showRuleModal(-1)">{{ $t('rule.add') }}</v-btn>
           <v-btn color="primary" @click="showRulesetModal(-1)">{{ $t('ruleset.add') }}</v-btn>
           <v-menu v-model="actionMenu" :close-on-content-click="false" location="bottom center">

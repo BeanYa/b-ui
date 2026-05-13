@@ -2,7 +2,7 @@
   <div class="app-page">
     <v-row class="app-page__toolbar">
       <v-col cols="12">
-        <div class="app-page__toolbar-actions">
+        <div class="app-page__toolbar-actions app-toolbar-cluster">
           <v-btn variant="outlined" color="warning" @click="saveConfig" :loading="loading" :disabled="stateChange">
             {{ $t('actions.save') }}
           </v-btn>

@@ -11,7 +11,7 @@
     />
     <v-row class="app-page__toolbar">
       <v-col cols="12">
-        <div class="app-page__toolbar-actions">
+        <div class="app-page__toolbar-actions app-toolbar-cluster">
           <v-btn color="primary" @click="showModal(0)">{{ $t('actions.add') }}</v-btn>
         </div>
       </v-col>
