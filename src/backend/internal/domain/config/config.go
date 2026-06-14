@@ -33,6 +33,11 @@ const (
 	legacyDBFileName  = "s-ui"
 )
 
+type StartupAdminCredentials struct {
+	Username string
+	Password string
+}
+
 func getenv(primary, legacy string) string {
 	if value := os.Getenv(primary); value != "" {
 		return value
@@ -64,6 +69,13 @@ func GetLogLevel() LogLevel {
 
 func IsDebug() bool {
 	return getenv("BUI_DEBUG", "SUI_DEBUG") == "true"
+}
+
+func GetStartupAdminCredentials() StartupAdminCredentials {
+	return StartupAdminCredentials{
+		Username: strings.TrimSpace(getenv("BUI_DEFAULT_ADMIN_USERNAME", "SUI_DEFAULT_ADMIN_USERNAME")),
+		Password: strings.TrimSpace(getenv("BUI_DEFAULT_ADMIN_PASSWORD", "SUI_DEFAULT_ADMIN_PASSWORD")),
+	}
 }
 
 func GetDBFolderPath() string {

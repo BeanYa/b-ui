@@ -1,6 +1,7 @@
 package app
 
 import (
+	"fmt"
 	"log"
 
 	"github.com/BeanYa/b-ui/src/backend/internal/domain/config"
@@ -38,6 +39,9 @@ func (a *APP) Init() error {
 	if err != nil {
 		return err
 	}
+	if err := a.applyStartupAdminCredentials(); err != nil {
+		return err
+	}
 
 	// Init Setting
 	a.SettingService.GetAllSetting()
@@ -54,6 +58,19 @@ func (a *APP) Init() error {
 	a.configService = service.NewConfigService(a.core)
 
 	return nil
+}
+
+func (a *APP) applyStartupAdminCredentials() error {
+	credentials := config.GetStartupAdminCredentials()
+	if credentials.Username == "" && credentials.Password == "" {
+		return nil
+	}
+	if credentials.Username == "" || credentials.Password == "" {
+		return fmt.Errorf("both BUI_DEFAULT_ADMIN_USERNAME and BUI_DEFAULT_ADMIN_PASSWORD are required when setting startup admin credentials")
+	}
+
+	userService := service.UserService{}
+	return userService.UpdateFirstUser(credentials.Username, credentials.Password)
 }
 
 func (a *APP) Start() error {

@@ -137,14 +137,12 @@ onBeforeUnmount(() => {
   isolation: isolate;
   min-height: 82px;
   overflow: hidden;
-  padding: 12px 14px;
+  padding: 12px 18px 10px;
 }
 
 .app-bar-shell__inner {
   align-items: center;
-  background:
-    radial-gradient(circle at 68% -30%, color-mix(in srgb, var(--app-brand-ochre) 13%, transparent), transparent 26%),
-    linear-gradient(180deg, color-mix(in srgb, var(--app-panel-bg) 36%, transparent), transparent);
+  background: transparent;
   border: 0;
   border-radius: 0;
   box-shadow: none;
@@ -159,9 +157,9 @@ onBeforeUnmount(() => {
 }
 
 .app-bar-shell__inner::before {
-  background: linear-gradient(120deg, color-mix(in srgb, #ffffff 8%, transparent), transparent 34%);
+  background: linear-gradient(120deg, color-mix(in srgb, #ffffff 5%, transparent), transparent 28%);
   content: '';
-  inset: 0;
+  inset: -12px -18px -10px;
   pointer-events: none;
   position: absolute;
 }

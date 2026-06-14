@@ -247,7 +247,12 @@ onMounted(() => {
 }
 
 .shell-frame__header {
-  border-bottom: 1px solid color-mix(in srgb, var(--app-border-1) 72%, transparent);
+  background:
+    radial-gradient(circle at 67% 0%, color-mix(in srgb, var(--app-brand-ochre) 12%, transparent), transparent 28%),
+    linear-gradient(180deg, color-mix(in srgb, var(--app-panel-bg) 34%, transparent), color-mix(in srgb, var(--app-panel-bg) 10%, transparent) 72%, transparent);
+  border-bottom: 1px solid color-mix(in srgb, var(--app-border-1) 46%, transparent);
+  border-radius: 34px 34px 0 0;
+  overflow: hidden;
 }
 
 .shell-frame__body {
@@ -271,6 +276,10 @@ onMounted(() => {
   .shell-frame {
     border-radius: 26px;
     min-height: calc(100vh - 28px);
+  }
+
+  .shell-frame__header {
+    border-radius: 26px 26px 0 0;
   }
 }
 

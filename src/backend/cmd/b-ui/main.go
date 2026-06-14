@@ -1,6 +1,7 @@
 package main
 
 import (
+	"flag"
 	"log"
 	"os"
 	"os/signal"
@@ -43,7 +44,40 @@ func main() {
 	if len(os.Args) < 2 {
 		runApp()
 		return
+	} else if os.Args[1] == "run" || isRunFlag(os.Args[1]) {
+		parseRunArgs()
+		runApp()
+		return
 	} else {
 		cmd.ParseCmd()
+	}
+}
+
+func isRunFlag(arg string) bool {
+	return arg == "-default-admin-username" ||
+		arg == "--default-admin-username" ||
+		arg == "-default-admin-password" ||
+		arg == "--default-admin-password"
+}
+
+func parseRunArgs() {
+	runCmd := flag.NewFlagSet("run", flag.ExitOnError)
+	var defaultAdminUsername string
+	var defaultAdminPassword string
+	runCmd.StringVar(&defaultAdminUsername, "default-admin-username", "", "set first admin username at startup")
+	runCmd.StringVar(&defaultAdminPassword, "default-admin-password", "", "set first admin password at startup")
+
+	args := os.Args[1:]
+	if args[0] == "run" {
+		args = args[1:]
+	}
+	if err := runCmd.Parse(args); err != nil {
+		log.Fatal(err)
+	}
+	if defaultAdminUsername != "" {
+		_ = os.Setenv("BUI_DEFAULT_ADMIN_USERNAME", defaultAdminUsername)
+	}
+	if defaultAdminPassword != "" {
+		_ = os.Setenv("BUI_DEFAULT_ADMIN_PASSWORD", defaultAdminPassword)
 	}
 }

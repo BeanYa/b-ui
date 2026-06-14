@@ -198,3 +198,33 @@ func TestConfigPrefersBUIEnvironmentVariables(t *testing.T) {
 		t.Fatalf("log level mismatch: got %s want %s", got, Warn)
 	}
 }
+
+func TestGetStartupAdminCredentialsPrefersBUIEnvironmentVariables(t *testing.T) {
+	t.Setenv("BUI_DEFAULT_ADMIN_USERNAME", "bui-admin")
+	t.Setenv("SUI_DEFAULT_ADMIN_USERNAME", "sui-admin")
+	t.Setenv("BUI_DEFAULT_ADMIN_PASSWORD", "bui-pass")
+	t.Setenv("SUI_DEFAULT_ADMIN_PASSWORD", "sui-pass")
+
+	credentials := GetStartupAdminCredentials()
+	if credentials.Username != "bui-admin" {
+		t.Fatalf("username mismatch: got %s want bui-admin", credentials.Username)
+	}
+	if credentials.Password != "bui-pass" {
+		t.Fatalf("password mismatch: got %s want bui-pass", credentials.Password)
+	}
+}
+
+func TestGetStartupAdminCredentialsFallsBackToLegacyEnvironmentVariables(t *testing.T) {
+	t.Setenv("BUI_DEFAULT_ADMIN_USERNAME", "")
+	t.Setenv("SUI_DEFAULT_ADMIN_USERNAME", "sui-admin")
+	t.Setenv("BUI_DEFAULT_ADMIN_PASSWORD", "")
+	t.Setenv("SUI_DEFAULT_ADMIN_PASSWORD", "sui-pass")
+
+	credentials := GetStartupAdminCredentials()
+	if credentials.Username != "sui-admin" {
+		t.Fatalf("username mismatch: got %s want sui-admin", credentials.Username)
+	}
+	if credentials.Password != "sui-pass" {
+		t.Fatalf("password mismatch: got %s want sui-pass", credentials.Password)
+	}
+}

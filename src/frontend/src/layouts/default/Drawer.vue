@@ -227,8 +227,16 @@ const logoutUser = async () => {
 
 <style scoped>
 .app-drawer {
+  background: transparent !important;
   border-inline-end: 0;
+  border-radius: 28px !important;
+  box-shadow: none !important;
   margin: 12px 0 12px 12px;
+  overflow: hidden;
+}
+
+:deep(.v-navigation-drawer__border) {
+  display: none;
 }
 
 .app-drawer,
