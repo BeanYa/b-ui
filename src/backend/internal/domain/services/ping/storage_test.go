@@ -95,6 +95,54 @@ func TestSaveAndLoadExternalResults(t *testing.T) {
 	}
 }
 
+func TestSaveAndLoadExternalTargetCatalog(t *testing.T) {
+	dir := t.TempDir()
+	store := newStoreWithDir(dir)
+	catalog := &ExternalTargetCatalog{
+		UpdatedAt: 1710000000,
+		Providers: []ExternalTargetProviderCatalog{{
+			ProviderID:   "public_dns",
+			ProviderName: "Public DNS",
+			Static:       true,
+			Targets: []ExternalEndpoint{{
+				ID: "public_dns:cloudflare-dns", Label: "Cloudflare DNS", Provider: "public_dns",
+				Group: "Global", Country: "Global", Network: "Cloudflare", Host: "1.1.1.1", Port: 53,
+				Methods: []string{MethodTCP, MethodICMP},
+			}},
+		}},
+	}
+
+	if err := store.SaveExternalTargetCatalog(catalog); err != nil {
+		t.Fatalf("SaveExternalTargetCatalog: %v", err)
+	}
+	loaded, err := store.LoadExternalTargetCatalog()
+	if err != nil {
+		t.Fatalf("LoadExternalTargetCatalog: %v", err)
+	}
+	if loaded.UpdatedAt != catalog.UpdatedAt {
+		t.Fatalf("expected updated_at %d, got %d", catalog.UpdatedAt, loaded.UpdatedAt)
+	}
+	if len(loaded.Providers) != 1 || len(loaded.Providers[0].Targets) != 1 {
+		t.Fatalf("expected one provider with one target, got %#v", loaded)
+	}
+	if loaded.Providers[0].Targets[0].Group != "Global" {
+		t.Fatalf("expected target group Global, got %#v", loaded.Providers[0].Targets[0])
+	}
+}
+
+func TestLoadSeedExternalTargetCatalog(t *testing.T) {
+	catalog, err := loadSeedExternalTargetCatalog()
+	if err != nil {
+		t.Fatalf("loadSeedExternalTargetCatalog: %v", err)
+	}
+	if len(catalog.Providers) < 5 {
+		t.Fatalf("expected seed providers, got %#v", catalog.Providers)
+	}
+	if len(catalog.TargetsForProvider("public_dns")) == 0 {
+		t.Fatal("expected public_dns seed targets")
+	}
+}
+
 func newStoreWithDir(dir string) *Store {
-	return &Store{dataDir: filepath.Join(dir, DataDir)}
+	return NewStoreWithDataDir(filepath.Join(dir, DataDir))
 }

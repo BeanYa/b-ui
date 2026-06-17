@@ -1,0 +1,55 @@
+{
+  "updated_at": 0,
+  "providers": [
+    {
+      "provider_id": "zstatic_cdn",
+      "provider_name": "ZStaticCDN",
+      "targets": [
+        { "id": "zstatic_cdn:he-cm-v4", "label": "河北移动", "provider": "zstatic_cdn", "region": "河北", "country": "CN", "network": "China Mobile", "group": "河北", "level": "province", "host": "he-cm-v4.ip.zstaticcdn.com", "port": 80, "methods": ["tcp"] },
+        { "id": "zstatic_cdn:he-cu-v4", "label": "河北联通", "provider": "zstatic_cdn", "region": "河北", "country": "CN", "network": "China Unicom", "group": "河北", "level": "province", "host": "he-cu-v4.ip.zstaticcdn.com", "port": 80, "methods": ["tcp"] },
+        { "id": "zstatic_cdn:he-ct-v4", "label": "河北电信", "provider": "zstatic_cdn", "region": "河北", "country": "CN", "network": "China Telecom", "group": "河北", "level": "province", "host": "he-ct-v4.ip.zstaticcdn.com", "port": 80, "methods": ["tcp"] }
+      ]
+    },
+    {
+      "provider_id": "linode_speedtest",
+      "provider_name": "Linode/Akamai Speed Test",
+      "targets": [
+        { "id": "linode_speedtest:newark", "label": "Linode Newark", "provider": "linode_speedtest", "region": "Newark", "country": "US", "group": "United States", "host": "speedtest.newark.linode.com", "port": 80, "methods": ["tcp", "http", "icmp"] },
+        { "id": "linode_speedtest:fremont", "label": "Linode Fremont", "provider": "linode_speedtest", "region": "Fremont", "country": "US", "group": "United States", "host": "speedtest.fremont.linode.com", "port": 80, "methods": ["tcp", "http", "icmp"] },
+        { "id": "linode_speedtest:frankfurt", "label": "Linode Frankfurt", "provider": "linode_speedtest", "region": "Frankfurt", "country": "DE", "group": "Europe", "host": "speedtest.frankfurt.linode.com", "port": 80, "methods": ["tcp", "http", "icmp"] },
+        { "id": "linode_speedtest:singapore", "label": "Linode Singapore", "provider": "linode_speedtest", "region": "Singapore", "country": "SG", "group": "Asia Pacific", "host": "speedtest.singapore.linode.com", "port": 80, "methods": ["tcp", "http", "icmp"] }
+      ]
+    },
+    {
+      "provider_id": "public_dns",
+      "provider_name": "Public DNS",
+      "static": true,
+      "targets": [
+        { "id": "public_dns:cloudflare-dns", "label": "Cloudflare DNS", "provider": "public_dns", "country": "Global", "network": "Cloudflare", "group": "Global", "host": "1.1.1.1", "port": 53, "methods": ["tcp", "icmp"] },
+        { "id": "public_dns:google-dns", "label": "Google DNS", "provider": "public_dns", "country": "Global", "network": "Google", "group": "Global", "host": "8.8.8.8", "port": 53, "methods": ["tcp", "icmp"] },
+        { "id": "public_dns:quad9-dns", "label": "Quad9 DNS", "provider": "public_dns", "country": "Global", "network": "Quad9", "group": "Global", "host": "9.9.9.9", "port": 53, "methods": ["tcp", "icmp"] },
+        { "id": "public_dns:114-dns", "label": "114 DNS", "provider": "public_dns", "country": "CN", "network": "114DNS", "group": "China", "host": "114.114.114.114", "port": 53, "methods": ["tcp", "icmp"] }
+      ]
+    },
+    {
+      "provider_id": "cdn_edges",
+      "provider_name": "CDN Edge Nodes",
+      "static": true,
+      "targets": [
+        { "id": "cdn_edges:cloudflare-edge", "label": "Cloudflare Edge", "provider": "cdn_edges", "country": "Global", "network": "Cloudflare", "group": "Global", "host": "cloudflare.com", "port": 443, "methods": ["http", "tcp"] },
+        { "id": "cdn_edges:fastly-edge", "label": "Fastly Edge", "provider": "cdn_edges", "country": "Global", "network": "Fastly", "group": "Global", "host": "www.fastly.com", "port": 443, "methods": ["http", "tcp"] },
+        { "id": "cdn_edges:akamai-edge", "label": "Akamai Edge", "provider": "cdn_edges", "country": "Global", "network": "Akamai", "group": "Global", "host": "www.akamai.com", "port": 443, "methods": ["http", "tcp"] }
+      ]
+    },
+    {
+      "provider_id": "cloud_test_ips",
+      "provider_name": "Cloud Provider Test IPs",
+      "static": true,
+      "targets": [
+        { "id": "cloud_test_ips:aws-tokyo", "label": "AWS Tokyo", "provider": "cloud_test_ips", "region": "Tokyo", "country": "JP", "network": "AWS", "group": "Asia Pacific", "host": "ec2.ap-northeast-1.amazonaws.com", "port": 443, "methods": ["tcp", "http"] },
+        { "id": "cloud_test_ips:aws-singapore", "label": "AWS Singapore", "provider": "cloud_test_ips", "region": "Singapore", "country": "SG", "network": "AWS", "group": "Asia Pacific", "host": "ec2.ap-southeast-1.amazonaws.com", "port": 443, "methods": ["tcp", "http"] },
+        { "id": "cloud_test_ips:aws-virginia", "label": "AWS N. Virginia", "provider": "cloud_test_ips", "region": "Virginia", "country": "US", "network": "AWS", "group": "United States", "host": "ec2.us-east-1.amazonaws.com", "port": 443, "methods": ["tcp", "http"] }
+      ]
+    }
+  ]
+}
