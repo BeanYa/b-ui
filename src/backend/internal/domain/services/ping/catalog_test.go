@@ -23,8 +23,8 @@ func TestParseZStaticNodeDataImportsProvinceAndCityTargets(t *testing.T) {
 	if err != nil {
 		t.Fatalf("parseZStaticNodeData: %v", err)
 	}
-	if len(targets) != 9 {
-		t.Fatalf("expected 9 targets, got %d: %#v", len(targets), targets)
+	if len(targets) != 10 {
+		t.Fatalf("expected 10 targets, got %d: %#v", len(targets), targets)
 	}
 	byID := map[string]ExternalEndpoint{}
 	for _, target := range targets {
@@ -50,6 +50,10 @@ func TestParseZStaticNodeDataImportsProvinceAndCityTargets(t *testing.T) {
 	}
 	if byID["zstatic_cdn:ah-anqing-cu-v4"].Region != "安徽" || byID["zstatic_cdn:ah-anqing-cu-v4"].City != "安庆" || byID["zstatic_cdn:ah-anqing-cu-v4"].Group != "安徽 / 安庆" || byID["zstatic_cdn:ah-anqing-cu-v4"].Network != "China Unicom" {
 		t.Fatalf("expected string extra metadata, got %#v", byID["zstatic_cdn:ah-anqing-cu-v4"])
+	}
+	guilin := byID["zstatic_cdn:gx-guilin-cu-v4"]
+	if guilin.City != "桂林" || !strings.Contains(guilin.Group, "桂林") || strings.Contains(guilin.Region, "桂林") {
+		t.Fatalf("expected autonomous region metadata split, got %#v", guilin)
 	}
 }
 
@@ -85,7 +89,7 @@ const cityNameMap = { sjz: "石家庄", hkg: "香港" };
 	if !sawEntry {
 		t.Fatal("expected refresher to start from entry URL")
 	}
-	if provider.ProviderID != "zstatic_cdn" || len(provider.Targets) != 9 {
+	if provider.ProviderID != "zstatic_cdn" || len(provider.Targets) != 10 {
 		t.Fatalf("expected refreshed zstatic provider, got %#v", provider)
 	}
 }

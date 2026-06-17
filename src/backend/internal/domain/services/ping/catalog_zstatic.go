@@ -264,13 +264,24 @@ func parseZStaticRegionCityLabel(label string) (string, string) {
 	if label == "" {
 		return "", ""
 	}
+	for _, suffix := range []string{"维吾尔自治区", "壮族自治区", "回族自治区", "自治区", "特别行政区"} {
+		if idx := strings.Index(label, suffix); idx > 0 {
+			end := idx + len(suffix)
+			region := strings.TrimSpace(label[:end])
+			city := strings.TrimSuffix(strings.TrimSpace(label[end:]), "市")
+			if city == "" {
+				city = strings.TrimSuffix(region, suffix)
+			}
+			return region, city
+		}
+	}
 	provinceSuffix := strings.Index(label, "省")
 	if provinceSuffix > 0 {
 		province := strings.TrimSpace(label[:provinceSuffix])
 		city := strings.TrimSuffix(strings.TrimSpace(label[provinceSuffix+len("省"):]), "市")
 		return province, city
 	}
-	for _, suffix := range []string{"自治区", "特别行政区", "市"} {
+	for _, suffix := range []string{"市"} {
 		if strings.HasSuffix(label, suffix) && len(label) > len(suffix) {
 			trimmed := strings.TrimSuffix(label, suffix)
 			return trimmed, trimmed

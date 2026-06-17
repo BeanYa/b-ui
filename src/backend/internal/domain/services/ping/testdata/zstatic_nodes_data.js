@@ -13,6 +13,7 @@ window.nodeData = {
   extraCityNodeMeta: {
     "hk-hkg-cm-v4": { province: "香港", city: "香港", carrier: "mobile" },
     "mo-mac-ct-v4": { province: "澳门", city: "澳门", carrier: "telecom" },
-    "ah-anqing-cu-v4": "安徽省安庆市"
+    "ah-anqing-cu-v4": "安徽省安庆市",
+    "gx-guilin-cu-v4": "广西壮族自治区桂林市"
   }
 };
