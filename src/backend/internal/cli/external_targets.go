@@ -19,12 +19,13 @@ func refreshExternalTargetsCmd(args []string) {
 		return
 	}
 
-	catalog, err := ping.NewTargetCatalogService(ping.NewStore()).Refresh(context.Background(), splitProviderIDs(providers))
+	providerIDs := splitProviderIDs(providers)
+	catalog, err := ping.NewTargetCatalogService(ping.NewStore()).Refresh(context.Background(), providerIDs)
 	if err != nil {
 		fmt.Fprintln(os.Stderr, "refresh external targets:", err)
 		os.Exit(1)
 	}
-	fmt.Printf("refreshed %d providers\n", len(catalog.Providers))
+	fmt.Printf("refreshed %d providers\n", refreshedProviderCount(providerIDs, catalog))
 }
 
 func splitProviderIDs(value string) []string {
@@ -33,11 +34,23 @@ func splitProviderIDs(value string) []string {
 	}
 	parts := strings.Split(value, ",")
 	providerIDs := make([]string, 0, len(parts))
+	seen := make(map[string]bool, len(parts))
 	for _, part := range parts {
 		id := strings.TrimSpace(part)
-		if id != "" {
+		if id != "" && !seen[id] {
+			seen[id] = true
 			providerIDs = append(providerIDs, id)
 		}
 	}
 	return providerIDs
+}
+
+func refreshedProviderCount(providerIDs []string, catalog *ping.ExternalTargetCatalog) int {
+	if len(providerIDs) > 0 {
+		return len(providerIDs)
+	}
+	if catalog == nil {
+		return 0
+	}
+	return len(catalog.Providers)
 }
