@@ -70,4 +70,20 @@ describe('drawer admin-only terminal menu entry', () => {
     expect(source).toContain('if (!auth.loaded) {')
     expect(source).toContain('void auth.loadAuthState()')
   })
+
+  it('keeps runtime route and logout within the drawer content surface', () => {
+    const source = readFileSync(fileURLToPath(new URL('./Drawer.vue', import.meta.url)), 'utf8')
+    const groupsStart = source.indexOf('class="app-drawer__groups"')
+    const footerStart = source.indexOf('class="app-drawer__footer"')
+    const drawerEnd = source.indexOf('</v-navigation-drawer>')
+    const footerNoteStyles = source.match(/\.app-drawer__footer-note\s*\{[\s\S]*?\n\}/)?.[0] ?? ''
+
+    expect(source).not.toContain('<template #append>')
+    expect(groupsStart).toBeGreaterThan(-1)
+    expect(footerStart).toBeGreaterThan(groupsStart)
+    expect(footerStart).toBeLessThan(drawerEnd)
+    expect(footerNoteStyles).not.toContain('background:')
+    expect(footerNoteStyles).not.toContain('border:')
+    expect(footerNoteStyles).not.toContain('border-radius:')
+  })
 })

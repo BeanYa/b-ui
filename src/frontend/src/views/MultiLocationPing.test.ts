@@ -39,4 +39,19 @@ describe('MultiLocationPing view source', () => {
     expect(source).toContain('Number.isInteger')
     expect(source).toContain('65535')
   })
+
+  it('combines category tabs with the active data-source panel', () => {
+    const source = readSource()
+    const workspaceStart = source.indexOf('class="app-card-shell multi-location-ping__workspace"')
+    const tabsStart = source.indexOf('class="multi-location-ping__tabs"')
+    const inboundSourceStart = source.indexOf('Inbound Data Sources (External → Cluster)')
+
+    expect(source).not.toContain('grow class="mb-4"')
+    expect(workspaceStart).toBeGreaterThan(-1)
+    expect(tabsStart).toBeGreaterThan(workspaceStart)
+    expect(inboundSourceStart).toBeGreaterThan(tabsStart)
+    expect(source).toContain('.multi-location-ping__tabs {')
+    expect(source).toContain('height: 48px;')
+    expect(source).toContain('.multi-location-ping__source-pane {')
+  })
 })

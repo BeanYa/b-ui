@@ -56,30 +56,28 @@
       </div>
     </div>
 
-    <template #append>
-      <div class="app-drawer__footer">
-        <div class="app-drawer__footer-note">
-          <span class="app-drawer__footer-label">Runtime route</span>
-          <span class="app-drawer__footer-value">{{ router.currentRoute.value.path }}</span>
-        </div>
-        <v-btn
-          class="app-drawer__logout"
-          :block="!isContentHidden || isMobile"
-          color="error"
-          variant="tonal"
-          @click="logoutUser"
-        >
-          <v-tooltip
-            v-if="isRail"
-            activator="parent"
-            location="end"
-            :text="$t('menu.logout')"
-          />
-          <v-icon class="app-drawer__logout-icon" icon="mdi-logout" />
-          <span class="app-drawer__logout-label">{{ $t('menu.logout') }}</span>
-        </v-btn>
+    <div class="app-drawer__footer">
+      <div class="app-drawer__footer-note">
+        <span class="app-drawer__footer-label">Runtime route</span>
+        <span class="app-drawer__footer-value">{{ router.currentRoute.value.path }}</span>
       </div>
-    </template>
+      <v-btn
+        class="app-drawer__logout"
+        :block="!isContentHidden || isMobile"
+        color="error"
+        variant="tonal"
+        @click="logoutUser"
+      >
+        <v-tooltip
+          v-if="isRail"
+          activator="parent"
+          location="end"
+          :text="$t('menu.logout')"
+        />
+        <v-icon class="app-drawer__logout-icon" icon="mdi-logout" />
+        <span class="app-drawer__logout-label">{{ $t('menu.logout') }}</span>
+      </v-btn>
+    </div>
   </v-navigation-drawer>
 </template>
 
@@ -401,20 +399,18 @@ const logoutUser = async () => {
 
 .app-drawer__footer {
   display: grid;
-  gap: 12px;
-  padding: 12px;
+  flex: 0 0 auto;
+  gap: 10px;
+  padding: 8px 12px 10px;
 }
 
 .app-drawer__footer-note {
-  background: var(--app-control-chip);
-  border: 1px solid var(--app-border-1);
-  border-radius: 18px;
   display: grid;
   gap: 4px;
   max-height: 88px;
-  min-height: 72px;
+  min-height: 58px;
   overflow: hidden;
-  padding: 12px;
+  padding: 4px 2px 6px;
   transform-origin: left center;
   will-change: opacity, transform;
 }

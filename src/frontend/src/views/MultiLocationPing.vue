@@ -10,17 +10,21 @@
       </div>
     </section>
 
-    <v-tabs v-model="activeTab" color="primary" grow class="mb-4">
-      <v-tab value="inbound">去程测速 (Inbound)</v-tab>
-      <v-tab value="outbound">回程测速 (Outbound)</v-tab>
-      <v-tab value="mesh">域内 Mesh</v-tab>
-    </v-tabs>
+    <v-card class="app-card-shell multi-location-ping__workspace">
+      <div class="multi-location-ping__tabs-bar">
+        <v-tabs v-model="activeTab" color="primary" class="multi-location-ping__tabs">
+          <v-tab value="inbound">去程测速 (Inbound)</v-tab>
+          <v-tab value="outbound">回程测速 (Outbound)</v-tab>
+          <v-tab value="mesh">域内 Mesh</v-tab>
+        </v-tabs>
+      </div>
 
-    <!-- ===== INBOUND TAB ===== -->
-    <template v-if="activeTab === 'inbound'">
-      <v-card class="app-card-shell mb-4">
-        <v-card-title>Inbound Data Sources (External → Cluster)</v-card-title>
-        <v-card-text>
+      <!-- ===== INBOUND TAB ===== -->
+      <section v-if="activeTab === 'inbound'" class="multi-location-ping__source-pane">
+        <div class="multi-location-ping__source-header">
+          <h2>Inbound Data Sources (External → Cluster)</h2>
+        </div>
+        <div class="multi-location-ping__source-body">
           <div class="multi-location-ping__target-controls">
             <v-text-field
               v-model="inboundTargetHost"
@@ -83,13 +87,82 @@
               </tr>
             </tbody>
           </v-table>
-        </v-card-text>
-        <v-card-actions>
+        </div>
+        <div class="multi-location-ping__source-actions">
           <v-btn color="primary" :loading="store.loading" @click="runInbound">Start Inbound Test</v-btn>
-        </v-card-actions>
-      </v-card>
+        </div>
+      </section>
 
-      <!-- Results heatmap -->
+      <!-- ===== OUTBOUND TAB ===== -->
+      <section v-if="activeTab === 'outbound'" class="multi-location-ping__source-pane">
+        <div class="multi-location-ping__source-header">
+          <h2>Outbound Target Groups (Cluster → External)</h2>
+        </div>
+        <div class="multi-location-ping__source-body">
+          <v-table density="compact">
+            <thead>
+              <tr>
+                <th>Target Group</th>
+                <th>Type</th>
+                <th>API Key</th>
+                <th>Direction</th>
+                <th>Enabled</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr v-for="src in store.outboundSources" :key="src.id">
+                <td>{{ src.name }}</td>
+                <td>{{ src.type }}</td>
+                <td><span class="text-grey">—</span></td>
+                <td>
+                  <v-chip size="small" color="warning" variant="tonal">回程</v-chip>
+                </td>
+                <td>
+                  <v-switch v-model="src.enabled" color="primary" hide-details density="compact" @update:model-value="saveConfig" />
+                </td>
+              </tr>
+            </tbody>
+          </v-table>
+        </div>
+        <div class="multi-location-ping__source-actions">
+          <v-btn color="primary" :loading="store.loading" @click="runOutbound">Start Outbound Test</v-btn>
+        </div>
+      </section>
+
+      <!-- ===== MESH TAB ===== -->
+      <section v-if="activeTab === 'mesh'" class="multi-location-ping__source-pane">
+        <div class="multi-location-ping__source-header">
+          <h2>Intra-Domain Mesh Ping</h2>
+        </div>
+        <div class="multi-location-ping__source-body">
+          <v-row align="center">
+            <v-col cols="12" sm="6">
+              <v-select
+                v-model="selectedDomain"
+                :items="domainOptions"
+                label="Select Domain"
+                density="compact"
+                hide-details
+                @update:model-value="onDomainSelect"
+              />
+            </v-col>
+          </v-row>
+        </div>
+        <div class="multi-location-ping__source-actions">
+          <v-btn
+            color="primary"
+            :loading="store.loading"
+            :disabled="!selectedDomain"
+            @click="runMeshPing"
+          >
+            Re-run Mesh Ping
+          </v-btn>
+        </div>
+      </section>
+    </v-card>
+
+    <!-- Results heatmap -->
+    <template v-if="activeTab === 'inbound'">
       <v-card v-if="inboundResults.length > 0" class="app-card-shell">
         <v-card-title>Inbound Latency Matrix (ms)</v-card-title>
         <v-card-text>
@@ -132,41 +205,7 @@
       </v-card>
     </template>
 
-    <!-- ===== OUTBOUND TAB ===== -->
     <template v-if="activeTab === 'outbound'">
-      <v-card class="app-card-shell mb-4">
-        <v-card-title>Outbound Target Groups (Cluster → External)</v-card-title>
-        <v-card-text>
-          <v-table density="compact">
-            <thead>
-              <tr>
-                <th>Target Group</th>
-                <th>Type</th>
-                <th>API Key</th>
-                <th>Direction</th>
-                <th>Enabled</th>
-              </tr>
-            </thead>
-            <tbody>
-              <tr v-for="src in store.outboundSources" :key="src.id">
-                <td>{{ src.name }}</td>
-                <td>{{ src.type }}</td>
-                <td><span class="text-grey">—</span></td>
-                <td>
-                  <v-chip size="small" color="warning" variant="tonal">回程</v-chip>
-                </td>
-                <td>
-                  <v-switch v-model="src.enabled" color="primary" hide-details density="compact" @update:model-value="saveConfig" />
-                </td>
-              </tr>
-            </tbody>
-          </v-table>
-        </v-card-text>
-        <v-card-actions>
-          <v-btn color="primary" :loading="store.loading" @click="runOutbound">Start Outbound Test</v-btn>
-        </v-card-actions>
-      </v-card>
-
       <v-card v-if="outboundResults.length > 0" class="app-card-shell">
         <v-card-title>Outbound Latency Matrix (ms)</v-card-title>
         <v-card-text>
@@ -209,36 +248,7 @@
       </v-card>
     </template>
 
-    <!-- ===== MESH TAB ===== -->
     <template v-if="activeTab === 'mesh'">
-      <v-card class="app-card-shell mb-4">
-        <v-card-title>Intra-Domain Mesh Ping</v-card-title>
-        <v-card-text>
-          <v-row align="center">
-            <v-col cols="12" sm="6">
-              <v-select
-                v-model="selectedDomain"
-                :items="domainOptions"
-                label="Select Domain"
-                density="compact"
-                hide-details
-                @update:model-value="onDomainSelect"
-              />
-            </v-col>
-          </v-row>
-        </v-card-text>
-        <v-card-actions>
-          <v-btn
-            color="primary"
-            :loading="store.loading"
-            :disabled="!selectedDomain"
-            @click="runMeshPing"
-          >
-            Re-run Mesh Ping
-          </v-btn>
-        </v-card-actions>
-      </v-card>
-
       <v-card v-if="meshPairs.length > 0" class="app-card-shell mb-4">
         <v-card-title>Mesh Latency Matrix (ms)</v-card-title>
         <v-card-text>
@@ -553,6 +563,52 @@ function cellStyle(cell: { success: boolean; ms: number | null } | null) {
 </script>
 
 <style scoped>
+.multi-location-ping__workspace {
+  display: grid;
+  gap: 0;
+}
+
+.multi-location-ping__tabs-bar {
+  padding: 10px 16px 0;
+}
+
+.multi-location-ping__tabs {
+  height: 48px;
+  min-height: 48px;
+  padding: 4px;
+}
+
+.multi-location-ping__tabs :deep(.v-slide-group__content) {
+  align-items: stretch;
+}
+
+.multi-location-ping__tabs :deep(.v-tab) {
+  flex: 1 1 0;
+  min-height: 40px !important;
+}
+
+.multi-location-ping__source-pane {
+  display: grid;
+  gap: 14px;
+  padding: 14px 16px 18px;
+}
+
+.multi-location-ping__source-header h2 {
+  font-size: 1.2rem;
+  line-height: 1.25;
+  margin: 0;
+}
+
+.multi-location-ping__source-body {
+  min-width: 0;
+}
+
+.multi-location-ping__source-actions {
+  align-items: center;
+  display: flex;
+  justify-content: flex-start;
+}
+
 .multi-location-ping__target-controls {
   display: flex;
   align-items: center;
@@ -620,6 +676,18 @@ function cellStyle(cell: { success: boolean; ms: number | null } | null) {
   text-transform: uppercase;
 }
 @media (max-width: 640px) {
+  .multi-location-ping__tabs-bar {
+    padding-inline: 12px;
+  }
+
+  .multi-location-ping__tabs :deep(.v-tab) {
+    min-width: max-content;
+  }
+
+  .multi-location-ping__source-pane {
+    padding-inline: 12px;
+  }
+
   .multi-location-ping__target-controls {
     align-items: stretch;
     flex-direction: column;
