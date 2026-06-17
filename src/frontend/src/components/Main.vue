@@ -93,119 +93,123 @@
 
     <v-container class="dashboard-shell" fluid>
       <section class="control-canvas">
-        <v-card class="home-panel home-panel--hero">
-          <div class="home-panel__brand">
-            <span class="home-panel__brand-mark">
-              <v-img src="@/assets/logo.svg" width="24" />
-            </span>
-            <span>Hello Admin</span>
-          </div>
-          <h1 class="home-panel__title">Your control plane, live.<br>Currently routing through B-UI.</h1>
-          <div class="home-panel__state" :class="{ 'home-panel__state--danger': !isRuntimeHealthy }">
-            <span class="home-panel__state-dot"></span>
-            {{ isRuntimeHealthy ? 'System Operational' : 'Runtime Needs Attention' }}
-          </div>
-          <div class="home-panel__legend">
-            <span><i></i>{{ networkEnergyLabel }} used signal</span>
-            <span><i></i>{{ savedRoutingLabel }} optimized routing</span>
-          </div>
-          <div class="home-panel__actions">
-            <v-btn
-              color="primary"
-              prepend-icon="mdi-refresh"
-              variant="flat"
-              :loading="panelUpdateButtonLoading"
-              @click="openPanelUpdateDialog()">
-              {{ $t('actions.update') }}
-            </v-btn>
-            <v-btn append-icon="mdi-arrow-top-right" variant="tonal" @click="usageStatsModal.visible = true">
-              {{ $t('main.stats.title') }}
-            </v-btn>
-          </div>
-        </v-card>
+        <v-card class="home-panel home-panel--summary">
+          <div class="home-summary">
+            <section class="home-summary__hero">
+              <div class="home-panel__brand">
+                <span class="home-panel__brand-mark">
+                  <v-img src="@/assets/logo.svg" width="24" />
+                </span>
+                <span>Hello Admin</span>
+              </div>
+              <h1 class="home-panel__title">Your control plane, live.<br>Currently routing through B-UI.</h1>
+              <div class="home-panel__state" :class="{ 'home-panel__state--danger': !isRuntimeHealthy }">
+                <span class="home-panel__state-dot"></span>
+                {{ isRuntimeHealthy ? 'System Operational' : 'Runtime Needs Attention' }}
+              </div>
+              <div class="home-panel__legend">
+                <span><i></i>{{ networkEnergyLabel }} used signal</span>
+                <span><i></i>{{ savedRoutingLabel }} optimized routing</span>
+              </div>
+              <div class="home-panel__actions">
+                <v-btn
+                  color="primary"
+                  prepend-icon="mdi-refresh"
+                  variant="flat"
+                  :loading="panelUpdateButtonLoading"
+                  @click="openPanelUpdateDialog()">
+                  {{ $t('actions.update') }}
+                </v-btn>
+                <v-btn append-icon="mdi-arrow-top-right" variant="tonal" @click="usageStatsModal.visible = true">
+                  {{ $t('main.stats.title') }}
+                </v-btn>
+              </div>
+            </section>
 
-        <v-card class="home-panel home-panel--map">
-          <div class="section-head">
-            <div>
-              <div class="section-head__label">Control Map</div>
-              <div class="section-head__title">Service footprint</div>
-            </div>
-            <div class="section-head__caption">{{ runtimeHost }}</div>
-          </div>
-          <div class="overview-grid">
-            <div
-              v-for="item in overviewCards"
-              :key="item.label"
-              class="overview-grid__item"
-            >
-              <div class="overview-grid__meta">
-                <v-icon :icon="item.icon" size="16" />
-                <span>{{ item.label }}</span>
-              </div>
-              <strong class="overview-grid__value">{{ item.value }}</strong>
-              <span class="overview-grid__note">{{ item.note }}</span>
-            </div>
-          </div>
-        </v-card>
-
-        <v-card class="home-panel home-panel--runtime">
-          <div class="runtime-head">
-            <div>
-              <div class="panel-label">Server Probe</div>
-              <h2>{{ runtimeHost }}</h2>
-            </div>
-            <span class="probe-card__status" :class="{ 'probe-card__status--danger': !isRuntimeHealthy }">
-              <span class="probe-card__status-dot"></span>
-              {{ isRuntimeHealthy ? 'Healthy' : 'Attention' }}
-            </span>
-          </div>
-          <div class="probe-card__rings">
-            <div class="probe-ring" v-for="ring in probeRings" :key="ring.label" :style="ring.style">
-              <div class="probe-ring__inner">
-                <div class="probe-ring__label">{{ ring.label }}</div>
-                <div class="probe-ring__value">{{ ring.value }}</div>
-                <div class="probe-ring__note">{{ ring.note }}</div>
-              </div>
-            </div>
-          </div>
-          <div class="probe-card__streams">
-            <div class="probe-stream" v-for="stream in probeStreams" :key="stream.label">
-              <div class="probe-stream__meta">
-                <span>{{ stream.label }}</span>
-                <strong>{{ stream.value }}</strong>
-              </div>
-              <div class="probe-stream__track">
-                <span class="probe-stream__fill" :style="{ width: `${stream.percent}%` }"></span>
-              </div>
-            </div>
-          </div>
-          <div class="probe-card__traffic-total">
-            <div class="probe-card__traffic-head">
-              <span>{{ i18n.global.t('main.netTraffic.totalData') }}</span>
-            </div>
-            <div class="probe-card__traffic-grid">
-              <div
-                v-for="item in networkTrafficTotals"
-                :key="item.label"
-                class="probe-card__traffic-item"
-              >
-                <div class="probe-card__traffic-label">
-                  <v-icon :icon="item.icon" size="15" />
-                  <span>{{ item.label }}</span>
+            <section class="home-summary__map">
+              <div class="section-head">
+                <div>
+                  <div class="section-head__label">Control Map</div>
+                  <div class="section-head__title">Service footprint</div>
                 </div>
-                <strong>{{ item.value }}</strong>
+                <div class="section-head__caption">{{ runtimeHost }}</div>
               </div>
-            </div>
-          </div>
-          <div class="probe-cluster__facts">
-            <div
-              v-for="item in systemFacts"
-              :key="item.label"
-              class="probe-cluster__fact"
-            >
-              <span>{{ item.label }}</span>
-              <strong>{{ item.value }}</strong>
-            </div>
+              <div class="overview-grid">
+                <div
+                  v-for="item in overviewCards"
+                  :key="item.label"
+                  class="overview-grid__item"
+                >
+                  <div class="overview-grid__meta">
+                    <v-icon :icon="item.icon" size="16" />
+                    <span>{{ item.label }}</span>
+                  </div>
+                  <strong class="overview-grid__value">{{ item.value }}</strong>
+                  <span class="overview-grid__note">{{ item.note }}</span>
+                </div>
+              </div>
+            </section>
+
+            <section class="home-summary__runtime">
+              <div class="runtime-head">
+                <div>
+                  <div class="panel-label">Server Probe</div>
+                  <h2>{{ runtimeHost }}</h2>
+                </div>
+                <span class="probe-card__status" :class="{ 'probe-card__status--danger': !isRuntimeHealthy }">
+                  <span class="probe-card__status-dot"></span>
+                  {{ isRuntimeHealthy ? 'Healthy' : 'Attention' }}
+                </span>
+              </div>
+              <div class="probe-card__rings">
+                <div class="probe-ring" v-for="ring in probeRings" :key="ring.label" :style="ring.style">
+                  <div class="probe-ring__inner">
+                    <div class="probe-ring__label">{{ ring.label }}</div>
+                    <div class="probe-ring__value">{{ ring.value }}</div>
+                    <div class="probe-ring__note">{{ ring.note }}</div>
+                  </div>
+                </div>
+              </div>
+              <div class="probe-card__streams">
+                <div class="probe-stream" v-for="stream in probeStreams" :key="stream.label">
+                  <div class="probe-stream__meta">
+                    <span>{{ stream.label }}</span>
+                    <strong>{{ stream.value }}</strong>
+                  </div>
+                  <div class="probe-stream__track">
+                    <span class="probe-stream__fill" :style="{ width: `${stream.percent}%` }"></span>
+                  </div>
+                </div>
+              </div>
+              <div class="probe-card__traffic-total">
+                <div class="probe-card__traffic-head">
+                  <span>{{ i18n.global.t('main.netTraffic.totalData') }}</span>
+                </div>
+                <div class="probe-card__traffic-grid">
+                  <div
+                    v-for="item in networkTrafficTotals"
+                    :key="item.label"
+                    class="probe-card__traffic-item"
+                  >
+                    <div class="probe-card__traffic-label">
+                      <v-icon :icon="item.icon" size="15" />
+                      <span>{{ item.label }}</span>
+                    </div>
+                    <strong>{{ item.value }}</strong>
+                  </div>
+                </div>
+              </div>
+              <div class="probe-cluster__facts">
+                <div
+                  v-for="item in systemFacts"
+                  :key="item.label"
+                  class="probe-cluster__fact"
+                >
+                  <span>{{ item.label }}</span>
+                  <strong>{{ item.value }}</strong>
+                </div>
+              </div>
+            </section>
           </div>
         </v-card>
       </section>
@@ -876,11 +880,7 @@ onBeforeUnmount(() => {
   border: 0;
   border-radius: 0;
   box-shadow: none;
-  display: grid;
-  gap: clamp(14px, 1.4vw, 20px);
-  grid-template-areas:
-    'hero map runtime';
-  grid-template-columns: minmax(380px, 1.15fr) minmax(260px, 0.75fr) minmax(330px, 0.95fr);
+  display: block;
   min-height: 0;
   overflow: hidden;
   padding: clamp(18px, 2.2vw, 30px) clamp(18px, 2.2vw, 30px) 0;
@@ -919,10 +919,52 @@ onBeforeUnmount(() => {
   display: none;
 }
 
-.home-panel--hero {
-  grid-area: hero;
-  min-height: 260px;
+.home-panel--summary {
+  padding: clamp(18px, 2.2vw, 30px);
+}
+
+.home-summary {
+  display: grid;
+  gap: clamp(16px, 1.6vw, 26px);
+  grid-template-columns: minmax(320px, 1.08fr) minmax(300px, 0.9fr) minmax(430px, 1.28fr);
+  min-width: 0;
+}
+
+.home-summary > section {
+  min-width: 0;
+  position: relative;
+}
+
+.home-summary__hero {
+  display: flex;
+  flex-direction: column;
+  min-height: 360px;
+}
+
+.home-summary__map,
+.home-summary__runtime {
+  border-left: 1px solid color-mix(in srgb, var(--app-border-1) 70%, transparent);
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  padding-left: clamp(16px, 1.6vw, 24px);
+}
+
+.home-summary__runtime {
+  gap: 14px;
+}
+
+.home-summary__hero,
+.home-summary__map,
+.home-summary__runtime {
   padding: clamp(22px, 3vw, 36px);
+}
+
+.home-summary__map,
+.home-summary__runtime {
+  padding-bottom: 0;
+  padding-right: 0;
+  padding-top: 0;
 }
 
 .home-panel__brand {
@@ -1029,30 +1071,13 @@ onBeforeUnmount(() => {
   letter-spacing: 0;
 }
 
-.home-panel--runtime h2 {
+.home-summary__runtime h2 {
   color: var(--app-text-1);
   font-size: clamp(23px, 2vw, 33px);
   font-weight: 520;
   letter-spacing: 0;
   line-height: 1.04;
   margin: 0;
-}
-
-.home-panel--map {
-  display: flex;
-  flex-direction: column;
-  grid-area: map;
-  min-height: 0;
-  padding: clamp(18px, 2vw, 24px);
-}
-
-.home-panel--runtime {
-  display: flex;
-  flex-direction: column;
-  gap: 16px;
-  grid-area: runtime;
-  min-height: 0;
-  padding: clamp(18px, 2vw, 24px);
 }
 
 .runtime-head {
@@ -1227,11 +1252,10 @@ onBeforeUnmount(() => {
 }
 
 .overview-grid {
-  align-content: stretch;
+  align-content: start;
   display: grid;
-  flex: 1 1 auto;
-  gap: 10px;
-  grid-template-columns: repeat(auto-fit, minmax(min(100%, 136px), 1fr));
+  gap: 8px;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 128px), 1fr));
   min-height: 0;
   position: relative;
   z-index: 1;
@@ -1243,10 +1267,10 @@ onBeforeUnmount(() => {
   border-radius: 18px;
   display: flex;
   flex-direction: column;
-  gap: 6px;
-  min-height: 96px;
+  gap: 4px;
+  min-height: 74px;
   min-width: 0;
-  padding: 12px;
+  padding: 10px;
 }
 
 .overview-grid__meta {
@@ -1269,7 +1293,7 @@ onBeforeUnmount(() => {
 }
 
 .overview-grid__value {
-  font-size: clamp(22px, 1.8vw, 28px);
+  font-size: clamp(20px, 1.45vw, 26px);
   font-variant-numeric: tabular-nums;
   font-weight: 700;
   line-height: 1;
@@ -1277,8 +1301,11 @@ onBeforeUnmount(() => {
 
 .overview-grid__note {
   color: var(--app-text-3);
-  font-size: 12px;
-  line-height: 1.4;
+  font-size: 11px;
+  line-height: 1.3;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .probe-card {
@@ -1722,10 +1749,8 @@ onBeforeUnmount(() => {
 }
 
 @media (max-width: 1680px) {
-  .control-canvas {
-    grid-template-areas:
-      'hero map runtime';
-    grid-template-columns: minmax(340px, 1.05fr) minmax(240px, 0.75fr) minmax(300px, 0.95fr);
+  .home-summary {
+    grid-template-columns: minmax(300px, 1fr) minmax(270px, 0.86fr) minmax(360px, 1.1fr);
   }
 
   .section-head,
@@ -1745,11 +1770,20 @@ onBeforeUnmount(() => {
 }
 
 @media (max-width: 1380px) {
-  .control-canvas {
-    grid-template-areas:
-      'hero hero'
-      'map runtime';
+  .home-summary {
     grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .home-summary__hero {
+    border-bottom: 1px solid color-mix(in srgb, var(--app-border-1) 70%, transparent);
+    grid-column: 1 / -1;
+    min-height: 260px;
+    padding-bottom: clamp(18px, 2vw, 24px);
+  }
+
+  .home-summary__map {
+    border-left: 0;
+    padding-left: 0;
   }
 
   .probe-card__rings {
@@ -1768,7 +1802,7 @@ onBeforeUnmount(() => {
 }
 
 @media (max-width: 1280px) {
-  .control-canvas {
+  .home-summary {
     gap: 14px;
   }
 
@@ -1794,22 +1828,41 @@ onBeforeUnmount(() => {
 
   .control-canvas {
     border-radius: 0;
-    grid-template-areas:
-      'hero'
-      'map'
-      'runtime';
-    grid-template-columns: minmax(0, 1fr);
     min-height: auto;
     padding: 16px 16px 0;
+  }
+
+  .home-panel--summary {
+    padding: 18px;
+  }
+
+  .home-summary {
+    grid-template-columns: minmax(0, 1fr);
   }
 
   .dashboard-shell__tiles {
     padding: 16px;
   }
 
-  .home-panel--hero,
-  .home-panel--map,
-  .home-panel--runtime {
+  .home-summary__hero,
+  .home-summary__map,
+  .home-summary__runtime {
+    border-left: 0;
+    padding: 0;
+  }
+
+  .home-summary__hero,
+  .home-summary__map {
+    border-bottom: 1px solid color-mix(in srgb, var(--app-border-1) 70%, transparent);
+    padding-bottom: 18px;
+  }
+
+  .home-summary__map,
+  .home-summary__runtime {
+    padding-top: 4px;
+  }
+
+  .home-summary__hero {
     padding: 18px;
   }
 
@@ -1853,7 +1906,7 @@ onBeforeUnmount(() => {
   }
 
   .overview-grid__item {
-    min-height: 88px;
+    min-height: 72px;
   }
 
   .probe-card__traffic-item {
@@ -1862,6 +1915,10 @@ onBeforeUnmount(() => {
 
   .control-canvas {
     padding: 12px;
+  }
+
+  .home-panel--summary {
+    padding: 14px;
   }
 
   .home-panel__title {
