@@ -857,10 +857,18 @@ onBeforeUnmount(() => {
 </script>
 
 <style scoped>
+.dashboard-root {
+  display: flex;
+  flex: 1 1 auto;
+  min-width: 0;
+  width: 100%;
+}
+
 .dashboard-shell {
   display: grid;
   gap: clamp(14px, 1.4vw, 20px);
   padding: 0;
+  width: 100%;
 }
 
 .control-canvas {
@@ -1220,10 +1228,10 @@ onBeforeUnmount(() => {
 
 .overview-grid {
   align-content: stretch;
-  display: flex;
+  display: grid;
   flex: 1 1 auto;
-  flex-wrap: wrap;
   gap: 10px;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 136px), 1fr));
   min-height: 0;
   position: relative;
   z-index: 1;
@@ -1234,11 +1242,10 @@ onBeforeUnmount(() => {
   border: 1px solid var(--app-border-1);
   border-radius: 18px;
   display: flex;
-  flex: 1 1 calc(50% - 5px);
   flex-direction: column;
   gap: 6px;
-  min-height: 104px;
-  min-width: min(100%, 150px);
+  min-height: 96px;
+  min-width: 0;
   padding: 12px;
 }
 
@@ -1741,8 +1748,7 @@ onBeforeUnmount(() => {
   .control-canvas {
     grid-template-areas:
       'hero hero'
-      'map map'
-      'runtime runtime';
+      'map runtime';
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 
@@ -1836,15 +1842,18 @@ onBeforeUnmount(() => {
     text-align: left;
   }
 
-  .overview-grid,
   .probe-card__clusters,
   .probe-card__traffic-grid,
   .telemetry-grid {
     grid-template-columns: 1fr;
   }
 
+  .overview-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
   .overview-grid__item {
-    flex-basis: 100%;
+    min-height: 88px;
   }
 
   .probe-card__traffic-item {
@@ -1877,6 +1886,12 @@ onBeforeUnmount(() => {
     height: auto;
     min-height: 180px;
     max-height: none;
+  }
+}
+
+@media (max-width: 520px) {
+  .overview-grid {
+    grid-template-columns: 1fr;
   }
 }
 </style>
