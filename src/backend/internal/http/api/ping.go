@@ -46,6 +46,8 @@ func RegisterPingRoutes(g *gin.RouterGroup) {
 	g.GET("/ping/external/results", h.getExternalResults)
 	g.GET("/ping/external/config", h.getExternalConfig)
 	g.PUT("/ping/external/config", h.putExternalConfig)
+	g.GET("/ping/external/targets", h.getExternalTargets)
+	g.POST("/ping/external/targets/refresh", h.refreshExternalTargets)
 	g.GET("/ping/policy/:domainId", h.getPingPolicy)
 	g.PUT("/ping/policy/:domainId", h.putPingPolicy)
 }
@@ -399,6 +401,33 @@ func (h *pingAPIHandler) putExternalConfig(c *gin.Context) {
 		return
 	}
 	jsonObj(c, Msg{Success: true, Msg: "config saved"}, nil)
+}
+
+func (h *pingAPIHandler) getExternalTargets(c *gin.Context) {
+	if !requireAdmin(c) {
+		return
+	}
+	catalog, err := ping.NewTargetCatalogService(h.store).Load()
+	jsonObj(c, catalog, err)
+}
+
+type refreshExternalTargetsRequest struct {
+	ProviderIDs []string `json:"provider_ids"`
+}
+
+func (h *pingAPIHandler) refreshExternalTargets(c *gin.Context) {
+	if !requireAdmin(c) {
+		return
+	}
+	var req refreshExternalTargetsRequest
+	if c.Request.ContentLength > 0 {
+		if err := c.ShouldBindJSON(&req); err != nil {
+			c.JSON(http.StatusBadRequest, Msg{Success: false, Msg: "invalid request: " + err.Error()})
+			return
+		}
+	}
+	catalog, err := ping.NewTargetCatalogService(h.store).Refresh(c.Request.Context(), req.ProviderIDs)
+	jsonObj(c, catalog, err)
 }
 
 func (h *pingAPIHandler) resolveDomainID(domainStr string) (uint, error) {

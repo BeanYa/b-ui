@@ -236,15 +236,16 @@ func TestRunOutboundUsesCurrentNodeOnceWithoutMembers(t *testing.T) {
 	}
 
 	data, err := svc.Run(context.Background(), ExternalRunRequest{
-		Direction: DirectionOutbound,
-		SourceIDs: []string{"public_dns"},
-		Methods:   []string{MethodTCP},
+		Direction:     DirectionOutbound,
+		SourceIDs:     []string{"public_dns"},
+		TargetNodeIDs: []string{"public_dns:cloudflare-dns"},
+		Methods:       []string{MethodTCP},
 	}, nil)
 	if err != nil {
 		t.Fatalf("Run outbound: %v", err)
 	}
-	if len(data.Results) == 0 {
-		t.Fatal("expected outbound results")
+	if len(data.Results) != 1 {
+		t.Fatalf("expected one outbound result, got %d", len(data.Results))
 	}
 	for _, result := range data.Results {
 		if result.Direction != DirectionOutbound {
@@ -259,32 +260,51 @@ func TestRunOutboundUsesCurrentNodeOnceWithoutMembers(t *testing.T) {
 	}
 }
 
-func TestRunOutboundIgnoresDeprecatedTargetNodeIDs(t *testing.T) {
+func TestRunOutboundFiltersSelectedTargetNodeIDs(t *testing.T) {
 	svc := NewExternalService(newStoreWithDir(t.TempDir()))
-	var probed int
 	svc.probeEndpoint = func(ctx context.Context, endpoint ExternalEndpoint, methods []string) (string, float64, error) {
-		probed++
 		return MethodTCP, 9, nil
 	}
 
 	data, err := svc.Run(context.Background(), ExternalRunRequest{
 		SourceIDs:     []string{"public_dns"},
-		TargetNodeIDs: []string{"node-a", "node-b"},
+		TargetNodeIDs: []string{"public_dns:cloudflare-dns", "public_dns:quad9-dns", "cdn_edges:cloudflare-edge"},
 		Direction:     DirectionOutbound,
 		Methods:       []string{MethodTCP},
-	}, []MeshMember{
-		{MemberID: "node-a", NodeID: "node-a", Name: "Node A"},
-		{MemberID: "node-b", NodeID: "node-b", Name: "Node B"},
-	})
+	}, nil)
 	if err != nil {
 		t.Fatalf("Run outbound: %v", err)
 	}
 
-	if len(data.Results) != len(publicDNSTargets()) {
-		t.Fatalf("expected one result per public DNS target, got %d", len(data.Results))
+	var got []string
+	for _, result := range data.Results {
+		got = append(got, result.Target.ID)
+		if result.Target.Provider != "public_dns" {
+			t.Fatalf("expected only public_dns targets, got %#v", result.Target)
+		}
 	}
-	if probed != len(publicDNSTargets()) {
-		t.Fatalf("expected %d probes, got %d", len(publicDNSTargets()), probed)
+	if strings.Join(got, ",") != "public_dns:cloudflare-dns,public_dns:quad9-dns" {
+		t.Fatalf("expected selected public DNS targets, got %v", got)
+	}
+}
+
+func TestRunOutboundRequiresSelectedTargetNodeIDs(t *testing.T) {
+	svc := NewExternalService(newStoreWithDir(t.TempDir()))
+	svc.probeEndpoint = func(ctx context.Context, endpoint ExternalEndpoint, methods []string) (string, float64, error) {
+		t.Fatalf("expected no probe without target_node_ids, got %#v", endpoint)
+		return "", 0, nil
+	}
+
+	_, err := svc.Run(context.Background(), ExternalRunRequest{
+		SourceIDs: []string{"public_dns"},
+		Direction: DirectionOutbound,
+		Methods:   []string{MethodTCP},
+	}, nil)
+	if err == nil {
+		t.Fatal("expected missing target_node_ids to fail")
+	}
+	if !strings.Contains(err.Error(), "target_node_ids") {
+		t.Fatalf("expected target_node_ids error, got %v", err)
 	}
 }
 
@@ -757,7 +777,7 @@ func TestRunExternal_NoSourcesEnabled(t *testing.T) {
 	}
 }
 
-func TestRunExternalOutboundIgnoresTargetNodeIDs(t *testing.T) {
+func TestRunExternalOutboundFiltersTargetNodeIDs(t *testing.T) {
 	svc := NewExternalService(newStoreWithDir(t.TempDir()))
 	svc.probeEndpoint = func(ctx context.Context, endpoint ExternalEndpoint, methods []string) (string, float64, error) {
 		return MethodTCP, 12.5, nil
@@ -765,16 +785,13 @@ func TestRunExternalOutboundIgnoresTargetNodeIDs(t *testing.T) {
 
 	data, err := svc.Run(context.Background(), ExternalRunRequest{
 		SourceIDs:     []string{"public_dns"},
-		TargetNodeIDs: []string{"node-a"},
-	}, []MeshMember{
-		{MemberID: "node-a", NodeID: "node-a", Name: "Node A", Address: "node-a.example"},
-		{MemberID: "node-b", NodeID: "node-b", Name: "Node B", Address: "node-b.example"},
-	})
+		TargetNodeIDs: []string{"public_dns:cloudflare-dns"},
+	}, nil)
 	if err != nil {
 		t.Fatalf("Run: %v", err)
 	}
-	if len(data.Results) != len(publicDNSTargets()) {
-		t.Fatalf("expected one result per public DNS target, got %d", len(data.Results))
+	if len(data.Results) != 1 {
+		t.Fatalf("expected one selected public DNS target, got %d", len(data.Results))
 	}
 	for _, result := range data.Results {
 		if result.SourceMemberID != "current-panel" {
@@ -785,6 +802,9 @@ func TestRunExternalOutboundIgnoresTargetNodeIDs(t *testing.T) {
 		}
 		if result.Target.ID == "" {
 			t.Fatalf("expected outbound target endpoint id to be populated, got %#v", result)
+		}
+		if result.Target.ID != "public_dns:cloudflare-dns" {
+			t.Fatalf("expected selected public DNS target, got %#v", result.Target)
 		}
 	}
 }

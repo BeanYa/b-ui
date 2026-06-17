@@ -3,8 +3,10 @@ package api
 import (
 	"bytes"
 	"context"
+	"encoding/json"
 	"net/http"
 	"net/http/httptest"
+	"path/filepath"
 	"strings"
 	"testing"
 
@@ -42,6 +44,30 @@ func newExternalPingTestRouter(externalSvc externalPingService) *gin.Engine {
 	router.Use(sessions.Sessions("b-ui", cookie.NewStore([]byte("test-secret"))))
 	handler := &pingAPIHandler{externalSvc: externalSvc}
 	router.POST("/api/ping/external", handler.triggerExternalPing)
+	router.GET("/__test/login/:username", func(c *gin.Context) {
+		if err := SetLoginUser(c, c.Param("username"), 0); err != nil {
+			c.AbortWithStatus(http.StatusInternalServerError)
+			return
+		}
+		c.Status(http.StatusOK)
+	})
+	return router
+}
+
+func newPingCatalogStore(t *testing.T) *ping.Store {
+	t.Helper()
+	return ping.NewStoreWithDataDir(filepath.Join(t.TempDir(), ping.DataDir))
+}
+
+func newPingCatalogTestRouter(store *ping.Store) *gin.Engine {
+	gin.SetMode(gin.TestMode)
+	logger.InitLogger(logging.ERROR)
+	router := gin.New()
+	router.Use(gin.Recovery())
+	router.Use(sessions.Sessions("b-ui", cookie.NewStore([]byte("test-secret"))))
+	handler := &pingAPIHandler{store: store}
+	router.GET("/api/ping/external/targets", handler.getExternalTargets)
+	router.POST("/api/ping/external/targets/refresh", handler.refreshExternalTargets)
 	router.GET("/__test/login/:username", func(c *gin.Context) {
 		if err := SetLoginUser(c, c.Param("username"), 0); err != nil {
 			c.AbortWithStatus(http.StatusInternalServerError)
@@ -456,5 +482,80 @@ func TestGetExternalResultsMissingResultReturnsEmptySuccess(t *testing.T) {
 	}
 	if response.Obj == nil {
 		t.Fatal("expected empty external cache object, got nil")
+	}
+}
+
+func TestGetExternalTargetsReturnsSeedCatalog(t *testing.T) {
+	store := newPingCatalogStore(t)
+	router := newPingCatalogTestRouter(store)
+	req := httptest.NewRequest(http.MethodGet, "/api/ping/external/targets", nil)
+	req.Header.Set("Cookie", loginCookie(t, router, "admin"))
+	recorder := httptest.NewRecorder()
+
+	router.ServeHTTP(recorder, req)
+
+	if recorder.Code != http.StatusOK {
+		t.Fatalf("expected external targets status %d, got %d", http.StatusOK, recorder.Code)
+	}
+	var response Msg
+	decodeResponse(t, recorder, &response)
+	if !response.Success {
+		t.Fatalf("expected external targets success, got %#v", response)
+	}
+	var catalog ping.ExternalTargetCatalog
+	data, err := json.Marshal(response.Obj)
+	if err != nil {
+		t.Fatalf("marshal response object: %v", err)
+	}
+	if err := json.Unmarshal(data, &catalog); err != nil {
+		t.Fatalf("unmarshal catalog: %v", err)
+	}
+	if len(catalog.Providers) == 0 {
+		t.Fatal("expected seed catalog providers")
+	}
+	if len(catalog.TargetsForProvider("public_dns")) == 0 {
+		t.Fatal("expected seed public_dns targets")
+	}
+}
+
+func TestRefreshExternalTargetsAcceptsProviderList(t *testing.T) {
+	store := newPingCatalogStore(t)
+	router := newPingCatalogTestRouter(store)
+	req := httptest.NewRequest(
+		http.MethodPost,
+		"/api/ping/external/targets/refresh",
+		bytes.NewBufferString(`{"provider_ids":["public_dns"]}`),
+	)
+	req.Header.Set("Content-Type", "application/json")
+	req.Header.Set("Cookie", loginCookie(t, router, "admin"))
+	recorder := httptest.NewRecorder()
+
+	router.ServeHTTP(recorder, req)
+
+	if recorder.Code != http.StatusOK {
+		t.Fatalf("expected refresh targets status %d, got %d", http.StatusOK, recorder.Code)
+	}
+	var response Msg
+	decodeResponse(t, recorder, &response)
+	if !response.Success {
+		t.Fatalf("expected refresh targets success, got %#v", response)
+	}
+	var catalog ping.ExternalTargetCatalog
+	data, err := json.Marshal(response.Obj)
+	if err != nil {
+		t.Fatalf("marshal response object: %v", err)
+	}
+	if err := json.Unmarshal(data, &catalog); err != nil {
+		t.Fatalf("unmarshal catalog: %v", err)
+	}
+	if got := len(catalog.Providers); got == 0 {
+		t.Fatalf("expected refreshed provider count, got %d", got)
+	}
+	loaded, err := store.LoadExternalTargetCatalog()
+	if err != nil {
+		t.Fatalf("LoadExternalTargetCatalog: %v", err)
+	}
+	if len(loaded.TargetsForProvider("public_dns")) == 0 {
+		t.Fatal("expected persisted public_dns targets")
 	}
 }
