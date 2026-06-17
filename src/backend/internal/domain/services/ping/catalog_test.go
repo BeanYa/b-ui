@@ -23,8 +23,8 @@ func TestParseZStaticNodeDataImportsProvinceAndCityTargets(t *testing.T) {
 	if err != nil {
 		t.Fatalf("parseZStaticNodeData: %v", err)
 	}
-	if len(targets) != 8 {
-		t.Fatalf("expected 8 targets, got %d: %#v", len(targets), targets)
+	if len(targets) != 9 {
+		t.Fatalf("expected 9 targets, got %d: %#v", len(targets), targets)
 	}
 	byID := map[string]ExternalEndpoint{}
 	for _, target := range targets {
@@ -47,6 +47,9 @@ func TestParseZStaticNodeDataImportsProvinceAndCityTargets(t *testing.T) {
 	}
 	if byID["zstatic_cdn:mo-mac-ct-v4"].Region != "澳门" || byID["zstatic_cdn:mo-mac-ct-v4"].City != "澳门" || byID["zstatic_cdn:mo-mac-ct-v4"].Network != "China Telecom" {
 		t.Fatalf("expected extra-only city metadata, got %#v", byID["zstatic_cdn:mo-mac-ct-v4"])
+	}
+	if byID["zstatic_cdn:ah-anqing-cu-v4"].Region != "安徽" || byID["zstatic_cdn:ah-anqing-cu-v4"].City != "安庆" || byID["zstatic_cdn:ah-anqing-cu-v4"].Group != "安徽 / 安庆" || byID["zstatic_cdn:ah-anqing-cu-v4"].Network != "China Unicom" {
+		t.Fatalf("expected string extra metadata, got %#v", byID["zstatic_cdn:ah-anqing-cu-v4"])
 	}
 }
 
@@ -82,7 +85,7 @@ const cityNameMap = { sjz: "石家庄", hkg: "香港" };
 	if !sawEntry {
 		t.Fatal("expected refresher to start from entry URL")
 	}
-	if provider.ProviderID != "zstatic_cdn" || len(provider.Targets) != 8 {
+	if provider.ProviderID != "zstatic_cdn" || len(provider.Targets) != 9 {
 		t.Fatalf("expected refreshed zstatic provider, got %#v", provider)
 	}
 }

@@ -37,6 +37,11 @@ type zstaticCityNodeMeta struct {
 }
 
 func (m *zstaticCityNodeMeta) UnmarshalJSON(data []byte) error {
+	var label string
+	if err := json.Unmarshal(data, &label); err == nil {
+		m.Province, m.City = parseZStaticRegionCityLabel(label)
+		return nil
+	}
 	var raw map[string]string
 	if err := json.Unmarshal(data, &raw); err != nil {
 		return err
@@ -252,6 +257,26 @@ func firstNonEmpty(values ...string) string {
 		}
 	}
 	return ""
+}
+
+func parseZStaticRegionCityLabel(label string) (string, string) {
+	label = strings.TrimSpace(label)
+	if label == "" {
+		return "", ""
+	}
+	provinceSuffix := strings.Index(label, "省")
+	if provinceSuffix > 0 {
+		province := strings.TrimSpace(label[:provinceSuffix])
+		city := strings.TrimSuffix(strings.TrimSpace(label[provinceSuffix+len("省"):]), "市")
+		return province, city
+	}
+	for _, suffix := range []string{"自治区", "特别行政区", "市"} {
+		if strings.HasSuffix(label, suffix) && len(label) > len(suffix) {
+			trimmed := strings.TrimSuffix(label, suffix)
+			return trimmed, trimmed
+		}
+	}
+	return label, label
 }
 
 func zstaticTarget(key, province, city, carrier, host string, port int, level string) ExternalEndpoint {

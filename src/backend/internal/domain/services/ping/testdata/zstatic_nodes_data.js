@@ -12,6 +12,7 @@ window.nodeData = {
   cityKeyList: ["hb-sjz-cm-v4", "hb-sjz-cu-v4", "hb-sjz-ct-v4", "hk-hkg-cm-v4"],
   extraCityNodeMeta: {
     "hk-hkg-cm-v4": { province: "香港", city: "香港", carrier: "mobile" },
-    "mo-mac-ct-v4": { province: "澳门", city: "澳门", carrier: "telecom" }
+    "mo-mac-ct-v4": { province: "澳门", city: "澳门", carrier: "telecom" },
+    "ah-anqing-cu-v4": "安徽省安庆市"
   }
 };
