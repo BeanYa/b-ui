@@ -59,7 +59,9 @@ Add a backend catalog refresh service and a CLI/script entry point that both use
 
 ZStaticCDN refresher:
 
-- Fetch `https://lf3-ips.zstaticcdn.com/nodes_data.js`.
+- Start from `https://zstaticcdn.com/`, follow redirects, and keep the final page URL as the base URL.
+- Parse the final HTML for the `nodes_data.js` script URL, resolving relative script paths against the final page URL.
+- Fetch the resolved node data script instead of hard-coding a redirected host such as `lf3-ips.zstaticcdn.com`.
 - Parse `window.nodeData.provinceBaseData`, `cityKeyList`, and `extraCityNodeMeta`.
 - Produce all IPv4 endpoints available in that page data.
 - Use TCP on the published port. Provincial entries currently use port `80`; generated city entries on the page use port `443`.
