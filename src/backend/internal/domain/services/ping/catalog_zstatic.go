@@ -36,6 +36,17 @@ type zstaticCityNodeMeta struct {
 	Carrier  string `json:"carrier"`
 }
 
+func (m *zstaticCityNodeMeta) UnmarshalJSON(data []byte) error {
+	var raw map[string]string
+	if err := json.Unmarshal(data, &raw); err != nil {
+		return err
+	}
+	m.Province = firstNonEmpty(raw["province"], raw["provinceName"], raw["region"], raw["p"])
+	m.City = firstNonEmpty(raw["city"], raw["cityName"], raw["c"])
+	m.Carrier = firstNonEmpty(raw["carrier"], raw["operator"], raw["network"], raw["isp"], raw["i"])
+	return nil
+}
+
 func refreshZStaticCatalog(ctx context.Context, client *http.Client, entryURL string, now func() time.Time) (ExternalTargetProviderCatalog, error) {
 	if strings.TrimSpace(entryURL) == "" {
 		entryURL = "https://zstaticcdn.com/"
@@ -136,18 +147,41 @@ func parseZStaticNodeData(script string, meta zstaticPageMetadata) ([]ExternalEn
 	if err := json.Unmarshal([]byte(quoteJSObjectKeys(raw)), &data); err != nil {
 		return nil, err
 	}
-	targets := make([]ExternalEndpoint, 0, len(data.ProvinceBaseData)*3+len(data.CityKeyList))
+	cityKeys := zstaticCityKeys(data.CityKeyList, data.ExtraCityNodeMeta)
+	targets := make([]ExternalEndpoint, 0, len(data.ProvinceBaseData)*3+len(cityKeys))
 	for _, province := range data.ProvinceBaseData {
 		for carrier, hostPort := range province.Carriers {
 			host, port, key := parseZStaticPublishedHost(hostPort)
 			targets = append(targets, zstaticTarget(key, province.Province, "", carrier, host, port, "province"))
 		}
 	}
-	for _, key := range data.CityKeyList {
+	for _, key := range cityKeys {
 		province, city, carrier := zstaticCityMetadata(key, meta, data.ExtraCityNodeMeta[key])
 		targets = append(targets, zstaticTarget(key, province, city, carrier, key+".ip.zstaticcdn.com", 443, "city"))
 	}
 	return targets, nil
+}
+
+func zstaticCityKeys(cityKeyList []string, extra map[string]zstaticCityNodeMeta) []string {
+	keys := make([]string, 0, len(cityKeyList)+len(extra))
+	seen := map[string]bool{}
+	for _, key := range cityKeyList {
+		key = strings.TrimSpace(key)
+		if key == "" || seen[key] {
+			continue
+		}
+		seen[key] = true
+		keys = append(keys, key)
+	}
+	for key := range extra {
+		key = strings.TrimSpace(key)
+		if key == "" || seen[key] {
+			continue
+		}
+		seen[key] = true
+		keys = append(keys, key)
+	}
+	return keys
 }
 
 func zstaticObjectLiteral(script string) (string, error) {
@@ -209,6 +243,15 @@ func lookupZStaticName(code string, primary map[string]string, fallback map[stri
 		return name
 	}
 	return strings.ToUpper(code)
+}
+
+func firstNonEmpty(values ...string) string {
+	for _, value := range values {
+		if value != "" {
+			return value
+		}
+	}
+	return ""
 }
 
 func zstaticTarget(key, province, city, carrier, host string, port int, level string) ExternalEndpoint {
