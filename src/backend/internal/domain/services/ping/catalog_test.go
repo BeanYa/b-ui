@@ -5,6 +5,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"os"
+	"sort"
 	"strings"
 	"testing"
 	"time"
@@ -27,7 +28,9 @@ func TestParseZStaticNodeDataImportsProvinceAndCityTargets(t *testing.T) {
 		t.Fatalf("expected 10 targets, got %d: %#v", len(targets), targets)
 	}
 	byID := map[string]ExternalEndpoint{}
+	targetIDs := make([]string, 0, len(targets))
 	for _, target := range targets {
+		targetIDs = append(targetIDs, target.ID)
 		byID[target.ID] = target
 		if target.Provider != "zstatic_cdn" {
 			t.Fatalf("expected zstatic provider, got %#v", target)
@@ -35,6 +38,9 @@ func TestParseZStaticNodeDataImportsProvinceAndCityTargets(t *testing.T) {
 		if len(target.Methods) != 1 || target.Methods[0] != MethodTCP {
 			t.Fatalf("expected TCP-only target, got %#v", target)
 		}
+	}
+	if !sort.StringsAreSorted(targetIDs) {
+		t.Fatalf("expected zstatic targets sorted by ID, got %#v", targetIDs)
 	}
 	if byID["zstatic_cdn:he-cm-v4"].Port != 80 || byID["zstatic_cdn:he-cm-v4"].Group != "河北" {
 		t.Fatalf("expected province target metadata, got %#v", byID["zstatic_cdn:he-cm-v4"])

@@ -9,6 +9,7 @@ import (
 	"net/http"
 	"net/url"
 	"regexp"
+	"sort"
 	"strconv"
 	"strings"
 	"time"
@@ -164,6 +165,9 @@ func parseZStaticNodeData(script string, meta zstaticPageMetadata) ([]ExternalEn
 		province, city, carrier := zstaticCityMetadata(key, meta, data.ExtraCityNodeMeta[key])
 		targets = append(targets, zstaticTarget(key, province, city, carrier, key+".ip.zstaticcdn.com", 443, "city"))
 	}
+	sort.Slice(targets, func(i, j int) bool {
+		return targets[i].ID < targets[j].ID
+	})
 	return targets, nil
 }
 
