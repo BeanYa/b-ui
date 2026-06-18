@@ -100,6 +100,13 @@ const cityNameMap = { sjz: "石家庄", hkg: "香港" };
 	}
 }
 
+func TestZStaticCityMetadataFallsBackToKnownLowercaseCityCodes(t *testing.T) {
+	province, city, carrier := zstaticCityMetadata("gd-szx-ct-v4", zstaticPageMetadata{}, zstaticCityNodeMeta{})
+	if province != "广东" || city != "深圳" || carrier != "ct" {
+		t.Fatalf("expected fallback metadata for lowercase city code, got %q %q %q", province, city, carrier)
+	}
+}
+
 func TestRefreshLinodeCatalogUsesConfiguredSpeedtestHosts(t *testing.T) {
 	provider := refreshLinodeCatalog(time.Unix(1710000000, 0))
 	if provider.ProviderID != "linode_speedtest" {

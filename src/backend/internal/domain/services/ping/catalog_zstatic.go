@@ -354,5 +354,5 @@ var fallbackZStaticProvinceNames = map[string]string{
 }
 
 var fallbackZStaticCityNames = map[string]string{
-	"sjz": "石家庄", "hkg": "香港", "pek": "北京", "sha": "上海", "can": "广州", "sZX": "深圳",
+	"sjz": "石家庄", "hkg": "香港", "pek": "北京", "sha": "上海", "can": "广州", "szx": "深圳",
 }
