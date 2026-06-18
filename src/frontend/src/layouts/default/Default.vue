@@ -18,7 +18,10 @@
       />
       <div
         class="shell-app__workspace"
-        :class="{ 'shell-app__workspace--expanded-nav': !isMobile && !collapsed }"
+        :class="{
+          'shell-app__workspace--expanded-nav': !isMobile && !collapsed,
+          'shell-app__workspace--mobile-nav': isMobile,
+        }"
       >
         <section class="shell-frame">
           <div class="shell-frame__header">
@@ -212,6 +215,11 @@ onMounted(() => {
   --shell-drawer-offset: 320px;
 }
 
+.shell-app__workspace--mobile-nav {
+  --shell-drawer-offset: 0px;
+  margin-left: 0;
+}
+
 .shell-frame {
   background:
     radial-gradient(circle at 72% 0%, color-mix(in srgb, var(--app-brand-ochre) 13%, transparent), transparent 26%),
@@ -268,8 +276,6 @@ onMounted(() => {
   }
 
   .shell-app__workspace {
-    --shell-drawer-offset: 0px;
-    margin-left: 0;
     padding: 10px 10px 18px;
   }
 
