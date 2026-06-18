@@ -33,6 +33,8 @@ export interface ExternalEndpoint {
   id: string
   label: string
   provider: string
+  group?: string
+  level?: string
   region?: string
   country?: string
   city?: string
@@ -40,6 +42,19 @@ export interface ExternalEndpoint {
   host?: string
   port?: number
   methods?: string[]
+}
+
+export interface ExternalTargetProviderCatalog {
+  provider_id: string
+  provider_name: string
+  static?: boolean
+  updated_at?: number
+  targets: ExternalEndpoint[]
+}
+
+export interface ExternalTargetCatalog {
+  updated_at: number
+  providers: ExternalTargetProviderCatalog[]
 }
 
 export interface ExternalTargetRequest {

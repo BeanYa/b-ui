@@ -135,4 +135,44 @@ describe('ping store mesh stream', () => {
       { headers: { 'Content-Type': 'application/json' } },
     )
   })
+
+  it('loads external target catalog', async () => {
+    const catalog = {
+      updated_at: 1710000000,
+      providers: [
+        {
+          provider_id: 'public_dns',
+          provider_name: 'Public DNS',
+          static: true,
+          targets: [
+            { id: 'public_dns:cloudflare-dns', label: 'Cloudflare DNS', provider: 'public_dns', group: 'Global', host: '1.1.1.1', port: 53, methods: ['tcp'] },
+          ],
+        },
+      ],
+    }
+    vi.mocked(api.get).mockResolvedValueOnce({ data: { success: true, obj: catalog } })
+
+    const { usePingStore } = await import('./ping')
+    const store = usePingStore()
+
+    await expect(store.loadExternalTargetCatalog()).resolves.toEqual(catalog)
+    expect(store.externalTargetCatalog).toEqual(catalog)
+    expect(api.get).toHaveBeenCalledWith('api/ping/external/targets')
+  })
+
+  it('refreshes selected external target providers', async () => {
+    const catalog = { updated_at: 1710000001, providers: [] }
+    vi.mocked(api.post).mockResolvedValueOnce({ data: { success: true, obj: catalog } })
+
+    const { usePingStore } = await import('./ping')
+    const store = usePingStore()
+
+    await expect(store.refreshExternalTargetCatalog(['zstatic_cdn'])).resolves.toEqual(catalog)
+    expect(store.externalTargetCatalog).toEqual(catalog)
+    expect(api.post).toHaveBeenCalledWith(
+      'api/ping/external/targets/refresh',
+      { provider_ids: ['zstatic_cdn'] },
+      { headers: { 'Content-Type': 'application/json' } },
+    )
+  })
 })

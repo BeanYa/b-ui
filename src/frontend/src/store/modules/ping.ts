@@ -8,6 +8,7 @@ import type {
   ExternalResultData,
   ExternalRunRequest,
   ExternalSource,
+  ExternalTargetCatalog,
   PingPolicy,
 } from '@/types/ping'
 import { DEFAULT_PING_POLICY } from '@/types/ping'
@@ -20,6 +21,7 @@ type MeshStreamEvent =
 export const usePingStore = defineStore('PingStore', () => {
   const meshResult = ref<MeshResult | null>(null)
   const externalConfig = ref<ExternalConfig | null>(null)
+  const externalTargetCatalog = ref<ExternalTargetCatalog | null>(null)
   const externalResults = ref<ExternalResultData | null>(null)
   const pingPolicy = ref<PingPolicy>({ ...DEFAULT_PING_POLICY })
   const loading = ref(false)
@@ -191,6 +193,43 @@ export const usePingStore = defineStore('PingStore', () => {
     }
   }
 
+  async function loadExternalTargetCatalog(): Promise<ExternalTargetCatalog> {
+    error.value = null
+    try {
+      const { data } = await api.get('api/ping/external/targets')
+      if (data.success) {
+        externalTargetCatalog.value = data.obj
+        return data.obj
+      }
+      throw new Error(data.msg)
+    } catch (e: any) {
+      error.value = e.message
+      throw e
+    }
+  }
+
+  async function refreshExternalTargetCatalog(providerIds: string[] = []): Promise<ExternalTargetCatalog> {
+    loading.value = true
+    error.value = null
+    try {
+      const { data } = await api.post('api/ping/external/targets/refresh', {
+        provider_ids: providerIds,
+      }, {
+        headers: { 'Content-Type': 'application/json' },
+      })
+      if (data.success) {
+        externalTargetCatalog.value = data.obj
+        return data.obj
+      }
+      throw new Error(data.msg)
+    } catch (e: any) {
+      error.value = e.message
+      throw e
+    } finally {
+      loading.value = false
+    }
+  }
+
   async function saveExternalConfig(config: ExternalConfig): Promise<void> {
     loading.value = true
     error.value = null
@@ -247,11 +286,12 @@ export const usePingStore = defineStore('PingStore', () => {
   }
 
   return {
-    meshResult, externalConfig, externalResults, loading, error,
+    meshResult, externalConfig, externalTargetCatalog, externalResults, loading, error,
     pingPolicy, loadPingPolicy, savePingPolicy,
     inboundSources, outboundSources,
     triggerMeshPing, triggerMeshPingStream, loadMeshResult,
     triggerExternalPing, loadExternalResults,
     loadExternalConfig, saveExternalConfig,
+    loadExternalTargetCatalog, refreshExternalTargetCatalog,
   }
 })
