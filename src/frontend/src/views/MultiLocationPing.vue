@@ -140,11 +140,13 @@
                   <v-checkbox-btn
                     :model-value="areAllTargetsSelected(provider.targets)"
                     :indeterminate="areSomeTargetsSelected(provider.targets)"
+                    :disabled="!provider.enabled"
                     density="compact"
                     @click.stop="toggleProviderTargets(provider)"
                   />
                   <span>{{ provider.name }}</span>
                   <v-chip size="x-small" variant="tonal">{{ provider.targets.length }}</v-chip>
+                  <v-chip v-if="!provider.enabled" size="x-small" variant="tonal" color="warning">Disabled</v-chip>
                 </div>
               </v-expansion-panel-title>
               <v-expansion-panel-text>
@@ -164,6 +166,7 @@
                         <v-checkbox-btn
                           :model-value="areAllTargetsSelected(targetGroup.targets)"
                           :indeterminate="areSomeTargetsSelected(targetGroup.targets)"
+                          :disabled="!targetGroup.enabled"
                           density="compact"
                           @click.stop="toggleTargetGroup(targetGroup)"
                         />
@@ -178,6 +181,7 @@
                           :key="target.id"
                           v-model="selectedOutboundTargetIds"
                           :value="target.id"
+                          :disabled="!provider.enabled"
                           density="compact"
                           hide-details
                         >
@@ -201,7 +205,7 @@
           <v-btn
             color="primary"
             :loading="store.loading"
-            :disabled="selectedOutboundTargetIds.length === 0"
+            :disabled="selectedOutboundProviderIds.length === 0"
             @click="runOutbound"
           >
             Start Outbound Test
@@ -420,7 +424,7 @@ type ExternalMatrixCell = {
   title: string
 }
 
-type OutboundTargetGroup = { key: string; label: string; targets: ExternalEndpoint[] }
+type OutboundTargetGroup = { key: string; label: string; enabled: boolean; targets: ExternalEndpoint[] }
 type OutboundProviderGroup = {
   id: string
   name: string
@@ -571,9 +575,9 @@ function outboundTargetGroupLabel(target: ExternalEndpoint) {
 }
 
 const outboundProviderGroups = computed<OutboundProviderGroup[]>(() => {
-  const outboundSourcesById = new Map(store.outboundSources.map(source => [source.id, source]))
   return (store.externalTargetCatalog?.providers ?? [])
     .map(provider => {
+      const enabled = isOutboundProviderEnabled(provider.provider_id)
       const targetGroupsByLabel = new Map<string, ExternalEndpoint[]>()
       for (const target of provider.targets ?? []) {
         const label = outboundTargetGroupLabel(target)
@@ -585,6 +589,7 @@ const outboundProviderGroups = computed<OutboundProviderGroup[]>(() => {
         .map(([label, targets]) => ({
           key: `${provider.provider_id}:${label}`,
           label,
+          enabled,
           targets: [...targets].sort((a, b) =>
             endpointLabel(a).localeCompare(endpointLabel(b)) ||
             endpointAddressText(a).localeCompare(endpointAddressText(b))
@@ -595,7 +600,7 @@ const outboundProviderGroups = computed<OutboundProviderGroup[]>(() => {
       return {
         id: provider.provider_id,
         name: provider.provider_name,
-        enabled: outboundSourcesById.get(provider.provider_id)?.enabled ?? true,
+        enabled,
         targetGroups,
         targets,
       }
@@ -608,9 +613,13 @@ const selectedOutboundTargetSet = computed(() => new Set(selectedOutboundTargetI
 
 const selectedOutboundProviderIds = computed(() =>
   outboundProviderGroups.value
-    .filter(provider => provider.targets.some(target => selectedOutboundTargetSet.value.has(target.id)))
+    .filter(provider => provider.enabled && provider.targets.some(target => selectedOutboundTargetSet.value.has(target.id)))
     .map(provider => provider.id)
 )
+
+function isOutboundProviderEnabled(providerId: string) {
+  return store.outboundSources.some(source => source.id === providerId && source.enabled)
+}
 
 function setSelectedTargets(targets: ExternalEndpoint[], selected: boolean) {
   const targetIds = new Set(targets.map(target => target.id))
@@ -634,10 +643,12 @@ function areSomeTargetsSelected(targets: ExternalEndpoint[]) {
 }
 
 function toggleProviderTargets(provider: OutboundProviderGroup) {
+  if (!provider.enabled) return
   setSelectedTargets(provider.targets, !areAllTargetsSelected(provider.targets))
 }
 
 function toggleTargetGroup(targetGroup: OutboundTargetGroup) {
+  if (!targetGroup.enabled) return
   setSelectedTargets(targetGroup.targets, !areAllTargetsSelected(targetGroup.targets))
 }
 

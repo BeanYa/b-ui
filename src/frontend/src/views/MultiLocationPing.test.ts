@@ -39,6 +39,14 @@ describe('MultiLocationPing view source', () => {
     expect(source).toContain('toggleTargetGroup')
   })
 
+  it('does not run disabled outbound providers', () => {
+    const source = readSource()
+
+    expect(source).toContain('isOutboundProviderEnabled')
+    expect(source).toContain('.filter(provider => provider.enabled')
+    expect(source).toContain(':disabled="!provider.enabled"')
+  })
+
   it('renders endpoint metadata columns for external results', () => {
     const source = readSource()
 
