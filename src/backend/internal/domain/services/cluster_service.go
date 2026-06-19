@@ -935,7 +935,12 @@ func (s *ClusterService) UpdateMemberDisplayName(id uint, displayName string) (*
 	if err := store.SaveMember(member); err != nil {
 		return nil, err
 	}
-	// TODO(Task 7): trigger retag of affected groups
+	// Propagate the display-name edit to the member's inbound slugs/remarks.
+	// Only the local node's groups exist on this b-ui instance; remote members
+	// are retagged by their own panels when they apply the sync report.
+	if local, lidErr := s.localIdentity.GetOrCreate(); lidErr == nil && local != nil && local.NodeID == member.NodeID {
+		_ = s.newDomainInboundService().retagAffectedGroups(context.Background(), *member)
+	}
 	localIdentity, err := s.localIdentity.GetOrCreate()
 	if err != nil {
 		return nil, err

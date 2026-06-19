@@ -1712,3 +1712,77 @@ type stubDomainInboundIdentity struct {
 func (s *stubDomainInboundIdentity) GetOrCreate() (*model.ClusterLocalNode, error) {
 	return s.node, nil
 }
+
+func newRetagService(db *gorm.DB) *ClusterDomainInboundService {
+	return NewClusterDomainInboundService(ClusterDomainInboundServiceOptions{DB: db})
+}
+
+func TestRetagIsIdempotent(t *testing.T) {
+	db := initClusterInboundTestDB(t)
+
+	member := model.ClusterMember{NodeID: "node-jp", DisplayName: "Tokyo Edge", CountryCode: "JP", DomainID: 1}
+	if err := db.Create(&member).Error; err != nil {
+		t.Fatalf("seed member: %v", err)
+	}
+	inbound := model.Inbound{Type: "vless", Tag: "legacy-prefix-jp"}
+	if err := db.Create(&inbound).Error; err != nil {
+		t.Fatalf("seed inbound: %v", err)
+	}
+	group := model.ClusterInbound{
+		DomainID:        1,
+		NodeID:          "node-jp",
+		MemberID:        "node-jp",
+		GroupID:         "g1",
+		InboundID:       inbound.Id,
+		RequestID:       "req-retag-1",
+		IncludeProtocol: true,
+		IncludeSecurity: true,
+		IncludeFlag:     true,
+		Template:        "reality",
+	}
+	if err := db.Create(&group).Error; err != nil {
+		t.Fatalf("seed group: %v", err)
+	}
+
+	svc := newRetagService(db)
+	ctx := context.Background()
+	if err := svc.RetagAllDomainInbounds(ctx); err != nil {
+		t.Fatalf("first retag: %v", err)
+	}
+	var first model.Inbound
+	if err := db.Where("id = ?", inbound.Id).First(&first).Error; err != nil {
+		t.Fatalf("read first: %v", err)
+	}
+	if first.Tag == "" {
+		t.Fatalf("first tag empty")
+	}
+	if !strings.Contains(first.Tag, "jp") {
+		t.Fatalf("first tag %q missing country slug", first.Tag)
+	}
+
+	if err := svc.RetagAllDomainInbounds(ctx); err != nil {
+		t.Fatalf("second retag: %v", err)
+	}
+	var second model.Inbound
+	if err := db.Where("id = ?", inbound.Id).First(&second).Error; err != nil {
+		t.Fatalf("read second: %v", err)
+	}
+	if first.Tag != second.Tag {
+		t.Fatalf("not idempotent: first=%q second=%q", first.Tag, second.Tag)
+	}
+	if first.Remark != second.Remark {
+		t.Fatalf("remark not idempotent: first=%q second=%q", first.Remark, second.Remark)
+	}
+
+	// retagAffectedGroups must also keep the same tag for the member's groups.
+	if err := svc.retagAffectedGroups(ctx, member); err != nil {
+		t.Fatalf("affected retag: %v", err)
+	}
+	var third model.Inbound
+	if err := db.Where("id = ?", inbound.Id).First(&third).Error; err != nil {
+		t.Fatalf("read third: %v", err)
+	}
+	if third.Tag != second.Tag {
+		t.Fatalf("affected retag diverged: third=%q second=%q", third.Tag, second.Tag)
+	}
+}

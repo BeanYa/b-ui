@@ -166,9 +166,24 @@ func (s *SettingService) getBool(key string) (bool, error) {
 	return strconv.ParseBool(str)
 }
 
-// func (s *SettingService) setBool(key string, value bool) error {
-// 	return s.setString(key, strconv.FormatBool(value))
-// }
+// GetBool reads a boolean setting. A missing key resolves to false without
+// error (used by the naming-retag startup guard, which treats absent as
+// "not yet run").
+func (s *SettingService) GetBool(key string) (bool, error) {
+	str, err := s.getString(key)
+	if database.IsNotFound(err) {
+		return false, nil
+	}
+	if err != nil {
+		return false, err
+	}
+	return strconv.ParseBool(str)
+}
+
+// SetBool persists a boolean setting.
+func (s *SettingService) SetBool(key string, value bool) error {
+	return s.setString(key, strconv.FormatBool(value))
+}
 
 func (s *SettingService) getInt(key string) (int, error) {
 	str, err := s.getString(key)

@@ -1235,3 +1235,115 @@ func stringValue(value interface{}) string {
 		return fmt.Sprint(v)
 	}
 }
+
+// retagNamingInputs gathers the builder inputs for one ClusterInbound group
+// from persisted state: the inbound type, the stored TLS template, and the
+// owning member's country code + display name.
+func (s *ClusterDomainInboundService) retagNamingInputs(tx *gorm.DB, g model.ClusterInbound) (protoLabel, secLabel, countryCode, displayName string, ok bool) {
+	var inbound model.Inbound
+	if err := tx.Select("id", "type").Where("id = ?", g.InboundID).First(&inbound).Error; err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return "", "", "", "", false
+		}
+		return "", "", "", "", false
+	}
+	protoLabel = ProtocolLabel(inbound.Type)
+	tlsTemplate := strings.TrimSpace(g.Template)
+	reality := strings.EqualFold(tlsTemplate, "reality")
+	secLabel = SecurityLabel(tlsTemplate, reality)
+	nodeID := strings.TrimSpace(g.NodeID)
+	if nodeID != "" {
+		var member model.ClusterMember
+		if err := tx.Select("country_code", "display_name").Where("node_id = ?", nodeID).First(&member).Error; err == nil {
+			countryCode = strings.TrimSpace(member.CountryCode)
+			displayName = strings.TrimSpace(member.DisplayName)
+		}
+	}
+	if displayName == "" {
+		displayName = nodeID
+	}
+	return protoLabel, secLabel, countryCode, displayName, true
+}
+
+func namingRuleFromGroup(g model.ClusterInbound) NamingRule {
+	if !g.IncludeProtocol && !g.IncludeSecurity && !g.IncludeFlag {
+		return NamingRule{IncludeProtocol: true, IncludeSecurity: true, IncludeFlag: true}
+	}
+	return NamingRule{
+		IncludeProtocol: g.IncludeProtocol,
+		IncludeSecurity: g.IncludeSecurity,
+		IncludeFlag:     g.IncludeFlag,
+	}
+}
+
+// retagGroup recomputes the slug + remark for a single ClusterInbound group
+// from its persisted toggles + target member, writing Inbound.Tag/Remark.
+// Idempotent: identical inputs yield identical tags.
+func (s *ClusterDomainInboundService) retagGroup(tx *gorm.DB, g model.ClusterInbound) error {
+	proto, sec, country, display, ok := s.retagNamingInputs(tx, g)
+	if !ok {
+		return nil
+	}
+	rule := namingRuleFromGroup(g)
+	tag := BuildInboundSlug(rule, proto, sec, country, display)
+	remark := BuildInboundRemark(rule, proto, sec, country, display)
+	updates := map[string]interface{}{
+		"tag":    tag,
+		"remark": remark,
+	}
+	if err := tx.Model(&model.Inbound{}).Where("id = ?", g.InboundID).Updates(updates).Error; err != nil {
+		return err
+	}
+	return nil
+}
+
+// RetagAllDomainInbounds iterates every ClusterInbound group and recomputes
+// its Inbound.Tag/Remark via the segment builder. Safe to run repeatedly.
+func (s *ClusterDomainInboundService) RetagAllDomainInbounds(ctx context.Context) error {
+	if s == nil || s.db == nil {
+		return errors.New("cluster domain inbound db is required")
+	}
+	if err := ctx.Err(); err != nil {
+		return err
+	}
+	return s.db.Transaction(func(tx *gorm.DB) error {
+		var groups []model.ClusterInbound
+		if err := tx.Find(&groups).Error; err != nil {
+			return err
+		}
+		for _, g := range groups {
+			if err := s.retagGroup(tx, g); err != nil {
+				return err
+			}
+		}
+		return nil
+	})
+}
+
+// retagAffectedGroups recomputes only the groups touching the given member's
+// NodeID. Called from ClusterService.UpdateMemberDisplayName so a display-name
+// edit propagates to the member's inbound slugs/remarks.
+func (s *ClusterDomainInboundService) retagAffectedGroups(ctx context.Context, member model.ClusterMember) error {
+	if s == nil || s.db == nil {
+		return errors.New("cluster domain inbound db is required")
+	}
+	if err := ctx.Err(); err != nil {
+		return err
+	}
+	nodeID := strings.TrimSpace(member.NodeID)
+	if nodeID == "" {
+		return nil
+	}
+	return s.db.Transaction(func(tx *gorm.DB) error {
+		var groups []model.ClusterInbound
+		if err := tx.Where("node_id = ?", nodeID).Find(&groups).Error; err != nil {
+			return err
+		}
+		for _, g := range groups {
+			if err := s.retagGroup(tx, g); err != nil {
+				return err
+			}
+		}
+		return nil
+	})
+}

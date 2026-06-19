@@ -1,6 +1,7 @@
 package app
 
 import (
+	"context"
 	"fmt"
 	"log"
 
@@ -49,6 +50,11 @@ func (a *APP) Init() error {
 		logger.SetClusterLogLocation(loc)
 	}
 
+	// One-shot retag: migrate legacy prefix/suffix-named domain inbounds to
+	// the new segment-based slugs. Guarded by the namingRetagDone setting so
+	// it runs exactly once per database.
+	a.runNamingRetagOnce()
+
 	a.core = core.NewCore()
 
 	a.cronJob = cronjob.NewCronJob()
@@ -60,8 +66,30 @@ func (a *APP) Init() error {
 	return nil
 }
 
-func (a *APP) applyStartupAdminCredentials() error {
-	credentials := config.GetStartupAdminCredentials()
+// runNamingRetagOnce recomputes domain inbound slugs/remarks once after the
+// DB is migrated, guarded by the "namingRetagDone" setting flag.
+func (a *APP) runNamingRetagOnce() {
+	done, err := a.SettingService.GetBool("namingRetagDone")
+	if err != nil {
+		logger.Warning("naming retag guard read failed:", err)
+		return
+	}
+	if done {
+		return
+	}
+	svc := service.NewClusterDomainInboundService(service.ClusterDomainInboundServiceOptions{
+		DB: database.GetDB(),
+	})
+	if err := svc.RetagAllDomainInbounds(context.Background()); err != nil {
+		logger.Warning("naming retag failed:", err)
+		return
+	}
+	if err := a.SettingService.SetBool("namingRetagDone", true); err != nil {
+		logger.Warning("naming retag flag persist failed:", err)
+	}
+}
+
+func (a *APP) applyStartupAdminCredentials() error {	credentials := config.GetStartupAdminCredentials()
 	if credentials.Username == "" && credentials.Password == "" {
 		return nil
 	}
