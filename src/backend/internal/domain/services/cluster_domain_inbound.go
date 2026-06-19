@@ -193,7 +193,7 @@ func (s *ClusterDomainInboundService) ApplyDomainInboundCreate(ctx context.Conte
 		}
 
 		displayName := domainInboundLocalDisplayName(payload.TargetMembers, nodeID)
-		inboundJSON, tag, err := s.prepareDomainInboundJSON(tx, domain, payload, nodeID, displayName, 0)
+		inboundJSON, tag, remark, err := s.prepareDomainInboundJSON(tx, domain, payload, nodeID, displayName, 0)
 		if err != nil {
 			return err
 		}
@@ -205,20 +205,29 @@ func (s *ClusterDomainInboundService) ApplyDomainInboundCreate(ctx context.Conte
 		if err := tx.Where("tag = ?", tag).First(&inbound).Error; err != nil {
 			return err
 		}
+		if remark != "" {
+			inbound.Remark = remark
+			if err := tx.Model(&model.Inbound{}).Where("id = ?", inbound.Id).Update("remark", remark).Error; err != nil {
+				return err
+			}
+		}
 		now := s.now()
 		wrapper = model.ClusterInbound{
-			DomainID:  domain.Id,
-			Domain:    domain.Domain,
-			NodeID:    nodeID,
-			MemberID:  nodeID,
-			GroupID:   payload.GroupID,
-			InboundID: inbound.Id,
-			RequestID: payload.RequestID,
-			Prefix:    payload.Prefix,
-			Suffix:    payload.Suffix,
-			Template:  strings.TrimSpace(payload.TLSTemplate),
-			CreatedAt: now,
-			UpdatedAt: now,
+			DomainID:        domain.Id,
+			Domain:          domain.Domain,
+			NodeID:          nodeID,
+			MemberID:        nodeID,
+			GroupID:         payload.GroupID,
+			InboundID:       inbound.Id,
+			RequestID:       payload.RequestID,
+			Prefix:          payload.Prefix,
+			Suffix:          payload.Suffix,
+			IncludeProtocol: payload.IncludeProtocol,
+			IncludeSecurity: payload.IncludeSecurity,
+			IncludeFlag:     payload.IncludeFlag,
+			Template:        strings.TrimSpace(payload.TLSTemplate),
+			CreatedAt:       now,
+			UpdatedAt:       now,
 		}
 		if source = strings.TrimSpace(source); source != "" {
 			wrapper.MemberID = source
@@ -330,7 +339,7 @@ func (s *ClusterDomainInboundService) ApplyDomainInboundUpdate(ctx context.Conte
 		if err != nil {
 			return err
 		}
-		inboundJSON, _, err := s.prepareDomainInboundJSON(tx, domain, payload, nodeID, displayName, existingTLSID)
+		inboundJSON, _, remark, err := s.prepareDomainInboundJSON(tx, domain, payload, nodeID, displayName, existingTLSID)
 		if err != nil {
 			return err
 		}
@@ -338,13 +347,21 @@ func (s *ClusterDomainInboundService) ApplyDomainInboundUpdate(ctx context.Conte
 		if err != nil {
 			return err
 		}
+		if remark != "" {
+			if err := tx.Model(&model.Inbound{}).Where("id = ?", wrapper.InboundID).Update("remark", remark).Error; err != nil {
+				return err
+			}
+		}
 		now := s.now()
 		updates := map[string]interface{}{
-			"request_id": payload.RequestID,
-			"prefix":     payload.Prefix,
-			"suffix":     payload.Suffix,
-			"template":   strings.TrimSpace(payload.TLSTemplate),
-			"updated_at": now,
+			"request_id":      payload.RequestID,
+			"prefix":          payload.Prefix,
+			"suffix":          payload.Suffix,
+			"include_protocol": payload.IncludeProtocol,
+			"include_security": payload.IncludeSecurity,
+			"include_flag":     payload.IncludeFlag,
+			"template":        strings.TrimSpace(payload.TLSTemplate),
+			"updated_at":      now,
 		}
 		if source = strings.TrimSpace(source); source != "" {
 			updates["member_id"] = source
@@ -610,27 +627,27 @@ func deleteDomainInboundRuntime(tag string) error {
 	return nil
 }
 
-func (s *ClusterDomainInboundService) prepareDomainInboundJSON(tx *gorm.DB, domain *model.ClusterDomain, payload clustertypes.DomainInboundCreatePayload, nodeID string, displayName string, existingTLSID uint) (json.RawMessage, string, error) {
+func (s *ClusterDomainInboundService) prepareDomainInboundJSON(tx *gorm.DB, domain *model.ClusterDomain, payload clustertypes.DomainInboundCreatePayload, nodeID string, displayName string, existingTLSID uint) (json.RawMessage, string, string, error) {
 	var inbound map[string]interface{}
 	if err := json.Unmarshal(payload.Inbound, &inbound); err != nil {
-		return nil, "", err
+		return nil, "", "", err
 	}
 	inboundType := strings.TrimSpace(stringValue(inbound["type"]))
 	if inboundType == "" {
-		return nil, "", errors.New("inbound type is required")
-	}
-	baseTag := strings.TrimSpace(stringValue(inbound["tag"]))
-	if baseTag == "" {
-		baseTag = inboundType
-	}
-	if tagSeed := strings.TrimSpace(payload.TagSeed); tagSeed != "" {
-		baseTag = tagSeed
+		return nil, "", "", errors.New("inbound type is required")
 	}
 	tag := hubProvidedDomainInboundTargetTag(payload.TargetMembers, nodeID)
+	remark := hubProvidedDomainInboundTargetRemark(payload.TargetMembers, nodeID)
 	if tag == "" {
-		tag = buildLegacyClusterInboundTag(payload.Prefix, baseTag, nodeID, payload.Suffix)
-		if strings.TrimSpace(payload.GroupID) != "" || strings.TrimSpace(payload.TagSeed) != "" || len(payload.TargetMembers) > 0 {
-			tag = buildClusterInboundTag(baseTag, payload.Prefix, displayName, payload.Suffix)
+		rule := payloadNamingRule(payload)
+		proto := ProtocolLabel(inboundType)
+		tlsTpl := tlsTemplateString(payload)
+		reality := payloadRealityEnabled(payload)
+		sec := SecurityLabel(tlsTpl, reality)
+		country := targetCountryCode(payload.TargetMembers, nodeID)
+		tag = BuildInboundSlug(rule, proto, sec, country, displayName)
+		if remark == "" {
+			remark = BuildInboundRemark(rule, proto, sec, country, displayName)
 		}
 	}
 
@@ -641,36 +658,86 @@ func (s *ClusterDomainInboundService) prepareDomainInboundJSON(tx *gorm.DB, doma
 	deleteSingBoxLegacyInboundFields(inbound)
 	inbound["type"] = inboundType
 	inbound["tag"] = tag
+	if remark != "" {
+		inbound["remark"] = remark
+	}
 	if strings.TrimSpace(stringValue(inbound["listen"])) == "" {
 		inbound["listen"] = "::"
 	}
 	if err := validateDomainInboundListenPortLocalProvided(inbound["listen_port"]); err != nil {
-		return nil, "", err
+		return nil, "", "", err
 	}
 	if _, ok := localProvidedKind(inbound["listen_port"]); ok || inbound["listen_port"] == nil {
 		port, err := s.portAllocator()
 		if err != nil {
-			return nil, "", err
+			return nil, "", "", err
 		}
 		inbound["listen_port"] = port
 	}
 	if err := rejectUnresolvedLocalProvided(inbound, "inbound"); err != nil {
-		return nil, "", err
+		return nil, "", "", err
 	}
 
 	if payload.TLS != nil {
 		tlsID, err := s.createDomainInboundTLS(tx, domain, tag, payload, existingTLSID)
 		if err != nil {
-			return nil, "", err
+			return nil, "", "", err
 		}
 		inbound["tls_id"] = tlsID
 	}
 
 	data, err := json.Marshal(inbound)
 	if err != nil {
-		return nil, "", err
+		return nil, "", "", err
 	}
-	return data, tag, nil
+	return data, tag, remark, nil
+}
+
+// payloadNamingRule reads toggles from the create payload. When no toggle is
+// set, all segments are included (legacy default).
+func payloadNamingRule(payload clustertypes.DomainInboundCreatePayload) NamingRule {
+	if !payload.IncludeProtocol && !payload.IncludeSecurity && !payload.IncludeFlag {
+		return NamingRule{IncludeProtocol: true, IncludeSecurity: true, IncludeFlag: true}
+	}
+	return NamingRule{
+		IncludeProtocol: payload.IncludeProtocol,
+		IncludeSecurity: payload.IncludeSecurity,
+		IncludeFlag:     payload.IncludeFlag,
+	}
+}
+
+func tlsTemplateString(payload clustertypes.DomainInboundCreatePayload) string {
+	return strings.TrimSpace(payload.TLSTemplate)
+}
+
+func payloadRealityEnabled(payload clustertypes.DomainInboundCreatePayload) bool {
+	return strings.EqualFold(strings.TrimSpace(payload.TLSTemplate), "reality")
+}
+
+func targetCountryCode(targets []clustertypes.DomainInboundTarget, nodeID string) string {
+	nodeID = strings.TrimSpace(nodeID)
+	if nodeID == "" {
+		return ""
+	}
+	for _, target := range targets {
+		if strings.TrimSpace(target.NodeID) == nodeID {
+			return strings.TrimSpace(target.CountryCode)
+		}
+	}
+	return ""
+}
+
+func hubProvidedDomainInboundTargetRemark(targets []clustertypes.DomainInboundTarget, nodeID string) string {
+	nodeID = strings.TrimSpace(nodeID)
+	if nodeID == "" {
+		return ""
+	}
+	for _, target := range targets {
+		if strings.TrimSpace(target.NodeID) == nodeID {
+			return strings.TrimSpace(target.TargetRemark)
+		}
+	}
+	return ""
 }
 
 func deleteSingBoxLegacyInboundFields(inbound map[string]interface{}) {
@@ -1118,31 +1185,6 @@ func sanitizeDomainInboundPart(value string, fallback string) string {
 		return fallback
 	}
 	return value
-}
-
-func buildClusterInboundTag(tagSeed string, prefix string, displayName string, suffix string) string {
-	parts := []string{
-		sanitizeDomainInboundPart(prefix, ""),
-		sanitizeDomainInboundPart(tagSeed, ""),
-		sanitizeDomainInboundPart(displayName, ""),
-		sanitizeDomainInboundPart(suffix, ""),
-	}
-	nonEmpty := parts[:0]
-	for _, part := range parts {
-		if part != "" {
-			nonEmpty = append(nonEmpty, part)
-		}
-	}
-	if len(nonEmpty) == 0 {
-		nonEmpty = append(nonEmpty, sanitizeDomainInboundPart(tagSeed, "inbound"))
-	}
-	return strings.Join(nonEmpty, "-")
-}
-
-func buildLegacyClusterInboundTag(prefix string, baseTag string, nodeID string, suffix string) string {
-	base := sanitizeDomainInboundPart(baseTag, "inbound")
-	node := sanitizeDomainInboundPart(nodeID, "node")
-	return prefix + base + "-" + node + suffix
 }
 
 func hubProvidedDomainInboundTargetTag(targets []clustertypes.DomainInboundTarget, nodeID string) string {

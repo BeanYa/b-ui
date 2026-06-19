@@ -18,14 +18,17 @@ import (
 const domainResourceReportTimeout = 10 * time.Second
 
 type ClusterDomainInboundCommandInput struct {
-	GroupID       string                             `json:"group_id"`
-	TagSeed       string                             `json:"tag_seed"`
-	TargetMembers []clustertypes.DomainInboundTarget `json:"target_members"`
-	Prefix        string                             `json:"prefix"`
-	Suffix        string                             `json:"suffix"`
-	Inbound       map[string]any                     `json:"inbound"`
-	TLSTemplate   string                             `json:"tls_template"`
-	TLS           *clustertypes.DomainInboundTLS     `json:"tls,omitempty"`
+	GroupID         string                             `json:"group_id"`
+	TagSeed         string                             `json:"tag_seed"`
+	TargetMembers   []clustertypes.DomainInboundTarget `json:"target_members"`
+	Prefix          string                             `json:"prefix"`
+	Suffix          string                             `json:"suffix"`
+	IncludeProtocol bool                               `json:"include_protocol,omitempty"`
+	IncludeSecurity bool                               `json:"include_security,omitempty"`
+	IncludeFlag     bool                               `json:"include_flag,omitempty"`
+	Inbound         map[string]any                     `json:"inbound"`
+	TLSTemplate     string                             `json:"tls_template"`
+	TLS             *clustertypes.DomainInboundTLS     `json:"tls,omitempty"`
 }
 
 type ClusterDomainUserCommandInput struct {
@@ -625,16 +628,19 @@ func (c *ClusterDomainResourceCoordinator) domainInboundCreatePayload(domain *mo
 		return clustertypes.DomainInboundCreatePayload{}, nil, err
 	}
 	payload := clustertypes.DomainInboundCreatePayload{
-		RequestID:     fmt.Sprintf("domain-inbound-%s", uuid.New().String()),
-		DomainID:      domain.Domain,
-		GroupID:       input.GroupID,
-		TagSeed:       strings.TrimSpace(input.TagSeed),
-		TargetMembers: input.TargetMembers,
-		Prefix:        strings.TrimSpace(input.Prefix),
-		Suffix:        strings.TrimSpace(input.Suffix),
-		Inbound:       inbound,
-		TLSTemplate:   strings.TrimSpace(input.TLSTemplate),
-		TLS:           input.TLS,
+		RequestID:       fmt.Sprintf("domain-inbound-%s", uuid.New().String()),
+		DomainID:        domain.Domain,
+		GroupID:         input.GroupID,
+		TagSeed:         strings.TrimSpace(input.TagSeed),
+		TargetMembers:   input.TargetMembers,
+		Prefix:          strings.TrimSpace(input.Prefix),
+		Suffix:          strings.TrimSpace(input.Suffix),
+		IncludeProtocol: input.IncludeProtocol,
+		IncludeSecurity: input.IncludeSecurity,
+		IncludeFlag:     input.IncludeFlag,
+		Inbound:         inbound,
+		TLSTemplate:     strings.TrimSpace(input.TLSTemplate),
+		TLS:             input.TLS,
 	}
 	payloadMap, err := domainInboundPayloadMap(payload)
 	if err != nil {

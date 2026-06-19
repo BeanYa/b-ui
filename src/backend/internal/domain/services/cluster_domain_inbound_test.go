@@ -178,8 +178,8 @@ func TestDomainInboundCreateGeneratesPortAndCreatesWrapper(t *testing.T) {
 	if err := db.First(&inbound, result.InboundID).Error; err != nil {
 		t.Fatalf("load inbound: %v", err)
 	}
-	if inbound.Tag != "edge-main-node-a-prod" {
-		t.Fatalf("expected normalized tag, got %q", inbound.Tag)
+	if inbound.Tag != "vless-node-a" {
+		t.Fatalf("expected segment slug tag, got %q", inbound.Tag)
 	}
 	var options map[string]interface{}
 	if err := json.Unmarshal(inbound.Options, &options); err != nil {
@@ -243,8 +243,8 @@ func TestDomainInboundCreateUsesGroupSeedDisplayNameAndIsIdempotent(t *testing.T
 	if err := db.First(&inbound, first.InboundID).Error; err != nil {
 		t.Fatalf("load inbound: %v", err)
 	}
-	if inbound.Tag != "main-edge-de-prod" {
-		t.Fatalf("expected display-name tag, got %q", inbound.Tag)
+	if inbound.Tag != "vless-de" {
+		t.Fatalf("expected segment slug tag, got %q", inbound.Tag)
 	}
 	var wrapper model.ClusterInbound
 	if err := db.Where("domain_id = ? AND group_id = ?", 1, "group-1").First(&wrapper).Error; err != nil {
@@ -386,6 +386,9 @@ func TestDomainInboundCreatePreservesManualListenPortAndAllocatesLocalProvidedPo
 		DomainID:  "edge.example.com",
 		GroupID:   "auto-port",
 		Inbound:   json.RawMessage(`{"type":"vless","tag":"auto","listen_port":{"LocalProvided":"DomainInboundListenPort"}}`),
+		TargetMembers: []clustertypes.DomainInboundTarget{
+			{MemberID: "member-a", NodeID: "node-a", DisplayName: "auto"},
+		},
 	}, "hub", false)
 	if err != nil {
 		t.Fatalf("apply auto port create: %v", err)
@@ -462,7 +465,7 @@ func TestPrepareDomainInboundJSONStripsSingBoxLegacyInboundFields(t *testing.T) 
 	svc := NewClusterDomainInboundService(ClusterDomainInboundServiceOptions{
 		PortAllocator: func() (int, error) { return 32125, nil },
 	})
-	raw, _, err := svc.prepareDomainInboundJSON(nil, &model.ClusterDomain{Domain: "edge.example.com"}, clustertypes.DomainInboundCreatePayload{
+	raw, _, _, err := svc.prepareDomainInboundJSON(nil, &model.ClusterDomain{Domain: "edge.example.com"}, clustertypes.DomainInboundCreatePayload{
 		RequestID: "req-legacy-fields",
 		DomainID:  "edge.example.com",
 		GroupID:   "legacy-fields",
@@ -498,7 +501,7 @@ func TestPrepareDomainInboundJSONPreservesClientOptions(t *testing.T) {
 	svc := NewClusterDomainInboundService(ClusterDomainInboundServiceOptions{
 		PortAllocator: func() (int, error) { return 32126, nil },
 	})
-	raw, _, err := svc.prepareDomainInboundJSON(nil, &model.ClusterDomain{Domain: "edge.example.com"}, clustertypes.DomainInboundCreatePayload{
+	raw, _, _, err := svc.prepareDomainInboundJSON(nil, &model.ClusterDomain{Domain: "edge.example.com"}, clustertypes.DomainInboundCreatePayload{
 		RequestID: "req-client-options",
 		DomainID:  "edge.example.com",
 		GroupID:   "client-options",
@@ -1544,43 +1547,23 @@ func TestDomainInboundDeleteFallsBackToReportedTargetWhenAdoptedGroupIsUnknown(t
 	}
 }
 
-func TestDomainInboundBuildTagSanitizesBaseAndNode(t *testing.T) {
-	tag := buildLegacyClusterInboundTag("edge-", "bad tag!", "node/a", "-prod")
-	if tag != "edge-bad-tag-node-a-prod" {
-		t.Fatalf("expected sanitized tag, got %q", tag)
+func TestDomainInboundBuildTagUsesSegmentSlug(t *testing.T) {
+	rule := NamingRule{IncludeProtocol: true, IncludeSecurity: true, IncludeFlag: true}
+	tag := BuildInboundSlug(rule, ProtocolLabel("vless"), SecurityLabel("reality", true), "JP", "Alike-JpPro")
+	if tag != "jp-vless-reality-alike-jppro" {
+		t.Fatalf("expected jp-vless-reality-alike-jppro, got %q", tag)
 	}
-}
-
-func TestDomainInboundBuildLegacyTagPreservesPrefixBaseNodeSuffix(t *testing.T) {
-	tag := buildLegacyClusterInboundTag("edge-", "main", "node-a", "-prod")
-	if tag != "edge-main-node-a-prod" {
-		t.Fatalf("expected edge-main-node-a-prod, got %q", tag)
-	}
-}
-
-func TestDomainInboundBuildTagUsesPrefixSeedDisplayNameSuffix(t *testing.T) {
-	tag := buildClusterInboundTag("BeanStudio", "Pro", "Alike-JpPro", "KL")
-	if tag != "Pro-BeanStudio-Alike-JpPro-KL" {
-		t.Fatalf("expected Pro-BeanStudio-Alike-JpPro-KL, got %q", tag)
-	}
-	tag = buildClusterInboundTag("BeanStudio", "", "Alike-JpPro", "KL")
-	if tag != "BeanStudio-Alike-JpPro-KL" {
-		t.Fatalf("expected BeanStudio-Alike-JpPro-KL, got %q", tag)
-	}
-	tag = buildClusterInboundTag("BeanStudio", "", "Alike-JpPro", "")
-	if tag != "BeanStudio-Alike-JpPro" {
-		t.Fatalf("expected BeanStudio-Alike-JpPro, got %q", tag)
-	}
-	tag = buildClusterInboundTag("", "", "Alike-JpPro", "")
-	if tag != "Alike-JpPro" {
-		t.Fatalf("expected Alike-JpPro, got %q", tag)
+	tag = BuildInboundSlug(rule, ProtocolLabel("vless"), "", "", "Alike-JpPro")
+	if tag != "vless-alike-jppro" {
+		t.Fatalf("expected vless-alike-jppro, got %q", tag)
 	}
 }
 
 func TestDomainInboundBuildTagOmitsEmptySanitizedOptionalParts(t *testing.T) {
-	tag := buildClusterInboundTag("main", "!!!", "de", "---")
-	if tag != "main-de" {
-		t.Fatalf("expected main-de, got %q", tag)
+	rule := NamingRule{IncludeProtocol: true, IncludeFlag: true}
+	tag := BuildInboundSlug(rule, ProtocolLabel("vless"), "", "de", "Mynode")
+	if tag != "de-vless-mynode" {
+		t.Fatalf("expected de-vless-mynode, got %q", tag)
 	}
 }
 
@@ -1591,9 +1574,10 @@ func TestDomainInboundLocalDisplayNameFallsBackToNodeIDWhenDisplayNameSanitizesE
 	if displayName != "node-a" {
 		t.Fatalf("expected node-a fallback, got %q", displayName)
 	}
-	tag := buildClusterInboundTag("main", "edge", displayName, "prod")
-	if tag != "edge-main-node-a-prod" {
-		t.Fatalf("expected edge-main-node-a-prod, got %q", tag)
+	rule := NamingRule{IncludeProtocol: true}
+	tag := BuildInboundSlug(rule, ProtocolLabel("vless"), "", "", displayName)
+	if tag != "vless-node-a" {
+		t.Fatalf("expected vless-node-a, got %q", tag)
 	}
 }
 
@@ -1612,6 +1596,74 @@ func TestDomainInboundLocalDisplayNameUsesNodeIDForMissingTarget(t *testing.T) {
 	}, "node-a")
 	if displayName != "node-a" {
 		t.Fatalf("expected node-a fallback, got %q", displayName)
+	}
+}
+
+func TestBuildTargetTagAndRemark(t *testing.T) {
+	rule := NamingRule{IncludeProtocol: true, IncludeSecurity: true, IncludeFlag: true}
+	tag := BuildInboundSlug(rule, ProtocolLabel("vless"), SecurityLabel("reality", true), "JP", "Mynode")
+	remark := BuildInboundRemark(rule, ProtocolLabel("vless"), SecurityLabel("reality", true), "JP", "Mynode")
+	if tag != "jp-vless-reality-mynode" {
+		t.Errorf("tag=%q", tag)
+	}
+	if remark != "🇯🇵 Vless Reality Mynode" {
+		t.Errorf("remark=%q", remark)
+	}
+}
+
+func TestPrepareDomainInboundJSONBuildsSegmentSlugAndRemark(t *testing.T) {
+	svc := NewClusterDomainInboundService(ClusterDomainInboundServiceOptions{
+		PortAllocator: func() (int, error) { return 32127, nil },
+	})
+	raw, tag, remark, err := svc.prepareDomainInboundJSON(nil, &model.ClusterDomain{Domain: "edge.example.com"}, clustertypes.DomainInboundCreatePayload{
+		RequestID:   "req-segment",
+		DomainID:    "edge.example.com",
+		GroupID:     "segment",
+		TLSTemplate: "reality",
+		Inbound:     json.RawMessage(`{"type":"vless","tag":"legacy","listen":"::"}`),
+		TargetMembers: []clustertypes.DomainInboundTarget{
+			{MemberID: "member-a", NodeID: "node-a", DisplayName: "Mynode", CountryCode: "JP"},
+		},
+	}, "node-a", "Mynode", 0)
+	if err != nil {
+		t.Fatalf("prepare inbound json: %v", err)
+	}
+	if tag != "jp-vless-reality-mynode" {
+		t.Fatalf("expected segment slug tag, got %q", tag)
+	}
+	if remark != "🇯🇵 Vless Reality Mynode" {
+		t.Fatalf("expected pretty remark, got %q", remark)
+	}
+	var inbound map[string]interface{}
+	if err := json.Unmarshal(raw, &inbound); err != nil {
+		t.Fatalf("decode inbound json: %v", err)
+	}
+	if inbound["tag"] != tag {
+		t.Fatalf("expected inbound tag to match, got %#v", inbound["tag"])
+	}
+	if inbound["remark"] != remark {
+		t.Fatalf("expected inbound remark to match, got %#v", inbound["remark"])
+	}
+}
+
+func TestPrepareDomainInboundJSONHonorsHubProvidedRemark(t *testing.T) {
+	svc := NewClusterDomainInboundService(ClusterDomainInboundServiceOptions{
+		PortAllocator: func() (int, error) { return 32128, nil },
+	})
+	_, _, remark, err := svc.prepareDomainInboundJSON(nil, &model.ClusterDomain{Domain: "edge.example.com"}, clustertypes.DomainInboundCreatePayload{
+		RequestID: "req-hub-remark",
+		DomainID:  "edge.example.com",
+		GroupID:   "hub-remark",
+		Inbound:   json.RawMessage(`{"type":"vless","tag":"legacy","listen":"::"}`),
+		TargetMembers: []clustertypes.DomainInboundTarget{
+			{MemberID: "member-a", NodeID: "node-a", DisplayName: "Mynode", TargetTag: "hub-slug", TargetRemark: "Hub Pretty"},
+		},
+	}, "node-a", "Mynode", 0)
+	if err != nil {
+		t.Fatalf("prepare inbound json: %v", err)
+	}
+	if remark != "Hub Pretty" {
+		t.Fatalf("expected hub-provided remark, got %q", remark)
 	}
 }
 
