@@ -154,6 +154,7 @@ func (s *ClusterService) newDomainResourceCoordinator() *ClusterDomainResourceCo
 		HubClient:      s.getHubClient(),
 		Identity:       &s.localIdentity,
 		SecretProvider: s.getSecretProvider(),
+		RegionProvider: &s.SettingService,
 		ProxyReporter:  s.proxyReport,
 	}
 }
@@ -200,6 +201,11 @@ func (s *ClusterService) newDomainInboundBroadcaster() *ClusterHTTPBroadcaster {
 
 type clusterSecretProvider interface {
 	GetSecret() ([]byte, error)
+}
+
+type clusterRegionProvider interface {
+	GetRegion() (string, error)
+	GetRegionName() (string, error)
 }
 
 type clusterServiceStore interface {

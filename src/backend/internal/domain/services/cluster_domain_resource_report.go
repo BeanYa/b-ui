@@ -19,8 +19,9 @@ type ClusterHubDomainResources struct {
 type ClusterHubDomainResourceInbound struct {
 	GroupID             string                             `json:"group_id"`
 	TagSeed             string                             `json:"tag_seed,omitempty"`
-	Prefix              string                             `json:"prefix,omitempty"`
-	Suffix              string                             `json:"suffix,omitempty"`
+	IncludeProtocol     bool                               `json:"include_protocol"`
+	IncludeSecurity     bool                               `json:"include_security"`
+	IncludeFlag         bool                               `json:"include_flag"`
 	Type                string                             `json:"type"`
 	TLSTemplate         string                             `json:"tls_template,omitempty"`
 	OptionsJSON         string                             `json:"options_json,omitempty"`
@@ -112,6 +113,7 @@ func (c *ClusterDomainResourceCoordinator) ReportDomainResourceState(ctx context
 	if local, err := c.identity().GetOrCreate(); err == nil && local != nil {
 		body.ReportedByNodeID = local.NodeID
 	}
+	_ = c.applySelfRegion(&body)
 	return client.ReportDomainResourceState(ctx, domain.HubURL, domain.Domain, domainToken, body)
 }
 
@@ -132,14 +134,15 @@ func (c *ClusterDomainResourceCoordinator) buildDomainResources(domainID uint) (
 		status := ClusterDomainOperationApplied
 		inboundIndexes[wrapper.GroupID] = len(resources.Inbounds)
 		resources.Inbounds = append(resources.Inbounds, ClusterHubDomainResourceInbound{
-			GroupID:     wrapper.GroupID,
-			TagSeed:     wrapper.GroupID,
-			Prefix:      wrapper.Prefix,
-			Suffix:      wrapper.Suffix,
-			Type:        wrapper.Inbound.Type,
-			TLSTemplate: wrapper.Template,
-			OptionsJSON: materializedDomainInboundOptionsJSON(wrapper.Inbound),
-			Status:      "active",
+			GroupID:         wrapper.GroupID,
+			TagSeed:         wrapper.GroupID,
+			IncludeProtocol: wrapper.IncludeProtocol,
+			IncludeSecurity: wrapper.IncludeSecurity,
+			IncludeFlag:     wrapper.IncludeFlag,
+			Type:            wrapper.Inbound.Type,
+			TLSTemplate:     wrapper.Template,
+			OptionsJSON:     materializedDomainInboundOptionsJSON(wrapper.Inbound),
+			Status:          "active",
 			Instances: []ClusterHubDomainResourceInstance{{
 				MemberID:        wrapper.MemberID,
 				NodeID:          wrapper.NodeID,
@@ -244,8 +247,9 @@ func applyDomainInboundOperationResource(existing *ClusterHubDomainResourceInbou
 	existing.LastOperationStatus = resource.LastOperationStatus
 	if domainInboundResourceMaterialized(resource) {
 		existing.TagSeed = resource.TagSeed
-		existing.Prefix = resource.Prefix
-		existing.Suffix = resource.Suffix
+		existing.IncludeProtocol = resource.IncludeProtocol
+		existing.IncludeSecurity = resource.IncludeSecurity
+		existing.IncludeFlag = resource.IncludeFlag
 		existing.Type = resource.Type
 		existing.TLSTemplate = resource.TLSTemplate
 		existing.OptionsJSON = resource.OptionsJSON
@@ -304,8 +308,9 @@ func domainInboundResourceFromOperation(op model.ClusterDomainOperation, store *
 	resource := ClusterHubDomainResourceInbound{
 		GroupID:             groupID,
 		TagSeed:             strings.TrimSpace(payload.TagSeed),
-		Prefix:              strings.TrimSpace(payload.Prefix),
-		Suffix:              strings.TrimSpace(payload.Suffix),
+		IncludeProtocol:     payload.IncludeProtocol,
+		IncludeSecurity:     payload.IncludeSecurity,
+		IncludeFlag:         payload.IncludeFlag,
 		TLSTemplate:         strings.TrimSpace(payload.TLSTemplate),
 		Status:              statusForDomainInboundOperation(op.Status),
 		Revision:            op.Revision,

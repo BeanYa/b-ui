@@ -121,6 +121,8 @@ type ClusterHubResourceStateReportRequest struct {
 	ReportID         string                         `json:"report_id"`
 	OperationID      string                         `json:"operation_id"`
 	ReportedByNodeID string                         `json:"reported_by_node_id"`
+	CountryCode      string                         `json:"country_code,omitempty"`
+	CountryName      string                         `json:"country_name,omitempty"`
 	Resources        ClusterHubDomainResources      `json:"resources"`
 	OperationSummary ClusterHubDomainOperationState `json:"operation_summary"`
 }

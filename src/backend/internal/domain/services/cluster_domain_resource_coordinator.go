@@ -48,6 +48,7 @@ type ClusterDomainResourceCoordinator struct {
 	HubClient      clusterHubClient
 	Identity       clusterDomainInboundIdentity
 	SecretProvider clusterSecretProvider
+	RegionProvider clusterRegionProvider
 	PortAllocator  func() (int, error)
 	ProxyReporter  clusterDomainInboundReporter
 }
@@ -1186,4 +1187,28 @@ func (c *ClusterDomainResourceCoordinator) secretProvider() clusterSecretProvide
 		return c.SecretProvider
 	}
 	return &SettingService{}
+}
+
+func (c *ClusterDomainResourceCoordinator) regionProvider() clusterRegionProvider {
+	if c != nil && c.RegionProvider != nil {
+		return c.RegionProvider
+	}
+	return &SettingService{}
+}
+
+// applySelfRegion fills the node-self country fields on the hub report from
+// the panel Setting. Empty when region is unset; never returns an error so a
+// missing region does not abort the resource report.
+func (c *ClusterDomainResourceCoordinator) applySelfRegion(body *ClusterHubResourceStateReportRequest) error {
+	if body == nil {
+		return nil
+	}
+	provider := c.regionProvider()
+	if code, err := provider.GetRegion(); err == nil {
+		body.CountryCode = strings.TrimSpace(code)
+	}
+	if name, err := provider.GetRegionName(); err == nil {
+		body.CountryName = strings.TrimSpace(name)
+	}
+	return nil
 }

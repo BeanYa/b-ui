@@ -1372,7 +1372,9 @@ func TestApplyDomainInboundOperationResourcePreservesDesiredOptions(t *testing.T
 	desired := ClusterHubDomainResourceInbound{
 		GroupID:             "group-1",
 		TagSeed:             "domain",
-		Prefix:              "domain",
+		IncludeProtocol:     true,
+		IncludeSecurity:     true,
+		IncludeFlag:         false,
 		Type:                "vless",
 		TLSTemplate:         "standard",
 		OptionsJSON:         `{"listen":"::","listen_port":{"LocalProvided":"DomainInboundListenPort"}}`,
@@ -1390,7 +1392,7 @@ func TestApplyDomainInboundOperationResourcePreservesDesiredOptions(t *testing.T
 	if existing.OptionsJSON != `{"listen":"::","listen_port":{"LocalProvided":"DomainInboundListenPort"}}` {
 		t.Fatalf("options_json = %q", existing.OptionsJSON)
 	}
-	if existing.LastOperationID != "domain-inbound-auto" || existing.TagSeed != "domain" || existing.Prefix != "domain" {
+	if existing.LastOperationID != "domain-inbound-auto" || existing.TagSeed != "domain" || !existing.IncludeProtocol || !existing.IncludeSecurity {
 		t.Fatalf("operation metadata was not applied: %#v", existing)
 	}
 	if len(existing.Instances) != 1 || existing.Instances[0].TargetTag != "domain-node-a" {
@@ -1852,4 +1854,107 @@ func TestDomainResourceCoordinatorDeleteDomainUserTargetsMaterializedNodes(t *te
 	if len(instances) != 1 || instances[0].NodeID != "node-b" {
 		t.Fatalf("delete instances = %#v, want only node-b", instances)
 	}
+}
+
+// TestReportContractDomainInboundNoPrefixSuffix asserts the domain-inbound
+// group report serialized into the hub report carries the include_* toggles
+// and NO prefix/suffix keys (Task 6 contract).
+func TestReportContractDomainInboundNoPrefixSuffix(t *testing.T) {
+	group := ClusterHubDomainResourceInbound{
+		GroupID:         "group-1",
+		TagSeed:         "edge",
+		IncludeProtocol: true,
+		IncludeSecurity: false,
+		IncludeFlag:     true,
+		Type:            "vless",
+		TLSTemplate:     "standard",
+		OptionsJSON:     `{"listen_port":443}`,
+		Status:          "active",
+	}
+	out, err := json.Marshal(group)
+	if err != nil {
+		t.Fatalf("marshal inbound report: %v", err)
+	}
+	s := string(out)
+	if strings.Contains(s, "prefix") || strings.Contains(s, "suffix") {
+		t.Errorf("domain-inbound report must not carry prefix/suffix: %s", s)
+	}
+	if !strings.Contains(s, `"include_protocol":true`) {
+		t.Errorf("domain-inbound report missing include_protocol=true: %s", s)
+	}
+	if !strings.Contains(s, `"include_security":false`) {
+		t.Errorf("domain-inbound report missing include_security=false: %s", s)
+	}
+	if !strings.Contains(s, `"include_flag":true`) {
+		t.Errorf("domain-inbound report missing include_flag=true: %s", s)
+	}
+	if !strings.Contains(s, `"tag_seed":"edge"`) || !strings.Contains(s, `"type":"vless"`) {
+		t.Errorf("domain-inbound report dropped retained fields: %s", s)
+	}
+}
+
+// TestReportContractNodeSelfRegion asserts the node-self report carries
+// country_code/country_name sourced from the panel Setting.
+func TestReportContractNodeSelfRegion(t *testing.T) {
+	stub := &stubRegionSettingService{regionCode: "US", regionName: "United States"}
+	coordinator := &ClusterDomainResourceCoordinator{RegionProvider: stub}
+	body := ClusterHubResourceStateReportRequest{
+		ReportID:    "rep-1",
+		OperationID: "op-1",
+	}
+	if err := coordinator.applySelfRegion(&body); err != nil {
+		t.Fatalf("apply self region: %v", err)
+	}
+	if body.CountryCode != "US" || body.CountryName != "United States" {
+		t.Fatalf("country = %q/%q, want US/United States", body.CountryCode, body.CountryName)
+	}
+	out, err := json.Marshal(body)
+	if err != nil {
+		t.Fatalf("marshal report: %v", err)
+	}
+	s := string(out)
+	if !strings.Contains(s, `"country_code":"US"`) || !strings.Contains(s, `"country_name":"United States"`) {
+		t.Errorf("report missing country fields: %s", s)
+	}
+}
+
+// TestReportContractNodeSelfRegionEmptyWhenUnset asserts the country fields
+// are omitted entirely when the panel Setting has no region configured.
+func TestReportContractNodeSelfRegionEmptyWhenUnset(t *testing.T) {
+	stub := &stubRegionSettingService{regionCode: "", regionName: "", emptyErr: true}
+	coordinator := &ClusterDomainResourceCoordinator{RegionProvider: stub}
+	body := ClusterHubResourceStateReportRequest{ReportID: "rep-2"}
+	if err := coordinator.applySelfRegion(&body); err != nil {
+		t.Fatalf("apply self region: %v", err)
+	}
+	if body.CountryCode != "" || body.CountryName != "" {
+		t.Fatalf("country = %q/%q, want empty", body.CountryCode, body.CountryName)
+	}
+	out, err := json.Marshal(body)
+	if err != nil {
+		t.Fatalf("marshal report: %v", err)
+	}
+	if strings.Contains(string(out), "country_code") || strings.Contains(string(out), "country_name") {
+		t.Errorf("empty country must be omitted: %s", out)
+	}
+}
+
+type stubRegionSettingService struct {
+	regionCode string
+	regionName string
+	emptyErr   bool
+}
+
+func (s *stubRegionSettingService) GetRegion() (string, error) {
+	if s.emptyErr {
+		return "", errors.New("no region setting")
+	}
+	return s.regionCode, nil
+}
+
+func (s *stubRegionSettingService) GetRegionName() (string, error) {
+	if s.emptyErr {
+		return "", errors.New("no region setting")
+	}
+	return s.regionName, nil
 }
