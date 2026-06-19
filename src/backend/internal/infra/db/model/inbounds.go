@@ -7,7 +7,8 @@ import (
 type Inbound struct {
 	Id   uint   `json:"id" form:"id" gorm:"primaryKey;autoIncrement"`
 	Type string `json:"type" form:"type"`
-	Tag  string `json:"tag" form:"tag" gorm:"unique"`
+	Tag    string `json:"tag" form:"tag" gorm:"unique"`
+	Remark string `json:"remark" form:"remark" gorm:"index"`
 
 	// Foreign key to tls table
 	TlsId uint `json:"tls_id" form:"tls_id"`
@@ -34,6 +35,8 @@ func (i *Inbound) UnmarshalJSON(data []byte) error {
 	delete(raw, "type")
 	i.Tag, _ = raw["tag"].(string)
 	delete(raw, "tag")
+	i.Remark, _ = raw["remark"].(string)
+	delete(raw, "remark")
 
 	// TlsId
 	if val, exists := raw["tls_id"].(float64); exists {
@@ -62,6 +65,9 @@ func (i Inbound) MarshalJSON() ([]byte, error) {
 	combined := make(map[string]interface{})
 	combined["type"] = i.Type
 	combined["tag"] = i.Tag
+	if i.Remark != "" {
+		combined["remark"] = i.Remark
+	}
 	if i.Tls != nil {
 		combined["tls"] = i.Tls.Server
 	}
@@ -85,6 +91,7 @@ func (i Inbound) MarshalFull() (*map[string]interface{}, error) {
 	combined["id"] = i.Id
 	combined["type"] = i.Type
 	combined["tag"] = i.Tag
+	combined["remark"] = i.Remark
 	combined["tls_id"] = i.TlsId
 	combined["addrs"] = i.Addrs
 	combined["out_json"] = i.OutJson

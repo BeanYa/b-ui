@@ -140,6 +140,7 @@ type ClusterMember struct {
 	Status             string         `json:"status" gorm:"default:online"`
 	Address            string         `json:"address"`
 	BaseURL            string         `json:"baseUrl"`
+	CountryCode        string         `json:"countryCode"`
 	PublicKey          string         `json:"publicKey"`
 	PeerTokenEncrypted string         `json:"-"`
 	DomainID           uint           `json:"domainId" gorm:"uniqueIndex:idx_cluster_domain_node"`
@@ -159,9 +160,12 @@ type ClusterInbound struct {
 	InboundID uint     `json:"inboundId" gorm:"uniqueIndex"`
 	Inbound   *Inbound `json:"inbound,omitempty" gorm:"foreignKey:InboundID;references:Id"`
 	RequestID string   `json:"requestId" gorm:"uniqueIndex:idx_cluster_inbound_domain_request"`
-	Prefix    string   `json:"prefix"`
-	Suffix    string   `json:"suffix"`
-	Template  string   `json:"template"`
+	Prefix          string   `json:"prefix"`
+	Suffix          string   `json:"suffix"`
+	IncludeProtocol bool     `json:"includeProtocol" gorm:"default:true"`
+	IncludeSecurity bool     `json:"includeSecurity" gorm:"default:true"`
+	IncludeFlag     bool     `json:"includeFlag" gorm:"default:true"`
+	Template        string   `json:"template"`
 	CreatedAt int64    `json:"createdAt"`
 	UpdatedAt int64    `json:"updatedAt"`
 }
