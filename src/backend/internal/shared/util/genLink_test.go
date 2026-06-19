@@ -43,3 +43,21 @@ func TestLinkGeneratorFallsBackToInboundAddressWhenAddrsMissing(t *testing.T) {
 		})
 	}
 }
+
+func TestInboundRemarkPrefersRemark(t *testing.T) {
+	cases := []struct {
+		name string
+		in   *model.Inbound
+		want string
+	}{
+		{"remark set", &model.Inbound{Tag: "jp-vless-box", Remark: "🇯🇵 Vless Box"}, "🇯🇵 Vless Box"},
+		{"remark empty falls back to tag", &model.Inbound{Tag: "jp-vless-box", Remark: ""}, "jp-vless-box"},
+		{"remark blank falls back to tag", &model.Inbound{Tag: "jp-vless-box", Remark: "   "}, "jp-vless-box"},
+		{"nil inbound", nil, ""},
+	}
+	for _, c := range cases {
+		if got := inboundRemark(c.in); got != c.want {
+			t.Errorf("%s: got %q want %q", c.name, got, c.want)
+		}
+	}
+}

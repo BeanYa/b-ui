@@ -44,7 +44,7 @@ func LinkGenerator(clientConfig json.RawMessage, i *model.Inbound, hostname stri
 		Addrs = append(Addrs, map[string]interface{}{
 			"server":      hostname,
 			"server_port": (*inbound)["listen_port"],
-			"remark":      i.Tag,
+			"remark":      inboundRemark(i),
 		})
 		if i.TlsId > 0 {
 			Addrs[0]["tls"] = tls
@@ -52,7 +52,7 @@ func LinkGenerator(clientConfig json.RawMessage, i *model.Inbound, hostname stri
 	} else {
 		for index, addr := range Addrs {
 			addrRemark, _ := addr["remark"].(string)
-			Addrs[index]["remark"] = i.Tag + addrRemark
+			Addrs[index]["remark"] = inboundRemark(i) + addrRemark
 			if i.TlsId > 0 {
 				newTls := map[string]interface{}{}
 				for k, v := range tls {
@@ -101,6 +101,18 @@ func LinkGenerator(clientConfig json.RawMessage, i *model.Inbound, hostname stri
 	}
 
 	return []string{}
+}
+
+// inboundRemark returns the pretty Inbound.Remark when set (non-blank),
+// otherwise falls back to the slug Inbound.Tag for back-compat.
+func inboundRemark(i *model.Inbound) string {
+	if i != nil && strings.TrimSpace(i.Remark) != "" {
+		return i.Remark
+	}
+	if i == nil {
+		return ""
+	}
+	return i.Tag
 }
 
 func prepareTls(t *model.Tls) map[string]interface{} {
