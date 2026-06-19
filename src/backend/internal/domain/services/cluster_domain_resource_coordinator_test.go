@@ -228,6 +228,84 @@ func TestDomainResourceCoordinatorCreateInboundReportsProxyConfigsAfterLocalAppl
 	}
 }
 
+func TestDomainResourceCoordinatorEnrichesTargetCountryCodeFromMember(t *testing.T) {
+	if err := database.InitDB(filepath.Join(t.TempDir(), "coordinator-country-enrich.db")); err != nil {
+		if strings.Contains(err.Error(), "go-sqlite3 requires cgo") || strings.Contains(err.Error(), "CGO_ENABLED=0") || strings.Contains(err.Error(), "C compiler") {
+			t.Skipf("sqlite test database unavailable in this toolchain: %v", err)
+		}
+		t.Fatalf("init db: %v", err)
+	}
+	db := database.GetDB()
+	domain := &model.ClusterDomain{Id: 1, Domain: "edge.example.com", HubURL: "https://hub.example.com", TokenEncrypted: "token", LastVersion: 7}
+	if err := db.Create(domain).Error; err != nil {
+		t.Fatalf("seed domain: %v", err)
+	}
+	local := newTestClusterLocalNode(t, "node-a")
+	if err := db.Create(local).Error; err != nil {
+		t.Fatalf("seed local node: %v", err)
+	}
+	peerToken, err := EncryptClusterDomainToken([]byte("test-secret"), "peer-token")
+	if err != nil {
+		t.Fatalf("encrypt peer token: %v", err)
+	}
+	if err := db.Create(&model.ClusterMember{DomainID: domain.Id, NodeID: "node-b", DisplayName: "Node B", BaseURL: "https://node-b.example.com", PeerTokenEncrypted: peerToken, CountryCode: "JP", LastVersion: 7}).Error; err != nil {
+		t.Fatalf("seed peer member with country: %v", err)
+	}
+
+	var captured PeerMessage
+	coordinator := &ClusterDomainResourceCoordinator{
+		DB:             db,
+		OperationStore: &ClusterDomainOperationStore{DB: db},
+		PeerSender: clusterDomainPeerSenderFunc(func(_ context.Context, message *PeerMessage, _ model.ClusterMember, _ string) (*clustertypes.DomainResourceCommandResult, error) {
+			captured = *message
+			return &clustertypes.DomainResourceCommandResult{Status: "applied"}, nil
+		}),
+		Identity:       &stubDomainInboundIdentity{node: local},
+		SecretProvider: stubClusterSecretProvider{secret: []byte("test-secret")},
+		PortAllocator:  func() (int, error) { return 32060, nil },
+	}
+
+	_, err = coordinator.CreateDomainInbound(context.Background(), domain.Id, ClusterDomainInboundCommandInput{
+		GroupID: "group-country",
+		TargetMembers: []clustertypes.DomainInboundTarget{{
+			NodeID:      "node-b",
+			MemberID:    "node-b",
+			DisplayName: "Node B",
+		}},
+		IncludeFlag: true,
+		Inbound: map[string]any{
+			"type": "vless",
+			"tag":  "main",
+		},
+	})
+	if err != nil {
+		t.Fatalf("create inbound: %v", err)
+	}
+
+	payloadBytes, err := json.Marshal(captured.Payload)
+	if err != nil {
+		t.Fatalf("marshal captured payload: %v", err)
+	}
+	var decoded struct {
+		TargetMembers []struct {
+			NodeID      string `json:"node_id"`
+			CountryCode string `json:"country_code"`
+		} `json:"target_members"`
+	}
+	if err := json.Unmarshal(payloadBytes, &decoded); err != nil {
+		t.Fatalf("decode peer payload: %v", err)
+	}
+	if len(decoded.TargetMembers) != 1 {
+		t.Fatalf("expected one target member in dispatched payload, got %d", len(decoded.TargetMembers))
+	}
+	if decoded.TargetMembers[0].NodeID != "node-b" {
+		t.Fatalf("expected target node-b, got %q", decoded.TargetMembers[0].NodeID)
+	}
+	if decoded.TargetMembers[0].CountryCode != "JP" {
+		t.Fatalf("expected enriched country_code 'JP' from ClusterMember, got %q", decoded.TargetMembers[0].CountryCode)
+	}
+}
+
 func TestClusterServiceDomainResourceCoordinatorUsesProxyReporter(t *testing.T) {
 	reporter := &ClusterProxyReportService{}
 	service := &ClusterService{}

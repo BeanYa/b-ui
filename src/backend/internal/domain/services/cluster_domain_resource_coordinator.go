@@ -64,6 +64,7 @@ func (c *ClusterDomainResourceCoordinator) CreateDomainInbound(ctx context.Conte
 	if err != nil {
 		return nil, err
 	}
+	input.TargetMembers = enrichDomainInboundTargetCountries(input.TargetMembers, members)
 	payload, payloadMap, err := c.domainInboundCreatePayload(domain, input)
 	if err != nil {
 		return nil, err
@@ -228,6 +229,7 @@ func (c *ClusterDomainResourceCoordinator) UpdateDomainInbound(ctx context.Conte
 	if err != nil {
 		return nil, err
 	}
+	input.TargetMembers = enrichDomainInboundTargetCountries(input.TargetMembers, members)
 	payload, payloadMap, err := c.domainInboundUpdatePayload(domain, groupID, input)
 	if err != nil {
 		return nil, err
@@ -613,6 +615,35 @@ func (c *ClusterDomainResourceCoordinator) loadDomainContext(domainID uint) (*mo
 		return nil, nil, nil, err
 	}
 	return domain, members, local, nil
+}
+
+// enrichDomainInboundTargetCountries copies each target's CountryCode from the
+// matching ClusterMember (matched by NodeID). A CountryCode already present on a
+// target is preserved; targets without a matching member, or whose member has an
+// empty CountryCode, are left unchanged so the flag segment is gracefully omitted.
+func enrichDomainInboundTargetCountries(targets []clustertypes.DomainInboundTarget, members []model.ClusterMember) []clustertypes.DomainInboundTarget {
+	if len(targets) == 0 || len(members) == 0 {
+		return targets
+	}
+	byNode := make(map[string]string, len(members))
+	for _, member := range members {
+		nodeID := strings.TrimSpace(member.NodeID)
+		if nodeID == "" {
+			continue
+		}
+		if _, exists := byNode[nodeID]; !exists {
+			byNode[nodeID] = member.CountryCode
+		}
+	}
+	for i := range targets {
+		if strings.TrimSpace(targets[i].CountryCode) != "" {
+			continue
+		}
+		if code, ok := byNode[strings.TrimSpace(targets[i].NodeID)]; ok {
+			targets[i].CountryCode = code
+		}
+	}
+	return targets
 }
 
 func (c *ClusterDomainResourceCoordinator) domainInboundCreatePayload(domain *model.ClusterDomain, input ClusterDomainInboundCommandInput) (clustertypes.DomainInboundCreatePayload, map[string]interface{}, error) {
