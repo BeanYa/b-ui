@@ -585,6 +585,11 @@ kbd,
   min-width: 0;
   min-height: 34px;
   padding: 0 12px;
+  white-space: nowrap;
+}
+
+.app-page__hero-meta-item {
+  min-width: max-content;
 }
 
 .app-page__hero-stats {
