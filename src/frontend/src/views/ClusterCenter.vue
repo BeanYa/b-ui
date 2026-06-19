@@ -418,6 +418,7 @@
                   <th>{{ $t('clusterCenter.table.panelVersion') }}</th>
                   <th>{{ $t('clusterCenter.table.status') }}</th>
                   <th>{{ $t('clusterCenter.table.latency') }}</th>
+                  <th>{{ $t('clusterCenter.table.region') }}</th>
                   <th>{{ $t('clusterCenter.table.action') }}</th>
                 </tr>
               </thead>
@@ -425,7 +426,16 @@
                 <tr v-for="member in selectedDomainMembers" :key="member.id">
                   <td>
                     <div class="cluster-center__member-node">
-                      <span>{{ member.displayName || member.name || '-' }}</span>
+                      <v-text-field
+                        :model-value="member.displayName || member.name || ''"
+                        density="compact"
+                        variant="underlined"
+                        hide-details
+                        :placeholder="$t('clusterCenter.table.displayName')"
+                        @update:model-value="(v: string) => onMemberDisplayNameInput(member, v)"
+                        @blur="commitMemberDisplayName(member)"
+                        @keydown.enter.prevent="($event.target as HTMLInputElement | null)?.blur()"
+                      />
                       <span v-if="member.isLocal" class="cluster-center__local-badge">{{ $t('clusterCenter.localNode') }}</span>
                     </div>
                   </td>
@@ -459,6 +469,10 @@
                       :style="memberLatencyStyle(member.nodeId)"
                       class="cluster-center__latency-cell"
                     >{{ memberLatency(member.nodeId) }}</span>
+                  </td>
+                  <td>
+                    <span v-if="memberCountryDisplay(member)">{{ memberCountryDisplay(member) }}</span>
+                    <span v-else>-</span>
                   </td>
                   <td>
                     <div style="display: flex; gap: 8px; align-items: center;">
@@ -1184,6 +1198,49 @@ const startPanelUpdateStatusPolling = (memberId: number) => {
   const timer = window.setTimeout(poll, 5000)
   panelUpdatePollTimers.set(memberId, timer)
 }
+
+const memberDisplayNameDrafts = ref<Record<number, string>>({})
+
+const onMemberDisplayNameInput = (member: ClusterMember, value: string) => {
+  memberDisplayNameDrafts.value = { ...memberDisplayNameDrafts.value, [member.id]: value }
+}
+
+const commitMemberDisplayName = async (member: ClusterMember) => {
+  const draft = memberDisplayNameDrafts.value[member.id]
+  if (draft === undefined) return
+  const trimmed = draft.trim()
+  const current = (member.displayName || member.name || '').trim()
+  if (trimmed === current) {
+    delete memberDisplayNameDrafts.value[member.id]
+    memberDisplayNameDrafts.value = { ...memberDisplayNameDrafts.value }
+    return
+  }
+  const msg = await HttpUtils.put(`api/cluster/members/${member.id}/display-name`, { displayName: trimmed })
+  if (msg.success) {
+    members.value = members.value.map((item) => item.id === member.id
+      ? { ...item, displayName: trimmed }
+      : item)
+    push.success({ title: i18n.global.t('success'), message: i18n.global.t('clusterCenter.table.displayNameSaved') })
+  }
+  delete memberDisplayNameDrafts.value[member.id]
+  memberDisplayNameDrafts.value = { ...memberDisplayNameDrafts.value }
+}
+
+const memberCountryDisplay = (member: ClusterMember): string => {
+  const code = (member.countryCode || '').trim()
+  if (!code) return ''
+  const flag = code.toUpperCase().replace(/./g, (c) => String.fromCodePoint(127397 + c.charCodeAt(0)))
+  let name = ''
+  try {
+    const intl = new (Intl as any).DisplayNames([i18n.global.locale?.toString() || 'en'], { type: 'region' })
+    const resolved = intl.of(code.toUpperCase())
+    name = typeof resolved === 'string' && resolved ? resolved : ''
+  } catch {
+    name = ''
+  }
+  return `${flag} ${name || code.toUpperCase()}`.trim()
+}
+
 
 const confirmPanelUpdate = async () => {
   const member = selectedPanelUpdateMember.value

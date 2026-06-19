@@ -256,6 +256,9 @@ export default {
     clashSub: "Clash подписка",
     mixedPort: "Смешанный порт",
     tun: "Tun инбоунд",
+    region: "Регион",
+    regionManual: "Ручной выбор региона",
+    regionAutoFetch: "Авто-определение региона",
   },
   clusterCenter: {
     heroKicker: "Рабочая зона кластера",

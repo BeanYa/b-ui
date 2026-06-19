@@ -274,6 +274,9 @@ export default {
     clashSub: "Clash Subscription",
     mixedPort: "Mixed Inbound Port",
     tun: "Tun Inbound",
+    region: "Region",
+    regionManual: "Manual region",
+    regionAutoFetch: "Auto-fetch region",
   },
   clusterCenter: {
     heroKicker: "Cluster Workspace",
@@ -314,6 +317,10 @@ export default {
       status: "Status",
       latency: "Latency",
       action: "Action",
+      region: "Region",
+      displayName: "Display name",
+      editDisplayName: "Edit display name",
+      displayNameSaved: "Display name saved",
     },
     actions: {
       register: "Join Domain",

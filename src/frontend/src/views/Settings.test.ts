@@ -11,3 +11,21 @@ describe('Settings subscription TLS link', () => {
     expect(source).toContain(':disabled="subTLSUsesPanel"')
   })
 })
+
+describe('Settings region field', () => {
+  it('renders a region display, manual country select, and auto-fetch button', () => {
+    expect(source).toContain(':model-value="regionDisplay"')
+    expect(source).toContain("$t('setting.regionManual')")
+    expect(source).toContain('@click="autoFetchRegion"')
+    expect(source).toContain(':loading="regionLoading"')
+  })
+
+  it('auto-fetch posts to the region fetch endpoint added in 9a', () => {
+    expect(source).toContain("'api/setting/region/fetch'")
+  })
+
+  it('builds the region display from a flag and Intl.DisplayNames name', () => {
+    expect(source).toContain('countryToFlag(regionCode.value)')
+    expect(source).toContain('DisplayNames(')
+  })
+})

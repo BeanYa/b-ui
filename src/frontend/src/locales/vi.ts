@@ -255,6 +255,9 @@ export default {
     clashSub: "Clash đăng ký",
     mixedPort: "Cổng khóa",
     tun: "Tun đăng ký",
+    region: "Khu vực",
+    regionManual: "Chọn khu vực thủ công",
+    regionAutoFetch: "Tự động lấy khu vực",
   },
   clusterCenter: {
     heroKicker: "Không gian cụm",

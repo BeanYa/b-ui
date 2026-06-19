@@ -23,6 +23,7 @@ export interface ClusterMember {
   isLocal: boolean
   panelVersion: string
   status: string
+  countryCode?: string
 }
 
 export interface ClusterMemberConnection {

@@ -195,6 +195,36 @@
 
           <section class="settings-section app-panel">
             <div class="settings-section__head">
+              <div class="settings-section__label">{{ $t('setting.region') }}</div>
+              <div class="settings-section__caption">Detected or manual region used for naming and routing hints.</div>
+            </div>
+            <v-row>
+              <v-col cols="12" sm="6" md="4">
+                <v-text-field
+                  :model-value="regionDisplay"
+                  :label="$t('setting.region')"
+                  readonly
+                  hide-details
+                />
+              </v-col>
+              <v-col cols="12" sm="6" md="4">
+                <v-select
+                  v-model="manualRegion"
+                  :items="countryItems"
+                  :label="$t('setting.regionManual')"
+                  hide-details
+                />
+              </v-col>
+              <v-col cols="12" sm="6" md="4" class="d-flex align-center">
+                <v-btn color="primary" variant="outlined" :loading="regionLoading" @click="autoFetchRegion">
+                  {{ $t('setting.regionAutoFetch') }}
+                </v-btn>
+              </v-col>
+            </v-row>
+          </section>
+
+          <section class="settings-section app-panel">
+            <div class="settings-section__head">
               <div class="settings-section__label">TLS material</div>
               <div class="settings-section__caption">Optional certificate files for a secured subscription endpoint.</div>
             </div>
@@ -238,7 +268,7 @@
 
 <script lang="ts" setup>
 import { i18n } from '@/locales'
-import { Ref, computed, inject, onMounted, ref } from 'vue'
+import { Ref, computed, inject, onMounted, ref, watch } from 'vue'
 import HttpUtils from '@/plugins/httputil'
 import { FindDiff } from '@/plugins/utils'
 import SubJsonExtVue from '@/components/SubJsonExt.vue'
@@ -250,6 +280,95 @@ const loading:Ref = inject('loading')?? ref(false)
 const oldSettings = ref({})
 const settings = ref({ ...defaultSettings })
 const subTLSLinked = ref(true)
+
+const regionCode = ref('')
+const regionName = ref('')
+const manualRegion = ref('')
+const regionLoading = ref(false)
+
+const COUNTRY_CODES: string[] = [
+  'AF','AL','DZ','AS','AD','AO','AG','AR','AM','AU','AT','AZ','BS','BH','BD','BB','BY','BE','BZ','BJ','BT','BO','BA','BW','BR','BN','BG','BF','BI','KH','CM','CA','CV','CF','TD','CL','CN','CO','KM','CG','CD','CR','CI','HR','CU','CY','CZ','DK','DJ','DM','DO','EC','EG','SV','GQ','ER','EE','ET','FJ','FI','FR','GA','GM','GE','DE','GH','GR','GD','GT','GN','GW','GY','HT','HN','HK','HU','IS','IN','ID','IR','IQ','IE','IL','IT','JM','JP','JO','KZ','KE','KI','KP','KR','KW','KG','LA','LV','LB','LS','LR','LY','LI','LT','LU','MO','MK','MG','MW','MY','MV','ML','MT','MH','MR','MU','MX','FM','MD','MC','MN','ME','MS','MA','MZ','MM','NA','NR','NP','NL','NZ','NI','NE','NG','NO','OM','PK','PW','PA','PG','PY','PE','PH','PL','PT','PR','QA','RO','RU','RW','WS','SM','ST','SA','SN','RS','SC','SL','SG','SK','SI','SB','SO','ZA','SS','ES','LK','SD','SR','SZ','SE','CH','SY','TW','TJ','TZ','TH','TL','TG','TO','TT','TN','TR','TM','TV','UG','UA','AE','GB','US','UY','UZ','VU','VA','VE','VN','YE','ZM','ZW'
+]
+
+const regionNameFor = (code: string): string => {
+  const c = (code || '').trim()
+  if (!c) return ''
+  try {
+    const intl = new (Intl as any).DisplayNames([i18n.global.locale?.toString() || 'en'], { type: 'region' })
+    const name = intl.of(c)
+    return typeof name === 'string' && name ? name : c
+  } catch {
+    return c
+  }
+}
+
+const countryToFlag = (code: string): string => {
+  const c = (code || '').toUpperCase()
+  if (!/^[A-Z]{2}$/.test(c)) return ''
+  return c.replace(/./g, (ch) => String.fromCodePoint(127397 + ch.charCodeAt(0)))
+}
+
+const countryItems = COUNTRY_CODES.map((code) => ({
+  title: `${countryToFlag(code)} ${regionNameFor(code)}`,
+  value: code,
+}))
+
+const regionDisplay = computed(() => {
+  if (!regionCode.value) return ''
+  const flag = countryToFlag(regionCode.value)
+  const name = regionName.value || regionNameFor(regionCode.value)
+  return `${flag} ${name}`.trim()
+})
+
+const applyRegionFromResponse = (obj: any) => {
+  if (!obj) return
+  const code = typeof obj.country_code === 'string' ? obj.country_code : ''
+  const name = typeof obj.country_name === 'string' ? obj.country_name : ''
+  if (code) {
+    regionCode.value = code
+    regionName.value = name || regionNameFor(code)
+  } else {
+    regionCode.value = ''
+    regionName.value = ''
+  }
+}
+
+const autoFetchRegion = async () => {
+  regionLoading.value = true
+  try {
+    const msg = await HttpUtils.post('api/setting/region/fetch', {})
+    if (msg.success) {
+      applyRegionFromResponse(msg.obj)
+      push.success({
+        title: i18n.global.t('success'),
+        duration: 5000,
+        message: i18n.global.t('setting.saved'),
+      })
+    }
+  } finally {
+    regionLoading.value = false
+  }
+}
+
+watch(manualRegion, async (next, prev) => {
+  if (!next || next === prev) return
+  regionLoading.value = true
+  try {
+    const msg = await HttpUtils.post('api/save', {
+      object: 'settings',
+      action: 'set',
+      data: JSON.stringify({ ...settings.value, regionCountryCode: next }),
+    })
+    if (msg.success) {
+      regionCode.value = next
+      regionName.value = regionNameFor(next)
+      setData(msg.obj.settings)
+    }
+  } finally {
+    regionLoading.value = false
+  }
+})
+
 
 onMounted(async () => {
   loading.value = true
@@ -271,6 +390,14 @@ const setData = (data: any) => {
   settings.value = normalized
   subTLSLinked.value = isSubTLSLinked(normalized)
   oldSettings.value = JSON.parse(JSON.stringify(normalized))
+  const code = typeof (normalized as any).regionCountryCode === 'string'
+    ? (normalized as any).regionCountryCode
+    : (data && typeof data.regionCountryCode === 'string' ? data.regionCountryCode : '')
+  if (code) {
+    regionCode.value = code
+    regionName.value = regionNameFor(code)
+    if (!manualRegion.value) manualRegion.value = code
+  }
 }
 
 const save = async () => {

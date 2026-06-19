@@ -533,4 +533,21 @@ describe('ClusterCenter view source', () => {
     expect(pingIndex).toBeGreaterThan(functionStart)
     expect(syncIndex).toBeGreaterThan(pingIndex)
   })
+
+  it('inline-edits member display name via PUT and reflects the change', () => {
+    const source = readFileSync(fileURLToPath(new URL('./ClusterCenter.vue', import.meta.url)), 'utf8')
+
+    expect(source).toContain('const commitMemberDisplayName = async (member: ClusterMember) => {')
+    expect(source).toContain('HttpUtils.put(`api/cluster/members/${member.id}/display-name`, { displayName: trimmed })')
+    expect(source).toContain('@blur="commitMemberDisplayName(member)"')
+  })
+
+  it('renders each member region from countryCode using a flag and Intl.DisplayNames name', () => {
+    const source = readFileSync(fileURLToPath(new URL('./ClusterCenter.vue', import.meta.url)), 'utf8')
+
+    expect(source).toContain('memberCountryDisplay(member)')
+    expect(source).toContain("member.countryCode")
+    expect(source).toContain('DisplayNames(')
+    expect(source).toContain('127397 + c.charCodeAt(0)')
+  })
 })

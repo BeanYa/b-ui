@@ -255,6 +255,9 @@ export default {
     clashSub: "سابسکریپشن CLASH",
     mixedPort: "ورودی Mixed",
     tun: "ورودی TUN",
+    region: "منطقه",
+    regionManual: "انتخاب دستی منطقه",
+    regionAutoFetch: "دریافت خودکار منطقه",
   },
   clusterCenter: {
     heroKicker: "فضای خوشه",

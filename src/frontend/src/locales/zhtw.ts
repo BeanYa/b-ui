@@ -268,6 +268,9 @@ export default {
     clashSub: "Clash 訂閱",
     mixedPort: "混合入站端口",
     tun: "Tun 入站",
+    region: "地區",
+    regionManual: "手動選擇地區",
+    regionAutoFetch: "自動取得地區",
   },
   clusterCenter: {
     heroKicker: "叢集工作區",
