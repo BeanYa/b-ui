@@ -297,8 +297,8 @@ func TestClusterServiceRegisterDefaultsDisplayNameFromBaseURL(t *testing.T) {
 func TestNormalizeClusterNodeAddressExtractsHost(t *testing.T) {
 	tests := map[string]string{
 		"https://target.example.com:2096/sub/": "target.example.com",
-		"target.example.com:2096/sub/":        "target.example.com",
-		"[2001:db8::1]:2096":                  "2001:db8::1",
+		"target.example.com:2096/sub/":         "target.example.com",
+		"[2001:db8::1]:2096":                   "2001:db8::1",
 	}
 
 	for input, want := range tests {
@@ -880,6 +880,42 @@ func TestClusterServiceListMembersIncludesPanelVersionAndStatus(t *testing.T) {
 	}
 	if payload[0]["status"] != "offline" {
 		t.Fatalf("expected status in member payload, got %#v", payload[0])
+	}
+}
+
+func TestClusterServiceListMembersIncludesCountryCode(t *testing.T) {
+	store := &stubClusterServiceStore{
+		members: map[string]*model.ClusterMember{
+			serviceMemberKey(1, "node-peer"): {
+				Id:          8,
+				NodeID:      "node-peer",
+				DomainID:    1,
+				CountryCode: "JP",
+			},
+		},
+	}
+	service := &ClusterService{
+		localIdentity: ClusterLocalIdentityService{store: &stubClusterLocalNodeStore{node: &model.ClusterLocalNode{NodeID: "node-local"}}},
+		store:         store,
+	}
+
+	members, err := service.ListMembers()
+	if err != nil {
+		t.Fatalf("list cluster members: %v", err)
+	}
+	encoded, err := json.Marshal(members)
+	if err != nil {
+		t.Fatalf("marshal members: %v", err)
+	}
+	var payload []map[string]any
+	if err := json.Unmarshal(encoded, &payload); err != nil {
+		t.Fatalf("unmarshal members payload: %v", err)
+	}
+	if len(payload) != 1 {
+		t.Fatalf("expected one member payload, got %#v", payload)
+	}
+	if payload[0]["countryCode"] != "JP" {
+		t.Fatalf("expected countryCode 'JP' in member payload, got %#v", payload[0])
 	}
 }
 

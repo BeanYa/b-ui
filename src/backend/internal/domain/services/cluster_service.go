@@ -71,6 +71,7 @@ type ClusterMemberResponse struct {
 	IsLocal      bool   `json:"isLocal"`
 	PanelVersion string `json:"panelVersion"`
 	Status       string `json:"status"`
+	CountryCode  string `json:"countryCode,omitempty"`
 }
 
 type ClusterMemberConnectionResponse struct {
@@ -625,7 +626,7 @@ func (s *ClusterService) ListMembers() ([]ClusterMemberResponse, error) {
 	}
 	response := make([]ClusterMemberResponse, 0, len(members))
 	for _, member := range members {
-		response = append(response, ClusterMemberResponse{ID: member.Id, DomainID: member.DomainID, NodeID: member.NodeID, Name: member.Name, DisplayName: member.DisplayName, Address: member.Address, BaseURL: member.BaseURL, LastVersion: member.LastVersion, IsLocal: member.NodeID == localIdentity.NodeID, PanelVersion: member.PanelVersion, Status: member.Status})
+		response = append(response, ClusterMemberResponse{ID: member.Id, DomainID: member.DomainID, NodeID: member.NodeID, Name: member.Name, DisplayName: member.DisplayName, Address: member.Address, BaseURL: member.BaseURL, LastVersion: member.LastVersion, IsLocal: member.NodeID == localIdentity.NodeID, PanelVersion: member.PanelVersion, Status: member.Status, CountryCode: member.CountryCode})
 	}
 	return response, nil
 }
@@ -960,6 +961,7 @@ func (s *ClusterService) UpdateMemberDisplayName(id uint, displayName string) (*
 		IsLocal:      member.NodeID == localIdentity.NodeID,
 		PanelVersion: member.PanelVersion,
 		Status:       member.Status,
+		CountryCode:  member.CountryCode,
 	}, nil
 }
 
