@@ -23,6 +23,7 @@ import (
 	clustertypes "github.com/BeanYa/b-ui/src/backend/internal/domain/services/cluster/types"
 	database "github.com/BeanYa/b-ui/src/backend/internal/infra/db"
 	"github.com/BeanYa/b-ui/src/backend/internal/infra/db/model"
+	logger "github.com/BeanYa/b-ui/src/backend/internal/infra/logging"
 	"github.com/gofrs/uuid/v5"
 )
 
@@ -938,12 +939,14 @@ func (s *ClusterService) UpdateMemberDisplayName(id uint, displayName string) (*
 	// Propagate the display-name edit to the member's inbound slugs/remarks.
 	// Only the local node's groups exist on this b-ui instance; remote members
 	// are retagged by their own panels when they apply the sync report.
-	if local, lidErr := s.localIdentity.GetOrCreate(); lidErr == nil && local != nil && local.NodeID == member.NodeID {
-		_ = s.newDomainInboundService().retagAffectedGroups(context.Background(), *member)
-	}
 	localIdentity, err := s.localIdentity.GetOrCreate()
 	if err != nil {
 		return nil, err
+	}
+	if localIdentity != nil && localIdentity.NodeID == member.NodeID {
+		if err := s.newDomainInboundService().retagAffectedGroups(context.Background(), *member); err != nil {
+			logger.Warning("retag member inbound groups after display-name edit failed:", err)
+		}
 	}
 	return &ClusterMemberResponse{
 		ID:           member.Id,

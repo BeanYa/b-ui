@@ -15,6 +15,7 @@ import (
 	clustertypes "github.com/BeanYa/b-ui/src/backend/internal/domain/services/cluster/types"
 	database "github.com/BeanYa/b-ui/src/backend/internal/infra/db"
 	"github.com/BeanYa/b-ui/src/backend/internal/infra/db/model"
+	logger "github.com/BeanYa/b-ui/src/backend/internal/infra/logging"
 	"golang.zx2c4.com/wireguard/wgctrl/wgtypes"
 	"gorm.io/gorm"
 )
@@ -354,14 +355,14 @@ func (s *ClusterDomainInboundService) ApplyDomainInboundUpdate(ctx context.Conte
 		}
 		now := s.now()
 		updates := map[string]interface{}{
-			"request_id":      payload.RequestID,
-			"prefix":          payload.Prefix,
-			"suffix":          payload.Suffix,
+			"request_id":       payload.RequestID,
+			"prefix":           payload.Prefix,
+			"suffix":           payload.Suffix,
 			"include_protocol": payload.IncludeProtocol,
 			"include_security": payload.IncludeSecurity,
 			"include_flag":     payload.IncludeFlag,
-			"template":        strings.TrimSpace(payload.TLSTemplate),
-			"updated_at":      now,
+			"template":         strings.TrimSpace(payload.TLSTemplate),
+			"updated_at":       now,
 		}
 		if source = strings.TrimSpace(source); source != "" {
 			updates["member_id"] = source
@@ -1313,7 +1314,12 @@ func (s *ClusterDomainInboundService) RetagAllDomainInbounds(ctx context.Context
 		}
 		for _, g := range groups {
 			if err := s.retagGroup(tx, g); err != nil {
-				return err
+				// A single group retag failure (e.g. a unique-tag collision when
+				// two groups compute the same slug) must not abort the whole batch.
+				// Log and continue; the collision is a misconfiguration surfaced to
+				// operators, not a fatal migration error.
+				logger.Warning("retag group skipped (inbound ", g.InboundID, ", group ", g.GroupID, "): ", err)
+				continue
 			}
 		}
 		return nil
@@ -1341,7 +1347,10 @@ func (s *ClusterDomainInboundService) retagAffectedGroups(ctx context.Context, m
 		}
 		for _, g := range groups {
 			if err := s.retagGroup(tx, g); err != nil {
-				return err
+				// Continue-on-error per group so a unique-tag collision on one
+				// group doesn't block the member's other inbounds.
+				logger.Warning("retag affected group skipped (inbound ", g.InboundID, ", group ", g.GroupID, "): ", err)
+				continue
 			}
 		}
 		return nil

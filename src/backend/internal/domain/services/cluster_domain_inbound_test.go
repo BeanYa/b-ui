@@ -11,6 +11,8 @@ import (
 	clustertypes "github.com/BeanYa/b-ui/src/backend/internal/domain/services/cluster/types"
 	database "github.com/BeanYa/b-ui/src/backend/internal/infra/db"
 	"github.com/BeanYa/b-ui/src/backend/internal/infra/db/model"
+	logger "github.com/BeanYa/b-ui/src/backend/internal/infra/logging"
+	"github.com/op/go-logging"
 	"gorm.io/gorm"
 )
 
@@ -1785,4 +1787,88 @@ func TestRetagIsIdempotent(t *testing.T) {
 	if third.Tag != second.Tag {
 		t.Fatalf("affected retag diverged: third=%q second=%q", third.Tag, second.Tag)
 	}
+}
+
+// TestRetagContinuesOnTagCollision proves the continue-on-error contract: when
+// two ClusterInbound rows on the same member share protocol+tlsTemplate+
+// displayName, their slugs collide on the Inbound.Tag unique index. The second
+// group's Updates fails, but RetagAllDomainInbounds must return nil (a collision
+// is a misconfiguration, not a fatal migration error) and the first group's tag
+// must still be written — i.e. the batch is not aborted.
+func TestRetagContinuesOnTagCollision(t *testing.T) {
+	// The continue-on-error path calls logger.Warning; initialize the global
+	// logger so it does not panic on a nil receiver (matches the pattern in
+	// http/api/cluster_test.go).
+	logger.InitLogger(logging.ERROR)
+	db := initClusterInboundTestDB(t)
+
+	member := model.ClusterMember{NodeID: "node-us", DisplayName: "NYC Edge", CountryCode: "US", DomainID: 1}
+	if err := db.Create(&member).Error; err != nil {
+		t.Fatalf("seed member: %v", err)
+	}
+
+	// Two distinct Inbounds (InboundID is unique) that resolve to identical
+	// protocol + tls template + member, so BuildInboundSlug yields the same tag.
+	firstInbound := model.Inbound{Type: "vmess", Tag: "legacy-first"}
+	if err := db.Create(&firstInbound).Error; err != nil {
+		t.Fatalf("seed first inbound: %v", err)
+	}
+	secondInbound := model.Inbound{Type: "vmess", Tag: "legacy-second"}
+	if err := db.Create(&secondInbound).Error; err != nil {
+		t.Fatalf("seed second inbound: %v", err)
+	}
+
+	firstGroup := model.ClusterInbound{
+		DomainID:        1,
+		NodeID:          "node-us",
+		MemberID:        "node-us",
+		GroupID:         "collide-a",
+		InboundID:       firstInbound.Id,
+		RequestID:       "req-collide-a",
+		IncludeProtocol: true,
+		IncludeSecurity: true,
+		IncludeFlag:     true,
+		Template:        "tls",
+	}
+	if err := db.Create(&firstGroup).Error; err != nil {
+		t.Fatalf("seed first group: %v", err)
+	}
+	secondGroup := model.ClusterInbound{
+		DomainID:        1,
+		NodeID:          "node-us",
+		MemberID:        "node-us",
+		GroupID:         "collide-b",
+		InboundID:       secondInbound.Id,
+		RequestID:       "req-collide-b",
+		IncludeProtocol: true,
+		IncludeSecurity: true,
+		IncludeFlag:     true,
+		Template:        "tls",
+	}
+	if err := db.Create(&secondGroup).Error; err != nil {
+		t.Fatalf("seed second group: %v", err)
+	}
+
+	svc := newRetagService(db)
+	// Must not error despite the unique-tag collision on the second group.
+	if err := svc.RetagAllDomainInbounds(context.Background()); err != nil {
+		t.Fatalf("RetagAllDomainInbounds aborted on collision: %v", err)
+	}
+
+	// At least one group's tag was updated (batch not aborted).
+	var first model.Inbound
+	if err := db.Where("id = ?", firstInbound.Id).First(&first).Error; err != nil {
+		t.Fatalf("read first: %v", err)
+	}
+	if first.Tag == "" || first.Tag == "legacy-first" {
+		t.Fatalf("first tag not updated (batch aborted?): %q", first.Tag)
+	}
+	if !strings.Contains(first.Tag, "us") {
+		t.Fatalf("first tag %q missing country slug", first.Tag)
+	}
+
+	// The colliding second inbound keeps whatever one of the two won the race;
+	// we only assert the non-colliding first group was retagged above. The
+	// contract under test is "returns nil + at least one updated", not which
+	// group wins the unique index.
 }

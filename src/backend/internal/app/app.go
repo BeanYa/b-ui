@@ -89,7 +89,8 @@ func (a *APP) runNamingRetagOnce() {
 	}
 }
 
-func (a *APP) applyStartupAdminCredentials() error {	credentials := config.GetStartupAdminCredentials()
+func (a *APP) applyStartupAdminCredentials() error {
+	credentials := config.GetStartupAdminCredentials()
 	if credentials.Username == "" && credentials.Password == "" {
 		return nil
 	}
