@@ -83,6 +83,44 @@ func TestClusterHubSyncerSyncDomainPersistsDisplayNameFromSnapshot(t *testing.T)
 	}
 }
 
+func TestClusterHubSyncerSyncDomainPresistsLocalDisplayNameWhenLocallyEdited(t *testing.T) {
+	local := newTestClusterLocalNode(t, "node-local")
+	store := &stubClusterRuntimeStore{
+		membersByDomain: map[uint][]model.ClusterMember{
+			1: {{
+				DomainID:    1,
+				NodeID:      "node-local",
+				DisplayName: "Local Edit",
+				BaseURL:     "https://node-a.test:8443/panel/",
+			}},
+		},
+	}
+	syncer := &ClusterHubSyncer{
+		client: &stubClusterRuntimeHubClient{snapshot: &ClusterHubSnapshotResponse{
+			Version: 8,
+			Members: []ClusterHubMemberResponse{{
+				NodeID:         "node-local",
+				DisplayNameAlt: "Hub Override",
+				BaseURL:        "https://node-a.test:8443/panel/",
+				PeerToken:      "peer-token-local",
+			}},
+		}},
+		store:          store,
+		secretProvider: stubClusterSecretProvider{secret: []byte("panel-secret-for-cluster-tests")},
+		localIdentity:  &ClusterLocalIdentityService{store: &stubClusterLocalNodeStore{node: local}},
+		reachability:   newTestClusterRuntimeReachabilityService(10),
+	}
+	domain := &model.ClusterDomain{Id: 1, Domain: "edge.example.com", HubURL: "https://hub.example.com", TokenEncrypted: mustEncryptClusterToken(t, "panel-secret-for-cluster-tests", "domain-token")}
+
+	if err := syncer.SyncDomain(context.Background(), domain, 8); err != nil {
+		t.Fatalf("sync domain: %v", err)
+	}
+	member := store.replaceCalls[0].members[0]
+	if member.DisplayName != "Local Edit" {
+		t.Fatalf("expected locally-edited display name to survive hub sync, got %q", member.DisplayName)
+	}
+}
+
 func TestClusterHubSyncerSyncDomainAppliesSnapshotTimeLocation(t *testing.T) {
 	local := newTestClusterLocalNode(t, "node-local")
 	store := &stubClusterRuntimeStore{}
@@ -463,7 +501,13 @@ func (s *stubClusterRuntimeStore) GetMemberByDomainNodeID(uint, string) (*model.
 	return nil, errClusterMemberNotFound
 }
 func (s *stubClusterRuntimeStore) SaveMember(*model.ClusterMember) error       { return nil }
-func (s *stubClusterRuntimeStore) ListMembers() ([]model.ClusterMember, error) { return nil, nil }
+func (s *stubClusterRuntimeStore) ListMembers() ([]model.ClusterMember, error) {
+	var all []model.ClusterMember
+	for _, members := range s.membersByDomain {
+		all = append(all, members...)
+	}
+	return all, nil
+}
 func (s *stubClusterRuntimeStore) DeleteMember(uint) error                     { return nil }
 func (s *stubClusterRuntimeStore) DeleteDomain(id uint) error {
 	s.deletedDomainID = id

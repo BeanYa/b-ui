@@ -144,6 +144,34 @@ func TestClusterDomainPanelUpdateCheckRoute(t *testing.T) {
 	}
 }
 
+func TestUpdateMemberDisplayName(t *testing.T) {
+	router, cluster := newTestClusterRouter()
+	cluster.updatedDisplayNameMember = &service.ClusterMemberResponse{ID: 7, NodeID: "node-a", DisplayName: "Tokyo Edge"}
+	body := strings.NewReader(`{"displayName":"Tokyo Edge"}`)
+	req := httptest.NewRequest(http.MethodPut, "/api/cluster/members/7/display-name", body)
+	req.Header.Set("Content-Type", "application/json")
+	req.Header.Set("Cookie", loginCookie(t, router, "admin"))
+	recorder := httptest.NewRecorder()
+
+	router.ServeHTTP(recorder, req)
+
+	if recorder.Code != http.StatusOK {
+		t.Fatalf("status=%d body=%s", recorder.Code, recorder.Body.String())
+	}
+	if cluster.updatedDisplayNameID != 7 || cluster.updatedDisplayNameValue != "Tokyo Edge" {
+		t.Fatalf("expected display name update for member 7, got id=%d value=%q", cluster.updatedDisplayNameID, cluster.updatedDisplayNameValue)
+	}
+	var response Msg
+	decodeResponse(t, recorder, &response)
+	bodyJSON, err := json.Marshal(response.Obj)
+	if err != nil {
+		t.Fatalf("marshal member response: %v", err)
+	}
+	if !bytes.Contains(bodyJSON, []byte(`"displayName":"Tokyo Edge"`)) {
+		t.Fatalf("expected forwarded display name in response, got %s", bodyJSON)
+	}
+}
+
 func TestClusterMemberPanelUpdateRoute(t *testing.T) {
 	router, cluster := newTestClusterRouter()
 	req := httptest.NewRequest(http.MethodPost, "/api/cluster/members/8/panel-update", bytes.NewBufferString(`{"targetVersion":"v999.0.0"}`))
@@ -915,6 +943,9 @@ type stubClusterAPIService struct {
 	checkedDomainID             uint
 	updatedMemberID             uint
 	updatedTargetVersion        string
+	updatedDisplayNameID        uint
+	updatedDisplayNameValue     string
+	updatedDisplayNameMember    *service.ClusterMemberResponse
 	receivedToken               string
 	receivedEnvelope            *service.ClusterEnvelope
 	receivedPeerMessage         *service.PeerMessage
@@ -1033,6 +1064,15 @@ func (s *stubClusterAPIService) RequestMemberPanelUpdate(id uint, targetVersion 
 		Status:        "updating",
 		UpdateStarted: true,
 	}, nil
+}
+
+func (s *stubClusterAPIService) UpdateMemberDisplayName(id uint, displayName string) (*service.ClusterMemberResponse, error) {
+	s.updatedDisplayNameID = id
+	s.updatedDisplayNameValue = displayName
+	if s.updatedDisplayNameMember != nil {
+		return s.updatedDisplayNameMember, nil
+	}
+	return &service.ClusterMemberResponse{ID: id, DisplayName: displayName}, nil
 }
 
 func (s *stubClusterAPIService) CreateDomainInboundResource(_ context.Context, domainID uint, input service.ClusterDomainInboundCommandInput) (*service.ClusterDomainOperationView, error) {

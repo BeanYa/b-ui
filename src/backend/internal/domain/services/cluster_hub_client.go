@@ -190,7 +190,10 @@ func (m ClusterHubMemberResponse) EffectiveAddress() string {
 	return normalizeClusterNodeAddress(m.EffectiveBaseURL())
 }
 
-func (m ClusterHubMemberResponse) EffectiveDisplayName() string {
+func (m ClusterHubMemberResponse) EffectiveDisplayName(existingDisplayName string) string {
+	if strings.TrimSpace(existingDisplayName) != "" {
+		return existingDisplayName
+	}
 	if m.DisplayName != "" {
 		return m.DisplayName
 	}

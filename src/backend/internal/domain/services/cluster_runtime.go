@@ -133,7 +133,7 @@ func (s *ClusterHubSyncer) SyncDomain(ctx context.Context, domain *model.Cluster
 		member := model.ClusterMember{
 			NodeID:             item.EffectiveNodeID(),
 			Name:               item.Name,
-			DisplayName:        item.EffectiveDisplayName(),
+			DisplayName:        item.EffectiveDisplayName(""),
 			Address:            item.EffectiveAddress(),
 			BaseURL:            item.EffectiveBaseURL(),
 			PublicKey:          item.EffectivePublicKey(),
@@ -147,9 +147,9 @@ func (s *ClusterHubSyncer) SyncDomain(ctx context.Context, domain *model.Cluster
 			if item.EffectivePanelVersion() == "" && existing.PanelVersion != "" {
 				member.PanelVersion = existing.PanelVersion
 			}
-			if item.EffectiveDisplayName() == "" && existing.DisplayName != "" {
-				member.DisplayName = existing.DisplayName
-			}
+			// Local DisplayName is authoritative: only adopt the hub value
+			// when the operator has not set one locally.
+			member.DisplayName = item.EffectiveDisplayName(existing.DisplayName)
 			if strings.TrimSpace(item.Status) == "" && existing.Status != "" {
 				member.Status = existing.Status
 			}

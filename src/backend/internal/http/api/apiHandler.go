@@ -58,6 +58,7 @@ func (a *APIHandler) initRouter(g *gin.RouterGroup) {
 	g.PUT("/cluster/domains/:id/resources/users/:uuid", a.updateClusterDomainUserResource)
 	g.DELETE("/cluster/domains/:id/resources/users/:uuid", a.deleteClusterDomainUserResource)
 	g.POST("/cluster/members/:id/panel-update", a.requestClusterMemberPanelUpdate)
+	g.PUT("/cluster/members/:id/display-name", a.updateClusterMemberDisplayName)
 	g.POST("/cluster/domain-operations/:operationId/retry", a.retryClusterDomainOperation)
 	g.GET("/cluster/domains/:id/tasks", a.listClusterScatterTasks)
 	g.POST("/cluster/domains/:id/tasks", a.createClusterScatterTask)

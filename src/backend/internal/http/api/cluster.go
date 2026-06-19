@@ -30,6 +30,7 @@ type clusterAPIService interface {
 	ManualSync() (*service.ClusterOperationStatus, error)
 	CheckDomainPanelUpdate(uint) (*service.ClusterPanelUpdateCheckResult, error)
 	RequestMemberPanelUpdate(uint, string) (*service.ClusterPanelMemberUpdateResult, error)
+	UpdateMemberDisplayName(uint, string) (*service.ClusterMemberResponse, error)
 	ListDomainResources(context.Context, uint) (service.ClusterHubDomainResources, error)
 	CreateDomainInboundResource(context.Context, uint, service.ClusterDomainInboundCommandInput) (*service.ClusterDomainOperationView, error)
 	UpdateDomainInboundResource(context.Context, uint, string, service.ClusterDomainInboundCommandInput) (*service.ClusterDomainOperationView, error)
@@ -185,6 +186,26 @@ func (a *APIHandler) requestClusterMemberPanelUpdate(c *gin.Context) {
 		return
 	}
 	result, err := a.clusterService.RequestMemberPanelUpdate(uint(id), strings.TrimSpace(request.TargetVersion))
+	jsonObj(c, result, err)
+}
+
+func (a *APIHandler) updateClusterMemberDisplayName(c *gin.Context) {
+	if !a.requireClusterAdmin(c) {
+		return
+	}
+	id, err := strconv.ParseUint(c.Param("id"), 10, 64)
+	if err != nil {
+		jsonMsg(c, "cluster member display name", err)
+		return
+	}
+	var request struct {
+		DisplayName string `json:"displayName"`
+	}
+	if err := c.ShouldBindJSON(&request); err != nil {
+		jsonMsg(c, "cluster member display name", err)
+		return
+	}
+	result, err := a.clusterService.UpdateMemberDisplayName(uint(id), request.DisplayName)
 	jsonObj(c, result, err)
 }
 

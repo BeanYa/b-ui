@@ -341,7 +341,7 @@ func (s *ClusterService) Register(request ClusterRegisterRequest) (*ClusterOpera
 		member := model.ClusterMember{
 			NodeID:             item.EffectiveNodeID(),
 			Name:               item.Name,
-			DisplayName:        item.EffectiveDisplayName(),
+			DisplayName:        item.EffectiveDisplayName(""),
 			Address:            item.EffectiveAddress(),
 			BaseURL:            item.EffectiveBaseURL(),
 			PublicKey:          item.EffectivePublicKey(),
@@ -915,6 +915,37 @@ func (s *ClusterService) RequestMemberPanelUpdate(id uint, targetVersion string)
 		TargetVersion:  resolvedTarget,
 		Status:         ClusterPanelUpdateStatusUpdating,
 		UpdateStarted:  true,
+	}, nil
+}
+
+func (s *ClusterService) UpdateMemberDisplayName(id uint, displayName string) (*ClusterMemberResponse, error) {
+	displayName = strings.TrimSpace(displayName)
+	store := s.getStore()
+	member, err := store.GetMember(id)
+	if err != nil {
+		return nil, err
+	}
+	member.DisplayName = displayName
+	if err := store.SaveMember(member); err != nil {
+		return nil, err
+	}
+	// TODO(Task 7): trigger retag of affected groups
+	localIdentity, err := s.localIdentity.GetOrCreate()
+	if err != nil {
+		return nil, err
+	}
+	return &ClusterMemberResponse{
+		ID:           member.Id,
+		DomainID:     member.DomainID,
+		NodeID:       member.NodeID,
+		Name:         member.Name,
+		DisplayName:  member.DisplayName,
+		Address:      member.Address,
+		BaseURL:      member.BaseURL,
+		LastVersion:  member.LastVersion,
+		IsLocal:      member.NodeID == localIdentity.NodeID,
+		PanelVersion: member.PanelVersion,
+		Status:       member.Status,
 	}, nil
 }
 
