@@ -52,8 +52,9 @@ describe('domain resources API', () => {
     const operation = await createDomainInboundResource(7, {
       group_id: 'group-1',
       tag_seed: 'edge-main',
-      prefix: 'edge',
-      suffix: 'prod',
+      include_protocol: true,
+      include_security: true,
+      include_flag: true,
       inbound: {
         tag: 'main',
         type: 'vless',
@@ -78,8 +79,9 @@ describe('domain resources API', () => {
       {
         group_id: 'group-1',
         tag_seed: 'edge-main',
-        prefix: 'edge',
-        suffix: 'prod',
+        include_protocol: true,
+        include_security: true,
+        include_flag: true,
         inbound: {
           tag: 'main',
           type: 'vless',
@@ -195,7 +197,7 @@ describe('domain resources API', () => {
       data: { success: true, msg: '', obj: { operationId: 'op-3', status: 'applied' } },
     })
 
-    await updateDomainInboundResource(7, 'group-1', { group_id: 'ignored', inbound: { tag: 'updated' } })
+    await updateDomainInboundResource(7, 'group-1', { group_id: 'ignored', include_protocol: true, include_security: true, include_flag: true, inbound: { tag: 'updated' } })
     await deleteDomainInboundResource(7, 'group-1')
     await updateDomainUserResource(7, 'user-1', {
       user: {
@@ -210,7 +212,7 @@ describe('domain resources API', () => {
 
     expect(api.put).toHaveBeenCalledWith(
       'api/cluster/domains/7/resources/inbounds/group-1',
-      { group_id: 'ignored', inbound: { tag: 'updated' } },
+      { group_id: 'ignored', include_protocol: true, include_security: true, include_flag: true, inbound: { tag: 'updated' } },
       { headers: { 'Content-Type': 'application/json' } },
     )
     expect(api.delete).toHaveBeenCalledWith(

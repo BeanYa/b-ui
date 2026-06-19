@@ -38,8 +38,9 @@ export interface DomainResourceOperationInstanceView {
 export interface DomainResourceInboundView {
   group_id: string
   tag_seed?: string
-  prefix?: string
-  suffix?: string
+  include_protocol?: boolean
+  include_security?: boolean
+  include_flag?: boolean
   type?: string
   tls_template?: string
   options_json?: string
@@ -128,8 +129,9 @@ export interface CreateDomainInboundResourcePayload {
     remote_inbound_id?: number
     domain_inbound_request_id?: string
   }[]
-  prefix?: string
-  suffix?: string
+  include_protocol: boolean
+  include_security: boolean
+  include_flag: boolean
   inbound: Record<string, unknown>
   tls_template?: string
   tls?: {

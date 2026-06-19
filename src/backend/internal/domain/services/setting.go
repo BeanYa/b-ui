@@ -1,6 +1,7 @@
 package service
 
 import (
+	"context"
 	"encoding/json"
 	"os"
 	"strconv"
@@ -74,6 +75,15 @@ var defaultValueMap = map[string]string{
 }
 
 type SettingService struct {
+	geoip *GeoIPService
+}
+
+// WithGeoIP injects the GeoIPService used by FetchRegion. When unset,
+// FetchRegion lazily constructs a default service, so callers constructed
+// via the zero value (SettingService{}) keep working.
+func (s *SettingService) WithGeoIP(geoip *GeoIPService) *SettingService {
+	s.geoip = geoip
+	return s
 }
 
 func (s *SettingService) GetAllSetting() (*map[string]string, error) {
@@ -421,6 +431,23 @@ func (s *SettingService) SetRegion(code, name string) error {
 		return err
 	}
 	return s.setString("regionName", name)
+}
+
+// FetchRegion resolves this server's own public-IP region via GeoIPService and
+// persists it through SetRegion, returning the resolved country code and name.
+func (s *SettingService) FetchRegion(ctx context.Context) (string, string, error) {
+	geoip := s.geoip
+	if geoip == nil {
+		geoip = NewGeoIPService(nil)
+	}
+	code, name, err := geoip.ResolveSelf(ctx)
+	if err != nil {
+		return "", "", err
+	}
+	if err := s.SetRegion(code, name); err != nil {
+		return "", "", err
+	}
+	return code, name, nil
 }
 
 func (s *SettingService) GetSubCertFile() (string, error) {

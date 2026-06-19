@@ -22,13 +22,17 @@
 
       <v-row>
         <v-col cols="12" md="4">
-          <v-text-field v-model="prefix" :label="$t('clusterCenter.domainResources.prefix')" hide-details />
-        </v-col>
-        <v-col cols="12" md="4">
           <v-text-field v-model="tagSeed" :label="$t('clusterCenter.domainResources.tagSeed')" hide-details />
         </v-col>
-        <v-col cols="12" md="4">
-          <v-text-field v-model="suffix" :label="$t('clusterCenter.domainResources.suffix')" hide-details />
+        <v-col cols="12" md="8" class="d-flex align-center gap-2">
+          <v-switch v-model="includeProtocol" :label="$t('clusterCenter.domainResources.includeProtocol')" hide-details density="compact" />
+          <v-switch v-model="includeSecurity" :label="$t('clusterCenter.domainResources.includeSecurity')" hide-details density="compact" />
+          <v-switch v-model="includeFlag" :label="$t('clusterCenter.domainResources.includeFlag')" hide-details density="compact" />
+        </v-col>
+      </v-row>
+      <v-row>
+        <v-col cols="12">
+          <div class="text-caption">{{ $t('clusterCenter.domainResources.preview') }}: <strong>{{ namingPreview }}</strong></div>
         </v-col>
       </v-row>
 
@@ -205,8 +209,9 @@ const emit = defineEmits<{
 
 const groupId = ref('')
 const tagSeed = ref('')
-const prefix = ref('domain')
-const suffix = ref('')
+const includeProtocol = ref(true)
+const includeSecurity = ref(true)
+const includeFlag = ref(true)
 const inbound = ref<Inbound>(createInbound(InTypes.VLESS, { id: 0, tag: '', listen: '::', listen_port: 443 }))
 const listenPortSource = ref<'auto' | 'manual'>('auto')
 const manualListenPort = ref(443)
@@ -261,6 +266,50 @@ const targetMemberItems = computed(() => (props.members ?? [])
     title: targetMemberLabel(member),
     value: member.nodeId,
   })))
+
+const sampleCountryCode = computed(() => {
+  const fromMember = (props.members ?? [])
+    .find((member) => (member as any).countryCode && String((member as any).countryCode).trim())
+  return fromMember ? String((fromMember as any).countryCode) : 'JP'
+})
+
+const sampleDisplayName = computed(() => {
+  const firstSelected = (props.members ?? []).find((member) =>
+    selectedTargetNodeIds.value.includes(member.nodeId))
+  const name = firstSelected
+    ? (firstSelected.displayName || firstSelected.name || firstSelected.nodeId)
+    : ''
+  return name.trim() || 'Mynode'
+})
+
+const namingPreview = computed(() => {
+  const segs: string[] = []
+  const country = sampleCountryCode.value || 'JP'
+  if (includeFlag.value) segs.push(countryToFlag(country))
+  if (includeProtocol.value) segs.push(titleCase(inbound.value.type))
+  if (includeSecurity.value) {
+    const label = securityLabel(hasTls.value ? tlsTemplate.value : 'none')
+    if (label) segs.push(label)
+  }
+  segs.push(sampleDisplayName.value || 'Mynode')
+  return segs.filter(Boolean).join(' ')
+})
+
+function countryToFlag(code: string): string {
+  return (code || '').toUpperCase().replace(/./g, (c) => String.fromCodePoint(127397 + c.charCodeAt(0)))
+}
+function titleCase(s: string): string {
+  const t = (s || '').toLowerCase()
+  return t ? t[0].toUpperCase() + t.slice(1) : ''
+}
+function securityLabel(tpl: string): string {
+  switch ((tpl || '').toLowerCase()) {
+    case 'reality': return 'Reality'
+    case 'hysteria2': return 'Hy2'
+    case 'standard': case 'standard-cert': return 'TLS'
+    default: return ''
+  }
+}
 
 const tlsTemplateItems = computed(() => [
   { title: i18n.global.t('none').toString(), value: 'none' },
@@ -318,8 +367,9 @@ const resetForm = () => {
   const domainPart = sanitizeDomainResourcePart(props.domain.domain, `domain-${props.domain.id}`)
   groupId.value = `domain-${props.domain.id}`
   tagSeed.value = domainPart
-  prefix.value = 'domain'
-  suffix.value = ''
+  includeProtocol.value = true
+  includeSecurity.value = true
+  includeFlag.value = true
   inbound.value = createInbound(InTypes.VLESS, {
     id: 0,
     tag: domainPart,
@@ -349,8 +399,9 @@ const applyInitialResource = (resource: DomainResourceInboundView) => {
 
   groupId.value = trimmedGroupId
   tagSeed.value = seed
-  prefix.value = String(resource.prefix ?? 'domain').trim()
-  suffix.value = String(resource.suffix ?? '').trim()
+  includeProtocol.value = resource.include_protocol ?? true
+  includeSecurity.value = resource.include_security ?? true
+  includeFlag.value = resource.include_flag ?? true
   inbound.value = createInbound(resourceType as any, {
     id: 0,
     tag: firstTargetTag || seed || trimmedGroupId,
@@ -489,8 +540,9 @@ const submit = () => {
   const payload: CreateDomainInboundResourcePayload = {
     group_id: trimmedGroupId,
     tag_seed: tagSeed.value.trim() || trimmedGroupId,
-    prefix: prefix.value.trim(),
-    suffix: suffix.value.trim(),
+    include_protocol: includeProtocol.value,
+    include_security: includeSecurity.value,
+    include_flag: includeFlag.value,
     target_members: buildTargetMembers(),
     inbound: scrubInbound(),
     tls_template: tlsPayload.tls_template,

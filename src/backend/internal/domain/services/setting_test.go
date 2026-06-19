@@ -1,6 +1,9 @@
 package service
 
 import (
+	"context"
+	"net/http"
+	"net/http/httptest"
 	"path/filepath"
 	"reflect"
 	"strings"
@@ -67,5 +70,45 @@ func TestGetTimeLocationUsesPanelSetting(t *testing.T) {
 	}
 	if got := loc.String(); got != "Asia/Tokyo" {
 		t.Fatalf("expected panel time location Asia/Tokyo, got %q", got)
+	}
+}
+
+func TestFetchRegionPersistsResolvedRegion(t *testing.T) {
+	if err := database.InitDB(filepath.Join(t.TempDir(), "setting-fetch-region.db")); err != nil {
+		if strings.Contains(err.Error(), "go-sqlite3 requires cgo") || strings.Contains(err.Error(), "C compiler") {
+			t.Skipf("sqlite test database unavailable in this toolchain: %v", err)
+		}
+		t.Fatalf("init db: %v", err)
+	}
+
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		_, _ = w.Write([]byte(`{"status":"success","countryCode":"JP","country":"Japan"}`))
+	}))
+	defer srv.Close()
+
+	service := (&SettingService{}).WithGeoIP(NewGeoIPServiceWithURL(&http.Client{}, srv.URL))
+	if _, err := service.GetAllSetting(); err != nil {
+		t.Fatalf("init default settings: %v", err)
+	}
+
+	code, name, err := service.FetchRegion(context.Background())
+	if err != nil {
+		t.Fatalf("fetch region: %v", err)
+	}
+	if code != "JP" || name != "Japan" {
+		t.Fatalf("expected JP/Japan, got code=%q name=%q", code, name)
+	}
+
+	savedCode, err := service.GetRegion()
+	if err != nil {
+		t.Fatalf("get region after fetch: %v", err)
+	}
+	savedName, err := service.GetRegionName()
+	if err != nil {
+		t.Fatalf("get region name after fetch: %v", err)
+	}
+	if savedCode != "JP" || savedName != "Japan" {
+		t.Fatalf("expected persisted JP/Japan, got code=%q name=%q", savedCode, savedName)
 	}
 }

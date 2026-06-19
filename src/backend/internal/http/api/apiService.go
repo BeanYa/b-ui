@@ -233,6 +233,18 @@ func (a *ApiService) GetSettings(c *gin.Context) {
 	jsonObj(c, data, err)
 }
 
+// FetchRegion resolves this server's own public-IP region via GeoIPService,
+// persists it through SettingService.SetRegion, and returns the resolved
+// country code and name.
+func (a *ApiService) FetchRegion(c *gin.Context) {
+	code, name, err := a.SettingService.FetchRegion(c.Request.Context())
+	if err != nil {
+		jsonMsg(c, "region fetch failed", err)
+		return
+	}
+	jsonObj(c, gin.H{"country_code": code, "country_name": name}, nil)
+}
+
 func (a *ApiService) GetStats(c *gin.Context) {
 	resource := c.Query("resource")
 	tag := c.Query("tag")
