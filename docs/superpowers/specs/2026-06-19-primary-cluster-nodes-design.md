@@ -149,7 +149,7 @@ Existing domain/member wording should be updated carefully:
 
 ## Reliability
 
-Node reports are idempotent upserts. The child server retries transient network failures with capped backoff. The primary records last accepted sequence and last report time. A node becomes stale/offline if no report arrives within a configurable timeout.
+Node reports are idempotent upserts. The child server retries transient network failures with capped backoff. The primary records last accepted sequence and last report time. The default report interval is 3 seconds, and configurable intervals must not exceed 60 seconds. A node is displayed as offline after three missed report intervals.
 
 The first release does not need durable delivery queues for all report attempts, but tests must cover duplicate report handling, sequence regression rejection, and retry behavior at the service boundary.
 
@@ -187,6 +187,6 @@ Existing installations with Worker hub domains should not be silently converted.
 
 - First release creates a new `ClusterNode` model instead of extending `ClusterMember`.
 - Child reports run through a new dedicated report job instead of being folded into existing domain sync jobs.
-- Default report interval is 60 seconds.
-- A node is marked stale after three missed report intervals.
-- A stale node is displayed as offline after five missed report intervals.
+- Default report interval is 3 seconds.
+- Configurable report interval maximum is 60 seconds.
+- A node is displayed as offline after three missed report intervals.
