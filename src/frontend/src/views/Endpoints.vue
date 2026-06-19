@@ -1,5 +1,20 @@
 <template>
   <div class="app-page">
+    <section class="app-page__hero">
+      <div class="app-page__hero-head">
+        <div class="app-page__hero-kicker">{{ $t('pages.endpoints') }}</div>
+        <h1 class="app-page__hero-title">{{ $t('pages.endpoints') }}</h1>
+        <p class="app-page__hero-copy">
+          Define reusable local endpoints such as WireGuard and Tailscale surfaces, then attach them to services, routes, and traffic visibility.
+        </p>
+        <div class="app-page__hero-meta">
+          <span class="app-page__hero-meta-item">{{ endpoints.length }} endpoints</span>
+          <span class="app-page__hero-meta-item">{{ onlineEndpointCount }} online</span>
+          <span class="app-page__hero-meta-item">{{ peerCount }} peers</span>
+        </div>
+      </div>
+    </section>
+
     <EndpointVue 
       v-model="modal.visible"
       :visible="modal.visible"
@@ -126,6 +141,9 @@ const endpointTags = computed((): any[] => {
 const onlines = computed(() => {
   return [...Data().onlines.inbound?? [], ...Data().onlines.outbound??[] ]
 })
+
+const onlineEndpointCount = computed(() => endpoints.value.filter((endpoint) => onlines.value.includes(endpoint.tag)).length)
+const peerCount = computed(() => endpoints.value.reduce((total, endpoint: any) => total + (endpoint.peers?.length ?? 0), 0))
 
 const modal = ref({
   visible: false,

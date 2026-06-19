@@ -1,5 +1,20 @@
 <template>
   <div class="app-page">
+    <section class="app-page__hero">
+      <div class="app-page__hero-head">
+        <div class="app-page__hero-kicker">{{ $t('pages.rules') }}</div>
+        <h1 class="app-page__hero-title">{{ $t('pages.rules') }}</h1>
+        <p class="app-page__hero-copy">
+          Shape routing decisions with rule cards, reusable rulesets, default outbound behavior, and import tools for larger policy lists.
+        </p>
+        <div class="app-page__hero-meta">
+          <span class="app-page__hero-meta-item">{{ rules.length }} rules</span>
+          <span class="app-page__hero-meta-item">{{ rulesets.length }} rulesets</span>
+          <span class="app-page__hero-meta-item">{{ outboundTags.length }} outbounds</span>
+        </div>
+      </div>
+    </section>
+
     <RuleVue
       v-model="ruleModal.visible"
       :visible="ruleModal.visible"

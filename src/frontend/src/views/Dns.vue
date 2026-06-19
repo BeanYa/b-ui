@@ -1,5 +1,20 @@
 <template>
   <div class="app-page">
+    <section class="app-page__hero">
+      <div class="app-page__hero-head">
+        <div class="app-page__hero-kicker">{{ $t('pages.dns') }}</div>
+        <h1 class="app-page__hero-title">{{ $t('pages.dns') }}</h1>
+        <p class="app-page__hero-copy">
+          Build DNS resolution behavior with upstream server cards, rule matching, cache controls, domain strategy, and routing-aware detours.
+        </p>
+        <div class="app-page__hero-meta">
+          <span class="app-page__hero-meta-item">{{ dns.servers?.length ?? 0 }} servers</span>
+          <span class="app-page__hero-meta-item">{{ dns.rules?.length ?? 0 }} rules</span>
+          <span class="app-page__hero-meta-item">{{ ruleSets.length }} rulesets</span>
+        </div>
+      </div>
+    </section>
+
     <DnsVue
       v-model="dnsModal.visible"
       :visible="dnsModal.visible"

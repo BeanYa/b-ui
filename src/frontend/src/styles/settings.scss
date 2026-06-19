@@ -517,8 +517,13 @@ kbd,
 .app-page__hero {
   display: grid;
   gap: 18px;
-  grid-template-columns: minmax(0, 1fr) minmax(420px, 560px);
+  grid-template-columns: minmax(0, 1fr) minmax(0, clamp(300px, 32vw, 560px));
   padding: 22px;
+  width: 100%;
+}
+
+.app-page__hero:not(:has(.app-page__hero-side)) {
+  grid-template-columns: minmax(0, 1fr);
 }
 
 .app-page__hero-head,
@@ -577,6 +582,7 @@ kbd,
   font-size: 12px;
   font-weight: 600;
   gap: 8px;
+  min-width: 0;
   min-height: 34px;
   padding: 0 12px;
 }
@@ -593,6 +599,7 @@ kbd,
   border: 1px solid var(--app-border-1);
   border-radius: 18px;
   min-height: 88px;
+  min-width: 0;
   padding: 14px;
 }
 
@@ -1034,6 +1041,10 @@ kbd,
     width: 100%;
   }
 
+  .app-page__hero-meta-item {
+    flex: 1 1 calc(50% - 8px);
+  }
+
   .app-entity-card__text > .v-row > .v-col:last-child {
     text-align: left;
   }
@@ -1055,6 +1066,10 @@ kbd,
 
   .app-page__hero-meta {
     gap: 8px;
+  }
+
+  .app-page__hero-meta-item {
+    flex-basis: 100%;
   }
 
   .app-page__hero-stat {

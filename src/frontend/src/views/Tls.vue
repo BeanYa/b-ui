@@ -1,5 +1,20 @@
 <template>
   <div class="app-page">
+    <section class="app-page__hero">
+      <div class="app-page__hero-head">
+        <div class="app-page__hero-kicker">{{ $t('pages.tls') }}</div>
+        <h1 class="app-page__hero-title">{{ $t('pages.tls') }}</h1>
+        <p class="app-page__hero-copy">
+          Manage certificate profiles, ACME material, Reality and ECH options, plus built-in presets that can be attached to inbound listeners.
+        </p>
+        <div class="app-page__hero-meta">
+          <span class="app-page__hero-meta-item">{{ tlsConfigs.length }} profiles</span>
+          <span class="app-page__hero-meta-item">{{ presetItems.length }} presets</span>
+          <span class="app-page__hero-meta-item">{{ managedTlsCount }} hub managed</span>
+        </div>
+      </div>
+    </section>
+
     <TlsVue 
       v-model="modal.visible"
       :visible="modal.visible"
@@ -135,6 +150,7 @@ const tlsInbounds = (id: number): string[] => {
   return inbounds.value.filter(i => i.tls_id == id).map(i => i.tag)  
 }
 const isClusterManaged = (item: any): boolean => item?.cluster_managed === true || item?.cluster_read_only === true
+const managedTlsCount = computed(() => tlsConfigs.value.filter(isClusterManaged).length)
 
 const modal = ref({
   visible: false,

@@ -1,5 +1,20 @@
 <template>
   <div class="app-page">
+    <section class="app-page__hero">
+      <div class="app-page__hero-head">
+        <div class="app-page__hero-kicker">{{ $t('pages.services') }}</div>
+        <h1 class="app-page__hero-title">{{ $t('pages.services') }}</h1>
+        <p class="app-page__hero-copy">
+          Compose higher-level service listeners from inbound tags, endpoint surfaces, Shadowsocks helpers, and TLS profiles.
+        </p>
+        <div class="app-page__hero-meta">
+          <span class="app-page__hero-meta-item">{{ services.length }} services</span>
+          <span class="app-page__hero-meta-item">{{ inTags.length }} bindable inputs</span>
+          <span class="app-page__hero-meta-item">{{ tlsConfigs.length }} TLS profiles</span>
+        </div>
+      </div>
+    </section>
+
     <ServiceVue 
       v-model="modal.visible"
       :visible="modal.visible"

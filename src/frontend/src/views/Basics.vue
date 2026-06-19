@@ -1,5 +1,20 @@
 <template>
   <div class="app-page">
+    <section class="app-page__hero">
+      <div class="app-page__hero-head">
+        <div class="app-page__hero-kicker">{{ $t('pages.basics') }}</div>
+        <h1 class="app-page__hero-title">{{ $t('pages.basics') }}</h1>
+        <p class="app-page__hero-copy">
+          Tune the base Sing-box runtime configuration: logging, time sync, experimental cache behavior, DNS-independent route defaults, and transport-wide options.
+        </p>
+        <div class="app-page__hero-meta">
+          <span class="app-page__hero-meta-item">Runtime config</span>
+          <span class="app-page__hero-meta-item">Log and NTP</span>
+          <span class="app-page__hero-meta-item">Experimental options</span>
+        </div>
+      </div>
+    </section>
+
     <v-row class="app-page__toolbar">
       <v-col cols="12">
         <div class="app-page__toolbar-actions app-toolbar-cluster">

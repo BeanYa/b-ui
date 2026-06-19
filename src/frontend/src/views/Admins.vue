@@ -1,5 +1,20 @@
 <template>
   <div class="app-page">
+    <section class="app-page__hero">
+      <div class="app-page__hero-head">
+        <div class="app-page__hero-kicker">{{ $t('pages.admins') }}</div>
+        <h1 class="app-page__hero-title">{{ $t('pages.admins') }}</h1>
+        <p class="app-page__hero-copy">
+          Review administrator access, edit credentials, inspect account change history, and manage API token access from one audit surface.
+        </p>
+        <div class="app-page__hero-meta">
+          <span class="app-page__hero-meta-item">{{ users.length }} administrators</span>
+          <span class="app-page__hero-meta-item">{{ $t('admin.changes') }}</span>
+          <span class="app-page__hero-meta-item">{{ $t('admin.api.token') }}</span>
+        </div>
+      </div>
+    </section>
+
     <AdminModal 
       v-model="editModal.visible"
       :visible="editModal.visible"
