@@ -100,6 +100,15 @@ describe('ClusterCenter view source', () => {
     expect(source).not.toContain('v-data-table')
   })
 
+  it('keeps the cluster center hero content inside the intro card', () => {
+    const source = readFileSync(fileURLToPath(new URL('./ClusterCenter.vue', import.meta.url)), 'utf8')
+
+    expect(source).toContain('class="app-page__hero cluster-center__hero"')
+    expect(source).toContain('.cluster-center__hero {')
+    expect(source).toContain('min-height: max-content;')
+    expect(source).toContain('overflow: visible;')
+  })
+
   it('renders refresh as a distinct secondary toolbar button instead of a plain text action', () => {
     const source = readFileSync(fileURLToPath(new URL('./ClusterCenter.vue', import.meta.url)), 'utf8')
 

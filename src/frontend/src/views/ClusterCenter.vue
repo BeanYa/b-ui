@@ -1,6 +1,6 @@
 <template>
   <div class="app-page">
-    <section class="app-page__hero">
+    <section class="app-page__hero cluster-center__hero">
       <div class="app-page__hero-head">
         <div class="app-page__hero-kicker">{{ $t('clusterCenter.heroKicker') }}</div>
         <h1 class="app-page__hero-title">{{ $t('pages.clusterCenter') }}</h1>
@@ -2163,6 +2163,11 @@ function formatAutoPingTime(): string {
 </script>
 
 <style scoped>
+.cluster-center__hero {
+  min-height: max-content;
+  overflow: visible;
+}
+
 .cluster-center__actions {
   display: flex;
   flex-wrap: wrap;
