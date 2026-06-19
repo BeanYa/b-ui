@@ -23,7 +23,7 @@ ChartJS.register(
   Title,
   Filler
 )
-ChartJS.defaults.font.family = 'Inter Variable'
+ChartJS.defaults.font.family = "var(--app-font-mono)"
 export default {
   components: {
     Line

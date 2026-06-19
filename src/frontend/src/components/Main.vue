@@ -1200,7 +1200,7 @@ onBeforeUnmount(() => {
 }
 
 .panel-update__log {
-  font-family: 'Geist Mono Variable', monospace;
+  font-family: var(--app-font-mono);
   font-size: 12px;
   line-height: 1.55;
   margin: 0;
@@ -1434,7 +1434,7 @@ onBeforeUnmount(() => {
 }
 
 .probe-ring__value {
-  font-family: 'Geist Mono Variable', monospace;
+  font-family: var(--app-font-mono);
   font-size: 24px;
   font-weight: 700;
   line-height: 1;
@@ -1492,7 +1492,7 @@ onBeforeUnmount(() => {
 }
 
 .probe-stream__meta strong {
-  font-family: 'Geist Mono Variable', monospace;
+  font-family: var(--app-font-mono);
   font-size: 12px;
 }
 
@@ -1560,7 +1560,7 @@ onBeforeUnmount(() => {
 
 .probe-card__traffic-item strong {
   color: var(--app-text-1);
-  font-family: 'Geist Mono Variable', monospace;
+  font-family: var(--app-font-mono);
   font-size: 15px;
   font-weight: 600;
   line-height: 1.2;

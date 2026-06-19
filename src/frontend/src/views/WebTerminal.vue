@@ -316,7 +316,7 @@ onMounted(() => {
   const currentTerminal = new Terminal({
     convertEol: false,
     cursorBlink: true,
-    fontFamily: 'Geist Mono Variable, monospace',
+    fontFamily: 'var(--app-font-mono)',
     fontSize: 15,
     lineHeight: 1.35,
     theme: {
@@ -418,7 +418,7 @@ onBeforeUnmount(() => {
 }
 
 .web-terminal__status {
-  font-family: 'Geist Mono Variable', monospace;
+  font-family: var(--app-font-mono);
 }
 
 .web-terminal__transcript {

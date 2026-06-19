@@ -523,7 +523,7 @@ const isActiveTheme = (th: string) => {
 .login-console__top strong {
   color: var(--login-text);
   flex: none;
-  font-family: 'Geist Mono Variable', monospace;
+  font-family: var(--app-font-mono);
   font-size: 13px;
 }
 
@@ -750,7 +750,7 @@ const isActiveTheme = (th: string) => {
   border-top: 1px solid var(--login-field-border);
   color: var(--login-text-muted);
   display: flex;
-  font-family: 'Geist Mono Variable', monospace;
+  font-family: var(--app-font-mono);
   font-size: 11px;
   gap: 12px;
   justify-content: space-between;

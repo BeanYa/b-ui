@@ -85,7 +85,7 @@ export default {
 <style scoped>
 .app-code-lines span {
   display: block;
-  font-family: 'Geist Mono Variable', monospace;
+  font-family: var(--app-font-mono);
   height: 1.5em;
   line-height: 1.5;
 }
@@ -97,7 +97,7 @@ export default {
 }
 
 :deep(.app-code-textarea .v-field__input) {
-  font-family: 'Geist Mono Variable', monospace !important;
+  font-family: var(--app-font-mono) !important;
   font-size: 13px !important;
   line-height: 1.5 !important;
   mask-image: inherit;

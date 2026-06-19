@@ -109,7 +109,7 @@ const gaugeColor = computed(() => {
   justify-content: center;
   padding-bottom: 25%;
   box-sizing: border-box;
-  font-family: 'Geist Mono Variable', monospace;
+  font-family: var(--app-font-mono);
   font-weight: 700;
   font-size: clamp(17px, 1.6vw, 24px);
   line-height: 1;
