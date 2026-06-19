@@ -271,6 +271,7 @@ export default {
     region: "地區",
     regionManual: "手動選擇地區",
     regionAutoFetch: "自動取得地區",
+    regionCaption: "偵測或手動地區，用於命名與路由提示。",
   },
   clusterCenter: {
     heroKicker: "叢集工作區",

@@ -277,6 +277,7 @@ export default {
     region: "Region",
     regionManual: "Manual region",
     regionAutoFetch: "Auto-fetch region",
+    regionCaption: "Detected or manual region used for naming and routing hints.",
   },
   clusterCenter: {
     heroKicker: "Cluster Workspace",

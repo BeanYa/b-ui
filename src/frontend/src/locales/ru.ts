@@ -259,6 +259,7 @@ export default {
     region: "Регион",
     regionManual: "Ручной выбор региона",
     regionAutoFetch: "Авто-определение региона",
+    regionCaption: "Обнаруженный или ручной регион для подсказок именования и маршрутизации.",
   },
   clusterCenter: {
     heroKicker: "Рабочая зона кластера",

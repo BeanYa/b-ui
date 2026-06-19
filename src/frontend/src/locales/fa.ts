@@ -258,6 +258,7 @@ export default {
     region: "منطقه",
     regionManual: "انتخاب دستی منطقه",
     regionAutoFetch: "دریافت خودکار منطقه",
+    regionCaption: "منطقهٔ شناسایی‌شده یا دستی برای راهنمای نام‌گذاری و مسیریابی.",
   },
   clusterCenter: {
     heroKicker: "فضای خوشه",

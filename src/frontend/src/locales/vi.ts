@@ -258,6 +258,7 @@ export default {
     region: "Khu vực",
     regionManual: "Chọn khu vực thủ công",
     regionAutoFetch: "Tự động lấy khu vực",
+    regionCaption: "Khu vực tự phát hiện hoặc thủ công dùng cho gợi ý đặt tên và định tuyến.",
   },
   clusterCenter: {
     heroKicker: "Không gian cụm",
