@@ -523,15 +523,21 @@ describe('ClusterCenter view source', () => {
     expect(source).not.toContain('el.scrollTop = 0')
   })
 
-  it('refreshes cluster member state after Ping All finishes', () => {
+  it('refreshes local member data after Ping All without triggering a destructive hub re-sync', () => {
     const source = readFileSync(fileURLToPath(new URL('./ClusterCenter.vue', import.meta.url)), 'utf8')
     const functionStart = source.indexOf('async function pingAllDomainMembers()')
-    const pingIndex = source.indexOf('await pingStore.triggerMeshPingStream', functionStart)
-    const syncIndex = source.indexOf('await syncClusterState()', pingIndex)
-
     expect(functionStart).toBeGreaterThan(-1)
+    const pingIndex = source.indexOf('await pingStore.triggerMeshPingStream', functionStart)
     expect(pingIndex).toBeGreaterThan(functionStart)
-    expect(syncIndex).toBeGreaterThan(pingIndex)
+
+    const functionEnd = source.indexOf('const pingSettingsDialog', pingIndex)
+    const functionBody = source.slice(functionStart, functionEnd)
+    // Ping All must refresh local data only. A forced hub re-sync
+    // (syncClusterState -> ManualSync -> SyncDomain) can delete the local
+    // domain mirror when the hub snapshot no longer lists this node, which
+    // empties the member list in a way the Refresh button cannot restore.
+    expect(functionBody).toContain('await loadData()')
+    expect(functionBody).not.toContain('await syncClusterState()')
   })
 
   it('inline-edits member display name via PUT and reflects the change', () => {

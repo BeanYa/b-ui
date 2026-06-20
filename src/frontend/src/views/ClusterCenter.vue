@@ -2167,8 +2167,12 @@ async function pingAllDomainMembers() {
   } catch {
     // error handled by store
   } finally {
+    // Refresh local member data only. Do NOT trigger a full hub re-sync
+    // (syncClusterState -> ManualSync -> SyncDomain): that can delete the
+    // local domain mirror when the hub snapshot no longer lists this node,
+    // emptying the member list in a way the Refresh button cannot restore.
     try {
-      await syncClusterState()
+      await loadData()
     } catch {
       // refresh errors are surfaced by the shared HTTP layer
     }
