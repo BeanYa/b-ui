@@ -12,6 +12,7 @@ import (
 	"runtime"
 	"strconv"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/BeanYa/b-ui/src/backend/internal/domain/config"
@@ -476,7 +477,53 @@ func resolvePanelUpdateLatestVersion(state *PanelUpdateState, fetchLatest func()
 	return fetchLatest()
 }
 
+var latestReleaseCache = struct {
+	sync.Mutex
+	tag       string
+	err       error
+	fetchedAt time.Time
+}{}
+
+const (
+	latestReleaseSuccessTTL = 30 * time.Minute
+	latestReleaseErrorTTL   = 5 * time.Minute
+)
+
+// fetchLatestReleaseTag returns the cached latest release tag when fresh, so the
+// unauthenticated GitHub API (60 req/h/IP) isn't hit on every status poll —
+// panel-update status, cluster-center update-check, and sync all converge here.
+// Success caches 30m; errors back off 5m so a rate-limit (403) doesn't trigger a
+// flood of retries.
 func fetchLatestReleaseTag() (string, error) {
+	latestReleaseCache.Lock()
+	if tag, err, ok := readCachedLatest(latestReleaseCache.fetchedAt, latestReleaseCache.tag, latestReleaseCache.err); ok {
+		latestReleaseCache.Unlock()
+		return tag, err
+	}
+	latestReleaseCache.Unlock()
+
+	tag, err := fetchLatestReleaseTagFromGitHub()
+
+	latestReleaseCache.Lock()
+	latestReleaseCache.tag = tag
+	latestReleaseCache.err = err
+	latestReleaseCache.fetchedAt = time.Now()
+	latestReleaseCache.Unlock()
+
+	return tag, err
+}
+
+func readCachedLatest(fetchedAt time.Time, tag string, err error) (string, error, bool) {
+	if err == nil && tag != "" && time.Since(fetchedAt) < latestReleaseSuccessTTL {
+		return tag, nil, true
+	}
+	if err != nil && time.Since(fetchedAt) < latestReleaseErrorTTL {
+		return "", err, true
+	}
+	return "", nil, false
+}
+
+func fetchLatestReleaseTagFromGitHub() (string, error) {
 	client := &http.Client{Timeout: 10 * time.Second}
 	latestURL := fmt.Sprintf("https://api.github.com/repos/%s/%s/releases/latest", panelUpdateRepoOwner, panelUpdateRepoName)
 	listURL := fmt.Sprintf("https://api.github.com/repos/%s/%s/releases?per_page=20", panelUpdateRepoOwner, panelUpdateRepoName)
