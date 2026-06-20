@@ -1,0 +1,1 @@
+import{a as e}from"./c3815e4dd706aebe12.js";export{e as remotePanelPartial};
