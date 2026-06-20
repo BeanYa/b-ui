@@ -39,21 +39,38 @@ describe('Main dashboard source', () => {
     expect(source).toContain('HumanReadable.sizeFormat(tilesData.value.net?.recv)')
   })
 
-  it('fills each desktop overview card with column flex content', () => {
+  it('keeps the summary map and runtime sections as flexible columns inside the home summary grid', () => {
     const source = readFileSync(fileURLToPath(new URL('./Main.vue', import.meta.url)), 'utf8')
-    const cssRule = (selector: string) => {
+    const cssRules = (selector: string) => {
       const escapedSelector = selector.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
-      return source.match(new RegExp(`${escapedSelector} \\{[\\s\\S]*?\\n\\}`))?.[0] ?? ''
+      const rulePattern = new RegExp(`(?:^|\\n)([^{}]*${escapedSelector}[^{}]*) \\{[\\s\\S]*?\\n\\}`, 'g')
+      const rules = [...source.matchAll(rulePattern)].map(match => match[0])
+      return rules.filter((rule) => rule
+        .slice(0, rule.indexOf('{'))
+        .split(',')
+        .some(part => part.trim() === selector))
     }
+    const cssRule = (selector: string) => cssRules(selector)[0] ?? ''
+    const selectorHasDeclaration = (selector: string, declaration: string) =>
+      cssRules(selector).some(rule => rule.includes(declaration))
 
+    expect(source).toContain('<div class="home-summary">')
+    expect(source).toContain('<section class="home-summary__map">')
+    expect(source).toContain('<section class="home-summary__runtime">')
     expect(cssRule('.home-panel')).toContain('display: flex')
     expect(cssRule('.home-panel')).toContain('flex-direction: column')
     expect(cssRule('.home-panel')).toContain('height: 100%')
-    expect(cssRule('.home-panel--map')).toContain('display: flex')
-    expect(cssRule('.home-panel--runtime')).toContain('display: flex')
-    expect(cssRule('.overview-grid')).toContain('flex: 1 1 auto')
-    expect(cssRule('.overview-grid__item')).toContain('flex: 1 1 calc(50% - 5px)')
-    expect(cssRule('.probe-card__streams')).toContain('flex: 1 1 auto')
+    expect(cssRule('.home-summary')).toContain('display: grid')
+    expect(cssRule('.home-summary')).toContain('grid-template-columns: minmax(320px, 1.08fr) minmax(300px, 0.9fr) minmax(430px, 1.28fr)')
+    expect(cssRule('.home-summary__map')).toContain('display: flex')
+    expect(cssRule('.home-summary__map')).toContain('flex-direction: column')
+    expect(cssRule('.home-summary__runtime')).toContain('display: flex')
+    expect(cssRule('.home-summary__runtime')).toContain('flex-direction: column')
+    expect(cssRule('.overview-grid')).toContain('display: grid')
+    expect(cssRule('.overview-grid')).toContain('grid-template-columns: repeat(auto-fit, minmax(min(100%, 128px), 1fr))')
+    expect(cssRule('.overview-grid__item')).toContain('display: flex')
+    expect(cssRule('.overview-grid__item')).toContain('flex-direction: column')
+    expect(selectorHasDeclaration('.probe-card__streams', 'flex: 1 1 auto')).toBe(true)
     expect(cssRule('.probe-stream')).toContain('flex: 1 1 0')
   })
 })

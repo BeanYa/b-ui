@@ -184,12 +184,58 @@ describe('shared design consistency', () => {
 
   it('stacks the home overview above full-width telemetry instead of splitting the page into side columns', () => {
     const main = readSource('../../components/Main.vue')
+    const cssRules = (source: string, selector: string) => {
+      const escapedSelector = selector.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
+      const rulePattern = new RegExp(`(?:^|\\n)([^{}]*${escapedSelector}[^{}]*) \\{[\\s\\S]*?\\n\\}`, 'g')
+      const rules = [...source.matchAll(rulePattern)].map(match => match[0])
+      return rules.filter((rule) => rule
+        .slice(0, rule.indexOf('{'))
+        .split(',')
+        .some(part => part.trim() === selector))
+    }
+    const cssRule = (source: string, selector: string) => cssRules(source, selector)[0] ?? ''
+    const mediaSource = (maxWidth: number) => {
+      const mediaStart = main.indexOf(`@media (max-width: ${maxWidth}px) {`)
 
-    expect(main).toContain('grid-template-areas:')
-    expect(main).toContain('\'hero map runtime\'')
-    expect(main).toContain('grid-template-columns: minmax(380px, 1.15fr) minmax(260px, 0.75fr) minmax(330px, 0.95fr)')
+      expect(mediaStart).toBeGreaterThan(-1)
+      const nextMediaStart = main.indexOf('\n@media', mediaStart + 1)
+      return main.slice(mediaStart, nextMediaStart === -1 ? main.length : nextMediaStart)
+    }
+    const mediaRule = (maxWidth: number, selector: string) => {
+      return cssRule(mediaSource(maxWidth), selector)
+    }
+    const mediaRules = (maxWidth: number, selector: string) => cssRules(mediaSource(maxWidth), selector)
+
+    expect(main).toContain('<section class="control-canvas">')
+    expect(main).toContain('<v-card class="home-panel home-panel--summary">')
+    expect(main).toContain('<div class="home-summary">')
+    expect(main).toContain('<section class="home-summary__hero">')
+    expect(main).toContain('<section class="home-summary__map">')
+    expect(main).toContain('<section class="home-summary__runtime">')
     expect(main).toContain('.dashboard-shell__tiles')
+    expect(cssRule(main, '.dashboard-shell')).toContain('display: grid')
+    expect(cssRule(main, '.dashboard-shell')).toContain('padding: 0')
+    expect(cssRule(main, '.control-canvas')).toContain('padding: clamp(18px, 2.2vw, 30px) clamp(18px, 2.2vw, 30px) 0')
+    expect(cssRule(main, '.home-summary')).toContain('display: grid')
+    expect(cssRule(main, '.home-summary')).toContain('grid-template-columns: minmax(320px, 1.08fr) minmax(300px, 0.9fr) minmax(430px, 1.28fr)')
+    expect(cssRule(main, '.home-summary__hero')).toContain('display: flex')
+    expect(cssRule(main, '.home-summary__map')).toContain('display: flex')
+    expect(cssRule(main, '.home-summary__runtime')).toContain('display: flex')
+    expect(cssRule(main, '.dashboard-shell__tiles')).toContain('display: grid')
     expect(main).toContain('padding: 0 clamp(18px, 2.2vw, 30px) clamp(18px, 2.2vw, 30px)')
+    expect(mediaRule(1380, '.home-summary')).toContain('grid-template-columns: repeat(2, minmax(0, 1fr))')
+    expect(mediaRule(1380, '.home-summary__hero')).toContain('grid-column: 1 / -1')
+    expect(mediaRule(1380, '.home-summary__map')).toContain('border-left: 0')
+    expect(mediaRule(960, '.home-summary')).toContain('grid-template-columns: minmax(0, 1fr)')
+    expect(mediaRule(960, '.home-summary__hero')).toContain('border-left: 0')
+    expect(mediaRule(960, '.home-summary__runtime')).toContain('padding: 0')
+    expect(mediaRules(960, '.home-summary__map').some(rule =>
+      rule.includes('border-bottom: 1px solid color-mix(in srgb, var(--app-border-1) 70%, transparent)')
+    )).toBe(true)
+    expect(mediaRule(960, '.dashboard-shell__tiles')).toContain('padding: 16px')
+    expect(mediaRule(520, '.overview-grid')).toContain('grid-template-columns: 1fr')
+    expect(main).not.toContain('grid-template-areas:')
+    expect(main).not.toContain('\'hero map runtime\'')
     expect(main).not.toContain('display: flex;\n  flex: 1 1 auto;\n  padding: 0;')
   })
 })
