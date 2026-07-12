@@ -8,6 +8,7 @@ const (
 	ExternalSubDir               = "external"
 	ConfigFile                   = "config.json"
 	ResultsFile                  = "results.json"
+	TargetCatalogFile            = "targets.json"
 	DefaultTCPPort               = 80
 	DefaultPingCount             = 5
 	DefaultPingTimeout           = 2 // seconds
@@ -58,6 +59,8 @@ type ExternalEndpoint struct {
 	Country  string   `json:"country,omitempty"`
 	City     string   `json:"city,omitempty"`
 	Network  string   `json:"network,omitempty"`
+	Group    string   `json:"group,omitempty"`
+	Level    string   `json:"level,omitempty"`
 	Host     string   `json:"host,omitempty"`
 	Port     int      `json:"port,omitempty"`
 	Methods  []string `json:"methods,omitempty"`

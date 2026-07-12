@@ -14,6 +14,10 @@ func NewStore() *Store {
 	return &Store{dataDir: DataDir}
 }
 
+func NewStoreWithDataDir(dataDir string) *Store {
+	return &Store{dataDir: dataDir}
+}
+
 func (s *Store) meshDir() string {
 	return filepath.Join(s.dataDir, MeshSubDir)
 }
@@ -32,6 +36,10 @@ func (s *Store) configPath() string {
 
 func (s *Store) resultsPath() string {
 	return filepath.Join(s.externalDir(), ResultsFile)
+}
+
+func (s *Store) targetCatalogPath() string {
+	return filepath.Join(s.externalDir(), TargetCatalogFile)
 }
 
 func (s *Store) SaveMeshResult(result *MeshResult) error {
@@ -85,6 +93,21 @@ func (s *Store) LoadExternalResults() (*ExternalResultData, error) {
 		return nil, err
 	}
 	return &data, nil
+}
+
+func (s *Store) SaveExternalTargetCatalog(catalog *ExternalTargetCatalog) error {
+	if err := os.MkdirAll(s.externalDir(), 0755); err != nil {
+		return err
+	}
+	return writeJSON(s.targetCatalogPath(), catalog)
+}
+
+func (s *Store) LoadExternalTargetCatalog() (*ExternalTargetCatalog, error) {
+	var catalog ExternalTargetCatalog
+	if err := readJSON(s.targetCatalogPath(), &catalog); err != nil {
+		return nil, err
+	}
+	return &catalog, nil
 }
 
 func writeJSON(path string, v interface{}) error {

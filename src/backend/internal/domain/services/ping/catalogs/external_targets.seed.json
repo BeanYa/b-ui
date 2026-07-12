@@ -1,0 +1,5311 @@
+{
+  "updated_at": 1781751746,
+  "providers": [
+    {
+      "provider_id": "zstatic_cdn",
+      "provider_name": "ZStaticCDN",
+      "updated_at": 1781751746,
+      "targets": [
+        {
+          "id": "zstatic_cdn:ah-anqing-cu-v4",
+          "label": "安徽安庆联通",
+          "provider": "zstatic_cdn",
+          "region": "安徽",
+          "country": "CN",
+          "city": "安庆",
+          "network": "China Unicom",
+          "group": "安徽 / 安庆",
+          "level": "city",
+          "host": "ah-anqing-cu-v4.ip.zstaticcdn.com",
+          "port": 443,
+          "methods": [
+            "tcp"
+          ]
+        },
+        {
+          "id": "zstatic_cdn:ah-bengbu-cu-v4",
+          "label": "安徽蚌埠联通",
+          "provider": "zstatic_cdn",
+          "region": "安徽",
+          "country": "CN",
+          "city": "蚌埠",
+          "network": "China Unicom",
+          "group": "安徽 / 蚌埠",
+          "level": "city",
+          "host": "ah-bengbu-cu-v4.ip.zstaticcdn.com",
+          "port": 443,
+          "methods": [
+            "tcp"
+          ]
+        },
+        {
+          "id": "zstatic_cdn:ah-bozhou-cu-v4",
+          "label": "安徽亳州联通",
+          "provider": "zstatic_cdn",
+          "region": "安徽",
+          "country": "CN",
+          "city": "亳州",
+          "network": "China Unicom",
+          "group": "安徽 / 亳州",
+          "level": "city",
+          "host": "ah-bozhou-cu-v4.ip.zstaticcdn.com",
+          "port": 443,
+          "methods": [
+            "tcp"
+          ]
+        },
+        {
+          "id": "zstatic_cdn:ah-cm-v4",
+          "label": "安徽移动",
+          "provider": "zstatic_cdn",
+          "region": "安徽",
+          "country": "CN",
+          "network": "China Mobile",
+          "group": "安徽",
+          "level": "province",
+          "host": "ah-cm-v4.ip.zstaticcdn.com",
+          "port": 80,
+          "methods": [
+            "tcp"
+          ]
+        },
+        {
+          "id": "zstatic_cdn:ah-ct-v4",
+          "label": "安徽电信",
+          "provider": "zstatic_cdn",
+          "region": "安徽",
+          "country": "CN",
+          "network": "China Telecom",
+          "group": "安徽",
+          "level": "province",
+          "host": "ah-ct-v4.ip.zstaticcdn.com",
+          "port": 80,
+          "methods": [
+            "tcp"
+          ]
+        },
+        {
+          "id": "zstatic_cdn:ah-cu-v4",
+          "label": "安徽联通",
+          "provider": "zstatic_cdn",
+          "region": "安徽",
+          "country": "CN",
+          "network": "China Unicom",
+          "group": "安徽",
+          "level": "province",
+          "host": "ah-cu-v4.ip.zstaticcdn.com",
+          "port": 80,
+          "methods": [
+            "tcp"
+          ]
+        },
+        {
+          "id": "zstatic_cdn:ah-hefei-cm-v4",
+          "label": "安徽合肥移动",
+          "provider": "zstatic_cdn",
+          "region": "安徽",
+          "country": "CN",
+          "city": "合肥",
+          "network": "China Mobile",
+          "group": "安徽 / 合肥",
+          "level": "city",
+          "host": "ah-hefei-cm-v4.ip.zstaticcdn.com",
+          "port": 443,
+          "methods": [
+            "tcp"
+          ]
+        },
+        {
+          "id": "zstatic_cdn:ah-hefei-ct-v4",
+          "label": "安徽合肥电信",
+          "provider": "zstatic_cdn",
+          "region": "安徽",
+          "country": "CN",
+          "city": "合肥",
+          "network": "China Telecom",
+          "group": "安徽 / 合肥",
+          "level": "city",
+          "host": "ah-hefei-ct-v4.ip.zstaticcdn.com",
+          "port": 443,
+          "methods": [
+            "tcp"
+          ]
+        },
+        {
+          "id": "zstatic_cdn:ah-hefei-cu-v4",
+          "label": "安徽合肥联通",
+          "provider": "zstatic_cdn",
+          "region": "安徽",
+          "country": "CN",
+          "city": "合肥",
+          "network": "China Unicom",
+          "group": "安徽 / 合肥",
+          "level": "city",
+          "host": "ah-hefei-cu-v4.ip.zstaticcdn.com",
+          "port": 443,
+          "methods": [
+            "tcp"
+          ]
+        },
+        {
+          "id": "zstatic_cdn:ah-suzhou-cu-v4",
+          "label": "安徽宿州联通",
+          "provider": "zstatic_cdn",
+          "region": "安徽",
+          "country": "CN",
+          "city": "宿州",
+          "network": "China Unicom",
+          "group": "安徽 / 宿州",
+          "level": "city",
+          "host": "ah-suzhou-cu-v4.ip.zstaticcdn.com",
+          "port": 443,
+          "methods": [
+            "tcp"
+          ]
+        },
+        {
+          "id": "zstatic_cdn:ah-wuhu-ct-v4",
+          "label": "安徽芜湖电信",
+          "provider": "zstatic_cdn",
+          "region": "安徽",
+          "country": "CN",
+          "city": "芜湖",
+          "network": "China Telecom",
+          "group": "安徽 / 芜湖",
+          "level": "city",
+          "host": "ah-wuhu-ct-v4.ip.zstaticcdn.com",
+          "port": 443,
+          "methods": [
+            "tcp"
+          ]
+        },
+        {
+          "id": "zstatic_cdn:bj-cm-v4",
+          "label": "北京移动",
+          "provider": "zstatic_cdn",
+          "region": "北京",
+          "country": "CN",
+          "network": "China Mobile",
+          "group": "北京",
+          "level": "province",
+          "host": "bj-cm-v4.ip.zstaticcdn.com",
+          "port": 80,
+          "methods": [
+            "tcp"
+          ]
+        },
+        {
+          "id": "zstatic_cdn:bj-ct-v4",
+          "label": "北京电信",
+          "provider": "zstatic_cdn",
+          "region": "北京",
+          "country": "CN",
+          "network": "China Telecom",
+          "group": "北京",
+          "level": "province",
+          "host": "bj-ct-v4.ip.zstaticcdn.com",
+          "port": 80,
+          "methods": [
+            "tcp"
+          ]
+        },
+        {
+          "id": "zstatic_cdn:bj-cu-v4",
+          "label": "北京联通",
+          "provider": "zstatic_cdn",
+          "region": "北京",
+          "country": "CN",
+          "network": "China Unicom",
+          "group": "北京",
+          "level": "province",
+          "host": "bj-cu-v4.ip.zstaticcdn.com",
+          "port": 80,
+          "methods": [
+            "tcp"
+          ]
+        },
+        {
+          "id": "zstatic_cdn:cq-cm-v4",
+          "label": "重庆移动",
+          "provider": "zstatic_cdn",
+          "region": "重庆",
+          "country": "CN",
+          "network": "China Mobile",
+          "group": "重庆",
+          "level": "province",
+          "host": "cq-cm-v4.ip.zstaticcdn.com",
+          "port": 80,
+          "methods": [
+            "tcp"
+          ]
+        },
+        {
+          "id": "zstatic_cdn:cq-ct-v4",
+          "label": "重庆电信",
+          "provider": "zstatic_cdn",
+          "region": "重庆",
+          "country": "CN",
+          "network": "China Telecom",
+          "group": "重庆",
+          "level": "province",
+          "host": "cq-ct-v4.ip.zstaticcdn.com",
+          "port": 80,
+          "methods": [
+            "tcp"
+          ]
+        },
+        {
+          "id": "zstatic_cdn:cq-cu-v4",
+          "label": "重庆联通",
+          "provider": "zstatic_cdn",
+          "region": "重庆",
+          "country": "CN",
+          "network": "China Unicom",
+          "group": "重庆",
+          "level": "province",
+          "host": "cq-cu-v4.ip.zstaticcdn.com",
+          "port": 80,
+          "methods": [
+            "tcp"
+          ]
+        },
+        {
+          "id": "zstatic_cdn:fj-cm-v4",
+          "label": "福建移动",
+          "provider": "zstatic_cdn",
+          "region": "福建",
+          "country": "CN",
+          "network": "China Mobile",
+          "group": "福建",
+          "level": "province",
+          "host": "fj-cm-v4.ip.zstaticcdn.com",
+          "port": 80,
+          "methods": [
+            "tcp"
+          ]
+        },
+        {
+          "id": "zstatic_cdn:fj-ct-v4",
+          "label": "福建电信",
+          "provider": "zstatic_cdn",
+          "region": "福建",
+          "country": "CN",
+          "network": "China Telecom",
+          "group": "福建",
+          "level": "province",
+          "host": "fj-ct-v4.ip.zstaticcdn.com",
+          "port": 80,
+          "methods": [
+            "tcp"
+          ]
+        },
+        {
+          "id": "zstatic_cdn:fj-cu-v4",
+          "label": "福建联通",
+          "provider": "zstatic_cdn",
+          "region": "福建",
+          "country": "CN",
+          "network": "China Unicom",
+          "group": "福建",
+          "level": "province",
+          "host": "fj-cu-v4.ip.zstaticcdn.com",
+          "port": 80,
+          "methods": [
+            "tcp"
+          ]
+        },
+        {
+          "id": "zstatic_cdn:fj-fuzhou-ct-v4",
+          "label": "福建福州电信",
+          "provider": "zstatic_cdn",
+          "region": "福建",
+          "country": "CN",
+          "city": "福州",
+          "network": "China Telecom",
+          "group": "福建 / 福州",
+          "level": "city",
+          "host": "fj-fuzhou-ct-v4.ip.zstaticcdn.com",
+          "port": 443,
+          "methods": [
+            "tcp"
+          ]
+        },
+        {
+          "id": "zstatic_cdn:fj-longyan-cu-v4",
+          "label": "福建龙岩联通",
+          "provider": "zstatic_cdn",
+          "region": "福建",
+          "country": "CN",
+          "city": "龙岩",
+          "network": "China Unicom",
+          "group": "福建 / 龙岩",
+          "level": "city",
+          "host": "fj-longyan-cu-v4.ip.zstaticcdn.com",
+          "port": 443,
+          "methods": [
+            "tcp"
+          ]
+        },
+        {
+          "id": "zstatic_cdn:fj-nanping-cu-v4",
+          "label": "福建南平联通",
+          "provider": "zstatic_cdn",
+          "region": "福建",
+          "country": "CN",
+          "city": "南平",
+          "network": "China Unicom",
+          "group": "福建 / 南平",
+          "level": "city",
+          "host": "fj-nanping-cu-v4.ip.zstaticcdn.com",
+          "port": 443,
+          "methods": [
+            "tcp"
+          ]
+        },
+        {
+          "id": "zstatic_cdn:fj-ningde-cu-v4",
+          "label": "福建宁德联通",
+          "provider": "zstatic_cdn",
+          "region": "福建",
+          "country": "CN",
+          "city": "宁德",
+          "network": "China Unicom",
+          "group": "福建 / 宁德",
+          "level": "city",
+          "host": "fj-ningde-cu-v4.ip.zstaticcdn.com",
+          "port": 443,
+          "methods": [
+            "tcp"
+          ]
+        },
+        {
+          "id": "zstatic_cdn:fj-putian-cu-v4",
+          "label": "福建莆田联通",
+          "provider": "zstatic_cdn",
+          "region": "福建",
+          "country": "CN",
+          "city": "莆田",
+          "network": "China Unicom",
+          "group": "福建 / 莆田",
+          "level": "city",
+          "host": "fj-putian-cu-v4.ip.zstaticcdn.com",
+          "port": 443,
+          "methods": [
+            "tcp"
+          ]
+        },
+        {
+          "id": "zstatic_cdn:fj-quanzhou-cu-v4",
+          "label": "福建泉州联通",
+          "provider": "zstatic_cdn",
+          "region": "福建",
+          "country": "CN",
+          "city": "泉州",
+          "network": "China Unicom",
+          "group": "福建 / 泉州",
+          "level": "city",
+          "host": "fj-quanzhou-cu-v4.ip.zstaticcdn.com",
+          "port": 443,
+          "methods": [
+            "tcp"
+          ]
+        },
+        {
+          "id": "zstatic_cdn:fj-sanming-cu-v4",
+          "label": "福建三明联通",
+          "provider": "zstatic_cdn",
+          "region": "福建",
+          "country": "CN",
+          "city": "三明",
+          "network": "China Unicom",
+          "group": "福建 / 三明",
+          "level": "city",
+          "host": "fj-sanming-cu-v4.ip.zstaticcdn.com",
+          "port": 443,
+          "methods": [
+            "tcp"
+          ]
+        },
+        {
+          "id": "zstatic_cdn:fj-xiamen-cu-v4",
+          "label": "福建厦门联通",
+          "provider": "zstatic_cdn",
+          "region": "福建",
+          "country": "CN",
+          "city": "厦门",
+          "network": "China Unicom",
+          "group": "福建 / 厦门",
+          "level": "city",
+          "host": "fj-xiamen-cu-v4.ip.zstaticcdn.com",
+          "port": 443,
+          "methods": [
+            "tcp"
+          ]
+        },
+        {
+          "id": "zstatic_cdn:fj-zhangzhou-cu-v4",
+          "label": "福建漳州联通",
+          "provider": "zstatic_cdn",
+          "region": "福建",
+          "country": "CN",
+          "city": "漳州",
+          "network": "China Unicom",
+          "group": "福建 / 漳州",
+          "level": "city",
+          "host": "fj-zhangzhou-cu-v4.ip.zstaticcdn.com",
+          "port": 443,
+          "methods": [
+            "tcp"
+          ]
+        },
+        {
+          "id": "zstatic_cdn:gd-chaozhou-cu-v4",
+          "label": "广东潮州联通",
+          "provider": "zstatic_cdn",
+          "region": "广东",
+          "country": "CN",
+          "city": "潮州",
+          "network": "China Unicom",
+          "group": "广东 / 潮州",
+          "level": "city",
+          "host": "gd-chaozhou-cu-v4.ip.zstaticcdn.com",
+          "port": 443,
+          "methods": [
+            "tcp"
+          ]
+        },
+        {
+          "id": "zstatic_cdn:gd-cm-v4",
+          "label": "广东移动",
+          "provider": "zstatic_cdn",
+          "region": "广东",
+          "country": "CN",
+          "network": "China Mobile",
+          "group": "广东",
+          "level": "province",
+          "host": "gd-cm-v4.ip.zstaticcdn.com",
+          "port": 80,
+          "methods": [
+            "tcp"
+          ]
+        },
+        {
+          "id": "zstatic_cdn:gd-ct-v4",
+          "label": "广东电信",
+          "provider": "zstatic_cdn",
+          "region": "广东",
+          "country": "CN",
+          "network": "China Telecom",
+          "group": "广东",
+          "level": "province",
+          "host": "gd-ct-v4.ip.zstaticcdn.com",
+          "port": 80,
+          "methods": [
+            "tcp"
+          ]
+        },
+        {
+          "id": "zstatic_cdn:gd-cu-v4",
+          "label": "广东联通",
+          "provider": "zstatic_cdn",
+          "region": "广东",
+          "country": "CN",
+          "network": "China Unicom",
+          "group": "广东",
+          "level": "province",
+          "host": "gd-cu-v4.ip.zstaticcdn.com",
+          "port": 80,
+          "methods": [
+            "tcp"
+          ]
+        },
+        {
+          "id": "zstatic_cdn:gd-dongguan-cm-v4",
+          "label": "广东东莞移动",
+          "provider": "zstatic_cdn",
+          "region": "广东",
+          "country": "CN",
+          "city": "东莞",
+          "network": "China Mobile",
+          "group": "广东 / 东莞",
+          "level": "city",
+          "host": "gd-dongguan-cm-v4.ip.zstaticcdn.com",
+          "port": 443,
+          "methods": [
+            "tcp"
+          ]
+        },
+        {
+          "id": "zstatic_cdn:gd-dongguan-cu-v4",
+          "label": "广东东莞联通",
+          "provider": "zstatic_cdn",
+          "region": "广东",
+          "country": "CN",
+          "city": "东莞",
+          "network": "China Unicom",
+          "group": "广东 / 东莞",
+          "level": "city",
+          "host": "gd-dongguan-cu-v4.ip.zstaticcdn.com",
+          "port": 443,
+          "methods": [
+            "tcp"
+          ]
+        },
+        {
+          "id": "zstatic_cdn:gd-foshan-cu-v4",
+          "label": "广东佛山联通",
+          "provider": "zstatic_cdn",
+          "region": "广东",
+          "country": "CN",
+          "city": "佛山",
+          "network": "China Unicom",
+          "group": "广东 / 佛山",
+          "level": "city",
+          "host": "gd-foshan-cu-v4.ip.zstaticcdn.com",
+          "port": 443,
+          "methods": [
+            "tcp"
+          ]
+        },
+        {
+          "id": "zstatic_cdn:gd-guangzhou-cm-v4",
+          "label": "广东广州移动",
+          "provider": "zstatic_cdn",
+          "region": "广东",
+          "country": "CN",
+          "city": "广州",
+          "network": "China Mobile",
+          "group": "广东 / 广州",
+          "level": "city",
+          "host": "gd-guangzhou-cm-v4.ip.zstaticcdn.com",
+          "port": 443,
+          "methods": [
+            "tcp"
+          ]
+        },
+        {
+          "id": "zstatic_cdn:gd-guangzhou-ct-v4",
+          "label": "广东广州电信",
+          "provider": "zstatic_cdn",
+          "region": "广东",
+          "country": "CN",
+          "city": "广州",
+          "network": "China Telecom",
+          "group": "广东 / 广州",
+          "level": "city",
+          "host": "gd-guangzhou-ct-v4.ip.zstaticcdn.com",
+          "port": 443,
+          "methods": [
+            "tcp"
+          ]
+        },
+        {
+          "id": "zstatic_cdn:gd-guangzhou-cu-v4",
+          "label": "广东广州联通",
+          "provider": "zstatic_cdn",
+          "region": "广东",
+          "country": "CN",
+          "city": "广州",
+          "network": "China Unicom",
+          "group": "广东 / 广州",
+          "level": "city",
+          "host": "gd-guangzhou-cu-v4.ip.zstaticcdn.com",
+          "port": 443,
+          "methods": [
+            "tcp"
+          ]
+        },
+        {
+          "id": "zstatic_cdn:gd-heyuan-cu-v4",
+          "label": "广东河源联通",
+          "provider": "zstatic_cdn",
+          "region": "广东",
+          "country": "CN",
+          "city": "河源",
+          "network": "China Unicom",
+          "group": "广东 / 河源",
+          "level": "city",
+          "host": "gd-heyuan-cu-v4.ip.zstaticcdn.com",
+          "port": 443,
+          "methods": [
+            "tcp"
+          ]
+        },
+        {
+          "id": "zstatic_cdn:gd-huizhou-cu-v4",
+          "label": "广东惠州联通",
+          "provider": "zstatic_cdn",
+          "region": "广东",
+          "country": "CN",
+          "city": "惠州",
+          "network": "China Unicom",
+          "group": "广东 / 惠州",
+          "level": "city",
+          "host": "gd-huizhou-cu-v4.ip.zstaticcdn.com",
+          "port": 443,
+          "methods": [
+            "tcp"
+          ]
+        },
+        {
+          "id": "zstatic_cdn:gd-jiangmen-cu-v4",
+          "label": "广东江门联通",
+          "provider": "zstatic_cdn",
+          "region": "广东",
+          "country": "CN",
+          "city": "江门",
+          "network": "China Unicom",
+          "group": "广东 / 江门",
+          "level": "city",
+          "host": "gd-jiangmen-cu-v4.ip.zstaticcdn.com",
+          "port": 443,
+          "methods": [
+            "tcp"
+          ]
+        },
+        {
+          "id": "zstatic_cdn:gd-jieyang-ct-v4",
+          "label": "广东揭阳电信",
+          "provider": "zstatic_cdn",
+          "region": "广东",
+          "country": "CN",
+          "city": "揭阳",
+          "network": "China Telecom",
+          "group": "广东 / 揭阳",
+          "level": "city",
+          "host": "gd-jieyang-ct-v4.ip.zstaticcdn.com",
+          "port": 443,
+          "methods": [
+            "tcp"
+          ]
+        },
+        {
+          "id": "zstatic_cdn:gd-maoming-cu-v4",
+          "label": "广东茂名联通",
+          "provider": "zstatic_cdn",
+          "region": "广东",
+          "country": "CN",
+          "city": "茂名",
+          "network": "China Unicom",
+          "group": "广东 / 茂名",
+          "level": "city",
+          "host": "gd-maoming-cu-v4.ip.zstaticcdn.com",
+          "port": 443,
+          "methods": [
+            "tcp"
+          ]
+        },
+        {
+          "id": "zstatic_cdn:gd-shantou-cu-v4",
+          "label": "广东汕头联通",
+          "provider": "zstatic_cdn",
+          "region": "广东",
+          "country": "CN",
+          "city": "汕头",
+          "network": "China Unicom",
+          "group": "广东 / 汕头",
+          "level": "city",
+          "host": "gd-shantou-cu-v4.ip.zstaticcdn.com",
+          "port": 443,
+          "methods": [
+            "tcp"
+          ]
+        },
+        {
+          "id": "zstatic_cdn:gd-shanwei-cu-v4",
+          "label": "广东汕尾联通",
+          "provider": "zstatic_cdn",
+          "region": "广东",
+          "country": "CN",
+          "city": "汕尾",
+          "network": "China Unicom",
+          "group": "广东 / 汕尾",
+          "level": "city",
+          "host": "gd-shanwei-cu-v4.ip.zstaticcdn.com",
+          "port": 443,
+          "methods": [
+            "tcp"
+          ]
+        },
+        {
+          "id": "zstatic_cdn:gd-shaoguan-cu-v4",
+          "label": "广东韶关联通",
+          "provider": "zstatic_cdn",
+          "region": "广东",
+          "country": "CN",
+          "city": "韶关",
+          "network": "China Unicom",
+          "group": "广东 / 韶关",
+          "level": "city",
+          "host": "gd-shaoguan-cu-v4.ip.zstaticcdn.com",
+          "port": 443,
+          "methods": [
+            "tcp"
+          ]
+        },
+        {
+          "id": "zstatic_cdn:gd-shenzhen-ct-v4",
+          "label": "广东深圳电信",
+          "provider": "zstatic_cdn",
+          "region": "广东",
+          "country": "CN",
+          "city": "深圳",
+          "network": "China Telecom",
+          "group": "广东 / 深圳",
+          "level": "city",
+          "host": "gd-shenzhen-ct-v4.ip.zstaticcdn.com",
+          "port": 443,
+          "methods": [
+            "tcp"
+          ]
+        },
+        {
+          "id": "zstatic_cdn:gd-yangjiang-cu-v4",
+          "label": "广东阳江联通",
+          "provider": "zstatic_cdn",
+          "region": "广东",
+          "country": "CN",
+          "city": "阳江",
+          "network": "China Unicom",
+          "group": "广东 / 阳江",
+          "level": "city",
+          "host": "gd-yangjiang-cu-v4.ip.zstaticcdn.com",
+          "port": 443,
+          "methods": [
+            "tcp"
+          ]
+        },
+        {
+          "id": "zstatic_cdn:gd-yunfu-cu-v4",
+          "label": "广东云浮联通",
+          "provider": "zstatic_cdn",
+          "region": "广东",
+          "country": "CN",
+          "city": "云浮",
+          "network": "China Unicom",
+          "group": "广东 / 云浮",
+          "level": "city",
+          "host": "gd-yunfu-cu-v4.ip.zstaticcdn.com",
+          "port": 443,
+          "methods": [
+            "tcp"
+          ]
+        },
+        {
+          "id": "zstatic_cdn:gd-zhanjiang-cu-v4",
+          "label": "广东湛江联通",
+          "provider": "zstatic_cdn",
+          "region": "广东",
+          "country": "CN",
+          "city": "湛江",
+          "network": "China Unicom",
+          "group": "广东 / 湛江",
+          "level": "city",
+          "host": "gd-zhanjiang-cu-v4.ip.zstaticcdn.com",
+          "port": 443,
+          "methods": [
+            "tcp"
+          ]
+        },
+        {
+          "id": "zstatic_cdn:gd-zhaoqing-cu-v4",
+          "label": "广东肇庆联通",
+          "provider": "zstatic_cdn",
+          "region": "广东",
+          "country": "CN",
+          "city": "肇庆",
+          "network": "China Unicom",
+          "group": "广东 / 肇庆",
+          "level": "city",
+          "host": "gd-zhaoqing-cu-v4.ip.zstaticcdn.com",
+          "port": 443,
+          "methods": [
+            "tcp"
+          ]
+        },
+        {
+          "id": "zstatic_cdn:gd-zhongshan-cu-v4",
+          "label": "广东中山联通",
+          "provider": "zstatic_cdn",
+          "region": "广东",
+          "country": "CN",
+          "city": "中山",
+          "network": "China Unicom",
+          "group": "广东 / 中山",
+          "level": "city",
+          "host": "gd-zhongshan-cu-v4.ip.zstaticcdn.com",
+          "port": 443,
+          "methods": [
+            "tcp"
+          ]
+        },
+        {
+          "id": "zstatic_cdn:gd-zhuhai-cu-v4",
+          "label": "广东珠海联通",
+          "provider": "zstatic_cdn",
+          "region": "广东",
+          "country": "CN",
+          "city": "珠海",
+          "network": "China Unicom",
+          "group": "广东 / 珠海",
+          "level": "city",
+          "host": "gd-zhuhai-cu-v4.ip.zstaticcdn.com",
+          "port": 443,
+          "methods": [
+            "tcp"
+          ]
+        },
+        {
+          "id": "zstatic_cdn:gs-cm-v4",
+          "label": "甘肃移动",
+          "provider": "zstatic_cdn",
+          "region": "甘肃",
+          "country": "CN",
+          "network": "China Mobile",
+          "group": "甘肃",
+          "level": "province",
+          "host": "gs-cm-v4.ip.zstaticcdn.com",
+          "port": 80,
+          "methods": [
+            "tcp"
+          ]
+        },
+        {
+          "id": "zstatic_cdn:gs-ct-v4",
+          "label": "甘肃电信",
+          "provider": "zstatic_cdn",
+          "region": "甘肃",
+          "country": "CN",
+          "network": "China Telecom",
+          "group": "甘肃",
+          "level": "province",
+          "host": "gs-ct-v4.ip.zstaticcdn.com",
+          "port": 80,
+          "methods": [
+            "tcp"
+          ]
+        },
+        {
+          "id": "zstatic_cdn:gs-cu-v4",
+          "label": "甘肃联通",
+          "provider": "zstatic_cdn",
+          "region": "甘肃",
+          "country": "CN",
+          "network": "China Unicom",
+          "group": "甘肃",
+          "level": "province",
+          "host": "gs-cu-v4.ip.zstaticcdn.com",
+          "port": 80,
+          "methods": [
+            "tcp"
+          ]
+        },
+        {
+          "id": "zstatic_cdn:gs-lanzhou-ct-v4",
+          "label": "甘肃兰州电信",
+          "provider": "zstatic_cdn",
+          "region": "甘肃",
+          "country": "CN",
+          "city": "兰州",
+          "network": "China Telecom",
+          "group": "甘肃 / 兰州",
+          "level": "city",
+          "host": "gs-lanzhou-ct-v4.ip.zstaticcdn.com",
+          "port": 443,
+          "methods": [
+            "tcp"
+          ]
+        },
+        {
+          "id": "zstatic_cdn:gs-qingyang-ct-v4",
+          "label": "甘肃庆阳电信",
+          "provider": "zstatic_cdn",
+          "region": "甘肃",
+          "country": "CN",
+          "city": "庆阳",
+          "network": "China Telecom",
+          "group": "甘肃 / 庆阳",
+          "level": "city",
+          "host": "gs-qingyang-ct-v4.ip.zstaticcdn.com",
+          "port": 443,
+          "methods": [
+            "tcp"
+          ]
+        },
+        {
+          "id": "zstatic_cdn:gs-zhongwei-ct-v4",
+          "label": "甘肃中卫电信",
+          "provider": "zstatic_cdn",
+          "region": "甘肃",
+          "country": "CN",
+          "city": "中卫",
+          "network": "China Telecom",
+          "group": "甘肃 / 中卫",
+          "level": "city",
+          "host": "gs-zhongwei-ct-v4.ip.zstaticcdn.com",
+          "port": 443,
+          "methods": [
+            "tcp"
+          ]
+        },
+        {
+          "id": "zstatic_cdn:gx-cm-v4",
+          "label": "广西移动",
+          "provider": "zstatic_cdn",
+          "region": "广西",
+          "country": "CN",
+          "network": "China Mobile",
+          "group": "广西",
+          "level": "province",
+          "host": "gx-cm-v4.ip.zstaticcdn.com",
+          "port": 80,
+          "methods": [
+            "tcp"
+          ]
+        },
+        {
+          "id": "zstatic_cdn:gx-ct-v4",
+          "label": "广西电信",
+          "provider": "zstatic_cdn",
+          "region": "广西",
+          "country": "CN",
+          "network": "China Telecom",
+          "group": "广西",
+          "level": "province",
+          "host": "gx-ct-v4.ip.zstaticcdn.com",
+          "port": 80,
+          "methods": [
+            "tcp"
+          ]
+        },
+        {
+          "id": "zstatic_cdn:gx-cu-v4",
+          "label": "广西联通",
+          "provider": "zstatic_cdn",
+          "region": "广西",
+          "country": "CN",
+          "network": "China Unicom",
+          "group": "广西",
+          "level": "province",
+          "host": "gx-cu-v4.ip.zstaticcdn.com",
+          "port": 80,
+          "methods": [
+            "tcp"
+          ]
+        },
+        {
+          "id": "zstatic_cdn:gx-guilin-cu-v4",
+          "label": "广西壮族自治区桂林联通",
+          "provider": "zstatic_cdn",
+          "region": "广西壮族自治区",
+          "country": "CN",
+          "city": "桂林",
+          "network": "China Unicom",
+          "group": "广西壮族自治区 / 桂林",
+          "level": "city",
+          "host": "gx-guilin-cu-v4.ip.zstaticcdn.com",
+          "port": 443,
+          "methods": [
+            "tcp"
+          ]
+        },
+        {
+          "id": "zstatic_cdn:gx-liuzhou-cu-v4",
+          "label": "广西壮族自治区柳州联通",
+          "provider": "zstatic_cdn",
+          "region": "广西壮族自治区",
+          "country": "CN",
+          "city": "柳州",
+          "network": "China Unicom",
+          "group": "广西壮族自治区 / 柳州",
+          "level": "city",
+          "host": "gx-liuzhou-cu-v4.ip.zstaticcdn.com",
+          "port": 443,
+          "methods": [
+            "tcp"
+          ]
+        },
+        {
+          "id": "zstatic_cdn:gx-nanning-cu-v4",
+          "label": "广西壮族自治区南宁联通",
+          "provider": "zstatic_cdn",
+          "region": "广西壮族自治区",
+          "country": "CN",
+          "city": "南宁",
+          "network": "China Unicom",
+          "group": "广西壮族自治区 / 南宁",
+          "level": "city",
+          "host": "gx-nanning-cu-v4.ip.zstaticcdn.com",
+          "port": 443,
+          "methods": [
+            "tcp"
+          ]
+        },
+        {
+          "id": "zstatic_cdn:gz-cm-v4",
+          "label": "贵州移动",
+          "provider": "zstatic_cdn",
+          "region": "贵州",
+          "country": "CN",
+          "network": "China Mobile",
+          "group": "贵州",
+          "level": "province",
+          "host": "gz-cm-v4.ip.zstaticcdn.com",
+          "port": 80,
+          "methods": [
+            "tcp"
+          ]
+        },
+        {
+          "id": "zstatic_cdn:gz-ct-v4",
+          "label": "贵州电信",
+          "provider": "zstatic_cdn",
+          "region": "贵州",
+          "country": "CN",
+          "network": "China Telecom",
+          "group": "贵州",
+          "level": "province",
+          "host": "gz-ct-v4.ip.zstaticcdn.com",
+          "port": 80,
+          "methods": [
+            "tcp"
+          ]
+        },
+        {
+          "id": "zstatic_cdn:gz-cu-v4",
+          "label": "贵州联通",
+          "provider": "zstatic_cdn",
+          "region": "贵州",
+          "country": "CN",
+          "network": "China Unicom",
+          "group": "贵州",
+          "level": "province",
+          "host": "gz-cu-v4.ip.zstaticcdn.com",
+          "port": 80,
+          "methods": [
+            "tcp"
+          ]
+        },
+        {
+          "id": "zstatic_cdn:gz-guiyang-cm-v4",
+          "label": "贵州贵阳移动",
+          "provider": "zstatic_cdn",
+          "region": "贵州",
+          "country": "CN",
+          "city": "贵阳",
+          "network": "China Mobile",
+          "group": "贵州 / 贵阳",
+          "level": "city",
+          "host": "gz-guiyang-cm-v4.ip.zstaticcdn.com",
+          "port": 443,
+          "methods": [
+            "tcp"
+          ]
+        },
+        {
+          "id": "zstatic_cdn:gz-guiyang-cu-v4",
+          "label": "贵州贵阳联通",
+          "provider": "zstatic_cdn",
+          "region": "贵州",
+          "country": "CN",
+          "city": "贵阳",
+          "network": "China Unicom",
+          "group": "贵州 / 贵阳",
+          "level": "city",
+          "host": "gz-guiyang-cu-v4.ip.zstaticcdn.com",
+          "port": 443,
+          "methods": [
+            "tcp"
+          ]
+        },
+        {
+          "id": "zstatic_cdn:ha-anyang-cu-v4",
+          "label": "河南安阳联通",
+          "provider": "zstatic_cdn",
+          "region": "河南",
+          "country": "CN",
+          "city": "安阳",
+          "network": "China Unicom",
+          "group": "河南 / 安阳",
+          "level": "city",
+          "host": "ha-anyang-cu-v4.ip.zstaticcdn.com",
+          "port": 443,
+          "methods": [
+            "tcp"
+          ]
+        },
+        {
+          "id": "zstatic_cdn:ha-cm-v4",
+          "label": "河南移动",
+          "provider": "zstatic_cdn",
+          "region": "河南",
+          "country": "CN",
+          "network": "China Mobile",
+          "group": "河南",
+          "level": "province",
+          "host": "ha-cm-v4.ip.zstaticcdn.com",
+          "port": 80,
+          "methods": [
+            "tcp"
+          ]
+        },
+        {
+          "id": "zstatic_cdn:ha-ct-v4",
+          "label": "河南电信",
+          "provider": "zstatic_cdn",
+          "region": "河南",
+          "country": "CN",
+          "network": "China Telecom",
+          "group": "河南",
+          "level": "province",
+          "host": "ha-ct-v4.ip.zstaticcdn.com",
+          "port": 80,
+          "methods": [
+            "tcp"
+          ]
+        },
+        {
+          "id": "zstatic_cdn:ha-cu-v4",
+          "label": "河南联通",
+          "provider": "zstatic_cdn",
+          "region": "河南",
+          "country": "CN",
+          "network": "China Unicom",
+          "group": "河南",
+          "level": "province",
+          "host": "ha-cu-v4.ip.zstaticcdn.com",
+          "port": 80,
+          "methods": [
+            "tcp"
+          ]
+        },
+        {
+          "id": "zstatic_cdn:ha-hebi-cu-v4",
+          "label": "河南鹤壁联通",
+          "provider": "zstatic_cdn",
+          "region": "河南",
+          "country": "CN",
+          "city": "鹤壁",
+          "network": "China Unicom",
+          "group": "河南 / 鹤壁",
+          "level": "city",
+          "host": "ha-hebi-cu-v4.ip.zstaticcdn.com",
+          "port": 443,
+          "methods": [
+            "tcp"
+          ]
+        },
+        {
+          "id": "zstatic_cdn:ha-jiaozuo-cu-v4",
+          "label": "河南焦作联通",
+          "provider": "zstatic_cdn",
+          "region": "河南",
+          "country": "CN",
+          "city": "焦作",
+          "network": "China Unicom",
+          "group": "河南 / 焦作",
+          "level": "city",
+          "host": "ha-jiaozuo-cu-v4.ip.zstaticcdn.com",
+          "port": 443,
+          "methods": [
+            "tcp"
+          ]
+        },
+        {
+          "id": "zstatic_cdn:ha-jiyuan-cu-v4",
+          "label": "河南济源联通",
+          "provider": "zstatic_cdn",
+          "region": "河南",
+          "country": "CN",
+          "city": "济源",
+          "network": "China Unicom",
+          "group": "河南 / 济源",
+          "level": "city",
+          "host": "ha-jiyuan-cu-v4.ip.zstaticcdn.com",
+          "port": 443,
+          "methods": [
+            "tcp"
+          ]
+        },
+        {
+          "id": "zstatic_cdn:ha-kaifeng-cu-v4",
+          "label": "河南开封联通",
+          "provider": "zstatic_cdn",
+          "region": "河南",
+          "country": "CN",
+          "city": "开封",
+          "network": "China Unicom",
+          "group": "河南 / 开封",
+          "level": "city",
+          "host": "ha-kaifeng-cu-v4.ip.zstaticcdn.com",
+          "port": 443,
+          "methods": [
+            "tcp"
+          ]
+        },
+        {
+          "id": "zstatic_cdn:ha-luohe-cu-v4",
+          "label": "河南漯河联通",
+          "provider": "zstatic_cdn",
+          "region": "河南",
+          "country": "CN",
+          "city": "漯河",
+          "network": "China Unicom",
+          "group": "河南 / 漯河",
+          "level": "city",
+          "host": "ha-luohe-cu-v4.ip.zstaticcdn.com",
+          "port": 443,
+          "methods": [
+            "tcp"
+          ]
+        },
+        {
+          "id": "zstatic_cdn:ha-luoyang-cu-v4",
+          "label": "河南洛阳联通",
+          "provider": "zstatic_cdn",
+          "region": "河南",
+          "country": "CN",
+          "city": "洛阳",
+          "network": "China Unicom",
+          "group": "河南 / 洛阳",
+          "level": "city",
+          "host": "ha-luoyang-cu-v4.ip.zstaticcdn.com",
+          "port": 443,
+          "methods": [
+            "tcp"
+          ]
+        },
+        {
+          "id": "zstatic_cdn:ha-nanyang-cu-v4",
+          "label": "河南南阳联通",
+          "provider": "zstatic_cdn",
+          "region": "河南",
+          "country": "CN",
+          "city": "南阳",
+          "network": "China Unicom",
+          "group": "河南 / 南阳",
+          "level": "city",
+          "host": "ha-nanyang-cu-v4.ip.zstaticcdn.com",
+          "port": 443,
+          "methods": [
+            "tcp"
+          ]
+        },
+        {
+          "id": "zstatic_cdn:ha-pingdingshan-cu-v4",
+          "label": "河南平顶山联通",
+          "provider": "zstatic_cdn",
+          "region": "河南",
+          "country": "CN",
+          "city": "平顶山",
+          "network": "China Unicom",
+          "group": "河南 / 平顶山",
+          "level": "city",
+          "host": "ha-pingdingshan-cu-v4.ip.zstaticcdn.com",
+          "port": 443,
+          "methods": [
+            "tcp"
+          ]
+        },
+        {
+          "id": "zstatic_cdn:ha-sanmenxia-cu-v4",
+          "label": "河南三门峡联通",
+          "provider": "zstatic_cdn",
+          "region": "河南",
+          "country": "CN",
+          "city": "三门峡",
+          "network": "China Unicom",
+          "group": "河南 / 三门峡",
+          "level": "city",
+          "host": "ha-sanmenxia-cu-v4.ip.zstaticcdn.com",
+          "port": 443,
+          "methods": [
+            "tcp"
+          ]
+        },
+        {
+          "id": "zstatic_cdn:ha-shangqiu-cu-v4",
+          "label": "河南商丘联通",
+          "provider": "zstatic_cdn",
+          "region": "河南",
+          "country": "CN",
+          "city": "商丘",
+          "network": "China Unicom",
+          "group": "河南 / 商丘",
+          "level": "city",
+          "host": "ha-shangqiu-cu-v4.ip.zstaticcdn.com",
+          "port": 443,
+          "methods": [
+            "tcp"
+          ]
+        },
+        {
+          "id": "zstatic_cdn:ha-xinxiang-cu-v4",
+          "label": "河南新乡联通",
+          "provider": "zstatic_cdn",
+          "region": "河南",
+          "country": "CN",
+          "city": "新乡",
+          "network": "China Unicom",
+          "group": "河南 / 新乡",
+          "level": "city",
+          "host": "ha-xinxiang-cu-v4.ip.zstaticcdn.com",
+          "port": 443,
+          "methods": [
+            "tcp"
+          ]
+        },
+        {
+          "id": "zstatic_cdn:ha-xinyang-cu-v4",
+          "label": "河南信阳联通",
+          "provider": "zstatic_cdn",
+          "region": "河南",
+          "country": "CN",
+          "city": "信阳",
+          "network": "China Unicom",
+          "group": "河南 / 信阳",
+          "level": "city",
+          "host": "ha-xinyang-cu-v4.ip.zstaticcdn.com",
+          "port": 443,
+          "methods": [
+            "tcp"
+          ]
+        },
+        {
+          "id": "zstatic_cdn:ha-xuchang-cu-v4",
+          "label": "河南许昌联通",
+          "provider": "zstatic_cdn",
+          "region": "河南",
+          "country": "CN",
+          "city": "许昌",
+          "network": "China Unicom",
+          "group": "河南 / 许昌",
+          "level": "city",
+          "host": "ha-xuchang-cu-v4.ip.zstaticcdn.com",
+          "port": 443,
+          "methods": [
+            "tcp"
+          ]
+        },
+        {
+          "id": "zstatic_cdn:ha-zhengzhou-cm-v4",
+          "label": "河南郑州移动",
+          "provider": "zstatic_cdn",
+          "region": "河南",
+          "country": "CN",
+          "city": "郑州",
+          "network": "China Mobile",
+          "group": "河南 / 郑州",
+          "level": "city",
+          "host": "ha-zhengzhou-cm-v4.ip.zstaticcdn.com",
+          "port": 443,
+          "methods": [
+            "tcp"
+          ]
+        },
+        {
+          "id": "zstatic_cdn:ha-zhengzhou-ct-v4",
+          "label": "河南郑州电信",
+          "provider": "zstatic_cdn",
+          "region": "河南",
+          "country": "CN",
+          "city": "郑州",
+          "network": "China Telecom",
+          "group": "河南 / 郑州",
+          "level": "city",
+          "host": "ha-zhengzhou-ct-v4.ip.zstaticcdn.com",
+          "port": 443,
+          "methods": [
+            "tcp"
+          ]
+        },
+        {
+          "id": "zstatic_cdn:ha-zhoukou-cu-v4",
+          "label": "河南周口联通",
+          "provider": "zstatic_cdn",
+          "region": "河南",
+          "country": "CN",
+          "city": "周口",
+          "network": "China Unicom",
+          "group": "河南 / 周口",
+          "level": "city",
+          "host": "ha-zhoukou-cu-v4.ip.zstaticcdn.com",
+          "port": 443,
+          "methods": [
+            "tcp"
+          ]
+        },
+        {
+          "id": "zstatic_cdn:ha-zhumadian-cu-v4",
+          "label": "河南驻马店联通",
+          "provider": "zstatic_cdn",
+          "region": "河南",
+          "country": "CN",
+          "city": "驻马店",
+          "network": "China Unicom",
+          "group": "河南 / 驻马店",
+          "level": "city",
+          "host": "ha-zhumadian-cu-v4.ip.zstaticcdn.com",
+          "port": 443,
+          "methods": [
+            "tcp"
+          ]
+        },
+        {
+          "id": "zstatic_cdn:hb-cm-v4",
+          "label": "湖北移动",
+          "provider": "zstatic_cdn",
+          "region": "湖北",
+          "country": "CN",
+          "network": "China Mobile",
+          "group": "湖北",
+          "level": "province",
+          "host": "hb-cm-v4.ip.zstaticcdn.com",
+          "port": 80,
+          "methods": [
+            "tcp"
+          ]
+        },
+        {
+          "id": "zstatic_cdn:hb-ct-v4",
+          "label": "湖北电信",
+          "provider": "zstatic_cdn",
+          "region": "湖北",
+          "country": "CN",
+          "network": "China Telecom",
+          "group": "湖北",
+          "level": "province",
+          "host": "hb-ct-v4.ip.zstaticcdn.com",
+          "port": 80,
+          "methods": [
+            "tcp"
+          ]
+        },
+        {
+          "id": "zstatic_cdn:hb-cu-v4",
+          "label": "湖北联通",
+          "provider": "zstatic_cdn",
+          "region": "湖北",
+          "country": "CN",
+          "network": "China Unicom",
+          "group": "湖北",
+          "level": "province",
+          "host": "hb-cu-v4.ip.zstaticcdn.com",
+          "port": 80,
+          "methods": [
+            "tcp"
+          ]
+        },
+        {
+          "id": "zstatic_cdn:hb-ezhou-cu-v4",
+          "label": "湖北鄂州联通",
+          "provider": "zstatic_cdn",
+          "region": "湖北",
+          "country": "CN",
+          "city": "鄂州",
+          "network": "China Unicom",
+          "group": "湖北 / 鄂州",
+          "level": "city",
+          "host": "hb-ezhou-cu-v4.ip.zstaticcdn.com",
+          "port": 443,
+          "methods": [
+            "tcp"
+          ]
+        },
+        {
+          "id": "zstatic_cdn:hb-huanggang-cu-v4",
+          "label": "湖北黄冈联通",
+          "provider": "zstatic_cdn",
+          "region": "湖北",
+          "country": "CN",
+          "city": "黄冈",
+          "network": "China Unicom",
+          "group": "湖北 / 黄冈",
+          "level": "city",
+          "host": "hb-huanggang-cu-v4.ip.zstaticcdn.com",
+          "port": 443,
+          "methods": [
+            "tcp"
+          ]
+        },
+        {
+          "id": "zstatic_cdn:hb-huangshi-cu-v4",
+          "label": "湖北黄石联通",
+          "provider": "zstatic_cdn",
+          "region": "湖北",
+          "country": "CN",
+          "city": "黄石",
+          "network": "China Unicom",
+          "group": "湖北 / 黄石",
+          "level": "city",
+          "host": "hb-huangshi-cu-v4.ip.zstaticcdn.com",
+          "port": 443,
+          "methods": [
+            "tcp"
+          ]
+        },
+        {
+          "id": "zstatic_cdn:hb-jingmen-cu-v4",
+          "label": "湖北荆门联通",
+          "provider": "zstatic_cdn",
+          "region": "湖北",
+          "country": "CN",
+          "city": "荆门",
+          "network": "China Unicom",
+          "group": "湖北 / 荆门",
+          "level": "city",
+          "host": "hb-jingmen-cu-v4.ip.zstaticcdn.com",
+          "port": 443,
+          "methods": [
+            "tcp"
+          ]
+        },
+        {
+          "id": "zstatic_cdn:hb-jingzhou-cu-v4",
+          "label": "湖北荆州联通",
+          "provider": "zstatic_cdn",
+          "region": "湖北",
+          "country": "CN",
+          "city": "荆州",
+          "network": "China Unicom",
+          "group": "湖北 / 荆州",
+          "level": "city",
+          "host": "hb-jingzhou-cu-v4.ip.zstaticcdn.com",
+          "port": 443,
+          "methods": [
+            "tcp"
+          ]
+        },
+        {
+          "id": "zstatic_cdn:hb-shiyan-cu-v4",
+          "label": "湖北十堰联通",
+          "provider": "zstatic_cdn",
+          "region": "湖北",
+          "country": "CN",
+          "city": "十堰",
+          "network": "China Unicom",
+          "group": "湖北 / 十堰",
+          "level": "city",
+          "host": "hb-shiyan-cu-v4.ip.zstaticcdn.com",
+          "port": 443,
+          "methods": [
+            "tcp"
+          ]
+        },
+        {
+          "id": "zstatic_cdn:hb-suizhou-cu-v4",
+          "label": "湖北随州联通",
+          "provider": "zstatic_cdn",
+          "region": "湖北",
+          "country": "CN",
+          "city": "随州",
+          "network": "China Unicom",
+          "group": "湖北 / 随州",
+          "level": "city",
+          "host": "hb-suizhou-cu-v4.ip.zstaticcdn.com",
+          "port": 443,
+          "methods": [
+            "tcp"
+          ]
+        },
+        {
+          "id": "zstatic_cdn:hb-wuhan-ct-v4",
+          "label": "湖北武汉电信",
+          "provider": "zstatic_cdn",
+          "region": "湖北",
+          "country": "CN",
+          "city": "武汉",
+          "network": "China Telecom",
+          "group": "湖北 / 武汉",
+          "level": "city",
+          "host": "hb-wuhan-ct-v4.ip.zstaticcdn.com",
+          "port": 443,
+          "methods": [
+            "tcp"
+          ]
+        },
+        {
+          "id": "zstatic_cdn:hb-xiangyang-ct-v4",
+          "label": "湖北襄阳电信",
+          "provider": "zstatic_cdn",
+          "region": "湖北",
+          "country": "CN",
+          "city": "襄阳",
+          "network": "China Telecom",
+          "group": "湖北 / 襄阳",
+          "level": "city",
+          "host": "hb-xiangyang-ct-v4.ip.zstaticcdn.com",
+          "port": 443,
+          "methods": [
+            "tcp"
+          ]
+        },
+        {
+          "id": "zstatic_cdn:hb-xiaogan-ct-v4",
+          "label": "湖北孝感电信",
+          "provider": "zstatic_cdn",
+          "region": "湖北",
+          "country": "CN",
+          "city": "孝感",
+          "network": "China Telecom",
+          "group": "湖北 / 孝感",
+          "level": "city",
+          "host": "hb-xiaogan-ct-v4.ip.zstaticcdn.com",
+          "port": 443,
+          "methods": [
+            "tcp"
+          ]
+        },
+        {
+          "id": "zstatic_cdn:hb-yichang-ct-v4",
+          "label": "湖北宜昌电信",
+          "provider": "zstatic_cdn",
+          "region": "湖北",
+          "country": "CN",
+          "city": "宜昌",
+          "network": "China Telecom",
+          "group": "湖北 / 宜昌",
+          "level": "city",
+          "host": "hb-yichang-ct-v4.ip.zstaticcdn.com",
+          "port": 443,
+          "methods": [
+            "tcp"
+          ]
+        },
+        {
+          "id": "zstatic_cdn:he-baoding-cu-v4",
+          "label": "河北保定联通",
+          "provider": "zstatic_cdn",
+          "region": "河北",
+          "country": "CN",
+          "city": "保定",
+          "network": "China Unicom",
+          "group": "河北 / 保定",
+          "level": "city",
+          "host": "he-baoding-cu-v4.ip.zstaticcdn.com",
+          "port": 443,
+          "methods": [
+            "tcp"
+          ]
+        },
+        {
+          "id": "zstatic_cdn:he-cangzhou-cu-v4",
+          "label": "河北沧州联通",
+          "provider": "zstatic_cdn",
+          "region": "河北",
+          "country": "CN",
+          "city": "沧州",
+          "network": "China Unicom",
+          "group": "河北 / 沧州",
+          "level": "city",
+          "host": "he-cangzhou-cu-v4.ip.zstaticcdn.com",
+          "port": 443,
+          "methods": [
+            "tcp"
+          ]
+        },
+        {
+          "id": "zstatic_cdn:he-chengde-cu-v4",
+          "label": "河北承德联通",
+          "provider": "zstatic_cdn",
+          "region": "河北",
+          "country": "CN",
+          "city": "承德",
+          "network": "China Unicom",
+          "group": "河北 / 承德",
+          "level": "city",
+          "host": "he-chengde-cu-v4.ip.zstaticcdn.com",
+          "port": 443,
+          "methods": [
+            "tcp"
+          ]
+        },
+        {
+          "id": "zstatic_cdn:he-cm-v4",
+          "label": "河北移动",
+          "provider": "zstatic_cdn",
+          "region": "河北",
+          "country": "CN",
+          "network": "China Mobile",
+          "group": "河北",
+          "level": "province",
+          "host": "he-cm-v4.ip.zstaticcdn.com",
+          "port": 80,
+          "methods": [
+            "tcp"
+          ]
+        },
+        {
+          "id": "zstatic_cdn:he-ct-v4",
+          "label": "河北电信",
+          "provider": "zstatic_cdn",
+          "region": "河北",
+          "country": "CN",
+          "network": "China Telecom",
+          "group": "河北",
+          "level": "province",
+          "host": "he-ct-v4.ip.zstaticcdn.com",
+          "port": 80,
+          "methods": [
+            "tcp"
+          ]
+        },
+        {
+          "id": "zstatic_cdn:he-cu-v4",
+          "label": "河北联通",
+          "provider": "zstatic_cdn",
+          "region": "河北",
+          "country": "CN",
+          "network": "China Unicom",
+          "group": "河北",
+          "level": "province",
+          "host": "he-cu-v4.ip.zstaticcdn.com",
+          "port": 80,
+          "methods": [
+            "tcp"
+          ]
+        },
+        {
+          "id": "zstatic_cdn:he-handan-cu-v4",
+          "label": "河北邯郸联通",
+          "provider": "zstatic_cdn",
+          "region": "河北",
+          "country": "CN",
+          "city": "邯郸",
+          "network": "China Unicom",
+          "group": "河北 / 邯郸",
+          "level": "city",
+          "host": "he-handan-cu-v4.ip.zstaticcdn.com",
+          "port": 443,
+          "methods": [
+            "tcp"
+          ]
+        },
+        {
+          "id": "zstatic_cdn:he-hengshui-cu-v4",
+          "label": "河北衡水联通",
+          "provider": "zstatic_cdn",
+          "region": "河北",
+          "country": "CN",
+          "city": "衡水",
+          "network": "China Unicom",
+          "group": "河北 / 衡水",
+          "level": "city",
+          "host": "he-hengshui-cu-v4.ip.zstaticcdn.com",
+          "port": 443,
+          "methods": [
+            "tcp"
+          ]
+        },
+        {
+          "id": "zstatic_cdn:he-langfang-cu-v4",
+          "label": "河北廊坊联通",
+          "provider": "zstatic_cdn",
+          "region": "河北",
+          "country": "CN",
+          "city": "廊坊",
+          "network": "China Unicom",
+          "group": "河北 / 廊坊",
+          "level": "city",
+          "host": "he-langfang-cu-v4.ip.zstaticcdn.com",
+          "port": 443,
+          "methods": [
+            "tcp"
+          ]
+        },
+        {
+          "id": "zstatic_cdn:he-shijiazhuang-cu-v4",
+          "label": "河北石家庄联通",
+          "provider": "zstatic_cdn",
+          "region": "河北",
+          "country": "CN",
+          "city": "石家庄",
+          "network": "China Unicom",
+          "group": "河北 / 石家庄",
+          "level": "city",
+          "host": "he-shijiazhuang-cu-v4.ip.zstaticcdn.com",
+          "port": 443,
+          "methods": [
+            "tcp"
+          ]
+        },
+        {
+          "id": "zstatic_cdn:he-tangshan-cu-v4",
+          "label": "河北唐山联通",
+          "provider": "zstatic_cdn",
+          "region": "河北",
+          "country": "CN",
+          "city": "唐山",
+          "network": "China Unicom",
+          "group": "河北 / 唐山",
+          "level": "city",
+          "host": "he-tangshan-cu-v4.ip.zstaticcdn.com",
+          "port": 443,
+          "methods": [
+            "tcp"
+          ]
+        },
+        {
+          "id": "zstatic_cdn:he-xingtai-cu-v4",
+          "label": "河北邢台联通",
+          "provider": "zstatic_cdn",
+          "region": "河北",
+          "country": "CN",
+          "city": "邢台",
+          "network": "China Unicom",
+          "group": "河北 / 邢台",
+          "level": "city",
+          "host": "he-xingtai-cu-v4.ip.zstaticcdn.com",
+          "port": 443,
+          "methods": [
+            "tcp"
+          ]
+        },
+        {
+          "id": "zstatic_cdn:he-xiongan-ct-v4",
+          "label": "河北雄安电信",
+          "provider": "zstatic_cdn",
+          "region": "河北",
+          "country": "CN",
+          "city": "雄安",
+          "network": "China Telecom",
+          "group": "河北 / 雄安",
+          "level": "city",
+          "host": "he-xiongan-ct-v4.ip.zstaticcdn.com",
+          "port": 443,
+          "methods": [
+            "tcp"
+          ]
+        },
+        {
+          "id": "zstatic_cdn:hi-cm-v4",
+          "label": "海南移动",
+          "provider": "zstatic_cdn",
+          "region": "海南",
+          "country": "CN",
+          "network": "China Mobile",
+          "group": "海南",
+          "level": "province",
+          "host": "hi-cm-v4.ip.zstaticcdn.com",
+          "port": 80,
+          "methods": [
+            "tcp"
+          ]
+        },
+        {
+          "id": "zstatic_cdn:hi-ct-v4",
+          "label": "海南电信",
+          "provider": "zstatic_cdn",
+          "region": "海南",
+          "country": "CN",
+          "network": "China Telecom",
+          "group": "海南",
+          "level": "province",
+          "host": "hi-ct-v4.ip.zstaticcdn.com",
+          "port": 80,
+          "methods": [
+            "tcp"
+          ]
+        },
+        {
+          "id": "zstatic_cdn:hi-cu-v4",
+          "label": "海南联通",
+          "provider": "zstatic_cdn",
+          "region": "海南",
+          "country": "CN",
+          "network": "China Unicom",
+          "group": "海南",
+          "level": "province",
+          "host": "hi-cu-v4.ip.zstaticcdn.com",
+          "port": 80,
+          "methods": [
+            "tcp"
+          ]
+        },
+        {
+          "id": "zstatic_cdn:hi-haikou-ct-v4",
+          "label": "海南海口电信",
+          "provider": "zstatic_cdn",
+          "region": "海南",
+          "country": "CN",
+          "city": "海口",
+          "network": "China Telecom",
+          "group": "海南 / 海口",
+          "level": "city",
+          "host": "hi-haikou-ct-v4.ip.zstaticcdn.com",
+          "port": 443,
+          "methods": [
+            "tcp"
+          ]
+        },
+        {
+          "id": "zstatic_cdn:hl-cm-v4",
+          "label": "黑龙江移动",
+          "provider": "zstatic_cdn",
+          "region": "黑龙江",
+          "country": "CN",
+          "network": "China Mobile",
+          "group": "黑龙江",
+          "level": "province",
+          "host": "hl-cm-v4.ip.zstaticcdn.com",
+          "port": 80,
+          "methods": [
+            "tcp"
+          ]
+        },
+        {
+          "id": "zstatic_cdn:hl-ct-v4",
+          "label": "黑龙江电信",
+          "provider": "zstatic_cdn",
+          "region": "黑龙江",
+          "country": "CN",
+          "network": "China Telecom",
+          "group": "黑龙江",
+          "level": "province",
+          "host": "hl-ct-v4.ip.zstaticcdn.com",
+          "port": 80,
+          "methods": [
+            "tcp"
+          ]
+        },
+        {
+          "id": "zstatic_cdn:hl-cu-v4",
+          "label": "黑龙江联通",
+          "provider": "zstatic_cdn",
+          "region": "黑龙江",
+          "country": "CN",
+          "network": "China Unicom",
+          "group": "黑龙江",
+          "level": "province",
+          "host": "hl-cu-v4.ip.zstaticcdn.com",
+          "port": 80,
+          "methods": [
+            "tcp"
+          ]
+        },
+        {
+          "id": "zstatic_cdn:hl-daqing-cu-v4",
+          "label": "黑龙江大庆联通",
+          "provider": "zstatic_cdn",
+          "region": "黑龙江",
+          "country": "CN",
+          "city": "大庆",
+          "network": "China Unicom",
+          "group": "黑龙江 / 大庆",
+          "level": "city",
+          "host": "hl-daqing-cu-v4.ip.zstaticcdn.com",
+          "port": 443,
+          "methods": [
+            "tcp"
+          ]
+        },
+        {
+          "id": "zstatic_cdn:hl-daxinganling-cu-v4",
+          "label": "黑龙江大兴安岭地区联通",
+          "provider": "zstatic_cdn",
+          "region": "黑龙江",
+          "country": "CN",
+          "city": "大兴安岭地区",
+          "network": "China Unicom",
+          "group": "黑龙江 / 大兴安岭地区",
+          "level": "city",
+          "host": "hl-daxinganling-cu-v4.ip.zstaticcdn.com",
+          "port": 443,
+          "methods": [
+            "tcp"
+          ]
+        },
+        {
+          "id": "zstatic_cdn:hl-haerbin-cu-v4",
+          "label": "黑龙江哈尔滨联通",
+          "provider": "zstatic_cdn",
+          "region": "黑龙江",
+          "country": "CN",
+          "city": "哈尔滨",
+          "network": "China Unicom",
+          "group": "黑龙江 / 哈尔滨",
+          "level": "city",
+          "host": "hl-haerbin-cu-v4.ip.zstaticcdn.com",
+          "port": 443,
+          "methods": [
+            "tcp"
+          ]
+        },
+        {
+          "id": "zstatic_cdn:hl-hegang-cu-v4",
+          "label": "黑龙江鹤岗联通",
+          "provider": "zstatic_cdn",
+          "region": "黑龙江",
+          "country": "CN",
+          "city": "鹤岗",
+          "network": "China Unicom",
+          "group": "黑龙江 / 鹤岗",
+          "level": "city",
+          "host": "hl-hegang-cu-v4.ip.zstaticcdn.com",
+          "port": 443,
+          "methods": [
+            "tcp"
+          ]
+        },
+        {
+          "id": "zstatic_cdn:hl-heihe-cu-v4",
+          "label": "黑龙江黑河联通",
+          "provider": "zstatic_cdn",
+          "region": "黑龙江",
+          "country": "CN",
+          "city": "黑河",
+          "network": "China Unicom",
+          "group": "黑龙江 / 黑河",
+          "level": "city",
+          "host": "hl-heihe-cu-v4.ip.zstaticcdn.com",
+          "port": 443,
+          "methods": [
+            "tcp"
+          ]
+        },
+        {
+          "id": "zstatic_cdn:hl-jiamusi-cu-v4",
+          "label": "黑龙江佳木斯联通",
+          "provider": "zstatic_cdn",
+          "region": "黑龙江",
+          "country": "CN",
+          "city": "佳木斯",
+          "network": "China Unicom",
+          "group": "黑龙江 / 佳木斯",
+          "level": "city",
+          "host": "hl-jiamusi-cu-v4.ip.zstaticcdn.com",
+          "port": 443,
+          "methods": [
+            "tcp"
+          ]
+        },
+        {
+          "id": "zstatic_cdn:hl-jixi-cu-v4",
+          "label": "黑龙江鸡西联通",
+          "provider": "zstatic_cdn",
+          "region": "黑龙江",
+          "country": "CN",
+          "city": "鸡西",
+          "network": "China Unicom",
+          "group": "黑龙江 / 鸡西",
+          "level": "city",
+          "host": "hl-jixi-cu-v4.ip.zstaticcdn.com",
+          "port": 443,
+          "methods": [
+            "tcp"
+          ]
+        },
+        {
+          "id": "zstatic_cdn:hl-mudanjiang-cu-v4",
+          "label": "黑龙江牡丹江联通",
+          "provider": "zstatic_cdn",
+          "region": "黑龙江",
+          "country": "CN",
+          "city": "牡丹江",
+          "network": "China Unicom",
+          "group": "黑龙江 / 牡丹江",
+          "level": "city",
+          "host": "hl-mudanjiang-cu-v4.ip.zstaticcdn.com",
+          "port": 443,
+          "methods": [
+            "tcp"
+          ]
+        },
+        {
+          "id": "zstatic_cdn:hl-qiqihaer-cu-v4",
+          "label": "黑龙江齐齐哈尔联通",
+          "provider": "zstatic_cdn",
+          "region": "黑龙江",
+          "country": "CN",
+          "city": "齐齐哈尔",
+          "network": "China Unicom",
+          "group": "黑龙江 / 齐齐哈尔",
+          "level": "city",
+          "host": "hl-qiqihaer-cu-v4.ip.zstaticcdn.com",
+          "port": 443,
+          "methods": [
+            "tcp"
+          ]
+        },
+        {
+          "id": "zstatic_cdn:hl-qitaihe-cu-v4",
+          "label": "黑龙江七台河联通",
+          "provider": "zstatic_cdn",
+          "region": "黑龙江",
+          "country": "CN",
+          "city": "七台河",
+          "network": "China Unicom",
+          "group": "黑龙江 / 七台河",
+          "level": "city",
+          "host": "hl-qitaihe-cu-v4.ip.zstaticcdn.com",
+          "port": 443,
+          "methods": [
+            "tcp"
+          ]
+        },
+        {
+          "id": "zstatic_cdn:hl-shuangyashan-cu-v4",
+          "label": "黑龙江双鸭山联通",
+          "provider": "zstatic_cdn",
+          "region": "黑龙江",
+          "country": "CN",
+          "city": "双鸭山",
+          "network": "China Unicom",
+          "group": "黑龙江 / 双鸭山",
+          "level": "city",
+          "host": "hl-shuangyashan-cu-v4.ip.zstaticcdn.com",
+          "port": 443,
+          "methods": [
+            "tcp"
+          ]
+        },
+        {
+          "id": "zstatic_cdn:hl-suihua-cu-v4",
+          "label": "黑龙江绥化联通",
+          "provider": "zstatic_cdn",
+          "region": "黑龙江",
+          "country": "CN",
+          "city": "绥化",
+          "network": "China Unicom",
+          "group": "黑龙江 / 绥化",
+          "level": "city",
+          "host": "hl-suihua-cu-v4.ip.zstaticcdn.com",
+          "port": 443,
+          "methods": [
+            "tcp"
+          ]
+        },
+        {
+          "id": "zstatic_cdn:hl-yichun-cu-v4",
+          "label": "黑龙江伊春联通",
+          "provider": "zstatic_cdn",
+          "region": "黑龙江",
+          "country": "CN",
+          "city": "伊春",
+          "network": "China Unicom",
+          "group": "黑龙江 / 伊春",
+          "level": "city",
+          "host": "hl-yichun-cu-v4.ip.zstaticcdn.com",
+          "port": 443,
+          "methods": [
+            "tcp"
+          ]
+        },
+        {
+          "id": "zstatic_cdn:hn-changsha-ct-v4",
+          "label": "湖南长沙电信",
+          "provider": "zstatic_cdn",
+          "region": "湖南",
+          "country": "CN",
+          "city": "长沙",
+          "network": "China Telecom",
+          "group": "湖南 / 长沙",
+          "level": "city",
+          "host": "hn-changsha-ct-v4.ip.zstaticcdn.com",
+          "port": 443,
+          "methods": [
+            "tcp"
+          ]
+        },
+        {
+          "id": "zstatic_cdn:hn-changsha-cu-v4",
+          "label": "湖南长沙联通",
+          "provider": "zstatic_cdn",
+          "region": "湖南",
+          "country": "CN",
+          "city": "长沙",
+          "network": "China Unicom",
+          "group": "湖南 / 长沙",
+          "level": "city",
+          "host": "hn-changsha-cu-v4.ip.zstaticcdn.com",
+          "port": 443,
+          "methods": [
+            "tcp"
+          ]
+        },
+        {
+          "id": "zstatic_cdn:hn-chenzhou-ct-v4",
+          "label": "湖南郴州电信",
+          "provider": "zstatic_cdn",
+          "region": "湖南",
+          "country": "CN",
+          "city": "郴州",
+          "network": "China Telecom",
+          "group": "湖南 / 郴州",
+          "level": "city",
+          "host": "hn-chenzhou-ct-v4.ip.zstaticcdn.com",
+          "port": 443,
+          "methods": [
+            "tcp"
+          ]
+        },
+        {
+          "id": "zstatic_cdn:hn-cm-v4",
+          "label": "湖南移动",
+          "provider": "zstatic_cdn",
+          "region": "湖南",
+          "country": "CN",
+          "network": "China Mobile",
+          "group": "湖南",
+          "level": "province",
+          "host": "hn-cm-v4.ip.zstaticcdn.com",
+          "port": 80,
+          "methods": [
+            "tcp"
+          ]
+        },
+        {
+          "id": "zstatic_cdn:hn-ct-v4",
+          "label": "湖南电信",
+          "provider": "zstatic_cdn",
+          "region": "湖南",
+          "country": "CN",
+          "network": "China Telecom",
+          "group": "湖南",
+          "level": "province",
+          "host": "hn-ct-v4.ip.zstaticcdn.com",
+          "port": 80,
+          "methods": [
+            "tcp"
+          ]
+        },
+        {
+          "id": "zstatic_cdn:hn-cu-v4",
+          "label": "湖南联通",
+          "provider": "zstatic_cdn",
+          "region": "湖南",
+          "country": "CN",
+          "network": "China Unicom",
+          "group": "湖南",
+          "level": "province",
+          "host": "hn-cu-v4.ip.zstaticcdn.com",
+          "port": 80,
+          "methods": [
+            "tcp"
+          ]
+        },
+        {
+          "id": "zstatic_cdn:hn-hengyang-cu-v4",
+          "label": "湖南衡阳联通",
+          "provider": "zstatic_cdn",
+          "region": "湖南",
+          "country": "CN",
+          "city": "衡阳",
+          "network": "China Unicom",
+          "group": "湖南 / 衡阳",
+          "level": "city",
+          "host": "hn-hengyang-cu-v4.ip.zstaticcdn.com",
+          "port": 443,
+          "methods": [
+            "tcp"
+          ]
+        },
+        {
+          "id": "zstatic_cdn:hn-huaihua-ct-v4",
+          "label": "湖南怀化电信",
+          "provider": "zstatic_cdn",
+          "region": "湖南",
+          "country": "CN",
+          "city": "怀化",
+          "network": "China Telecom",
+          "group": "湖南 / 怀化",
+          "level": "city",
+          "host": "hn-huaihua-ct-v4.ip.zstaticcdn.com",
+          "port": 443,
+          "methods": [
+            "tcp"
+          ]
+        },
+        {
+          "id": "zstatic_cdn:hn-loudi-cu-v4",
+          "label": "湖南娄底联通",
+          "provider": "zstatic_cdn",
+          "region": "湖南",
+          "country": "CN",
+          "city": "娄底",
+          "network": "China Unicom",
+          "group": "湖南 / 娄底",
+          "level": "city",
+          "host": "hn-loudi-cu-v4.ip.zstaticcdn.com",
+          "port": 443,
+          "methods": [
+            "tcp"
+          ]
+        },
+        {
+          "id": "zstatic_cdn:hn-shaoyang-cu-v4",
+          "label": "湖南邵阳联通",
+          "provider": "zstatic_cdn",
+          "region": "湖南",
+          "country": "CN",
+          "city": "邵阳",
+          "network": "China Unicom",
+          "group": "湖南 / 邵阳",
+          "level": "city",
+          "host": "hn-shaoyang-cu-v4.ip.zstaticcdn.com",
+          "port": 443,
+          "methods": [
+            "tcp"
+          ]
+        },
+        {
+          "id": "zstatic_cdn:hn-xiangtan-cu-v4",
+          "label": "湖南湘潭联通",
+          "provider": "zstatic_cdn",
+          "region": "湖南",
+          "country": "CN",
+          "city": "湘潭",
+          "network": "China Unicom",
+          "group": "湖南 / 湘潭",
+          "level": "city",
+          "host": "hn-xiangtan-cu-v4.ip.zstaticcdn.com",
+          "port": 443,
+          "methods": [
+            "tcp"
+          ]
+        },
+        {
+          "id": "zstatic_cdn:hn-xiangxi-cu-v4",
+          "label": "湖南湘西土家族苗族自治州联通",
+          "provider": "zstatic_cdn",
+          "region": "湖南",
+          "country": "CN",
+          "city": "湘西土家族苗族自治州",
+          "network": "China Unicom",
+          "group": "湖南 / 湘西土家族苗族自治州",
+          "level": "city",
+          "host": "hn-xiangxi-cu-v4.ip.zstaticcdn.com",
+          "port": 443,
+          "methods": [
+            "tcp"
+          ]
+        },
+        {
+          "id": "zstatic_cdn:hn-yongzhou-ct-v4",
+          "label": "湖南永州电信",
+          "provider": "zstatic_cdn",
+          "region": "湖南",
+          "country": "CN",
+          "city": "永州",
+          "network": "China Telecom",
+          "group": "湖南 / 永州",
+          "level": "city",
+          "host": "hn-yongzhou-ct-v4.ip.zstaticcdn.com",
+          "port": 443,
+          "methods": [
+            "tcp"
+          ]
+        },
+        {
+          "id": "zstatic_cdn:hn-zhangjiajie-cu-v4",
+          "label": "湖南张家界联通",
+          "provider": "zstatic_cdn",
+          "region": "湖南",
+          "country": "CN",
+          "city": "张家界",
+          "network": "China Unicom",
+          "group": "湖南 / 张家界",
+          "level": "city",
+          "host": "hn-zhangjiajie-cu-v4.ip.zstaticcdn.com",
+          "port": 443,
+          "methods": [
+            "tcp"
+          ]
+        },
+        {
+          "id": "zstatic_cdn:hn-zhuzhou-cm-v4",
+          "label": "湖南株洲移动",
+          "provider": "zstatic_cdn",
+          "region": "湖南",
+          "country": "CN",
+          "city": "株洲",
+          "network": "China Mobile",
+          "group": "湖南 / 株洲",
+          "level": "city",
+          "host": "hn-zhuzhou-cm-v4.ip.zstaticcdn.com",
+          "port": 443,
+          "methods": [
+            "tcp"
+          ]
+        },
+        {
+          "id": "zstatic_cdn:hn-zhuzhou-ct-v4",
+          "label": "湖南株洲电信",
+          "provider": "zstatic_cdn",
+          "region": "湖南",
+          "country": "CN",
+          "city": "株洲",
+          "network": "China Telecom",
+          "group": "湖南 / 株洲",
+          "level": "city",
+          "host": "hn-zhuzhou-ct-v4.ip.zstaticcdn.com",
+          "port": 443,
+          "methods": [
+            "tcp"
+          ]
+        },
+        {
+          "id": "zstatic_cdn:jl-changchun-cu-v4",
+          "label": "吉林长春联通",
+          "provider": "zstatic_cdn",
+          "region": "吉林",
+          "country": "CN",
+          "city": "长春",
+          "network": "China Unicom",
+          "group": "吉林 / 长春",
+          "level": "city",
+          "host": "jl-changchun-cu-v4.ip.zstaticcdn.com",
+          "port": 443,
+          "methods": [
+            "tcp"
+          ]
+        },
+        {
+          "id": "zstatic_cdn:jl-cm-v4",
+          "label": "吉林移动",
+          "provider": "zstatic_cdn",
+          "region": "吉林",
+          "country": "CN",
+          "network": "China Mobile",
+          "group": "吉林",
+          "level": "province",
+          "host": "jl-cm-v4.ip.zstaticcdn.com",
+          "port": 80,
+          "methods": [
+            "tcp"
+          ]
+        },
+        {
+          "id": "zstatic_cdn:jl-ct-v4",
+          "label": "吉林电信",
+          "provider": "zstatic_cdn",
+          "region": "吉林",
+          "country": "CN",
+          "network": "China Telecom",
+          "group": "吉林",
+          "level": "province",
+          "host": "jl-ct-v4.ip.zstaticcdn.com",
+          "port": 80,
+          "methods": [
+            "tcp"
+          ]
+        },
+        {
+          "id": "zstatic_cdn:jl-cu-v4",
+          "label": "吉林联通",
+          "provider": "zstatic_cdn",
+          "region": "吉林",
+          "country": "CN",
+          "network": "China Unicom",
+          "group": "吉林",
+          "level": "province",
+          "host": "jl-cu-v4.ip.zstaticcdn.com",
+          "port": 80,
+          "methods": [
+            "tcp"
+          ]
+        },
+        {
+          "id": "zstatic_cdn:jl-jilin-cu-v4",
+          "label": "吉林吉林联通",
+          "provider": "zstatic_cdn",
+          "region": "吉林",
+          "country": "CN",
+          "city": "吉林",
+          "network": "China Unicom",
+          "group": "吉林 / 吉林",
+          "level": "city",
+          "host": "jl-jilin-cu-v4.ip.zstaticcdn.com",
+          "port": 443,
+          "methods": [
+            "tcp"
+          ]
+        },
+        {
+          "id": "zstatic_cdn:jl-siping-cu-v4",
+          "label": "吉林四平联通",
+          "provider": "zstatic_cdn",
+          "region": "吉林",
+          "country": "CN",
+          "city": "四平",
+          "network": "China Unicom",
+          "group": "吉林 / 四平",
+          "level": "city",
+          "host": "jl-siping-cu-v4.ip.zstaticcdn.com",
+          "port": 443,
+          "methods": [
+            "tcp"
+          ]
+        },
+        {
+          "id": "zstatic_cdn:jl-songyuan-cu-v4",
+          "label": "吉林松原联通",
+          "provider": "zstatic_cdn",
+          "region": "吉林",
+          "country": "CN",
+          "city": "松原",
+          "network": "China Unicom",
+          "group": "吉林 / 松原",
+          "level": "city",
+          "host": "jl-songyuan-cu-v4.ip.zstaticcdn.com",
+          "port": 443,
+          "methods": [
+            "tcp"
+          ]
+        },
+        {
+          "id": "zstatic_cdn:jl-tonghua-cu-v4",
+          "label": "吉林通化联通",
+          "provider": "zstatic_cdn",
+          "region": "吉林",
+          "country": "CN",
+          "city": "通化",
+          "network": "China Unicom",
+          "group": "吉林 / 通化",
+          "level": "city",
+          "host": "jl-tonghua-cu-v4.ip.zstaticcdn.com",
+          "port": 443,
+          "methods": [
+            "tcp"
+          ]
+        },
+        {
+          "id": "zstatic_cdn:js-cm-v4",
+          "label": "江苏移动",
+          "provider": "zstatic_cdn",
+          "region": "江苏",
+          "country": "CN",
+          "network": "China Mobile",
+          "group": "江苏",
+          "level": "province",
+          "host": "js-cm-v4.ip.zstaticcdn.com",
+          "port": 80,
+          "methods": [
+            "tcp"
+          ]
+        },
+        {
+          "id": "zstatic_cdn:js-ct-v4",
+          "label": "江苏电信",
+          "provider": "zstatic_cdn",
+          "region": "江苏",
+          "country": "CN",
+          "network": "China Telecom",
+          "group": "江苏",
+          "level": "province",
+          "host": "js-ct-v4.ip.zstaticcdn.com",
+          "port": 80,
+          "methods": [
+            "tcp"
+          ]
+        },
+        {
+          "id": "zstatic_cdn:js-cu-v4",
+          "label": "江苏联通",
+          "provider": "zstatic_cdn",
+          "region": "江苏",
+          "country": "CN",
+          "network": "China Unicom",
+          "group": "江苏",
+          "level": "province",
+          "host": "js-cu-v4.ip.zstaticcdn.com",
+          "port": 80,
+          "methods": [
+            "tcp"
+          ]
+        },
+        {
+          "id": "zstatic_cdn:js-lianyungang-cu-v4",
+          "label": "江苏连云港联通",
+          "provider": "zstatic_cdn",
+          "region": "江苏",
+          "country": "CN",
+          "city": "连云港",
+          "network": "China Unicom",
+          "group": "江苏 / 连云港",
+          "level": "city",
+          "host": "js-lianyungang-cu-v4.ip.zstaticcdn.com",
+          "port": 443,
+          "methods": [
+            "tcp"
+          ]
+        },
+        {
+          "id": "zstatic_cdn:js-nanjing-cm-v4",
+          "label": "江苏南京移动",
+          "provider": "zstatic_cdn",
+          "region": "江苏",
+          "country": "CN",
+          "city": "南京",
+          "network": "China Mobile",
+          "group": "江苏 / 南京",
+          "level": "city",
+          "host": "js-nanjing-cm-v4.ip.zstaticcdn.com",
+          "port": 443,
+          "methods": [
+            "tcp"
+          ]
+        },
+        {
+          "id": "zstatic_cdn:js-nanjing-ct-v4",
+          "label": "江苏南京电信",
+          "provider": "zstatic_cdn",
+          "region": "江苏",
+          "country": "CN",
+          "city": "南京",
+          "network": "China Telecom",
+          "group": "江苏 / 南京",
+          "level": "city",
+          "host": "js-nanjing-ct-v4.ip.zstaticcdn.com",
+          "port": 443,
+          "methods": [
+            "tcp"
+          ]
+        },
+        {
+          "id": "zstatic_cdn:js-nanjing-cu-v4",
+          "label": "江苏南京联通",
+          "provider": "zstatic_cdn",
+          "region": "江苏",
+          "country": "CN",
+          "city": "南京",
+          "network": "China Unicom",
+          "group": "江苏 / 南京",
+          "level": "city",
+          "host": "js-nanjing-cu-v4.ip.zstaticcdn.com",
+          "port": 443,
+          "methods": [
+            "tcp"
+          ]
+        },
+        {
+          "id": "zstatic_cdn:js-nantong-cu-v4",
+          "label": "江苏南通联通",
+          "provider": "zstatic_cdn",
+          "region": "江苏",
+          "country": "CN",
+          "city": "南通",
+          "network": "China Unicom",
+          "group": "江苏 / 南通",
+          "level": "city",
+          "host": "js-nantong-cu-v4.ip.zstaticcdn.com",
+          "port": 443,
+          "methods": [
+            "tcp"
+          ]
+        },
+        {
+          "id": "zstatic_cdn:js-suzhou-cm-v4",
+          "label": "江苏苏州移动",
+          "provider": "zstatic_cdn",
+          "region": "江苏",
+          "country": "CN",
+          "city": "苏州",
+          "network": "China Mobile",
+          "group": "江苏 / 苏州",
+          "level": "city",
+          "host": "js-suzhou-cm-v4.ip.zstaticcdn.com",
+          "port": 443,
+          "methods": [
+            "tcp"
+          ]
+        },
+        {
+          "id": "zstatic_cdn:js-suzhou-ct-v4",
+          "label": "江苏苏州电信",
+          "provider": "zstatic_cdn",
+          "region": "江苏",
+          "country": "CN",
+          "city": "苏州",
+          "network": "China Telecom",
+          "group": "江苏 / 苏州",
+          "level": "city",
+          "host": "js-suzhou-ct-v4.ip.zstaticcdn.com",
+          "port": 443,
+          "methods": [
+            "tcp"
+          ]
+        },
+        {
+          "id": "zstatic_cdn:js-taizhou-cu-v4",
+          "label": "江苏台州联通",
+          "provider": "zstatic_cdn",
+          "region": "江苏",
+          "country": "CN",
+          "city": "台州",
+          "network": "China Unicom",
+          "group": "江苏 / 台州",
+          "level": "city",
+          "host": "js-taizhou-cu-v4.ip.zstaticcdn.com",
+          "port": 443,
+          "methods": [
+            "tcp"
+          ]
+        },
+        {
+          "id": "zstatic_cdn:js-wuxi-cm-v4",
+          "label": "江苏无锡移动",
+          "provider": "zstatic_cdn",
+          "region": "江苏",
+          "country": "CN",
+          "city": "无锡",
+          "network": "China Mobile",
+          "group": "江苏 / 无锡",
+          "level": "city",
+          "host": "js-wuxi-cm-v4.ip.zstaticcdn.com",
+          "port": 443,
+          "methods": [
+            "tcp"
+          ]
+        },
+        {
+          "id": "zstatic_cdn:js-xuzhou-cu-v4",
+          "label": "江苏徐州联通",
+          "provider": "zstatic_cdn",
+          "region": "江苏",
+          "country": "CN",
+          "city": "徐州",
+          "network": "China Unicom",
+          "group": "江苏 / 徐州",
+          "level": "city",
+          "host": "js-xuzhou-cu-v4.ip.zstaticcdn.com",
+          "port": 443,
+          "methods": [
+            "tcp"
+          ]
+        },
+        {
+          "id": "zstatic_cdn:js-yancheng-cu-v4",
+          "label": "江苏盐城联通",
+          "provider": "zstatic_cdn",
+          "region": "江苏",
+          "country": "CN",
+          "city": "盐城",
+          "network": "China Unicom",
+          "group": "江苏 / 盐城",
+          "level": "city",
+          "host": "js-yancheng-cu-v4.ip.zstaticcdn.com",
+          "port": 443,
+          "methods": [
+            "tcp"
+          ]
+        },
+        {
+          "id": "zstatic_cdn:js-yangzhou-cu-v4",
+          "label": "江苏扬州联通",
+          "provider": "zstatic_cdn",
+          "region": "江苏",
+          "country": "CN",
+          "city": "扬州",
+          "network": "China Unicom",
+          "group": "江苏 / 扬州",
+          "level": "city",
+          "host": "js-yangzhou-cu-v4.ip.zstaticcdn.com",
+          "port": 443,
+          "methods": [
+            "tcp"
+          ]
+        },
+        {
+          "id": "zstatic_cdn:js-zhenjiang-ct-v4",
+          "label": "江苏镇江电信",
+          "provider": "zstatic_cdn",
+          "region": "江苏",
+          "country": "CN",
+          "city": "镇江",
+          "network": "China Telecom",
+          "group": "江苏 / 镇江",
+          "level": "city",
+          "host": "js-zhenjiang-ct-v4.ip.zstaticcdn.com",
+          "port": 443,
+          "methods": [
+            "tcp"
+          ]
+        },
+        {
+          "id": "zstatic_cdn:jx-cm-v4",
+          "label": "江西移动",
+          "provider": "zstatic_cdn",
+          "region": "江西",
+          "country": "CN",
+          "network": "China Mobile",
+          "group": "江西",
+          "level": "province",
+          "host": "jx-cm-v4.ip.zstaticcdn.com",
+          "port": 80,
+          "methods": [
+            "tcp"
+          ]
+        },
+        {
+          "id": "zstatic_cdn:jx-ct-v4",
+          "label": "江西电信",
+          "provider": "zstatic_cdn",
+          "region": "江西",
+          "country": "CN",
+          "network": "China Telecom",
+          "group": "江西",
+          "level": "province",
+          "host": "jx-ct-v4.ip.zstaticcdn.com",
+          "port": 80,
+          "methods": [
+            "tcp"
+          ]
+        },
+        {
+          "id": "zstatic_cdn:jx-cu-v4",
+          "label": "江西联通",
+          "provider": "zstatic_cdn",
+          "region": "江西",
+          "country": "CN",
+          "network": "China Unicom",
+          "group": "江西",
+          "level": "province",
+          "host": "jx-cu-v4.ip.zstaticcdn.com",
+          "port": 80,
+          "methods": [
+            "tcp"
+          ]
+        },
+        {
+          "id": "zstatic_cdn:jx-fuzhou-cu-v4",
+          "label": "江西抚州联通",
+          "provider": "zstatic_cdn",
+          "region": "江西",
+          "country": "CN",
+          "city": "抚州",
+          "network": "China Unicom",
+          "group": "江西 / 抚州",
+          "level": "city",
+          "host": "jx-fuzhou-cu-v4.ip.zstaticcdn.com",
+          "port": 443,
+          "methods": [
+            "tcp"
+          ]
+        },
+        {
+          "id": "zstatic_cdn:jx-jian-cu-v4",
+          "label": "江西吉安联通",
+          "provider": "zstatic_cdn",
+          "region": "江西",
+          "country": "CN",
+          "city": "吉安",
+          "network": "China Unicom",
+          "group": "江西 / 吉安",
+          "level": "city",
+          "host": "jx-jian-cu-v4.ip.zstaticcdn.com",
+          "port": 443,
+          "methods": [
+            "tcp"
+          ]
+        },
+        {
+          "id": "zstatic_cdn:jx-jingdezhen-cu-v4",
+          "label": "江西景德镇联通",
+          "provider": "zstatic_cdn",
+          "region": "江西",
+          "country": "CN",
+          "city": "景德镇",
+          "network": "China Unicom",
+          "group": "江西 / 景德镇",
+          "level": "city",
+          "host": "jx-jingdezhen-cu-v4.ip.zstaticcdn.com",
+          "port": 443,
+          "methods": [
+            "tcp"
+          ]
+        },
+        {
+          "id": "zstatic_cdn:jx-jiujiang-cu-v4",
+          "label": "江西九江联通",
+          "provider": "zstatic_cdn",
+          "region": "江西",
+          "country": "CN",
+          "city": "九江",
+          "network": "China Unicom",
+          "group": "江西 / 九江",
+          "level": "city",
+          "host": "jx-jiujiang-cu-v4.ip.zstaticcdn.com",
+          "port": 443,
+          "methods": [
+            "tcp"
+          ]
+        },
+        {
+          "id": "zstatic_cdn:jx-nanchang-cu-v4",
+          "label": "江西南昌联通",
+          "provider": "zstatic_cdn",
+          "region": "江西",
+          "country": "CN",
+          "city": "南昌",
+          "network": "China Unicom",
+          "group": "江西 / 南昌",
+          "level": "city",
+          "host": "jx-nanchang-cu-v4.ip.zstaticcdn.com",
+          "port": 443,
+          "methods": [
+            "tcp"
+          ]
+        },
+        {
+          "id": "zstatic_cdn:jx-shangrao-cu-v4",
+          "label": "江西上饶联通",
+          "provider": "zstatic_cdn",
+          "region": "江西",
+          "country": "CN",
+          "city": "上饶",
+          "network": "China Unicom",
+          "group": "江西 / 上饶",
+          "level": "city",
+          "host": "jx-shangrao-cu-v4.ip.zstaticcdn.com",
+          "port": 443,
+          "methods": [
+            "tcp"
+          ]
+        },
+        {
+          "id": "zstatic_cdn:jx-xinyu-cu-v4",
+          "label": "江西新余联通",
+          "provider": "zstatic_cdn",
+          "region": "江西",
+          "country": "CN",
+          "city": "新余",
+          "network": "China Unicom",
+          "group": "江西 / 新余",
+          "level": "city",
+          "host": "jx-xinyu-cu-v4.ip.zstaticcdn.com",
+          "port": 443,
+          "methods": [
+            "tcp"
+          ]
+        },
+        {
+          "id": "zstatic_cdn:jx-yichun-cu-v4",
+          "label": "江西宜春联通",
+          "provider": "zstatic_cdn",
+          "region": "江西",
+          "country": "CN",
+          "city": "宜春",
+          "network": "China Unicom",
+          "group": "江西 / 宜春",
+          "level": "city",
+          "host": "jx-yichun-cu-v4.ip.zstaticcdn.com",
+          "port": 443,
+          "methods": [
+            "tcp"
+          ]
+        },
+        {
+          "id": "zstatic_cdn:jx-yingtan-cu-v4",
+          "label": "江西鹰潭联通",
+          "provider": "zstatic_cdn",
+          "region": "江西",
+          "country": "CN",
+          "city": "鹰潭",
+          "network": "China Unicom",
+          "group": "江西 / 鹰潭",
+          "level": "city",
+          "host": "jx-yingtan-cu-v4.ip.zstaticcdn.com",
+          "port": 443,
+          "methods": [
+            "tcp"
+          ]
+        },
+        {
+          "id": "zstatic_cdn:ln-chaoyang-cu-v4",
+          "label": "辽宁朝阳联通",
+          "provider": "zstatic_cdn",
+          "region": "辽宁",
+          "country": "CN",
+          "city": "朝阳",
+          "network": "China Unicom",
+          "group": "辽宁 / 朝阳",
+          "level": "city",
+          "host": "ln-chaoyang-cu-v4.ip.zstaticcdn.com",
+          "port": 443,
+          "methods": [
+            "tcp"
+          ]
+        },
+        {
+          "id": "zstatic_cdn:ln-cm-v4",
+          "label": "辽宁移动",
+          "provider": "zstatic_cdn",
+          "region": "辽宁",
+          "country": "CN",
+          "network": "China Mobile",
+          "group": "辽宁",
+          "level": "province",
+          "host": "ln-cm-v4.ip.zstaticcdn.com",
+          "port": 80,
+          "methods": [
+            "tcp"
+          ]
+        },
+        {
+          "id": "zstatic_cdn:ln-ct-v4",
+          "label": "辽宁电信",
+          "provider": "zstatic_cdn",
+          "region": "辽宁",
+          "country": "CN",
+          "network": "China Telecom",
+          "group": "辽宁",
+          "level": "province",
+          "host": "ln-ct-v4.ip.zstaticcdn.com",
+          "port": 80,
+          "methods": [
+            "tcp"
+          ]
+        },
+        {
+          "id": "zstatic_cdn:ln-cu-v4",
+          "label": "辽宁联通",
+          "provider": "zstatic_cdn",
+          "region": "辽宁",
+          "country": "CN",
+          "network": "China Unicom",
+          "group": "辽宁",
+          "level": "province",
+          "host": "ln-cu-v4.ip.zstaticcdn.com",
+          "port": 80,
+          "methods": [
+            "tcp"
+          ]
+        },
+        {
+          "id": "zstatic_cdn:ln-dalian-cu-v4",
+          "label": "辽宁大连联通",
+          "provider": "zstatic_cdn",
+          "region": "辽宁",
+          "country": "CN",
+          "city": "大连",
+          "network": "China Unicom",
+          "group": "辽宁 / 大连",
+          "level": "city",
+          "host": "ln-dalian-cu-v4.ip.zstaticcdn.com",
+          "port": 443,
+          "methods": [
+            "tcp"
+          ]
+        },
+        {
+          "id": "zstatic_cdn:ln-dandong-cu-v4",
+          "label": "辽宁丹东联通",
+          "provider": "zstatic_cdn",
+          "region": "辽宁",
+          "country": "CN",
+          "city": "丹东",
+          "network": "China Unicom",
+          "group": "辽宁 / 丹东",
+          "level": "city",
+          "host": "ln-dandong-cu-v4.ip.zstaticcdn.com",
+          "port": 443,
+          "methods": [
+            "tcp"
+          ]
+        },
+        {
+          "id": "zstatic_cdn:ln-fushun-cu-v4",
+          "label": "辽宁抚顺联通",
+          "provider": "zstatic_cdn",
+          "region": "辽宁",
+          "country": "CN",
+          "city": "抚顺",
+          "network": "China Unicom",
+          "group": "辽宁 / 抚顺",
+          "level": "city",
+          "host": "ln-fushun-cu-v4.ip.zstaticcdn.com",
+          "port": 443,
+          "methods": [
+            "tcp"
+          ]
+        },
+        {
+          "id": "zstatic_cdn:ln-fuxin-cu-v4",
+          "label": "辽宁阜新联通",
+          "provider": "zstatic_cdn",
+          "region": "辽宁",
+          "country": "CN",
+          "city": "阜新",
+          "network": "China Unicom",
+          "group": "辽宁 / 阜新",
+          "level": "city",
+          "host": "ln-fuxin-cu-v4.ip.zstaticcdn.com",
+          "port": 443,
+          "methods": [
+            "tcp"
+          ]
+        },
+        {
+          "id": "zstatic_cdn:ln-huludao-cu-v4",
+          "label": "辽宁葫芦岛联通",
+          "provider": "zstatic_cdn",
+          "region": "辽宁",
+          "country": "CN",
+          "city": "葫芦岛",
+          "network": "China Unicom",
+          "group": "辽宁 / 葫芦岛",
+          "level": "city",
+          "host": "ln-huludao-cu-v4.ip.zstaticcdn.com",
+          "port": 443,
+          "methods": [
+            "tcp"
+          ]
+        },
+        {
+          "id": "zstatic_cdn:ln-jinzhou-cu-v4",
+          "label": "辽宁锦州联通",
+          "provider": "zstatic_cdn",
+          "region": "辽宁",
+          "country": "CN",
+          "city": "锦州",
+          "network": "China Unicom",
+          "group": "辽宁 / 锦州",
+          "level": "city",
+          "host": "ln-jinzhou-cu-v4.ip.zstaticcdn.com",
+          "port": 443,
+          "methods": [
+            "tcp"
+          ]
+        },
+        {
+          "id": "zstatic_cdn:ln-liaoyang-ct-v4",
+          "label": "辽宁辽阳电信",
+          "provider": "zstatic_cdn",
+          "region": "辽宁",
+          "country": "CN",
+          "city": "辽阳",
+          "network": "China Telecom",
+          "group": "辽宁 / 辽阳",
+          "level": "city",
+          "host": "ln-liaoyang-ct-v4.ip.zstaticcdn.com",
+          "port": 443,
+          "methods": [
+            "tcp"
+          ]
+        },
+        {
+          "id": "zstatic_cdn:ln-shenyang-cu-v4",
+          "label": "辽宁沈阳联通",
+          "provider": "zstatic_cdn",
+          "region": "辽宁",
+          "country": "CN",
+          "city": "沈阳",
+          "network": "China Unicom",
+          "group": "辽宁 / 沈阳",
+          "level": "city",
+          "host": "ln-shenyang-cu-v4.ip.zstaticcdn.com",
+          "port": 443,
+          "methods": [
+            "tcp"
+          ]
+        },
+        {
+          "id": "zstatic_cdn:ln-tieling-cu-v4",
+          "label": "辽宁铁岭联通",
+          "provider": "zstatic_cdn",
+          "region": "辽宁",
+          "country": "CN",
+          "city": "铁岭",
+          "network": "China Unicom",
+          "group": "辽宁 / 铁岭",
+          "level": "city",
+          "host": "ln-tieling-cu-v4.ip.zstaticcdn.com",
+          "port": 443,
+          "methods": [
+            "tcp"
+          ]
+        },
+        {
+          "id": "zstatic_cdn:ln-yingkou-cu-v4",
+          "label": "辽宁营口联通",
+          "provider": "zstatic_cdn",
+          "region": "辽宁",
+          "country": "CN",
+          "city": "营口",
+          "network": "China Unicom",
+          "group": "辽宁 / 营口",
+          "level": "city",
+          "host": "ln-yingkou-cu-v4.ip.zstaticcdn.com",
+          "port": 443,
+          "methods": [
+            "tcp"
+          ]
+        },
+        {
+          "id": "zstatic_cdn:nm-baotou-cu-v4",
+          "label": "内蒙古自治区包头联通",
+          "provider": "zstatic_cdn",
+          "region": "内蒙古自治区",
+          "country": "CN",
+          "city": "包头",
+          "network": "China Unicom",
+          "group": "内蒙古自治区 / 包头",
+          "level": "city",
+          "host": "nm-baotou-cu-v4.ip.zstaticcdn.com",
+          "port": 443,
+          "methods": [
+            "tcp"
+          ]
+        },
+        {
+          "id": "zstatic_cdn:nm-bayannaoer-cu-v4",
+          "label": "内蒙古自治区巴彦淖尔联通",
+          "provider": "zstatic_cdn",
+          "region": "内蒙古自治区",
+          "country": "CN",
+          "city": "巴彦淖尔",
+          "network": "China Unicom",
+          "group": "内蒙古自治区 / 巴彦淖尔",
+          "level": "city",
+          "host": "nm-bayannaoer-cu-v4.ip.zstaticcdn.com",
+          "port": 443,
+          "methods": [
+            "tcp"
+          ]
+        },
+        {
+          "id": "zstatic_cdn:nm-chifeng-cu-v4",
+          "label": "内蒙古自治区赤峰联通",
+          "provider": "zstatic_cdn",
+          "region": "内蒙古自治区",
+          "country": "CN",
+          "city": "赤峰",
+          "network": "China Unicom",
+          "group": "内蒙古自治区 / 赤峰",
+          "level": "city",
+          "host": "nm-chifeng-cu-v4.ip.zstaticcdn.com",
+          "port": 443,
+          "methods": [
+            "tcp"
+          ]
+        },
+        {
+          "id": "zstatic_cdn:nm-cm-v4",
+          "label": "内蒙古移动",
+          "provider": "zstatic_cdn",
+          "region": "内蒙古",
+          "country": "CN",
+          "network": "China Mobile",
+          "group": "内蒙古",
+          "level": "province",
+          "host": "nm-cm-v4.ip.zstaticcdn.com",
+          "port": 80,
+          "methods": [
+            "tcp"
+          ]
+        },
+        {
+          "id": "zstatic_cdn:nm-ct-v4",
+          "label": "内蒙古电信",
+          "provider": "zstatic_cdn",
+          "region": "内蒙古",
+          "country": "CN",
+          "network": "China Telecom",
+          "group": "内蒙古",
+          "level": "province",
+          "host": "nm-ct-v4.ip.zstaticcdn.com",
+          "port": 80,
+          "methods": [
+            "tcp"
+          ]
+        },
+        {
+          "id": "zstatic_cdn:nm-cu-v4",
+          "label": "内蒙古联通",
+          "provider": "zstatic_cdn",
+          "region": "内蒙古",
+          "country": "CN",
+          "network": "China Unicom",
+          "group": "内蒙古",
+          "level": "province",
+          "host": "nm-cu-v4.ip.zstaticcdn.com",
+          "port": 80,
+          "methods": [
+            "tcp"
+          ]
+        },
+        {
+          "id": "zstatic_cdn:nm-huhehaote-cm-v4",
+          "label": "内蒙古呼和浩特移动",
+          "provider": "zstatic_cdn",
+          "region": "内蒙古",
+          "country": "CN",
+          "city": "呼和浩特",
+          "network": "China Mobile",
+          "group": "内蒙古 / 呼和浩特",
+          "level": "city",
+          "host": "nm-huhehaote-cm-v4.ip.zstaticcdn.com",
+          "port": 443,
+          "methods": [
+            "tcp"
+          ]
+        },
+        {
+          "id": "zstatic_cdn:nm-huhehaote-ct-v4",
+          "label": "内蒙古呼和浩特电信",
+          "provider": "zstatic_cdn",
+          "region": "内蒙古",
+          "country": "CN",
+          "city": "呼和浩特",
+          "network": "China Telecom",
+          "group": "内蒙古 / 呼和浩特",
+          "level": "city",
+          "host": "nm-huhehaote-ct-v4.ip.zstaticcdn.com",
+          "port": 443,
+          "methods": [
+            "tcp"
+          ]
+        },
+        {
+          "id": "zstatic_cdn:nm-huhehaote-cu-v4",
+          "label": "内蒙古呼和浩特联通",
+          "provider": "zstatic_cdn",
+          "region": "内蒙古",
+          "country": "CN",
+          "city": "呼和浩特",
+          "network": "China Unicom",
+          "group": "内蒙古 / 呼和浩特",
+          "level": "city",
+          "host": "nm-huhehaote-cu-v4.ip.zstaticcdn.com",
+          "port": 443,
+          "methods": [
+            "tcp"
+          ]
+        },
+        {
+          "id": "zstatic_cdn:nm-hulunbeier-cu-v4",
+          "label": "内蒙古自治区呼伦贝尔联通",
+          "provider": "zstatic_cdn",
+          "region": "内蒙古自治区",
+          "country": "CN",
+          "city": "呼伦贝尔",
+          "network": "China Unicom",
+          "group": "内蒙古自治区 / 呼伦贝尔",
+          "level": "city",
+          "host": "nm-hulunbeier-cu-v4.ip.zstaticcdn.com",
+          "port": 443,
+          "methods": [
+            "tcp"
+          ]
+        },
+        {
+          "id": "zstatic_cdn:nm-tongliao-cu-v4",
+          "label": "内蒙古自治区通辽联通",
+          "provider": "zstatic_cdn",
+          "region": "内蒙古自治区",
+          "country": "CN",
+          "city": "通辽",
+          "network": "China Unicom",
+          "group": "内蒙古自治区 / 通辽",
+          "level": "city",
+          "host": "nm-tongliao-cu-v4.ip.zstaticcdn.com",
+          "port": 443,
+          "methods": [
+            "tcp"
+          ]
+        },
+        {
+          "id": "zstatic_cdn:nm-wuhai-cu-v4",
+          "label": "内蒙古自治区乌海联通",
+          "provider": "zstatic_cdn",
+          "region": "内蒙古自治区",
+          "country": "CN",
+          "city": "乌海",
+          "network": "China Unicom",
+          "group": "内蒙古自治区 / 乌海",
+          "level": "city",
+          "host": "nm-wuhai-cu-v4.ip.zstaticcdn.com",
+          "port": 443,
+          "methods": [
+            "tcp"
+          ]
+        },
+        {
+          "id": "zstatic_cdn:nm-wulanchabu-cu-v4",
+          "label": "内蒙古自治区乌兰察布联通",
+          "provider": "zstatic_cdn",
+          "region": "内蒙古自治区",
+          "country": "CN",
+          "city": "乌兰察布",
+          "network": "China Unicom",
+          "group": "内蒙古自治区 / 乌兰察布",
+          "level": "city",
+          "host": "nm-wulanchabu-cu-v4.ip.zstaticcdn.com",
+          "port": 443,
+          "methods": [
+            "tcp"
+          ]
+        },
+        {
+          "id": "zstatic_cdn:nm-xilinguole-cu-v4",
+          "label": "内蒙古自治区锡林郭勒盟联通",
+          "provider": "zstatic_cdn",
+          "region": "内蒙古自治区",
+          "country": "CN",
+          "city": "锡林郭勒盟",
+          "network": "China Unicom",
+          "group": "内蒙古自治区 / 锡林郭勒盟",
+          "level": "city",
+          "host": "nm-xilinguole-cu-v4.ip.zstaticcdn.com",
+          "port": 443,
+          "methods": [
+            "tcp"
+          ]
+        },
+        {
+          "id": "zstatic_cdn:nm-xingan-cu-v4",
+          "label": "内蒙古自治区兴安盟联通",
+          "provider": "zstatic_cdn",
+          "region": "内蒙古自治区",
+          "country": "CN",
+          "city": "兴安盟",
+          "network": "China Unicom",
+          "group": "内蒙古自治区 / 兴安盟",
+          "level": "city",
+          "host": "nm-xingan-cu-v4.ip.zstaticcdn.com",
+          "port": 443,
+          "methods": [
+            "tcp"
+          ]
+        },
+        {
+          "id": "zstatic_cdn:nx-cm-v4",
+          "label": "宁夏移动",
+          "provider": "zstatic_cdn",
+          "region": "宁夏",
+          "country": "CN",
+          "network": "China Mobile",
+          "group": "宁夏",
+          "level": "province",
+          "host": "nx-cm-v4.ip.zstaticcdn.com",
+          "port": 80,
+          "methods": [
+            "tcp"
+          ]
+        },
+        {
+          "id": "zstatic_cdn:nx-ct-v4",
+          "label": "宁夏电信",
+          "provider": "zstatic_cdn",
+          "region": "宁夏",
+          "country": "CN",
+          "network": "China Telecom",
+          "group": "宁夏",
+          "level": "province",
+          "host": "nx-ct-v4.ip.zstaticcdn.com",
+          "port": 80,
+          "methods": [
+            "tcp"
+          ]
+        },
+        {
+          "id": "zstatic_cdn:nx-cu-v4",
+          "label": "宁夏联通",
+          "provider": "zstatic_cdn",
+          "region": "宁夏",
+          "country": "CN",
+          "network": "China Unicom",
+          "group": "宁夏",
+          "level": "province",
+          "host": "nx-cu-v4.ip.zstaticcdn.com",
+          "port": 80,
+          "methods": [
+            "tcp"
+          ]
+        },
+        {
+          "id": "zstatic_cdn:nx-yinchuan-cu-v4",
+          "label": "宁夏回族自治区银川联通",
+          "provider": "zstatic_cdn",
+          "region": "宁夏回族自治区",
+          "country": "CN",
+          "city": "银川",
+          "network": "China Unicom",
+          "group": "宁夏回族自治区 / 银川",
+          "level": "city",
+          "host": "nx-yinchuan-cu-v4.ip.zstaticcdn.com",
+          "port": 443,
+          "methods": [
+            "tcp"
+          ]
+        },
+        {
+          "id": "zstatic_cdn:qh-cm-v4",
+          "label": "青海移动",
+          "provider": "zstatic_cdn",
+          "region": "青海",
+          "country": "CN",
+          "network": "China Mobile",
+          "group": "青海",
+          "level": "province",
+          "host": "qh-cm-v4.ip.zstaticcdn.com",
+          "port": 80,
+          "methods": [
+            "tcp"
+          ]
+        },
+        {
+          "id": "zstatic_cdn:qh-ct-v4",
+          "label": "青海电信",
+          "provider": "zstatic_cdn",
+          "region": "青海",
+          "country": "CN",
+          "network": "China Telecom",
+          "group": "青海",
+          "level": "province",
+          "host": "qh-ct-v4.ip.zstaticcdn.com",
+          "port": 80,
+          "methods": [
+            "tcp"
+          ]
+        },
+        {
+          "id": "zstatic_cdn:qh-cu-v4",
+          "label": "青海联通",
+          "provider": "zstatic_cdn",
+          "region": "青海",
+          "country": "CN",
+          "network": "China Unicom",
+          "group": "青海",
+          "level": "province",
+          "host": "qh-cu-v4.ip.zstaticcdn.com",
+          "port": 80,
+          "methods": [
+            "tcp"
+          ]
+        },
+        {
+          "id": "zstatic_cdn:qh-xining-cu-v4",
+          "label": "青海西宁联通",
+          "provider": "zstatic_cdn",
+          "region": "青海",
+          "country": "CN",
+          "city": "西宁",
+          "network": "China Unicom",
+          "group": "青海 / 西宁",
+          "level": "city",
+          "host": "qh-xining-cu-v4.ip.zstaticcdn.com",
+          "port": 443,
+          "methods": [
+            "tcp"
+          ]
+        },
+        {
+          "id": "zstatic_cdn:sc-chengdu-cm-v4",
+          "label": "四川成都移动",
+          "provider": "zstatic_cdn",
+          "region": "四川",
+          "country": "CN",
+          "city": "成都",
+          "network": "China Mobile",
+          "group": "四川 / 成都",
+          "level": "city",
+          "host": "sc-chengdu-cm-v4.ip.zstaticcdn.com",
+          "port": 443,
+          "methods": [
+            "tcp"
+          ]
+        },
+        {
+          "id": "zstatic_cdn:sc-cm-v4",
+          "label": "四川移动",
+          "provider": "zstatic_cdn",
+          "region": "四川",
+          "country": "CN",
+          "network": "China Mobile",
+          "group": "四川",
+          "level": "province",
+          "host": "sc-cm-v4.ip.zstaticcdn.com",
+          "port": 80,
+          "methods": [
+            "tcp"
+          ]
+        },
+        {
+          "id": "zstatic_cdn:sc-ct-v4",
+          "label": "四川电信",
+          "provider": "zstatic_cdn",
+          "region": "四川",
+          "country": "CN",
+          "network": "China Telecom",
+          "group": "四川",
+          "level": "province",
+          "host": "sc-ct-v4.ip.zstaticcdn.com",
+          "port": 80,
+          "methods": [
+            "tcp"
+          ]
+        },
+        {
+          "id": "zstatic_cdn:sc-cu-v4",
+          "label": "四川联通",
+          "provider": "zstatic_cdn",
+          "region": "四川",
+          "country": "CN",
+          "network": "China Unicom",
+          "group": "四川",
+          "level": "province",
+          "host": "sc-cu-v4.ip.zstaticcdn.com",
+          "port": 80,
+          "methods": [
+            "tcp"
+          ]
+        },
+        {
+          "id": "zstatic_cdn:sc-dazhou-cu-v4",
+          "label": "四川达州联通",
+          "provider": "zstatic_cdn",
+          "region": "四川",
+          "country": "CN",
+          "city": "达州",
+          "network": "China Unicom",
+          "group": "四川 / 达州",
+          "level": "city",
+          "host": "sc-dazhou-cu-v4.ip.zstaticcdn.com",
+          "port": 443,
+          "methods": [
+            "tcp"
+          ]
+        },
+        {
+          "id": "zstatic_cdn:sc-leshan-cu-v4",
+          "label": "四川乐山联通",
+          "provider": "zstatic_cdn",
+          "region": "四川",
+          "country": "CN",
+          "city": "乐山",
+          "network": "China Unicom",
+          "group": "四川 / 乐山",
+          "level": "city",
+          "host": "sc-leshan-cu-v4.ip.zstaticcdn.com",
+          "port": 443,
+          "methods": [
+            "tcp"
+          ]
+        },
+        {
+          "id": "zstatic_cdn:sc-liangshan-cu-v4",
+          "label": "四川凉山彝族自治州联通",
+          "provider": "zstatic_cdn",
+          "region": "四川",
+          "country": "CN",
+          "city": "凉山彝族自治州",
+          "network": "China Unicom",
+          "group": "四川 / 凉山彝族自治州",
+          "level": "city",
+          "host": "sc-liangshan-cu-v4.ip.zstaticcdn.com",
+          "port": 443,
+          "methods": [
+            "tcp"
+          ]
+        },
+        {
+          "id": "zstatic_cdn:sc-luzhou-cu-v4",
+          "label": "四川泸州联通",
+          "provider": "zstatic_cdn",
+          "region": "四川",
+          "country": "CN",
+          "city": "泸州",
+          "network": "China Unicom",
+          "group": "四川 / 泸州",
+          "level": "city",
+          "host": "sc-luzhou-cu-v4.ip.zstaticcdn.com",
+          "port": 443,
+          "methods": [
+            "tcp"
+          ]
+        },
+        {
+          "id": "zstatic_cdn:sc-mianyang-cu-v4",
+          "label": "四川绵阳联通",
+          "provider": "zstatic_cdn",
+          "region": "四川",
+          "country": "CN",
+          "city": "绵阳",
+          "network": "China Unicom",
+          "group": "四川 / 绵阳",
+          "level": "city",
+          "host": "sc-mianyang-cu-v4.ip.zstaticcdn.com",
+          "port": 443,
+          "methods": [
+            "tcp"
+          ]
+        },
+        {
+          "id": "zstatic_cdn:sc-neijiang-cu-v4",
+          "label": "四川内江联通",
+          "provider": "zstatic_cdn",
+          "region": "四川",
+          "country": "CN",
+          "city": "内江",
+          "network": "China Unicom",
+          "group": "四川 / 内江",
+          "level": "city",
+          "host": "sc-neijiang-cu-v4.ip.zstaticcdn.com",
+          "port": 443,
+          "methods": [
+            "tcp"
+          ]
+        },
+        {
+          "id": "zstatic_cdn:sc-ziyang-cu-v4",
+          "label": "四川资阳联通",
+          "provider": "zstatic_cdn",
+          "region": "四川",
+          "country": "CN",
+          "city": "资阳",
+          "network": "China Unicom",
+          "group": "四川 / 资阳",
+          "level": "city",
+          "host": "sc-ziyang-cu-v4.ip.zstaticcdn.com",
+          "port": 443,
+          "methods": [
+            "tcp"
+          ]
+        },
+        {
+          "id": "zstatic_cdn:sd-binzhou-cu-v4",
+          "label": "山东滨州联通",
+          "provider": "zstatic_cdn",
+          "region": "山东",
+          "country": "CN",
+          "city": "滨州",
+          "network": "China Unicom",
+          "group": "山东 / 滨州",
+          "level": "city",
+          "host": "sd-binzhou-cu-v4.ip.zstaticcdn.com",
+          "port": 443,
+          "methods": [
+            "tcp"
+          ]
+        },
+        {
+          "id": "zstatic_cdn:sd-cm-v4",
+          "label": "山东移动",
+          "provider": "zstatic_cdn",
+          "region": "山东",
+          "country": "CN",
+          "network": "China Mobile",
+          "group": "山东",
+          "level": "province",
+          "host": "sd-cm-v4.ip.zstaticcdn.com",
+          "port": 80,
+          "methods": [
+            "tcp"
+          ]
+        },
+        {
+          "id": "zstatic_cdn:sd-ct-v4",
+          "label": "山东电信",
+          "provider": "zstatic_cdn",
+          "region": "山东",
+          "country": "CN",
+          "network": "China Telecom",
+          "group": "山东",
+          "level": "province",
+          "host": "sd-ct-v4.ip.zstaticcdn.com",
+          "port": 80,
+          "methods": [
+            "tcp"
+          ]
+        },
+        {
+          "id": "zstatic_cdn:sd-cu-v4",
+          "label": "山东联通",
+          "provider": "zstatic_cdn",
+          "region": "山东",
+          "country": "CN",
+          "network": "China Unicom",
+          "group": "山东",
+          "level": "province",
+          "host": "sd-cu-v4.ip.zstaticcdn.com",
+          "port": 80,
+          "methods": [
+            "tcp"
+          ]
+        },
+        {
+          "id": "zstatic_cdn:sd-dongying-cu-v4",
+          "label": "山东东营联通",
+          "provider": "zstatic_cdn",
+          "region": "山东",
+          "country": "CN",
+          "city": "东营",
+          "network": "China Unicom",
+          "group": "山东 / 东营",
+          "level": "city",
+          "host": "sd-dongying-cu-v4.ip.zstaticcdn.com",
+          "port": 443,
+          "methods": [
+            "tcp"
+          ]
+        },
+        {
+          "id": "zstatic_cdn:sd-heze-cu-v4",
+          "label": "山东菏泽联通",
+          "provider": "zstatic_cdn",
+          "region": "山东",
+          "country": "CN",
+          "city": "菏泽",
+          "network": "China Unicom",
+          "group": "山东 / 菏泽",
+          "level": "city",
+          "host": "sd-heze-cu-v4.ip.zstaticcdn.com",
+          "port": 443,
+          "methods": [
+            "tcp"
+          ]
+        },
+        {
+          "id": "zstatic_cdn:sd-jinan-cm-v4",
+          "label": "山东济南移动",
+          "provider": "zstatic_cdn",
+          "region": "山东",
+          "country": "CN",
+          "city": "济南",
+          "network": "China Mobile",
+          "group": "山东 / 济南",
+          "level": "city",
+          "host": "sd-jinan-cm-v4.ip.zstaticcdn.com",
+          "port": 443,
+          "methods": [
+            "tcp"
+          ]
+        },
+        {
+          "id": "zstatic_cdn:sd-jining-cu-v4",
+          "label": "山东济宁联通",
+          "provider": "zstatic_cdn",
+          "region": "山东",
+          "country": "CN",
+          "city": "济宁",
+          "network": "China Unicom",
+          "group": "山东 / 济宁",
+          "level": "city",
+          "host": "sd-jining-cu-v4.ip.zstaticcdn.com",
+          "port": 443,
+          "methods": [
+            "tcp"
+          ]
+        },
+        {
+          "id": "zstatic_cdn:sd-linyi-cu-v4",
+          "label": "山东临沂联通",
+          "provider": "zstatic_cdn",
+          "region": "山东",
+          "country": "CN",
+          "city": "临沂",
+          "network": "China Unicom",
+          "group": "山东 / 临沂",
+          "level": "city",
+          "host": "sd-linyi-cu-v4.ip.zstaticcdn.com",
+          "port": 443,
+          "methods": [
+            "tcp"
+          ]
+        },
+        {
+          "id": "zstatic_cdn:sd-qingdao-ct-v4",
+          "label": "山东青岛电信",
+          "provider": "zstatic_cdn",
+          "region": "山东",
+          "country": "CN",
+          "city": "青岛",
+          "network": "China Telecom",
+          "group": "山东 / 青岛",
+          "level": "city",
+          "host": "sd-qingdao-ct-v4.ip.zstaticcdn.com",
+          "port": 443,
+          "methods": [
+            "tcp"
+          ]
+        },
+        {
+          "id": "zstatic_cdn:sd-taian-cu-v4",
+          "label": "山东泰安联通",
+          "provider": "zstatic_cdn",
+          "region": "山东",
+          "country": "CN",
+          "city": "泰安",
+          "network": "China Unicom",
+          "group": "山东 / 泰安",
+          "level": "city",
+          "host": "sd-taian-cu-v4.ip.zstaticcdn.com",
+          "port": 443,
+          "methods": [
+            "tcp"
+          ]
+        },
+        {
+          "id": "zstatic_cdn:sd-weifang-cu-v4",
+          "label": "山东潍坊联通",
+          "provider": "zstatic_cdn",
+          "region": "山东",
+          "country": "CN",
+          "city": "潍坊",
+          "network": "China Unicom",
+          "group": "山东 / 潍坊",
+          "level": "city",
+          "host": "sd-weifang-cu-v4.ip.zstaticcdn.com",
+          "port": 443,
+          "methods": [
+            "tcp"
+          ]
+        },
+        {
+          "id": "zstatic_cdn:sd-weihai-cu-v4",
+          "label": "山东威海联通",
+          "provider": "zstatic_cdn",
+          "region": "山东",
+          "country": "CN",
+          "city": "威海",
+          "network": "China Unicom",
+          "group": "山东 / 威海",
+          "level": "city",
+          "host": "sd-weihai-cu-v4.ip.zstaticcdn.com",
+          "port": 443,
+          "methods": [
+            "tcp"
+          ]
+        },
+        {
+          "id": "zstatic_cdn:sd-yantai-cu-v4",
+          "label": "山东烟台联通",
+          "provider": "zstatic_cdn",
+          "region": "山东",
+          "country": "CN",
+          "city": "烟台",
+          "network": "China Unicom",
+          "group": "山东 / 烟台",
+          "level": "city",
+          "host": "sd-yantai-cu-v4.ip.zstaticcdn.com",
+          "port": 443,
+          "methods": [
+            "tcp"
+          ]
+        },
+        {
+          "id": "zstatic_cdn:sd-zaozhuang-cu-v4",
+          "label": "山东枣庄联通",
+          "provider": "zstatic_cdn",
+          "region": "山东",
+          "country": "CN",
+          "city": "枣庄",
+          "network": "China Unicom",
+          "group": "山东 / 枣庄",
+          "level": "city",
+          "host": "sd-zaozhuang-cu-v4.ip.zstaticcdn.com",
+          "port": 443,
+          "methods": [
+            "tcp"
+          ]
+        },
+        {
+          "id": "zstatic_cdn:sd-zibo-cu-v4",
+          "label": "山东淄博联通",
+          "provider": "zstatic_cdn",
+          "region": "山东",
+          "country": "CN",
+          "city": "淄博",
+          "network": "China Unicom",
+          "group": "山东 / 淄博",
+          "level": "city",
+          "host": "sd-zibo-cu-v4.ip.zstaticcdn.com",
+          "port": 443,
+          "methods": [
+            "tcp"
+          ]
+        },
+        {
+          "id": "zstatic_cdn:sh-cm-v4",
+          "label": "上海移动",
+          "provider": "zstatic_cdn",
+          "region": "上海",
+          "country": "CN",
+          "network": "China Mobile",
+          "group": "上海",
+          "level": "province",
+          "host": "sh-cm-v4.ip.zstaticcdn.com",
+          "port": 80,
+          "methods": [
+            "tcp"
+          ]
+        },
+        {
+          "id": "zstatic_cdn:sh-ct-v4",
+          "label": "上海电信",
+          "provider": "zstatic_cdn",
+          "region": "上海",
+          "country": "CN",
+          "network": "China Telecom",
+          "group": "上海",
+          "level": "province",
+          "host": "sh-ct-v4.ip.zstaticcdn.com",
+          "port": 80,
+          "methods": [
+            "tcp"
+          ]
+        },
+        {
+          "id": "zstatic_cdn:sh-cu-v4",
+          "label": "上海联通",
+          "provider": "zstatic_cdn",
+          "region": "上海",
+          "country": "CN",
+          "network": "China Unicom",
+          "group": "上海",
+          "level": "province",
+          "host": "sh-cu-v4.ip.zstaticcdn.com",
+          "port": 80,
+          "methods": [
+            "tcp"
+          ]
+        },
+        {
+          "id": "zstatic_cdn:sn-ankang-cu-v4",
+          "label": "陕西安康联通",
+          "provider": "zstatic_cdn",
+          "region": "陕西",
+          "country": "CN",
+          "city": "安康",
+          "network": "China Unicom",
+          "group": "陕西 / 安康",
+          "level": "city",
+          "host": "sn-ankang-cu-v4.ip.zstaticcdn.com",
+          "port": 443,
+          "methods": [
+            "tcp"
+          ]
+        },
+        {
+          "id": "zstatic_cdn:sn-baoji-cu-v4",
+          "label": "陕西宝鸡联通",
+          "provider": "zstatic_cdn",
+          "region": "陕西",
+          "country": "CN",
+          "city": "宝鸡",
+          "network": "China Unicom",
+          "group": "陕西 / 宝鸡",
+          "level": "city",
+          "host": "sn-baoji-cu-v4.ip.zstaticcdn.com",
+          "port": 443,
+          "methods": [
+            "tcp"
+          ]
+        },
+        {
+          "id": "zstatic_cdn:sn-cm-v4",
+          "label": "陕西移动",
+          "provider": "zstatic_cdn",
+          "region": "陕西",
+          "country": "CN",
+          "network": "China Mobile",
+          "group": "陕西",
+          "level": "province",
+          "host": "sn-cm-v4.ip.zstaticcdn.com",
+          "port": 80,
+          "methods": [
+            "tcp"
+          ]
+        },
+        {
+          "id": "zstatic_cdn:sn-ct-v4",
+          "label": "陕西电信",
+          "provider": "zstatic_cdn",
+          "region": "陕西",
+          "country": "CN",
+          "network": "China Telecom",
+          "group": "陕西",
+          "level": "province",
+          "host": "sn-ct-v4.ip.zstaticcdn.com",
+          "port": 80,
+          "methods": [
+            "tcp"
+          ]
+        },
+        {
+          "id": "zstatic_cdn:sn-cu-v4",
+          "label": "陕西联通",
+          "provider": "zstatic_cdn",
+          "region": "陕西",
+          "country": "CN",
+          "network": "China Unicom",
+          "group": "陕西",
+          "level": "province",
+          "host": "sn-cu-v4.ip.zstaticcdn.com",
+          "port": 80,
+          "methods": [
+            "tcp"
+          ]
+        },
+        {
+          "id": "zstatic_cdn:sn-shangluo-cu-v4",
+          "label": "陕西商洛联通",
+          "provider": "zstatic_cdn",
+          "region": "陕西",
+          "country": "CN",
+          "city": "商洛",
+          "network": "China Unicom",
+          "group": "陕西 / 商洛",
+          "level": "city",
+          "host": "sn-shangluo-cu-v4.ip.zstaticcdn.com",
+          "port": 443,
+          "methods": [
+            "tcp"
+          ]
+        },
+        {
+          "id": "zstatic_cdn:sn-weinan-cu-v4",
+          "label": "陕西渭南联通",
+          "provider": "zstatic_cdn",
+          "region": "陕西",
+          "country": "CN",
+          "city": "渭南",
+          "network": "China Unicom",
+          "group": "陕西 / 渭南",
+          "level": "city",
+          "host": "sn-weinan-cu-v4.ip.zstaticcdn.com",
+          "port": 443,
+          "methods": [
+            "tcp"
+          ]
+        },
+        {
+          "id": "zstatic_cdn:sn-xian-cm-v4",
+          "label": "陕西西安移动",
+          "provider": "zstatic_cdn",
+          "region": "陕西",
+          "country": "CN",
+          "city": "西安",
+          "network": "China Mobile",
+          "group": "陕西 / 西安",
+          "level": "city",
+          "host": "sn-xian-cm-v4.ip.zstaticcdn.com",
+          "port": 443,
+          "methods": [
+            "tcp"
+          ]
+        },
+        {
+          "id": "zstatic_cdn:sn-xian-ct-v4",
+          "label": "陕西西安电信",
+          "provider": "zstatic_cdn",
+          "region": "陕西",
+          "country": "CN",
+          "city": "西安",
+          "network": "China Telecom",
+          "group": "陕西 / 西安",
+          "level": "city",
+          "host": "sn-xian-ct-v4.ip.zstaticcdn.com",
+          "port": 443,
+          "methods": [
+            "tcp"
+          ]
+        },
+        {
+          "id": "zstatic_cdn:sn-xianyang-cu-v4",
+          "label": "陕西咸阳联通",
+          "provider": "zstatic_cdn",
+          "region": "陕西",
+          "country": "CN",
+          "city": "咸阳",
+          "network": "China Unicom",
+          "group": "陕西 / 咸阳",
+          "level": "city",
+          "host": "sn-xianyang-cu-v4.ip.zstaticcdn.com",
+          "port": 443,
+          "methods": [
+            "tcp"
+          ]
+        },
+        {
+          "id": "zstatic_cdn:sn-yulin-cu-v4",
+          "label": "陕西榆林联通",
+          "provider": "zstatic_cdn",
+          "region": "陕西",
+          "country": "CN",
+          "city": "榆林",
+          "network": "China Unicom",
+          "group": "陕西 / 榆林",
+          "level": "city",
+          "host": "sn-yulin-cu-v4.ip.zstaticcdn.com",
+          "port": 443,
+          "methods": [
+            "tcp"
+          ]
+        },
+        {
+          "id": "zstatic_cdn:sx-changzhi-cu-v4",
+          "label": "山西长治联通",
+          "provider": "zstatic_cdn",
+          "region": "山西",
+          "country": "CN",
+          "city": "长治",
+          "network": "China Unicom",
+          "group": "山西 / 长治",
+          "level": "city",
+          "host": "sx-changzhi-cu-v4.ip.zstaticcdn.com",
+          "port": 443,
+          "methods": [
+            "tcp"
+          ]
+        },
+        {
+          "id": "zstatic_cdn:sx-cm-v4",
+          "label": "山西移动",
+          "provider": "zstatic_cdn",
+          "region": "山西",
+          "country": "CN",
+          "network": "China Mobile",
+          "group": "山西",
+          "level": "province",
+          "host": "sx-cm-v4.ip.zstaticcdn.com",
+          "port": 80,
+          "methods": [
+            "tcp"
+          ]
+        },
+        {
+          "id": "zstatic_cdn:sx-ct-v4",
+          "label": "山西电信",
+          "provider": "zstatic_cdn",
+          "region": "山西",
+          "country": "CN",
+          "network": "China Telecom",
+          "group": "山西",
+          "level": "province",
+          "host": "sx-ct-v4.ip.zstaticcdn.com",
+          "port": 80,
+          "methods": [
+            "tcp"
+          ]
+        },
+        {
+          "id": "zstatic_cdn:sx-cu-v4",
+          "label": "山西联通",
+          "provider": "zstatic_cdn",
+          "region": "山西",
+          "country": "CN",
+          "network": "China Unicom",
+          "group": "山西",
+          "level": "province",
+          "host": "sx-cu-v4.ip.zstaticcdn.com",
+          "port": 80,
+          "methods": [
+            "tcp"
+          ]
+        },
+        {
+          "id": "zstatic_cdn:sx-jinzhong-cu-v4",
+          "label": "山西晋中联通",
+          "provider": "zstatic_cdn",
+          "region": "山西",
+          "country": "CN",
+          "city": "晋中",
+          "network": "China Unicom",
+          "group": "山西 / 晋中",
+          "level": "city",
+          "host": "sx-jinzhong-cu-v4.ip.zstaticcdn.com",
+          "port": 443,
+          "methods": [
+            "tcp"
+          ]
+        },
+        {
+          "id": "zstatic_cdn:sx-linfen-cu-v4",
+          "label": "山西临汾联通",
+          "provider": "zstatic_cdn",
+          "region": "山西",
+          "country": "CN",
+          "city": "临汾",
+          "network": "China Unicom",
+          "group": "山西 / 临汾",
+          "level": "city",
+          "host": "sx-linfen-cu-v4.ip.zstaticcdn.com",
+          "port": 443,
+          "methods": [
+            "tcp"
+          ]
+        },
+        {
+          "id": "zstatic_cdn:sx-lvliang-cu-v4",
+          "label": "山西吕梁联通",
+          "provider": "zstatic_cdn",
+          "region": "山西",
+          "country": "CN",
+          "city": "吕梁",
+          "network": "China Unicom",
+          "group": "山西 / 吕梁",
+          "level": "city",
+          "host": "sx-lvliang-cu-v4.ip.zstaticcdn.com",
+          "port": 443,
+          "methods": [
+            "tcp"
+          ]
+        },
+        {
+          "id": "zstatic_cdn:sx-shuozhou-cu-v4",
+          "label": "山西朔州联通",
+          "provider": "zstatic_cdn",
+          "region": "山西",
+          "country": "CN",
+          "city": "朔州",
+          "network": "China Unicom",
+          "group": "山西 / 朔州",
+          "level": "city",
+          "host": "sx-shuozhou-cu-v4.ip.zstaticcdn.com",
+          "port": 443,
+          "methods": [
+            "tcp"
+          ]
+        },
+        {
+          "id": "zstatic_cdn:sx-taiyuan-ct-v4",
+          "label": "山西太原电信",
+          "provider": "zstatic_cdn",
+          "region": "山西",
+          "country": "CN",
+          "city": "太原",
+          "network": "China Telecom",
+          "group": "山西 / 太原",
+          "level": "city",
+          "host": "sx-taiyuan-ct-v4.ip.zstaticcdn.com",
+          "port": 443,
+          "methods": [
+            "tcp"
+          ]
+        },
+        {
+          "id": "zstatic_cdn:sx-yangquan-cu-v4",
+          "label": "山西阳泉联通",
+          "provider": "zstatic_cdn",
+          "region": "山西",
+          "country": "CN",
+          "city": "阳泉",
+          "network": "China Unicom",
+          "group": "山西 / 阳泉",
+          "level": "city",
+          "host": "sx-yangquan-cu-v4.ip.zstaticcdn.com",
+          "port": 443,
+          "methods": [
+            "tcp"
+          ]
+        },
+        {
+          "id": "zstatic_cdn:sx-yuncheng-cu-v4",
+          "label": "山西运城联通",
+          "provider": "zstatic_cdn",
+          "region": "山西",
+          "country": "CN",
+          "city": "运城",
+          "network": "China Unicom",
+          "group": "山西 / 运城",
+          "level": "city",
+          "host": "sx-yuncheng-cu-v4.ip.zstaticcdn.com",
+          "port": 443,
+          "methods": [
+            "tcp"
+          ]
+        },
+        {
+          "id": "zstatic_cdn:tj-cm-v4",
+          "label": "天津移动",
+          "provider": "zstatic_cdn",
+          "region": "天津",
+          "country": "CN",
+          "network": "China Mobile",
+          "group": "天津",
+          "level": "province",
+          "host": "tj-cm-v4.ip.zstaticcdn.com",
+          "port": 80,
+          "methods": [
+            "tcp"
+          ]
+        },
+        {
+          "id": "zstatic_cdn:tj-ct-v4",
+          "label": "天津电信",
+          "provider": "zstatic_cdn",
+          "region": "天津",
+          "country": "CN",
+          "network": "China Telecom",
+          "group": "天津",
+          "level": "province",
+          "host": "tj-ct-v4.ip.zstaticcdn.com",
+          "port": 80,
+          "methods": [
+            "tcp"
+          ]
+        },
+        {
+          "id": "zstatic_cdn:tj-cu-v4",
+          "label": "天津联通",
+          "provider": "zstatic_cdn",
+          "region": "天津",
+          "country": "CN",
+          "network": "China Unicom",
+          "group": "天津",
+          "level": "province",
+          "host": "tj-cu-v4.ip.zstaticcdn.com",
+          "port": 80,
+          "methods": [
+            "tcp"
+          ]
+        },
+        {
+          "id": "zstatic_cdn:xj-bayinguoleng-cu-v4",
+          "label": "新疆维吾尔自治区巴音郭楞蒙古自治州联通",
+          "provider": "zstatic_cdn",
+          "region": "新疆维吾尔自治区",
+          "country": "CN",
+          "city": "巴音郭楞蒙古自治州",
+          "network": "China Unicom",
+          "group": "新疆维吾尔自治区 / 巴音郭楞蒙古自治州",
+          "level": "city",
+          "host": "xj-bayinguoleng-cu-v4.ip.zstaticcdn.com",
+          "port": 443,
+          "methods": [
+            "tcp"
+          ]
+        },
+        {
+          "id": "zstatic_cdn:xj-cm-v4",
+          "label": "新疆移动",
+          "provider": "zstatic_cdn",
+          "region": "新疆",
+          "country": "CN",
+          "network": "China Mobile",
+          "group": "新疆",
+          "level": "province",
+          "host": "xj-cm-v4.ip.zstaticcdn.com",
+          "port": 80,
+          "methods": [
+            "tcp"
+          ]
+        },
+        {
+          "id": "zstatic_cdn:xj-ct-v4",
+          "label": "新疆电信",
+          "provider": "zstatic_cdn",
+          "region": "新疆",
+          "country": "CN",
+          "network": "China Telecom",
+          "group": "新疆",
+          "level": "province",
+          "host": "xj-ct-v4.ip.zstaticcdn.com",
+          "port": 80,
+          "methods": [
+            "tcp"
+          ]
+        },
+        {
+          "id": "zstatic_cdn:xj-cu-v4",
+          "label": "新疆联通",
+          "provider": "zstatic_cdn",
+          "region": "新疆",
+          "country": "CN",
+          "network": "China Unicom",
+          "group": "新疆",
+          "level": "province",
+          "host": "xj-cu-v4.ip.zstaticcdn.com",
+          "port": 80,
+          "methods": [
+            "tcp"
+          ]
+        },
+        {
+          "id": "zstatic_cdn:xj-hami-cu-v4",
+          "label": "新疆维吾尔自治区哈密联通",
+          "provider": "zstatic_cdn",
+          "region": "新疆维吾尔自治区",
+          "country": "CN",
+          "city": "哈密",
+          "network": "China Unicom",
+          "group": "新疆维吾尔自治区 / 哈密",
+          "level": "city",
+          "host": "xj-hami-cu-v4.ip.zstaticcdn.com",
+          "port": 443,
+          "methods": [
+            "tcp"
+          ]
+        },
+        {
+          "id": "zstatic_cdn:xj-hetian-cu-v4",
+          "label": "新疆维吾尔自治区和田地区联通",
+          "provider": "zstatic_cdn",
+          "region": "新疆维吾尔自治区",
+          "country": "CN",
+          "city": "和田地区",
+          "network": "China Unicom",
+          "group": "新疆维吾尔自治区 / 和田地区",
+          "level": "city",
+          "host": "xj-hetian-cu-v4.ip.zstaticcdn.com",
+          "port": 443,
+          "methods": [
+            "tcp"
+          ]
+        },
+        {
+          "id": "zstatic_cdn:xj-shihezi-cu-v4",
+          "label": "新疆维吾尔自治区石河子联通",
+          "provider": "zstatic_cdn",
+          "region": "新疆维吾尔自治区",
+          "country": "CN",
+          "city": "石河子",
+          "network": "China Unicom",
+          "group": "新疆维吾尔自治区 / 石河子",
+          "level": "city",
+          "host": "xj-shihezi-cu-v4.ip.zstaticcdn.com",
+          "port": 443,
+          "methods": [
+            "tcp"
+          ]
+        },
+        {
+          "id": "zstatic_cdn:xj-tulufan-cu-v4",
+          "label": "新疆维吾尔自治区吐鲁番联通",
+          "provider": "zstatic_cdn",
+          "region": "新疆维吾尔自治区",
+          "country": "CN",
+          "city": "吐鲁番",
+          "network": "China Unicom",
+          "group": "新疆维吾尔自治区 / 吐鲁番",
+          "level": "city",
+          "host": "xj-tulufan-cu-v4.ip.zstaticcdn.com",
+          "port": 443,
+          "methods": [
+            "tcp"
+          ]
+        },
+        {
+          "id": "zstatic_cdn:xj-wulumuqi-ct-v4",
+          "label": "新疆乌鲁木齐电信",
+          "provider": "zstatic_cdn",
+          "region": "新疆",
+          "country": "CN",
+          "city": "乌鲁木齐",
+          "network": "China Telecom",
+          "group": "新疆 / 乌鲁木齐",
+          "level": "city",
+          "host": "xj-wulumuqi-ct-v4.ip.zstaticcdn.com",
+          "port": 443,
+          "methods": [
+            "tcp"
+          ]
+        },
+        {
+          "id": "zstatic_cdn:xz-cm-v4",
+          "label": "西藏移动",
+          "provider": "zstatic_cdn",
+          "region": "西藏",
+          "country": "CN",
+          "network": "China Mobile",
+          "group": "西藏",
+          "level": "province",
+          "host": "xz-cm-v4.ip.zstaticcdn.com",
+          "port": 80,
+          "methods": [
+            "tcp"
+          ]
+        },
+        {
+          "id": "zstatic_cdn:xz-ct-v4",
+          "label": "西藏电信",
+          "provider": "zstatic_cdn",
+          "region": "西藏",
+          "country": "CN",
+          "network": "China Telecom",
+          "group": "西藏",
+          "level": "province",
+          "host": "xz-ct-v4.ip.zstaticcdn.com",
+          "port": 80,
+          "methods": [
+            "tcp"
+          ]
+        },
+        {
+          "id": "zstatic_cdn:xz-cu-v4",
+          "label": "西藏联通",
+          "provider": "zstatic_cdn",
+          "region": "西藏",
+          "country": "CN",
+          "network": "China Unicom",
+          "group": "西藏",
+          "level": "province",
+          "host": "xz-cu-v4.ip.zstaticcdn.com",
+          "port": 80,
+          "methods": [
+            "tcp"
+          ]
+        },
+        {
+          "id": "zstatic_cdn:xz-lasa-ct-v4",
+          "label": "西藏拉萨电信",
+          "provider": "zstatic_cdn",
+          "region": "西藏",
+          "country": "CN",
+          "city": "拉萨",
+          "network": "China Telecom",
+          "group": "西藏 / 拉萨",
+          "level": "city",
+          "host": "xz-lasa-ct-v4.ip.zstaticcdn.com",
+          "port": 443,
+          "methods": [
+            "tcp"
+          ]
+        },
+        {
+          "id": "zstatic_cdn:yn-cm-v4",
+          "label": "云南移动",
+          "provider": "zstatic_cdn",
+          "region": "云南",
+          "country": "CN",
+          "network": "China Mobile",
+          "group": "云南",
+          "level": "province",
+          "host": "yn-cm-v4.ip.zstaticcdn.com",
+          "port": 80,
+          "methods": [
+            "tcp"
+          ]
+        },
+        {
+          "id": "zstatic_cdn:yn-ct-v4",
+          "label": "云南电信",
+          "provider": "zstatic_cdn",
+          "region": "云南",
+          "country": "CN",
+          "network": "China Telecom",
+          "group": "云南",
+          "level": "province",
+          "host": "yn-ct-v4.ip.zstaticcdn.com",
+          "port": 80,
+          "methods": [
+            "tcp"
+          ]
+        },
+        {
+          "id": "zstatic_cdn:yn-cu-v4",
+          "label": "云南联通",
+          "provider": "zstatic_cdn",
+          "region": "云南",
+          "country": "CN",
+          "network": "China Unicom",
+          "group": "云南",
+          "level": "province",
+          "host": "yn-cu-v4.ip.zstaticcdn.com",
+          "port": 80,
+          "methods": [
+            "tcp"
+          ]
+        },
+        {
+          "id": "zstatic_cdn:yn-dehong-cu-v4",
+          "label": "云南德宏傣族景颇族自治州联通",
+          "provider": "zstatic_cdn",
+          "region": "云南",
+          "country": "CN",
+          "city": "德宏傣族景颇族自治州",
+          "network": "China Unicom",
+          "group": "云南 / 德宏傣族景颇族自治州",
+          "level": "city",
+          "host": "yn-dehong-cu-v4.ip.zstaticcdn.com",
+          "port": 443,
+          "methods": [
+            "tcp"
+          ]
+        },
+        {
+          "id": "zstatic_cdn:yn-kunming-cu-v4",
+          "label": "云南昆明联通",
+          "provider": "zstatic_cdn",
+          "region": "云南",
+          "country": "CN",
+          "city": "昆明",
+          "network": "China Unicom",
+          "group": "云南 / 昆明",
+          "level": "city",
+          "host": "yn-kunming-cu-v4.ip.zstaticcdn.com",
+          "port": 443,
+          "methods": [
+            "tcp"
+          ]
+        },
+        {
+          "id": "zstatic_cdn:yn-puer-cu-v4",
+          "label": "云南普洱联通",
+          "provider": "zstatic_cdn",
+          "region": "云南",
+          "country": "CN",
+          "city": "普洱",
+          "network": "China Unicom",
+          "group": "云南 / 普洱",
+          "level": "city",
+          "host": "yn-puer-cu-v4.ip.zstaticcdn.com",
+          "port": 443,
+          "methods": [
+            "tcp"
+          ]
+        },
+        {
+          "id": "zstatic_cdn:yn-qujing-cu-v4",
+          "label": "云南曲靖联通",
+          "provider": "zstatic_cdn",
+          "region": "云南",
+          "country": "CN",
+          "city": "曲靖",
+          "network": "China Unicom",
+          "group": "云南 / 曲靖",
+          "level": "city",
+          "host": "yn-qujing-cu-v4.ip.zstaticcdn.com",
+          "port": 443,
+          "methods": [
+            "tcp"
+          ]
+        },
+        {
+          "id": "zstatic_cdn:yn-xishuangbanna-cu-v4",
+          "label": "云南西双版纳傣族自治州联通",
+          "provider": "zstatic_cdn",
+          "region": "云南",
+          "country": "CN",
+          "city": "西双版纳傣族自治州",
+          "network": "China Unicom",
+          "group": "云南 / 西双版纳傣族自治州",
+          "level": "city",
+          "host": "yn-xishuangbanna-cu-v4.ip.zstaticcdn.com",
+          "port": 443,
+          "methods": [
+            "tcp"
+          ]
+        },
+        {
+          "id": "zstatic_cdn:zj-cm-v4",
+          "label": "浙江移动",
+          "provider": "zstatic_cdn",
+          "region": "浙江",
+          "country": "CN",
+          "network": "China Mobile",
+          "group": "浙江",
+          "level": "province",
+          "host": "zj-cm-v4.ip.zstaticcdn.com",
+          "port": 80,
+          "methods": [
+            "tcp"
+          ]
+        },
+        {
+          "id": "zstatic_cdn:zj-ct-v4",
+          "label": "浙江电信",
+          "provider": "zstatic_cdn",
+          "region": "浙江",
+          "country": "CN",
+          "network": "China Telecom",
+          "group": "浙江",
+          "level": "province",
+          "host": "zj-ct-v4.ip.zstaticcdn.com",
+          "port": 80,
+          "methods": [
+            "tcp"
+          ]
+        },
+        {
+          "id": "zstatic_cdn:zj-cu-v4",
+          "label": "浙江联通",
+          "provider": "zstatic_cdn",
+          "region": "浙江",
+          "country": "CN",
+          "network": "China Unicom",
+          "group": "浙江",
+          "level": "province",
+          "host": "zj-cu-v4.ip.zstaticcdn.com",
+          "port": 80,
+          "methods": [
+            "tcp"
+          ]
+        },
+        {
+          "id": "zstatic_cdn:zj-hangzhou-ct-v4",
+          "label": "浙江杭州电信",
+          "provider": "zstatic_cdn",
+          "region": "浙江",
+          "country": "CN",
+          "city": "杭州",
+          "network": "China Telecom",
+          "group": "浙江 / 杭州",
+          "level": "city",
+          "host": "zj-hangzhou-ct-v4.ip.zstaticcdn.com",
+          "port": 443,
+          "methods": [
+            "tcp"
+          ]
+        },
+        {
+          "id": "zstatic_cdn:zj-huzhou-cu-v4",
+          "label": "浙江湖州联通",
+          "provider": "zstatic_cdn",
+          "region": "浙江",
+          "country": "CN",
+          "city": "湖州",
+          "network": "China Unicom",
+          "group": "浙江 / 湖州",
+          "level": "city",
+          "host": "zj-huzhou-cu-v4.ip.zstaticcdn.com",
+          "port": 443,
+          "methods": [
+            "tcp"
+          ]
+        },
+        {
+          "id": "zstatic_cdn:zj-jiaxing-cu-v4",
+          "label": "浙江嘉兴联通",
+          "provider": "zstatic_cdn",
+          "region": "浙江",
+          "country": "CN",
+          "city": "嘉兴",
+          "network": "China Unicom",
+          "group": "浙江 / 嘉兴",
+          "level": "city",
+          "host": "zj-jiaxing-cu-v4.ip.zstaticcdn.com",
+          "port": 443,
+          "methods": [
+            "tcp"
+          ]
+        },
+        {
+          "id": "zstatic_cdn:zj-jinhua-cu-v4",
+          "label": "浙江金华联通",
+          "provider": "zstatic_cdn",
+          "region": "浙江",
+          "country": "CN",
+          "city": "金华",
+          "network": "China Unicom",
+          "group": "浙江 / 金华",
+          "level": "city",
+          "host": "zj-jinhua-cu-v4.ip.zstaticcdn.com",
+          "port": 443,
+          "methods": [
+            "tcp"
+          ]
+        },
+        {
+          "id": "zstatic_cdn:zj-lishui-cu-v4",
+          "label": "浙江丽水联通",
+          "provider": "zstatic_cdn",
+          "region": "浙江",
+          "country": "CN",
+          "city": "丽水",
+          "network": "China Unicom",
+          "group": "浙江 / 丽水",
+          "level": "city",
+          "host": "zj-lishui-cu-v4.ip.zstaticcdn.com",
+          "port": 443,
+          "methods": [
+            "tcp"
+          ]
+        },
+        {
+          "id": "zstatic_cdn:zj-ningbo-cm-v4",
+          "label": "浙江宁波移动",
+          "provider": "zstatic_cdn",
+          "region": "浙江",
+          "country": "CN",
+          "city": "宁波",
+          "network": "China Mobile",
+          "group": "浙江 / 宁波",
+          "level": "city",
+          "host": "zj-ningbo-cm-v4.ip.zstaticcdn.com",
+          "port": 443,
+          "methods": [
+            "tcp"
+          ]
+        },
+        {
+          "id": "zstatic_cdn:zj-shaoxing-cu-v4",
+          "label": "浙江绍兴联通",
+          "provider": "zstatic_cdn",
+          "region": "浙江",
+          "country": "CN",
+          "city": "绍兴",
+          "network": "China Unicom",
+          "group": "浙江 / 绍兴",
+          "level": "city",
+          "host": "zj-shaoxing-cu-v4.ip.zstaticcdn.com",
+          "port": 443,
+          "methods": [
+            "tcp"
+          ]
+        },
+        {
+          "id": "zstatic_cdn:zj-taizhou-ct-v4",
+          "label": "浙江台州电信",
+          "provider": "zstatic_cdn",
+          "region": "浙江",
+          "country": "CN",
+          "city": "台州",
+          "network": "China Telecom",
+          "group": "浙江 / 台州",
+          "level": "city",
+          "host": "zj-taizhou-ct-v4.ip.zstaticcdn.com",
+          "port": 443,
+          "methods": [
+            "tcp"
+          ]
+        },
+        {
+          "id": "zstatic_cdn:zj-wenzhou-cu-v4",
+          "label": "浙江温州联通",
+          "provider": "zstatic_cdn",
+          "region": "浙江",
+          "country": "CN",
+          "city": "温州",
+          "network": "China Unicom",
+          "group": "浙江 / 温州",
+          "level": "city",
+          "host": "zj-wenzhou-cu-v4.ip.zstaticcdn.com",
+          "port": 443,
+          "methods": [
+            "tcp"
+          ]
+        }
+      ]
+    },
+    {
+      "provider_id": "linode_speedtest",
+      "provider_name": "Linode/Akamai Speed Test",
+      "updated_at": 1781751746,
+      "targets": [
+        {
+          "id": "linode_speedtest:newark",
+          "label": "Linode Newark",
+          "provider": "linode_speedtest",
+          "region": "Newark",
+          "country": "US",
+          "group": "United States",
+          "host": "speedtest.newark.linode.com",
+          "port": 80,
+          "methods": [
+            "tcp",
+            "http",
+            "icmp"
+          ]
+        },
+        {
+          "id": "linode_speedtest:atlanta",
+          "label": "Linode Atlanta",
+          "provider": "linode_speedtest",
+          "region": "Atlanta",
+          "country": "US",
+          "group": "United States",
+          "host": "speedtest.atlanta.linode.com",
+          "port": 80,
+          "methods": [
+            "tcp",
+            "http",
+            "icmp"
+          ]
+        },
+        {
+          "id": "linode_speedtest:dallas",
+          "label": "Linode Dallas",
+          "provider": "linode_speedtest",
+          "region": "Dallas",
+          "country": "US",
+          "group": "United States",
+          "host": "speedtest.dallas.linode.com",
+          "port": 80,
+          "methods": [
+            "tcp",
+            "http",
+            "icmp"
+          ]
+        },
+        {
+          "id": "linode_speedtest:fremont",
+          "label": "Linode Fremont",
+          "provider": "linode_speedtest",
+          "region": "Fremont",
+          "country": "US",
+          "group": "United States",
+          "host": "speedtest.fremont.linode.com",
+          "port": 80,
+          "methods": [
+            "tcp",
+            "http",
+            "icmp"
+          ]
+        },
+        {
+          "id": "linode_speedtest:frankfurt",
+          "label": "Linode Frankfurt",
+          "provider": "linode_speedtest",
+          "region": "Frankfurt",
+          "country": "DE",
+          "group": "Europe",
+          "host": "speedtest.frankfurt.linode.com",
+          "port": 80,
+          "methods": [
+            "tcp",
+            "http",
+            "icmp"
+          ]
+        },
+        {
+          "id": "linode_speedtest:london",
+          "label": "Linode London",
+          "provider": "linode_speedtest",
+          "region": "London",
+          "country": "GB",
+          "group": "Europe",
+          "host": "speedtest.london.linode.com",
+          "port": 80,
+          "methods": [
+            "tcp",
+            "http",
+            "icmp"
+          ]
+        },
+        {
+          "id": "linode_speedtest:singapore",
+          "label": "Linode Singapore",
+          "provider": "linode_speedtest",
+          "region": "Singapore",
+          "country": "SG",
+          "group": "Asia Pacific",
+          "host": "speedtest.singapore.linode.com",
+          "port": 80,
+          "methods": [
+            "tcp",
+            "http",
+            "icmp"
+          ]
+        },
+        {
+          "id": "linode_speedtest:tokyo",
+          "label": "Linode Tokyo",
+          "provider": "linode_speedtest",
+          "region": "Tokyo",
+          "country": "JP",
+          "group": "Asia Pacific",
+          "host": "speedtest.tokyo2.linode.com",
+          "port": 80,
+          "methods": [
+            "tcp",
+            "http",
+            "icmp"
+          ]
+        },
+        {
+          "id": "linode_speedtest:sydney",
+          "label": "Linode Sydney",
+          "provider": "linode_speedtest",
+          "region": "Sydney",
+          "country": "AU",
+          "group": "Asia Pacific",
+          "host": "speedtest.syd1.linode.com",
+          "port": 80,
+          "methods": [
+            "tcp",
+            "http",
+            "icmp"
+          ]
+        },
+        {
+          "id": "linode_speedtest:mumbai",
+          "label": "Linode Mumbai",
+          "provider": "linode_speedtest",
+          "region": "Mumbai",
+          "country": "IN",
+          "group": "Asia Pacific",
+          "host": "speedtest.mumbai1.linode.com",
+          "port": 80,
+          "methods": [
+            "tcp",
+            "http",
+            "icmp"
+          ]
+        },
+        {
+          "id": "linode_speedtest:toronto",
+          "label": "Linode Toronto",
+          "provider": "linode_speedtest",
+          "region": "Toronto",
+          "country": "CA",
+          "group": "North America",
+          "host": "speedtest.toronto1.linode.com",
+          "port": 80,
+          "methods": [
+            "tcp",
+            "http",
+            "icmp"
+          ]
+        }
+      ]
+    },
+    {
+      "provider_id": "public_dns",
+      "provider_name": "Public DNS",
+      "static": true,
+      "targets": [
+        {
+          "id": "public_dns:cloudflare-dns",
+          "label": "Cloudflare DNS",
+          "provider": "public_dns",
+          "country": "Global",
+          "network": "Cloudflare",
+          "group": "Global",
+          "host": "1.1.1.1",
+          "port": 53,
+          "methods": [
+            "tcp",
+            "icmp"
+          ]
+        },
+        {
+          "id": "public_dns:google-dns",
+          "label": "Google DNS",
+          "provider": "public_dns",
+          "country": "Global",
+          "network": "Google",
+          "group": "Global",
+          "host": "8.8.8.8",
+          "port": 53,
+          "methods": [
+            "tcp",
+            "icmp"
+          ]
+        },
+        {
+          "id": "public_dns:quad9-dns",
+          "label": "Quad9 DNS",
+          "provider": "public_dns",
+          "country": "Global",
+          "network": "Quad9",
+          "group": "Global",
+          "host": "9.9.9.9",
+          "port": 53,
+          "methods": [
+            "tcp",
+            "icmp"
+          ]
+        },
+        {
+          "id": "public_dns:114-dns",
+          "label": "114 DNS",
+          "provider": "public_dns",
+          "country": "CN",
+          "network": "114DNS",
+          "group": "China",
+          "host": "114.114.114.114",
+          "port": 53,
+          "methods": [
+            "tcp",
+            "icmp"
+          ]
+        }
+      ]
+    },
+    {
+      "provider_id": "cdn_edges",
+      "provider_name": "CDN Edge Nodes",
+      "static": true,
+      "targets": [
+        {
+          "id": "cdn_edges:cloudflare-edge",
+          "label": "Cloudflare Edge",
+          "provider": "cdn_edges",
+          "country": "Global",
+          "network": "Cloudflare",
+          "group": "Global",
+          "host": "cloudflare.com",
+          "port": 443,
+          "methods": [
+            "http",
+            "tcp"
+          ]
+        },
+        {
+          "id": "cdn_edges:fastly-edge",
+          "label": "Fastly Edge",
+          "provider": "cdn_edges",
+          "country": "Global",
+          "network": "Fastly",
+          "group": "Global",
+          "host": "www.fastly.com",
+          "port": 443,
+          "methods": [
+            "http",
+            "tcp"
+          ]
+        },
+        {
+          "id": "cdn_edges:akamai-edge",
+          "label": "Akamai Edge",
+          "provider": "cdn_edges",
+          "country": "Global",
+          "network": "Akamai",
+          "group": "Global",
+          "host": "www.akamai.com",
+          "port": 443,
+          "methods": [
+            "http",
+            "tcp"
+          ]
+        }
+      ]
+    },
+    {
+      "provider_id": "cloud_test_ips",
+      "provider_name": "Cloud Provider Test IPs",
+      "static": true,
+      "targets": [
+        {
+          "id": "cloud_test_ips:aws-tokyo",
+          "label": "AWS Tokyo",
+          "provider": "cloud_test_ips",
+          "region": "Tokyo",
+          "country": "JP",
+          "network": "AWS",
+          "group": "Asia Pacific",
+          "host": "ec2.ap-northeast-1.amazonaws.com",
+          "port": 443,
+          "methods": [
+            "tcp",
+            "http"
+          ]
+        },
+        {
+          "id": "cloud_test_ips:aws-singapore",
+          "label": "AWS Singapore",
+          "provider": "cloud_test_ips",
+          "region": "Singapore",
+          "country": "SG",
+          "network": "AWS",
+          "group": "Asia Pacific",
+          "host": "ec2.ap-southeast-1.amazonaws.com",
+          "port": 443,
+          "methods": [
+            "tcp",
+            "http"
+          ]
+        },
+        {
+          "id": "cloud_test_ips:aws-virginia",
+          "label": "AWS N. Virginia",
+          "provider": "cloud_test_ips",
+          "region": "Virginia",
+          "country": "US",
+          "network": "AWS",
+          "group": "United States",
+          "host": "ec2.us-east-1.amazonaws.com",
+          "port": 443,
+          "methods": [
+            "tcp",
+            "http"
+          ]
+        }
+      ]
+    }
+  ]
+}

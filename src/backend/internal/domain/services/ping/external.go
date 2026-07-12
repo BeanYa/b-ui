@@ -254,7 +254,7 @@ func (s *ExternalService) RunInbound(ctx context.Context, sourceIDs []string, me
 
 // RunOutbound runs outbound tests from the current panel to external targets.
 func (s *ExternalService) RunOutbound(ctx context.Context, sourceIDs []string, members []MeshMember) (*ExternalResultData, error) {
-	return s.runOutboundWithMethods(ctx, sourceIDs, nil)
+	return s.runOutboundWithMethods(ctx, sourceIDs, nil, nil)
 }
 
 func (s *ExternalService) probeOutboundTarget(ctx context.Context, source ExternalEndpoint, target ExternalEndpoint, requestedMethods []string) ExternalTestResult {
@@ -279,20 +279,46 @@ func (s *ExternalService) probeOutboundTarget(ctx context.Context, source Extern
 	return r
 }
 
-func (s *ExternalService) runOutboundWithMethods(ctx context.Context, sourceIDs []string, methods []string) (*ExternalResultData, error) {
+func (s *ExternalService) runOutboundWithMethods(ctx context.Context, sourceIDs []string, targetNodeIDs []string, methods []string) (*ExternalResultData, error) {
 	config := s.store.LoadExternalConfigOrDefault()
 	enabledSources := enabledExternalSources(sourceIDs, config, DirectionOutbound)
+	enabledSourceIDs := make([]string, 0, len(enabledSources))
+	for _, src := range enabledSources {
+		enabledSourceIDs = append(enabledSourceIDs, src.ID)
+	}
+
+	catalog, err := NewTargetCatalogService(s.store).Load()
+	if err != nil {
+		return nil, err
+	}
+	var targets []ExternalEndpoint
+	if len(targetNodeIDs) > 0 {
+		targets, err = filterCatalogTargetsByID(catalog, enabledSourceIDs, targetNodeIDs)
+		if err != nil {
+			return nil, err
+		}
+	}
+
 	source := currentPanelEndpoint()
 	tasks := make([]func() ExternalTestResult, 0)
-	for _, src := range enabledSources {
-		targets := targetsForProvider(src.ID)
-		if len(targets) == 0 {
-			src := src
-			tasks = append(tasks, func() ExternalTestResult {
-				return unimplementedProviderResult(src, DirectionOutbound)
-			})
-			continue
+	if len(targetNodeIDs) == 0 {
+		for _, src := range enabledSources {
+			providerTargets := catalog.TargetsForProvider(src.ID)
+			if len(providerTargets) == 0 {
+				src := src
+				tasks = append(tasks, func() ExternalTestResult {
+					return unimplementedProviderResult(src, DirectionOutbound)
+				})
+				continue
+			}
+			for _, target := range providerTargets {
+				target := target
+				tasks = append(tasks, func() ExternalTestResult {
+					return s.probeOutboundTarget(ctx, source, target, methods)
+				})
+			}
 		}
+	} else {
 		for _, target := range targets {
 			target := target
 			tasks = append(tasks, func() ExternalTestResult {
@@ -387,7 +413,10 @@ func (s *ExternalService) Run(ctx context.Context, req ExternalRunRequest, membe
 	}
 
 	if len(enabledOut) > 0 {
-		outData, err := s.runOutboundWithMethods(ctx, enabledOut, req.Methods)
+		if len(req.TargetNodeIDs) == 0 {
+			return nil, fmt.Errorf("target_node_ids is required for outbound external ping")
+		}
+		outData, err := s.runOutboundWithMethods(ctx, enabledOut, req.TargetNodeIDs, req.Methods)
 		if err != nil {
 			return nil, err
 		}

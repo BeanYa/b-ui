@@ -99,33 +99,117 @@
           <h2>Outbound Target Groups (Cluster → External)</h2>
         </div>
         <div class="multi-location-ping__source-body">
-          <v-table density="compact">
-            <thead>
-              <tr>
-                <th>Target Group</th>
-                <th>Type</th>
-                <th>API Key</th>
-                <th>Direction</th>
-                <th>Enabled</th>
-              </tr>
-            </thead>
-            <tbody>
-              <tr v-for="src in store.outboundSources" :key="src.id">
-                <td>{{ src.name }}</td>
-                <td>{{ src.type }}</td>
-                <td><span class="text-grey">—</span></td>
-                <td>
-                  <v-chip size="small" color="warning" variant="tonal">回程</v-chip>
-                </td>
-                <td>
-                  <v-switch v-model="src.enabled" color="primary" hide-details density="compact" @update:model-value="saveConfig" />
-                </td>
-              </tr>
-            </tbody>
-          </v-table>
+          <div class="multi-location-ping__catalog-actions">
+            <v-btn
+              size="small"
+              variant="tonal"
+              color="primary"
+              :loading="store.loading"
+              @click="refreshOutboundTargets"
+            >
+              Refresh Targets
+            </v-btn>
+            <span class="multi-location-ping__selection-count">
+              {{ selectedOutboundTargetIds.length }} selected
+            </span>
+          </div>
+
+          <v-alert
+            v-if="outboundProviderGroups.length === 0"
+            type="info"
+            variant="tonal"
+            density="compact"
+          >
+            No outbound targets are available.
+          </v-alert>
+
+          <v-expansion-panels
+            v-else
+            v-model="expandedProviders"
+            multiple
+            variant="accordion"
+            density="compact"
+          >
+            <v-expansion-panel
+              v-for="provider in outboundProviderGroups"
+              :key="provider.id"
+              :value="provider.id"
+            >
+              <v-expansion-panel-title>
+                <div class="multi-location-ping__provider-title">
+                  <v-checkbox-btn
+                    :model-value="areAllTargetsSelected(provider.targets)"
+                    :indeterminate="areSomeTargetsSelected(provider.targets)"
+                    :disabled="!provider.enabled"
+                    density="compact"
+                    @click.stop="toggleProviderTargets(provider)"
+                  />
+                  <span>{{ provider.name }}</span>
+                  <v-chip size="x-small" variant="tonal">{{ provider.targets.length }}</v-chip>
+                  <v-chip v-if="!provider.enabled" size="x-small" variant="tonal" color="warning">Disabled</v-chip>
+                </div>
+              </v-expansion-panel-title>
+              <v-expansion-panel-text>
+                <v-expansion-panels
+                  v-model="expandedTargetGroups"
+                  multiple
+                  variant="accordion"
+                  density="compact"
+                >
+                  <v-expansion-panel
+                    v-for="targetGroup in provider.targetGroups"
+                    :key="targetGroup.key"
+                    :value="targetGroup.key"
+                  >
+                    <v-expansion-panel-title>
+                      <div class="multi-location-ping__group-title">
+                        <v-checkbox-btn
+                          :model-value="areAllTargetsSelected(targetGroup.targets)"
+                          :indeterminate="areSomeTargetsSelected(targetGroup.targets)"
+                          :disabled="!targetGroup.enabled"
+                          density="compact"
+                          @click.stop="toggleTargetGroup(targetGroup)"
+                        />
+                        <span>{{ targetGroup.label }}</span>
+                        <v-chip size="x-small" variant="tonal">{{ targetGroup.targets.length }}</v-chip>
+                      </div>
+                    </v-expansion-panel-title>
+                    <v-expansion-panel-text>
+                      <div class="multi-location-ping__target-grid">
+                        <v-checkbox
+                          v-for="target in targetGroup.targets"
+                          :key="target.id"
+                          v-model="selectedOutboundTargetIds"
+                          :value="target.id"
+                          :disabled="!provider.enabled"
+                          density="compact"
+                          hide-details
+                        >
+                          <template #label>
+                            <span class="multi-location-ping__target-label">
+                              <strong>{{ endpointLabel(target) }}</strong>
+                              <span>{{ endpointLocation(target) }}</span>
+                              <span>{{ endpointAddressText(target) }}</span>
+                            </span>
+                          </template>
+                        </v-checkbox>
+                      </div>
+                    </v-expansion-panel-text>
+                  </v-expansion-panel>
+                </v-expansion-panels>
+              </v-expansion-panel-text>
+            </v-expansion-panel>
+          </v-expansion-panels>
         </div>
         <div class="multi-location-ping__source-actions">
-          <v-btn color="primary" :loading="store.loading" @click="runOutbound">Start Outbound Test</v-btn>
+          <v-btn
+            color="primary"
+            :loading="store.loading"
+            :disabled="selectedOutboundProviderIds.length === 0"
+            @click="runOutbound"
+          >
+            Start Outbound Test
+          </v-btn>
         </div>
       </section>
 
@@ -321,6 +405,9 @@ const domainOptions = ref<{ title: string; value: string }[]>([])
 const showKeys = reactive<Record<string, boolean>>({})
 const inboundTargetHost = ref(defaultInboundTargetHost())
 const inboundTargetPort = ref(defaultInboundTargetPort())
+const selectedOutboundTargetIds = ref<string[]>([])
+const expandedProviders = ref<string[]>([])
+const expandedTargetGroups = ref<string[]>([])
 
 type EndpointAxis = {
   key: string
@@ -335,6 +422,15 @@ type ExternalMatrixCell = {
   ms: number | null
   method: string | null
   title: string
+}
+
+type OutboundTargetGroup = { key: string; label: string; enabled: boolean; targets: ExternalEndpoint[] }
+type OutboundProviderGroup = {
+  id: string
+  name: string
+  enabled: boolean
+  targetGroups: OutboundTargetGroup[]
+  targets: ExternalEndpoint[]
 }
 
 function defaultInboundTargetHost() {
@@ -372,6 +468,7 @@ function normalizedInboundTargetPort(value: string) {
 
 onMounted(async () => {
   await store.loadExternalConfig()
+  await store.loadExternalTargetCatalog()
   try {
     const { data } = await (await import('axios')).default.get('/api/cluster/domains')
     if (data.success) {
@@ -406,11 +503,12 @@ async function runInbound() {
 }
 
 async function runOutbound() {
-  const ids = store.outboundSources.filter(s => s.enabled).map(s => s.id)
-  if (ids.length === 0) return
+  const ids = selectedOutboundProviderIds.value
+  if (ids.length === 0 || selectedOutboundTargetIds.value.length === 0) return
   await store.triggerExternalPing({
     direction: 'outbound',
     source_ids: ids,
+    target_node_ids: selectedOutboundTargetIds.value,
     methods: ['tcp', 'http', 'icmp'],
   })
 }
@@ -470,6 +568,95 @@ function endpointAxis(endpoint: ExternalEndpoint | null | undefined, fallback: s
     location: endpointLocation(endpoint),
     address: endpointAddressText(endpoint),
   }
+}
+
+function outboundTargetGroupLabel(target: ExternalEndpoint) {
+  return target.group?.trim() || target.region?.trim() || target.city?.trim() || 'Other'
+}
+
+const outboundProviderGroups = computed<OutboundProviderGroup[]>(() => {
+  return (store.externalTargetCatalog?.providers ?? [])
+    .map(provider => {
+      const enabled = isOutboundProviderEnabled(provider.provider_id)
+      const targetGroupsByLabel = new Map<string, ExternalEndpoint[]>()
+      for (const target of provider.targets ?? []) {
+        const label = outboundTargetGroupLabel(target)
+        const targets = targetGroupsByLabel.get(label) ?? []
+        targets.push(target)
+        targetGroupsByLabel.set(label, targets)
+      }
+      const targetGroups = [...targetGroupsByLabel.entries()]
+        .map(([label, targets]) => ({
+          key: `${provider.provider_id}:${label}`,
+          label,
+          enabled,
+          targets: [...targets].sort((a, b) =>
+            endpointLabel(a).localeCompare(endpointLabel(b)) ||
+            endpointAddressText(a).localeCompare(endpointAddressText(b))
+          ),
+        }))
+        .sort((a, b) => a.label.localeCompare(b.label))
+      const targets = targetGroups.flatMap(group => group.targets)
+      return {
+        id: provider.provider_id,
+        name: provider.provider_name,
+        enabled,
+        targetGroups,
+        targets,
+      }
+    })
+    .filter(provider => provider.targets.length > 0)
+    .sort((a, b) => a.name.localeCompare(b.name))
+})
+
+const selectedOutboundTargetSet = computed(() => new Set(selectedOutboundTargetIds.value))
+
+const selectedOutboundProviderIds = computed(() =>
+  outboundProviderGroups.value
+    .filter(provider => provider.enabled && provider.targets.some(target => selectedOutboundTargetSet.value.has(target.id)))
+    .map(provider => provider.id)
+)
+
+function isOutboundProviderEnabled(providerId: string) {
+  return store.outboundSources.some(source => source.id === providerId && source.enabled)
+}
+
+function setSelectedTargets(targets: ExternalEndpoint[], selected: boolean) {
+  const targetIds = new Set(targets.map(target => target.id))
+  const next = new Set(selectedOutboundTargetIds.value)
+  for (const id of targetIds) {
+    if (selected) {
+      next.add(id)
+    } else {
+      next.delete(id)
+    }
+  }
+  selectedOutboundTargetIds.value = [...next]
+}
+
+function areAllTargetsSelected(targets: ExternalEndpoint[]) {
+  return targets.length > 0 && targets.every(target => selectedOutboundTargetSet.value.has(target.id))
+}
+
+function areSomeTargetsSelected(targets: ExternalEndpoint[]) {
+  return targets.some(target => selectedOutboundTargetSet.value.has(target.id)) && !areAllTargetsSelected(targets)
+}
+
+function toggleProviderTargets(provider: OutboundProviderGroup) {
+  if (!provider.enabled) return
+  setSelectedTargets(provider.targets, !areAllTargetsSelected(provider.targets))
+}
+
+function toggleTargetGroup(targetGroup: OutboundTargetGroup) {
+  if (!targetGroup.enabled) return
+  setSelectedTargets(targetGroup.targets, !areAllTargetsSelected(targetGroup.targets))
+}
+
+async function refreshOutboundTargets() {
+  await store.refreshExternalTargetCatalog([])
+  await store.loadExternalTargetCatalog()
+  const availableTargetIds = new Set(outboundProviderGroups.value.flatMap(provider => provider.targets.map(target => target.id)))
+  selectedOutboundTargetIds.value = selectedOutboundTargetIds.value.filter(id => availableTargetIds.has(id))
 }
 
 function externalAxes(
@@ -607,6 +794,53 @@ function cellStyle(cell: { success: boolean; ms: number | null } | null) {
   align-items: center;
   display: flex;
   justify-content: flex-start;
+}
+
+.multi-location-ping__catalog-actions {
+  align-items: center;
+  display: flex;
+  gap: 12px;
+  justify-content: space-between;
+  margin-bottom: 12px;
+}
+
+.multi-location-ping__selection-count {
+  color: color-mix(in srgb, currentColor 68%, transparent);
+  font-size: 12px;
+  font-variant-numeric: tabular-nums;
+}
+
+.multi-location-ping__provider-title,
+.multi-location-ping__group-title {
+  align-items: center;
+  display: flex;
+  gap: 8px;
+  min-width: 0;
+}
+
+.multi-location-ping__provider-title span,
+.multi-location-ping__group-title span {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.multi-location-ping__target-grid {
+  display: grid;
+  gap: 2px 12px;
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+}
+
+.multi-location-ping__target-label {
+  display: grid;
+  gap: 1px;
+  line-height: 1.25;
+  min-width: 0;
+}
+
+.multi-location-ping__target-label span {
+  color: color-mix(in srgb, currentColor 64%, transparent);
+  font-size: 11px;
 }
 
 .multi-location-ping__target-controls {

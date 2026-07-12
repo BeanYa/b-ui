@@ -15,12 +15,36 @@ describe('MultiLocationPing view source', () => {
     expect(source).toContain('target: {')
   })
 
-  it('sends outbound current-node requests without target node ids', () => {
+  it('sends selected outbound target node ids', () => {
     const source = readSource()
 
-    expect(source).toContain("direction: 'outbound'")
-    expect(source).not.toContain('target_node_ids')
-    expect(source).not.toContain('targetNodeIds')
+    expect(source).toContain('selectedOutboundTargetIds')
+    expect(source).toContain('target_node_ids: selectedOutboundTargetIds.value')
+  })
+
+  it('loads and refreshes the outbound target catalog', () => {
+    const source = readSource()
+
+    expect(source).toContain('loadExternalTargetCatalog')
+    expect(source).toContain('refreshExternalTargetCatalog')
+    expect(source).toContain('refreshOutboundTargets')
+  })
+
+  it('groups outbound targets by provider and target group', () => {
+    const source = readSource()
+
+    expect(source).toContain('outboundProviderGroups')
+    expect(source).toContain('targetGroups')
+    expect(source).toContain('toggleProviderTargets')
+    expect(source).toContain('toggleTargetGroup')
+  })
+
+  it('does not run disabled outbound providers', () => {
+    const source = readSource()
+
+    expect(source).toContain('isOutboundProviderEnabled')
+    expect(source).toContain('.filter(provider => provider.enabled')
+    expect(source).toContain(':disabled="!provider.enabled"')
   })
 
   it('renders endpoint metadata columns for external results', () => {
